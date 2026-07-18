@@ -1,18 +1,13 @@
 import os
 from kivy.clock import Clock
-from kivy.metrics import dp
 from kivymd.toast import toast
 from kivymd.uix.button import MDFlatButton, MDRaisedButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.textfield import MDTextField
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.menu import MDDropdownMenu
-from kivymd.uix.segmentedcontrol import MDSegmentedControl, MDSegmentedControlItem
-from kivymd.uix.list import OneLineListItem, TwoLineAvatarIconListItem, IconLeftWidget, IconRightWidget, IRightBodyTouch, OneLineAvatarIconListItem
+from kivymd.uix.list import TwoLineAvatarIconListItem, IconLeftWidget
 from kivymd.uix.label import MDLabel
-from database.db import get_connection
-from services.transaction_service import TransactionService
-from ui.components import CategorySettingItem, RightButtonsContainer, BudgetListItem, LegendItem, LegendWidget
 
 
 # ─── BIST 100 Hisse Listesi ───────────────────────────────────────────────────

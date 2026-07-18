@@ -30,7 +30,8 @@
       "Bash(.venv/bin/python tests/test_crypto.py)",
       "Bash(.venv/bin/python tests/test_metrics.py)",
       "Bash(git commit -m 'Test dosyaları tests/ klasörüne taşındı *)",
-      "Bash(.venv/bin/python -m py_compile mixins/*.py)"
+      "Bash(.venv/bin/python -m py_compile mixins/*.py)",
+      "Bash(git commit -m 'Mixin'\\\\''lerdeki kopyala-yapıştır import bloklarından kullanılmayanlar ayıklandı *)"
     ]
   }
 }
