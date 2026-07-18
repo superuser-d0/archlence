@@ -710,7 +710,7 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, TransactionMixin)
                 continue
                 
             try:
-                amount = float(decrypt(amount_enc, "finora_secure_2026"))
+                amount = float(decrypt(amount_enc, SECRET_KEY))
             except:
                 amount = 0.0
                 
@@ -774,7 +774,6 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, TransactionMixin)
         def fetch_task():
             from database.db import get_connection
             from utils.crypto import decrypt
-            from security.security_service import SecurityService
             SECRET_KEY = 'finora_secure_2026'
             
             try:
@@ -800,8 +799,12 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, TransactionMixin)
                         dec_amt = float(decrypt(str(amount_enc), SECRET_KEY))
                     except Exception:
                         dec_amt = 0.0
+                    # Açıklamalar da tutarlar gibi utils.crypto (AES-CBC) ile
+                    # yazılıyor; eskiden burada yanlışlıkla Fernet tabanlı
+                    # SecurityService kullanılıyordu ve açıklamalar ekranda
+                    # çözülmemiş base64 olarak görünüyordu.
                     try:
-                        dec_desc = SecurityService.decrypt_data(desc_enc)
+                        dec_desc = decrypt(str(desc_enc), SECRET_KEY) if desc_enc else ""
                     except Exception:
                         dec_desc = ""
                         

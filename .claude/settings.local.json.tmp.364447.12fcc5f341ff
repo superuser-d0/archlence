@@ -8,7 +8,8 @@
       "Bash(git config *)",
       "Bash(.venv/bin/python test_startup_import.py)",
       "Bash(echo \"exit: $?\")",
-      "Bash(git commit -m 'Antigravity IDE için mekanik temizlik görev listesi *)"
+      "Bash(git commit -m 'Antigravity IDE için mekanik temizlik görev listesi *)",
+      "Bash(git commit -m 'Şifreleme tekilleştirme: tüm veri şifreleme utils/crypto \\(AES-CBC\\) üzerinden *)"
     ]
   }
 }
