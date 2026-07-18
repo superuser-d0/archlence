@@ -1,0 +1,1479 @@
+#:import FadeTransition kivy.uix.screenmanager.FadeTransition
+#:import Window kivy.core.window.Window
+#:import LiquidWaveWidget ui.charts.LiquidWaveWidget
+
+# --- 0. GLOBAL WIDGET KURALLARI ---
+<MDBottomNavigationBar>:
+    elevation: 0
+    shadow_softness: 0
+
+# --- 1. ÖZEL LİSTE ELEMANLARI VE KURALLAR ---
+<LegendItem>:
+    orientation: "horizontal"
+    size_hint_y: None
+    height: "24dp"
+    MDIcon:
+        icon: "circle"
+        theme_text_color: "Custom"
+        text_color: root.color
+    MDLabel:
+        text: root.text
+        theme_text_color: "Primary"
+
+<CategorySettingItem>:
+    orientation: "horizontal"
+    size_hint_y: None
+    height: "56dp"
+    padding: ["15dp", 0, "40dp", 0]
+    spacing: "10dp"
+    
+    MDLabel:
+        text: root.cat_name
+        theme_text_color: "Primary"
+    MDSwitch:
+        size_hint_x: None
+        width: "52dp"
+        pos_hint: {"center_y": .5}
+        icon_active: "check"
+        icon_inactive: "close"
+        active: True if root.cat_importance == 'main' else False
+        on_active: app.update_category_importance(root.cat_name, self.active)
+
+<ClickableSettingsRow@ButtonBehavior+MDBoxLayout>:
+
+<BudgetListItem>:
+    text: ""
+    secondary_text: ""
+    
+    IconLeftWidget:
+        icon: "cash-plus" if "Gelir" in root.secondary_text else "cash-minus"
+        theme_text_color: "Custom"
+        text_color: (0.18, 0.8, 0.25, 1) if "Gelir" in root.secondary_text else (0.9, 0.2, 0.2, 1)
+
+<AdminScreen@MDScreen>:
+    MDBoxLayout:
+        orientation: "vertical"
+        MDTopAppBar:
+            title: "Sistem Yönetimi (Admin)"
+            left_action_items: [["logout", lambda x: app.admin_logout()]]
+            elevation: 4
+        
+        ScrollView:
+            MDBoxLayout:
+                orientation: "vertical"
+                padding: "20dp"
+                spacing: "20dp"
+                adaptive_height: True
+
+                MDCard:
+                    orientation: "vertical"
+                    padding: "16dp"
+                    spacing: "10dp"
+                    size_hint_y: None
+                    height: "120dp"
+                    elevation: 2
+                    radius: [15]
+                    
+                    MDLabel:
+                        text: "Veritabanı Durumu"
+                        font_style: "H6"
+                        bold: True
+                    
+                    MDLabel:
+                        id: stats_label
+                        text: "Toplam İşlem Kaydı: ...\nToplam Bütçe Kalemi: ..."
+                        theme_text_color: "Secondary"
+                
+                MDRaisedButton:
+                    text: "Veritabanını Dışa Aktar (CSV)"
+                    icon: "export"
+                    size_hint_x: 1
+                    md_bg_color: app.theme_cls.primary_color
+                    on_release: root.export_to_csv()
+                
+                MDRaisedButton:
+                    text: "Sistemi Sıfırla (Factory Reset)"
+                    icon: "delete-forever"
+                    size_hint_x: 1
+                    md_bg_color: 0.9, 0.2, 0.2, 1
+                    on_release: root.confirm_factory_reset()
+
+        Widget:
+
+# --- 2. ANA ARAYÜZ İSKELETİ ---
+MDScreen:
+    md_bg_color: app.theme_cls.bg_normal
+
+    MDScreenManager:
+        id: screen_manager
+        transition: FadeTransition(duration=0.2)
+
+        # --- GİRİŞ EKRANI ---
+        MDScreen:
+            name: "login"
+            MDFloatLayout:
+                MDIconButton:
+                    icon: "cog"
+                    pos_hint: {"top": 0.98, "right": 0.98}
+                    theme_text_color: "Hint"
+                    on_release: screen_manager.current = "pre_login_settings"
+
+                MDBoxLayout:
+                    orientation: "vertical"
+                    padding: "40dp"
+                    spacing: "20dp"
+                    pos_hint: {"center_x": .5, "center_y": .5}
+                    size_hint_y: None
+                    height: "480dp"
+
+                    MDLabel:
+                        text: "FINORA"
+                        font_style: "H3"
+                        halign: "center"
+                        theme_text_color: "Primary"
+                        bold: True
+
+                    MDLabel:
+                        text: "Güvenli Giriş"
+                        font_style: "Subtitle1"
+                        halign: "center"
+                        theme_text_color: "Secondary"
+
+                    MDTextField:
+                        id: username_input
+                        hint_text: "Kullanıcı Adı"
+                        icon_right: "account"
+                        size_hint_x: 0.8
+                        pos_hint: {"center_x": .5}
+                        multiline: False
+                        write_tab: False
+
+                    MDRelativeLayout:
+                        id: password_container
+                        size_hint_x: 0.8
+                        pos_hint: {"center_x": .5}
+                        size_hint_y: None
+                        height: password_input.height
+
+                        MDTextField:
+                            id: password_input
+                            hint_text: "Şifre"
+                            password: True
+                            multiline: False
+                            write_tab: False
+                            on_text_validate: app.check_login()
+
+                        MDIconButton:
+                            icon: "eye-off"
+                            pos_hint: {"center_y": .5}
+                            pos: password_input.width - self.width, 0
+                            theme_text_color: "Hint"
+                            on_release:
+                                self.icon = "eye" if self.icon == "eye-off" else "eye-off"
+                                password_input.password = False if password_input.password is True else True
+
+                    MDTextButton:
+                        text: "Şifreni mi unuttun?"
+                        theme_text_color: "Hint"
+                        pos_hint: {"center_x": .5}
+                        on_release: screen_manager.current = "forgot_password"
+
+                    MDLabel:
+                        id: login_error_label
+                        text: ""
+                        theme_text_color: "Error"
+                        halign: "center"
+                        size_hint_y: None
+                        height: "20dp"
+
+                    MDRaisedButton:
+                        text: "GİRİŞ YAP"
+                        size_hint_x: 0.5
+                        pos_hint: {"center_x": .5}
+                        on_release: app.check_login()
+                        
+                    MDTextButton:
+                        text: "Finora'da yeni misin? Hemen bir hesap oluştur."
+                        theme_text_color: "Primary"
+                        pos_hint: {"center_x": .5}
+
+                    Widget:
+
+        # --- ŞİFREMİ UNUTTUM EKRANI ---
+        MDScreen:
+            name: "forgot_password"
+            MDBoxLayout:
+                orientation: "vertical"
+                MDTopAppBar:
+                    title: "Şifre Sıfırlama"
+                    left_action_items: [["arrow-left", lambda x: setattr(screen_manager, 'current', 'login')]]
+                    elevation: 4
+                
+                MDBoxLayout:
+                    orientation: "vertical"
+                    padding: "40dp"
+                    spacing: "30dp"
+                    pos_hint: {"center_x": .5, "center_y": .6}
+                    size_hint_y: None
+                    height: "350dp"
+
+                    MDLabel:
+                        text: "Finora hesabınıza bağlı olan\ne-posta adresini giriniz."
+                        halign: "center"
+                        font_style: "Subtitle1"
+                        theme_text_color: "Primary"
+
+                    MDTextField:
+                        hint_text: "ornek@finora.com"
+                        icon_right: "email"
+                        size_hint_x: 0.8
+                        pos_hint: {"center_x": .5}
+                        mode: "rectangle"
+
+                    MDRaisedButton:
+                        text: "ŞİFRE AL"
+                        size_hint_x: 0.5
+                        pos_hint: {"center_x": .5}
+
+                    Widget:
+                Widget:
+
+        # --- GİRİŞ ÖNCESİ AYARLAR EKRANI ---
+        MDScreen:
+            name: "pre_login_settings"
+            MDBoxLayout:
+                orientation: "vertical"
+                MDTopAppBar:
+                    title: "Ayarlar"
+                    left_action_items: [["arrow-left", lambda x: setattr(screen_manager, 'current', 'login')]]
+                    elevation: 4
+                
+                ScrollView:
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        adaptive_height: True
+                        MDSeparator:
+                        MDBoxLayout:
+                            orientation: "horizontal"
+                            size_hint_y: None
+                            height: "64dp"
+                            padding: ["20dp", 0, "20dp", 0]
+                            spacing: "20dp"
+                            MDIcon:
+                                icon: "moon-waning-crescent"
+                                size_hint_x: None
+                                width: "36dp"
+                                halign: "center"
+                                pos_hint: {"center_y": .5}
+                                theme_text_color: "Primary"
+                            MDLabel:
+                                text: "Karanlık Mod"
+                                theme_text_color: "Primary"
+                            MDSwitch:
+                                size_hint_x: None
+                                width: "52dp"
+                                pos_hint: {"center_y": .5}
+                                icon_active: "check"
+                                icon_inactive: "close"
+                                active: True if app.theme_cls.theme_style == "Dark" else False
+                                on_active: app.toggle_theme(self.active)
+                        MDSeparator:
+                Widget:
+
+        # --- YÖNETİCİ EKRANI ---
+        AdminScreen:
+            name: "admin"
+
+        # --- ANA UYGULAMA (SABİT ALT SEKMELER - BOTTOM NAVIGATION) ---
+        MDScreen:
+            name: "home"
+
+            MDBottomNavigation:
+                id: bottom_nav
+                transition_duration: 0.4
+                selected_color_background: 0, 0, 0, 0
+                text_color_active: app.theme_cls.primary_color
+                panel_color: app.theme_cls.bg_normal
+
+                # ==== 1. SEKME: ANA SAYFA ====
+                MDBottomNavigationItem:
+                    name: "home_tab"
+                    text: "Ana Sayfa"
+                    icon: "home-variant"
+                    
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        
+                        MDBoxLayout:
+                            size_hint_y: None
+                            height: "72dp"
+                            padding: ["16dp", "10dp", "16dp", "10dp"]
+                            spacing: "15dp"
+                            
+                            MDIconButton:
+                                icon: "account-circle"
+                                icon_size: "36dp"
+                                pos_hint: {"center_y": .5}
+                                theme_text_color: "Primary"
+                                on_release: bottom_nav.switch_tab("settings_tab")
+                                
+                            MDTextField:
+                                hint_text: "Finora'da ara..."
+                                icon_left: "magnify"
+                                mode: "round"
+                                size_hint_y: None
+                                height: "40dp"
+                                pos_hint: {"center_y": .5}
+                                
+                            MDIconButton:
+                                icon: "bell-outline"
+                                icon_size: "28dp"
+                                pos_hint: {"center_y": .5}
+                                theme_text_color: "Primary"
+
+                        ScrollView:
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                padding: ["20dp", "10dp", "20dp", "20dp"]
+                                spacing: "20dp"
+                                size_hint_y: None
+                                height: self.minimum_height
+
+                                MDBoxLayout:
+                                    orientation: "horizontal"
+                                    size_hint_y: None
+                                    height: "40dp"
+                                    pos_hint: {"center_x": .5}
+                                    adaptive_width: True
+                                    spacing: "8dp"
+                                    
+                                    MDIcon:
+                                        icon: "wallet"
+                                        theme_text_color: "Secondary"
+                                        pos_hint: {"center_y": .5}
+                                    MDLabel:
+                                        text: "Cüzdanım"
+                                        font_style: "Subtitle1"
+                                        bold: True
+                                        adaptive_width: True
+                                        pos_hint: {"center_y": .5}
+                                    MDIcon:
+                                        icon: "chevron-down"
+                                        theme_text_color: "Secondary"
+                                        pos_hint: {"center_y": .5}
+
+                                MDRelativeLayout:
+                                    size_hint: None, None
+                                    size: "240dp", "240dp"
+                                    pos_hint: {"center_x": .5}
+
+                                    MDFloatLayout:
+                                        id: balance_circle
+                                        canvas.before:
+                                            Color:
+                                                rgba: app.home_circle_color
+                                            Line:
+                                                width: 2.5
+                                                circle: (self.center_x, self.center_y, dp(115))
+
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        size_hint: None, None
+                                        size: "220dp", "150dp"
+                                        pos_hint: {"center_x": .5, "center_y": .5}
+                                        spacing: "10dp"
+
+                                        MDLabel:
+                                            text: "Toplam Bakiye"
+                                            halign: "center"
+                                            theme_text_color: "Secondary"
+
+                                        MDLabel:
+                                            id: home_total_balance
+                                            text: "0,00 ₺" 
+                                            font_style: "H5"
+                                            bold: True
+                                            halign: "center"
+                                            theme_text_color: "Primary"
+
+                                        MDBoxLayout:
+                                            orientation: "horizontal"
+                                            adaptive_size: True
+                                            pos_hint: {"center_x": .5}
+                                            spacing: "10dp"
+                                            
+                                            MDLabel:
+                                                id: change_rate_label
+                                                text: "%0.0"
+                                                font_size: "14sp"
+                                                theme_text_color: "Custom"
+                                                text_color: 0.13, 0.59, 0.95, 1
+                                                adaptive_width: True
+                                            MDIcon:
+                                                icon: "chart-line-variant"
+                                                theme_text_color: "Custom"
+                                                text_color: 0.13, 0.59, 0.95, 1
+                                                font_size: "16sp"
+                                                pos_hint: {"center_y": .5}
+                                                
+                                        MDLabel:
+                                            id: home_change_title
+                                            text: "Aylık Gider Değişimi"
+                                            halign: "center"
+                                            font_size: "12sp"
+                                            theme_text_color: "Secondary"
+
+                                # ZAMAN FİLTRESİ
+                                MDSegmentedControl:
+                                    pos_hint: {"center_x": .5}
+                                    size_hint_x: 0.9
+                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (0.9, 0.9, 0.9, 1)
+                                    segment_color: (0.3, 0.3, 0.3, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                    on_active: app.change_home_filter(args[1].text)
+                                    MDSegmentedControlItem:
+                                        text: "Bugün"
+                                    MDSegmentedControlItem:
+                                        text: "1 Hafta"
+                                    MDSegmentedControlItem:
+                                        text: "1 Ay"
+                                    MDSegmentedControlItem:
+                                        text: "1 Yıl"
+
+                                MDBoxLayout:
+                                    orientation: "horizontal"
+                                    size_hint_y: None
+                                    height: "100dp"
+                                    spacing: "15dp"
+
+                                    MDCard:
+                                        padding: "15dp"
+                                        radius: [16]
+                                        elevation: 0
+                                        md_bg_color: (0.1, 0.1, 0.1, 0.5) if app.theme_cls.theme_style == "Dark" else (0.9, 0.9, 0.9, 0.5)
+                                        orientation: "vertical"
+                                        
+                                        MDLabel:
+                                            id: today_card_title
+                                            text: "Bugün"
+                                            font_size: "14sp"
+                                            theme_text_color: "Secondary"
+                                        MDLabel:
+                                            id: today_card_amount
+                                            text: "0,0 ₺"
+                                            font_style: "Subtitle1"
+                                            bold: True
+
+                                    MDCard:
+                                        padding: "15dp"
+                                        radius: [16]
+                                        elevation: 0
+                                        md_bg_color: (0.1, 0.1, 0.1, 0.5) if app.theme_cls.theme_style == "Dark" else (0.9, 0.9, 0.9, 0.5)
+                                        orientation: "vertical"
+                                        
+                                        MDLabel:
+                                            text: "Toplam"
+                                            font_size: "14sp"
+                                            theme_text_color: "Secondary"
+                                        MDLabel:
+                                            id: total_card_amount
+                                            text: "0,0 ₺"
+                                            font_style: "Subtitle1"
+                                            bold: True
+
+                                # YENİ: MATEMATİKSEL ÖNGÖRÜ KARTI
+                                MDCard:
+                                    size_hint_y: None
+                                    height: "90dp"
+                                    padding: "15dp"
+                                    radius: [16]
+                                    elevation: 0
+                                    md_bg_color: (0.1, 0.1, 0.1, 0.5) if app.theme_cls.theme_style == "Dark" else (0.9, 0.9, 0.9, 0.5)
+                                    orientation: "horizontal"
+                                    spacing: "15dp"
+
+                                    MDIcon:
+                                        id: prediction_icon
+                                        icon: "robot-outline"
+                                        theme_text_color: "Custom"
+                                        text_color: 0.5, 0.5, 0.5, 1
+                                        font_size: "36sp"
+                                        pos_hint: {"center_y": .5}
+
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        spacing: "2dp"
+                                        pos_hint: {"center_y": .5}
+                                        MDLabel:
+                                            text: "Algoritmik Öngörü"
+                                            font_style: "Subtitle2"
+                                            bold: True
+                                            theme_text_color: "Primary"
+                                        MDLabel:
+                                            id: prediction_text
+                                            text: "Veriler analiz ediliyor..."
+                                            font_style: "Caption"
+                                            theme_text_color: "Secondary"
+
+
+
+                                # YENİ: AYLIK BÜTÇE PLANI KARTI
+                                MDCard:
+                                    orientation: "vertical"
+                                    padding: "16dp"
+                                    spacing: "10dp"
+                                    size_hint_y: None
+                                    height: "240dp"
+                                    elevation: 0
+                                    radius: [16, 16, 16, 16]
+                                    md_bg_color: [1, 1, 1, 1]
+                                    line_color: [0.9, 0.9, 0.9, 1]
+                                    line_width: 1.2
+
+                                    MDBoxLayout:
+                                        size_hint_y: None
+                                        height: "30dp"
+                                        spacing: "10dp"
+                                        MDIcon:
+                                            id: projection_icon
+                                            icon: "calendar-month"
+                                            theme_text_color: "Custom"
+                                            text_color: app.theme_cls.primary_color
+                                            font_size: "24sp"
+                                        MDLabel:
+                                            text: "Aylık Bütçe Planı"
+                                            font_style: "H6"
+                                            bold: True
+                                        MDIconButton:
+                                            icon: "pencil-outline"
+                                            pos_hint: {"center_y": .5}
+                                            on_release: app.show_budget_planner()
+
+                                    # YENİ: Yatay Ay Seçici
+                                    ScrollView:
+                                        do_scroll_y: False
+                                        do_scroll_x: True
+                                        size_hint_y: None
+                                        height: "40dp"
+                                        
+                                        MDBoxLayout:
+                                            id: month_selector_container
+                                            orientation: "horizontal"
+                                            adaptive_width: True
+                                            spacing: "10dp"
+                                            
+                                            # Dinamik Olarak Python Tarafından Doldurulacak
+
+                                    MDLabel:
+                                        id: projection_label
+                                        text: "Ay seçin ve plan oluşturun..."
+                                        theme_text_color: "Secondary"
+                                        font_style: "Body2"
+                                        halign: "left"
+                                        valign: "top"
+                                        text_size: self.width, None
+
+                                # YENİ: AKTİF BORÇLARIM KARTI
+                                MDCard:
+                                    orientation: "vertical"
+                                    padding: "16dp"
+                                    spacing: "10dp"
+                                    size_hint_y: None
+                                    height: "260dp"
+                                    elevation: 0
+                                    radius: [16, 16, 16, 16]
+                                    md_bg_color: [1, 1, 1, 1]
+                                    line_color: [0.9, 0.9, 0.9, 1]
+                                    line_width: 1.2
+
+                                    MDBoxLayout:
+                                        size_hint_y: None
+                                        height: "30dp"
+                                        spacing: "10dp"
+                                        MDIcon:
+                                            icon: "credit-card-clock-outline"
+                                            theme_text_color: "Custom"
+                                            text_color: app.theme_cls.primary_color
+                                            font_size: "24sp"
+                                        MDLabel:
+                                            text: "Aktif Borçlarım"
+                                            font_style: "H6"
+                                            bold: True
+                                            
+                                    ScrollView:
+                                        MDBoxLayout:
+                                            id: active_debts_container
+                                            orientation: "vertical"
+                                            spacing: "10dp"
+                                            adaptive_height: True
+                                            
+                                            MDLabel:
+                                                text: "Henüz aktif bir borcunuz bulunmuyor."
+                                                theme_text_color: "Secondary"
+                                                font_style: "Body2"
+                                                halign: "center"
+
+
+                                # YENİ: SON İŞLEMLER LİSTESİ VE FİLTRESİ
+                                MDBoxLayout:
+                                    orientation: "vertical"
+                                    size_hint_y: None
+                                    height: self.minimum_height
+                                    spacing: "10dp"
+                                    padding: ["0dp", "15dp", "0dp", "0dp"]
+                                    
+                                    MDLabel:
+                                        text: "Son İşlemler"
+                                        font_style: "H6"
+                                        bold: True
+                                        size_hint_y: None
+                                        height: "30dp"
+                                        
+                                    MDSegmentedControl:
+                                        pos_hint: {"center_x": .5}
+                                        size_hint_x: 1
+                                        md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (0.9, 0.9, 0.9, 1)
+                                        segment_color: (0.3, 0.3, 0.3, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                        on_active: app.load_recent_transactions(args[1].text)
+                                        MDSegmentedControlItem:
+                                            text: "Günlük"
+                                        MDSegmentedControlItem:
+                                            text: "Haftalık"
+                                        MDSegmentedControlItem:
+                                            text: "Aylık"
+                                            
+                                    MDList:
+                                        id: recent_transactions_list
+                                        
+                # ==== 2. SEKME: VARLIKLARIM ====
+                MDBottomNavigationItem:
+                    name: "assets_tab"
+                    text: "Varlıklarım"
+                    icon: "finance"
+                    on_tab_press:
+                        chart_master_box.refresh_dashboard(app.home_filter)
+                        app.load_recent_transactions()
+                    
+                    MDFloatLayout:
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            MDTopAppBar:
+                                title: "Varlıklarım"
+                                elevation: 4
+                            
+                            AnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "top"
+                                
+                                ScrollView:
+                                    size_hint_x: 1
+                                    
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        adaptive_height: True
+                                        padding: "24dp"
+                                        spacing: "24dp"
+
+                                        # --- DÖNEM ÖZET KARTI (3 metrik: Gelir | Gider | Net) ---
+                                        MDBoxLayout:
+                                            orientation: "horizontal"
+                                            size_hint_y: None
+                                            height: "96dp"
+                                            spacing: "10dp"
+
+                                            # Gelir kartı
+                                            MDCard:
+                                                orientation: "vertical"
+                                                padding: ["12dp", "10dp", "12dp", "10dp"]
+                                                radius: [14, 14, 14, 14]
+                                                elevation: 0
+                                                md_bg_color: 0.06, 0.55, 0.18, 0.08
+                                                line_color: 0.06, 0.55, 0.18, 0.3
+                                                line_width: 1
+                                                MDLabel:
+                                                    text: "Gelir"
+                                                    font_style: "Caption"
+                                                    theme_text_color: "Secondary"
+                                                    halign: "center"
+                                                MDLabel:
+                                                    id: period_income_label
+                                                    text: "₺0,00"
+                                                    font_style: "Subtitle2"
+                                                    bold: True
+                                                    halign: "center"
+                                                    theme_text_color: "Custom"
+                                                    text_color: 0.06, 0.55, 0.18, 1
+
+                                            # Gider kartı
+                                            MDCard:
+                                                orientation: "vertical"
+                                                padding: ["12dp", "10dp", "12dp", "10dp"]
+                                                radius: [14, 14, 14, 14]
+                                                elevation: 0
+                                                md_bg_color: 0.78, 0.1, 0.1, 0.08
+                                                line_color: 0.78, 0.1, 0.1, 0.3
+                                                line_width: 1
+                                                MDLabel:
+                                                    text: "Gider"
+                                                    font_style: "Caption"
+                                                    theme_text_color: "Secondary"
+                                                    halign: "center"
+                                                MDLabel:
+                                                    id: period_expense_label
+                                                    text: "₺0,00"
+                                                    font_style: "Subtitle2"
+                                                    bold: True
+                                                    halign: "center"
+                                                    theme_text_color: "Custom"
+                                                    text_color: 0.78, 0.1, 0.1, 1
+
+                                            # Net bakiye kartı
+                                            MDCard:
+                                                orientation: "vertical"
+                                                padding: ["12dp", "10dp", "12dp", "10dp"]
+                                                radius: [14, 14, 14, 14]
+                                                elevation: 0
+                                                md_bg_color: 0.05, 0.47, 0.7, 0.08
+                                                line_color: 0.05, 0.47, 0.7, 0.3
+                                                line_width: 1
+                                                MDLabel:
+                                                    text: "Net Bakiye"
+                                                    font_style: "Caption"
+                                                    theme_text_color: "Secondary"
+                                                    halign: "center"
+                                                MDLabel:
+                                                    id: period_net_label
+                                                    text: "₺0,00"
+                                                    font_style: "Subtitle2"
+                                                    bold: True
+                                                    halign: "center"
+                                                    theme_text_color: "Custom"
+                                                    text_color: 0.05, 0.47, 0.7, 1
+                                    
+                                        MDBoxLayout:
+                                            orientation: "vertical"
+                                            adaptive_height: True
+                                            spacing: "16dp"
+                                        
+                                            MDBoxLayout:
+                                                orientation: "horizontal"
+                                                size_hint_y: None
+                                                height: "30dp"
+                                                MDLabel:
+                                                    text: "Detaylar"
+                                                    font_style: "H6"
+                                                    bold: True
+
+                                            # --- ZAMAN FİLTRESİ ---
+                                            MDBoxLayout:
+                                                orientation: "horizontal"
+                                                size_hint_y: None
+                                                height: "30dp"
+                                                spacing: "8dp"
+                                            
+                                                MDFillRoundFlatButton:
+                                                    id: btn_filter_today
+                                                    text: "Bugün"
+                                                    size_hint_x: 0.2
+                                                    md_bg_color: app.theme_cls.primary_color
+                                                    text_color: 1, 1, 1, 1
+                                                    on_release: app.change_home_filter("Bugün")
+                                                
+                                                MDFillRoundFlatButton:
+                                                    id: btn_filter_week
+                                                    text: "1 Hafta"
+                                                    size_hint_x: 0.2
+                                                    md_bg_color: 0.9, 0.9, 0.9, 1
+                                                    text_color: 0.5, 0.5, 0.5, 1
+                                                    on_release: app.change_home_filter("1 Hafta")
+                                                
+                                                MDFillRoundFlatButton:
+                                                    id: btn_filter_month
+                                                    text: "1 Ay"
+                                                    size_hint_x: 0.2
+                                                    md_bg_color: 0.9, 0.9, 0.9, 1
+                                                    text_color: 0.5, 0.5, 0.5, 1
+                                                    on_release: app.change_home_filter("1 Ay")
+                                                
+                                                MDFillRoundFlatButton:
+                                                    id: btn_filter_year
+                                                    text: "1 Yıl"
+                                                    size_hint_x: 0.2
+                                                    md_bg_color: 0.9, 0.9, 0.9, 1
+                                                    text_color: 0.5, 0.5, 0.5, 1
+                                                    on_release: app.change_home_filter("1 Yıl")
+
+                                                MDFillRoundFlatButton:
+                                                    id: btn_filter_lifetime
+                                                    text: "Hayat Boyu"
+                                                    size_hint_x: 0.2
+                                                    md_bg_color: 0.9, 0.9, 0.9, 1
+                                                    text_color: 0.5, 0.5, 0.5, 1
+                                                    on_release: app.change_home_filter("Hayat Boyu")
+                                            
+                                            MDBoxLayout:
+                                                orientation: "vertical"
+                                                spacing: "15dp"
+                                                adaptive_height: True
+
+                                                DashboardChartManager:
+                                                    id: chart_master_box
+                                                    orientation: "horizontal"
+                                                    size_hint_x: 1
+                                                    size_hint_y: None
+                                                    height: "320dp"
+                                                    padding: dp(8)
+                                                    spacing: dp(10)
+
+                                                    MDBoxLayout:
+                                                        id: pie_chart_box
+                                                        orientation: "vertical"
+                                                        size_hint_x: 0.35
+                                                        size_hint_y: 1
+                                                        spacing: dp(4)
+
+                                                    MDBoxLayout:
+                                                        id: comparison_chart_box
+                                                        orientation: "vertical"
+                                                        size_hint_x: 0.65
+                                                        size_hint_y: 1
+
+                                                # --- TOPLAM VARLIK KARTI ---
+                                                MDCard:
+                                                    id: total_wealth_card
+                                                    size_hint_y: None
+                                                    height: "120dp"
+                                                    radius: [16, 16, 16, 16]
+                                                    elevation: 0
+                                                    md_bg_color: [1, 1, 1, 1] if app.theme_cls.theme_style == "Light" else [0.15, 0.15, 0.15, 1]
+                                                    line_color: [0.9, 0.9, 0.9, 1] if app.theme_cls.theme_style == "Light" else [0.25, 0.25, 0.25, 1]
+                                                    line_width: 1.2
+                                                    padding: ["20dp", "14dp", "20dp", "14dp"]
+
+                                                    MDBoxLayout:
+                                                        orientation: "vertical"
+                                                        spacing: "6dp"
+
+                                                        MDLabel:
+                                                            text: "Toplam Varlık"
+                                                            font_style: "Caption"
+                                                            theme_text_color: "Secondary"
+                                                            halign: "center"
+                                                            size_hint_y: None
+                                                            height: "18dp"
+
+                                                        MDBoxLayout:
+                                                            orientation: "horizontal"
+                                                            adaptive_width: True
+                                                            pos_hint: {"center_x": .5}
+                                                            spacing: "12dp"
+                                                            size_hint_y: None
+                                                            height: "42dp"
+
+                                                            MDLabel:
+                                                                id: wealth_amount_label
+                                                                text: "₺---"
+                                                                font_style: "H5"
+                                                                bold: True
+                                                                adaptive_width: True
+                                                                pos_hint: {"center_y": .5}
+                                                                theme_text_color: "Primary"
+                                                                halign: "center"
+
+                                                            MDIconButton:
+                                                                id: wealth_eye_btn
+                                                                icon: "eye-outline"
+                                                                theme_text_color: "Secondary"
+                                                                icon_size: "22dp"
+                                                                pos_hint: {"center_y": .5}
+                                                                on_release: app.toggle_wealth_visibility()
+
+                                                        MDLabel:
+                                                            id: wealth_daily_pnl_label
+                                                            text: "Veriler yükleniyor..."
+                                                            font_style: "Caption"
+                                                            halign: "center"
+                                                            size_hint_y: None
+                                                            height: "18dp"
+                                                            theme_text_color: "Custom"
+                                                            text_color: 0.5, 0.5, 0.5, 1
+
+                                                MDBoxLayout:
+                                                    id: goals_container
+                                                    orientation: "vertical"
+                                                    spacing: "24dp"
+                                                    padding: ["16dp", "8dp", "16dp", "16dp"]
+                                                    adaptive_height: True
+
+                                                # AKTİF VARLIKLARIM KARTI
+                                                MDCard:
+                                                    orientation: "vertical"
+                                                    padding: "16dp"
+                                                    spacing: "10dp"
+                                                    size_hint_y: None
+                                                    height: "280dp"
+                                                    elevation: 0
+                                                    radius: [16, 16, 16, 16]
+                                                    md_bg_color: [1, 1, 1, 1] if app.theme_cls.theme_style == "Light" else [0.15, 0.15, 0.15, 1]
+                                                    line_color: [0.9, 0.9, 0.9, 1] if app.theme_cls.theme_style == "Light" else [0.25, 0.25, 0.25, 1]
+                                                    line_width: 1.2
+
+                                                    MDBoxLayout:
+                                                        size_hint_y: None
+                                                        height: "36dp"
+                                                        spacing: "10dp"
+                                                        MDIcon:
+                                                            icon: "chart-line"
+                                                            theme_text_color: "Custom"
+                                                            text_color: 0.08, 0.72, 0.42, 1
+                                                            font_size: "24sp"
+                                                            pos_hint: {"center_y": .5}
+                                                        MDLabel:
+                                                            text: "Aktif Varlıklarım"
+                                                            font_style: "H6"
+                                                            bold: True
+                                                            pos_hint: {"center_y": .5}
+                                                        Widget:
+                                                        MDIconButton:
+                                                            icon: "refresh"
+                                                            theme_text_color: "Custom"
+                                                            text_color: 0.08, 0.72, 0.42, 1
+                                                            icon_size: "28dp"
+                                                            pos_hint: {"center_y": .5}
+                                                            on_release: app.refresh_asset_prices()
+                                                        MDIconButton:
+                                                            id: add_asset_btn
+                                                            icon: "plus-circle"
+                                                            theme_text_color: "Custom"
+                                                            text_color: 0.08, 0.72, 0.42, 1
+                                                            icon_size: "28dp"
+                                                            pos_hint: {"center_y": .5}
+                                                            on_release: app.show_add_asset_dialog()
+
+                                                    ScrollView:
+                                                        MDBoxLayout:
+                                                            id: active_assets_container
+                                                            orientation: "vertical"
+                                                            spacing: "8dp"
+                                                            adaptive_height: True
+
+                                                            MDLabel:
+                                                                text: "Yükleniyor..."
+                                                                theme_text_color: "Hint"
+                                                                font_style: "Body2"
+                                                                halign: "center"
+
+                                                # VARLIK GEÇMİŞİ KARTI
+                                                MDCard:
+                                                    orientation: "vertical"
+                                                    padding: "16dp"
+                                                    spacing: "10dp"
+                                                    size_hint_y: None
+                                                    height: "320dp"
+                                                    elevation: 0
+                                                    radius: [16, 16, 16, 16]
+                                                    md_bg_color: [1, 1, 1, 1]
+                                                    line_color: [0.9, 0.9, 0.9, 1]
+                                                    line_width: 1.2
+
+                                                    MDBoxLayout:
+                                                        size_hint_y: None
+                                                        height: "36dp"
+                                                        spacing: "10dp"
+                                                        MDIcon:
+                                                            icon: "history"
+                                                            theme_text_color: "Custom"
+                                                            text_color: 0.55, 0.27, 0.07, 1
+                                                            font_size: "24sp"
+                                                            pos_hint: {"center_y": .5}
+                                                        MDLabel:
+                                                            text: "Varlık Geçmişi"
+                                                            font_style: "H6"
+                                                            bold: True
+                                                            pos_hint: {"center_y": .5}
+
+                                                    ScrollView:
+                                                        MDList:
+                                                            id: asset_history_list
+
+                                                Widget:
+                                                    size_hint: None, None
+                                                    size: 0, 0
+                                                    opacity: 0
+                                                    HorizontalBarChart:
+                                                        id: bar_chart
+
+                                                MDGridLayout:
+                                                    id: metrics_grid
+                                                    size_hint_x: 1
+                                                    cols: 2
+                                                    spacing: "16dp"
+                                                    adaptive_height: True
+                                                    padding: "16dp"
+
+                                                    MDCard:
+                                                        id: metric_card_income
+                                                        orientation: "vertical"
+                                                        padding: "16dp"
+                                                        size_hint_y: None
+                                                        height: "120dp"
+                                                        md_bg_color: 0.18, 0.8, 0.25, 0.1
+                                                        opacity: 0
+                                                        MDIcon:
+                                                            icon: "trending-up"
+                                                            theme_text_color: "Custom"
+                                                            text_color: 0.18, 0.8, 0.25, 1
+                                                        MDLabel:
+                                                            text: "Toplam Gelir"
+                                                            font_style: "Caption"
+                                                        MDLabel:
+                                                            id: metric_val_income
+                                                            text: "0 ₺"
+                                                            bold: True
+                                                
+                                                    MDCard:
+                                                        id: metric_card_expense
+                                                        orientation: "vertical"
+                                                        padding: "16dp"
+                                                        size_hint_y: None
+                                                        height: "120dp"
+                                                        md_bg_color: 0.9, 0.2, 0.2, 0.1
+                                                        opacity: 0
+                                                        MDIcon:
+                                                            icon: "trending-down"
+                                                            theme_text_color: "Custom"
+                                                            text_color: 0.9, 0.2, 0.2, 1
+                                                        MDLabel:
+                                                            text: "Toplam Gider"
+                                                            font_style: "Caption"
+                                                        MDLabel:
+                                                            id: metric_val_expense
+                                                            text: "0 ₺"
+                                                            bold: True
+
+                                                    MDCard:
+                                                        id: metric_card_savings
+                                                        orientation: "vertical"
+                                                        padding: "16dp"
+                                                        size_hint_y: None
+                                                        height: "120dp"
+                                                        md_bg_color: 0.13, 0.59, 0.95, 0.1
+                                                        opacity: 0
+                                                        MDIcon:
+                                                            icon: "piggy-bank"
+                                                            theme_text_color: "Custom"
+                                                            text_color: 0.13, 0.59, 0.95, 1
+                                                        MDLabel:
+                                                            text: "Tasarruf Oranı"
+                                                            font_style: "Caption"
+                                                        MDLabel:
+                                                            id: metric_val_savings
+                                                            text: "%0"
+                                                            bold: True
+
+                                                    MDCard:
+                                                        id: metric_card_trend
+                                                        orientation: "vertical"
+                                                        padding: "16dp"
+                                                        size_hint_y: None
+                                                        height: "120dp"
+                                                        md_bg_color: 0.95, 0.6, 0.1, 0.1
+                                                        opacity: 0
+                                                        MDIcon:
+                                                            icon: "chart-timeline-variant"
+                                                            theme_text_color: "Custom"
+                                                            text_color: 0.95, 0.6, 0.1, 1
+                                                        MDLabel:
+                                                            text: "Aylık Gelir Amacı"
+                                                            font_style: "Caption"
+                                                            theme_text_color: "Secondary"
+                                                        MDLabel:
+                                                            id: metric_val_trend
+                                                            text: "—"
+                                                            font_style: "Subtitle2"
+                                                            theme_text_color: "Primary"
+                        
+                        MDFloatingActionButton:
+                            icon: "plus"
+                            pos_hint: {"right": 0.95, "y": 0.05} 
+                            on_release: app.show_add_dialog()
+
+                # ==== 3. SEKME: ARAÇLAR ====
+                MDBottomNavigationItem:
+                    name: "tools_tab"
+                    text: "Araçlar"
+                    icon: "tools"
+                    
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        MDTopAppBar:
+                            title: "Hesaplama Araçları"
+                            elevation: 4
+                        
+                        ScrollView:
+                            MDGridLayout:
+                                cols: 2
+                                padding: "20dp"
+                                spacing: "20dp"
+                                size_hint_y: None
+                                height: self.minimum_height
+                                
+                                MDCard:
+                                    size_hint_y: None
+                                    height: "140dp"
+                                    radius: [20]
+                                    elevation: 2
+                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                    orientation: "vertical"
+                                    padding: "20dp"
+                                    spacing: "10dp"
+                                    ripple_behavior: True
+                                    on_release: app.open_calculator("basic")
+                                    MDFloatLayout:
+                                        size_hint: None, None
+                                        size: "48dp", "48dp"
+                                        canvas.before:
+                                            Color:
+                                                rgba: (0.18, 0.8, 0.25, 0.15)
+                                            RoundedRectangle:
+                                                pos: self.pos
+                                                size: self.size
+                                                radius: [24]
+                                        MDIcon:
+                                            icon: "calculator-variant"
+                                            font_size: "24sp"
+                                            theme_text_color: "Custom"
+                                            text_color: (0.18, 0.8, 0.25, 1)
+                                            pos_hint: {"center_x": .5, "center_y": .5}
+                                    Widget:
+                                    MDLabel:
+                                        text: "Hesap\nMakinesi"
+                                        font_style: "Subtitle1"
+                                        bold: True
+                                
+                                MDCard:
+                                    size_hint_y: None
+                                    height: "140dp"
+                                    radius: [20]
+                                    elevation: 2
+                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                    orientation: "vertical"
+                                    padding: "20dp"
+                                    spacing: "10dp"
+                                    ripple_behavior: True
+                                    on_release: app.open_calculator("interest")
+                                    MDFloatLayout:
+                                        size_hint: None, None
+                                        size: "48dp", "48dp"
+                                        canvas.before:
+                                            Color:
+                                                rgba: (0.13, 0.59, 0.95, 0.15)
+                                            RoundedRectangle:
+                                                pos: self.pos
+                                                size: self.size
+                                                radius: [24]
+                                        MDIcon:
+                                            icon: "percent-outline"
+                                            font_size: "24sp"
+                                            theme_text_color: "Custom"
+                                            text_color: (0.13, 0.59, 0.95, 1)
+                                            pos_hint: {"center_x": .5, "center_y": .5}
+                                    Widget:
+                                    MDLabel:
+                                        text: "Faiz\nGetirisi"
+                                        font_style: "Subtitle1"
+                                        bold: True
+
+                                MDCard:
+                                    size_hint_y: None
+                                    height: "140dp"
+                                    radius: [20]
+                                    elevation: 2
+                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                    orientation: "vertical"
+                                    padding: "20dp"
+                                    spacing: "10dp"
+                                    ripple_behavior: True
+                                    on_release: app.open_calculator("compound")
+                                    MDFloatLayout:
+                                        size_hint: None, None
+                                        size: "48dp", "48dp"
+                                        canvas.before:
+                                            Color:
+                                                rgba: (0.6, 0.2, 0.8, 0.15)
+                                            RoundedRectangle:
+                                                pos: self.pos
+                                                size: self.size
+                                                radius: [24]
+                                        MDIcon:
+                                            icon: "trending-up"
+                                            font_size: "24sp"
+                                            theme_text_color: "Custom"
+                                            text_color: (0.6, 0.2, 0.8, 1)
+                                            pos_hint: {"center_x": .5, "center_y": .5}
+                                    Widget:
+                                    MDLabel:
+                                        text: "Bileşik\nFaiz"
+                                        font_style: "Subtitle1"
+                                        bold: True
+
+                                MDCard:
+                                    size_hint_y: None
+                                    height: "140dp"
+                                    radius: [20]
+                                    elevation: 2
+                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                    orientation: "vertical"
+                                    padding: "20dp"
+                                    spacing: "10dp"
+                                    ripple_behavior: True
+                                    on_release: app.open_calculator("loan")
+                                    MDFloatLayout:
+                                        size_hint: None, None
+                                        size: "48dp", "48dp"
+                                        canvas.before:
+                                            Color:
+                                                rgba: (0.9, 0.2, 0.3, 0.15)
+                                            RoundedRectangle:
+                                                pos: self.pos
+                                                size: self.size
+                                                radius: [24]
+                                        MDIcon:
+                                            icon: "bank"
+                                            font_size: "24sp"
+                                            theme_text_color: "Custom"
+                                            text_color: (0.9, 0.2, 0.3, 1)
+                                            pos_hint: {"center_x": .5, "center_y": .5}
+                                    Widget:
+                                    MDLabel:
+                                        text: "Kredi\nHesaplama"
+                                        font_style: "Subtitle1"
+                                        bold: True
+
+                                MDCard:
+                                    size_hint_y: None
+                                    height: "140dp"
+                                    radius: [20]
+                                    elevation: 2
+                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                    orientation: "vertical"
+                                    padding: "20dp"
+                                    spacing: "10dp"
+                                    ripple_behavior: True
+                                    on_release: app.open_calculator("savings_goal")
+                                    MDFloatLayout:
+                                        size_hint: None, None
+                                        size: "48dp", "48dp"
+                                        canvas.before:
+                                            Color:
+                                                rgba: (0.95, 0.6, 0.1, 0.15)
+                                            RoundedRectangle:
+                                                pos: self.pos
+                                                size: self.size
+                                                radius: [24]
+                                        MDIcon:
+                                            icon: "bullseye-arrow"
+                                            font_size: "24sp"
+                                            theme_text_color: "Custom"
+                                            text_color: (0.95, 0.6, 0.1, 1)
+                                            pos_hint: {"center_x": .5, "center_y": .5}
+                                    Widget:
+                                    MDLabel:
+                                        text: "Birikim\nHedefi"
+                                        font_style: "Subtitle1"
+                                        bold: True
+
+                                MDCard:
+                                    size_hint_y: None
+                                    height: "140dp"
+                                    radius: [20]
+                                    elevation: 2
+                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                    orientation: "vertical"
+                                    padding: "20dp"
+                                    spacing: "10dp"
+                                    ripple_behavior: True
+                                    on_release: app.confirm_delete_all_data()
+                                    MDFloatLayout:
+                                        size_hint: None, None
+                                        size: "48dp", "48dp"
+                                        canvas.before:
+                                            Color:
+                                                rgba: (0.9, 0.2, 0.2, 0.15)
+                                            RoundedRectangle:
+                                                pos: self.pos
+                                                size: self.size
+                                                radius: [24]
+                                        MDIcon:
+                                            icon: "delete-alert-outline"
+                                            font_size: "24sp"
+                                            theme_text_color: "Custom"
+                                            text_color: (0.9, 0.2, 0.2, 1)
+                                            pos_hint: {"center_x": .5, "center_y": .5}
+                                    Widget:
+                                    MDLabel:
+                                        text: "Verileri\nSıfırla"
+                                        font_style: "Subtitle1"
+                                        bold: True
+
+                # ==== 4. SEKME: AYARLAR ====
+                MDBottomNavigationItem:
+                    name: "settings_tab"
+                    text: "Ayarlar"
+                    icon: "cog-outline"
+                    
+                    MDBoxLayout:
+                        orientation: "vertical"
+                        MDTopAppBar:
+                            title: "Ayarlar"
+                            elevation: 4
+                        
+                        ScrollView:
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                adaptive_height: True
+
+                                MDSeparator:
+
+                                ClickableSettingsRow:
+                                    orientation: "horizontal"
+                                    size_hint_y: None
+                                    height: "64dp"
+                                    padding: ["20dp", 0, "20dp", 0]
+                                    spacing: "20dp"
+                                    on_release: screen_manager.current = "category_settings"
+                                    MDIcon:
+                                        icon: "tag-multiple"
+                                        size_hint_x: None
+                                        width: "36dp"
+                                        halign: "center"
+                                        pos_hint: {"center_y": .5}
+                                        theme_text_color: "Primary"
+                                    MDLabel:
+                                        text: "Kategori Ayarları"
+                                        theme_text_color: "Primary"
+                                    MDIcon:
+                                        icon: "chevron-right"
+                                        pos_hint: {"center_y": .5}
+                                        theme_text_color: "Hint"
+
+                                MDSeparator:
+
+                                MDBoxLayout:
+                                    orientation: "horizontal"
+                                    size_hint_y: None
+                                    height: "64dp"
+                                    padding: ["20dp", 0, "20dp", 0]
+                                    spacing: "20dp"
+                                    MDIcon:
+                                        icon: "moon-waning-crescent"
+                                        size_hint_x: None
+                                        width: "36dp"
+                                        halign: "center"
+                                        pos_hint: {"center_y": .5}
+                                        theme_text_color: "Primary"
+                                    MDLabel:
+                                        text: "Karanlık Mod"
+                                        theme_text_color: "Primary"
+                                    MDSwitch:
+                                        size_hint_x: None
+                                        width: "52dp"
+                                        pos_hint: {"center_y": .5}
+                                        icon_active: "check"
+                                        icon_inactive: "close"
+                                        active: True if app.theme_cls.theme_style == "Dark" else False
+                                        on_active: app.toggle_theme(self.active)
+                                
+                                MDSeparator:
+                                
+                                ClickableSettingsRow:
+                                    orientation: "horizontal"
+                                    size_hint_y: None
+                                    height: "64dp"
+                                    padding: ["20dp", 0, "20dp", 0]
+                                    spacing: "20dp"
+                                    on_release: app.contact_us()
+                                    MDIcon:
+                                        icon: "email-outline"
+                                        size_hint_x: None
+                                        width: "36dp"
+                                        halign: "center"
+                                        pos_hint: {"center_y": .5}
+                                        theme_text_color: "Primary"
+                                    MDLabel:
+                                        text: "Bize Ulaşın"
+                                        theme_text_color: "Primary"
+                                    MDIcon:
+                                        icon: "chevron-right"
+                                        pos_hint: {"center_y": .5}
+                                        theme_text_color: "Hint"
+                                
+                                MDSeparator:
+
+                                ClickableSettingsRow:
+                                    orientation: "horizontal"
+                                    size_hint_y: None
+                                    height: "64dp"
+                                    padding: ["20dp", 0, "20dp", 0]
+                                    spacing: "20dp"
+                                    on_release: screen_manager.current = "login"
+                                    MDIcon:
+                                        icon: "logout"
+                                        pos_hint: {"center_y": .5}
+                                        theme_text_color: "Error"
+                                    MDLabel:
+                                        text: "Çıkış Yap"
+                                        theme_text_color: "Error"
+                                    MDIcon:
+                                        icon: "chevron-right"
+                                        pos_hint: {"center_y": .5}
+                                        theme_text_color: "Hint"
+
+                                MDSeparator:
+                        Widget:
+
+        # --- KATEGORİ AYARLARI (ALT SAYFA) ---
+        MDScreen:
+            name: "category_settings"
+            on_enter: app.load_categories('income')
+            MDBoxLayout:
+                orientation: "vertical"
+                MDTopAppBar:
+                    title: "Kategori Ayarları"
+                    left_action_items: [["arrow-left", lambda x: setattr(screen_manager, 'current', 'home')]]
+                    elevation: 4
+                MDBoxLayout:
+                    orientation: "horizontal"
+                    size_hint_y: None
+                    height: "48dp"
+                    padding: ["16dp", "8dp", "16dp", "8dp"]
+                    spacing: "16dp"
+                    MDFillRoundFlatButton:
+                        text: "Gelir"
+                        size_hint_x: 1
+                        md_bg_color: app.theme_cls.primary_color if app.active_category_type == 'income' else app.theme_cls.bg_darkest
+                        text_color: (1, 1, 1, 1) if app.active_category_type == 'income' else app.theme_cls.text_color
+                        on_release: app.load_categories('income')
+                    MDFillRoundFlatButton:
+                        text: "Gider"
+                        size_hint_x: 1
+                        md_bg_color: app.theme_cls.primary_color if app.active_category_type == 'expense' else app.theme_cls.bg_darkest
+                        text_color: (1, 1, 1, 1) if app.active_category_type == 'expense' else app.theme_cls.text_color
+                        on_release: app.load_categories('expense')
+                MDBoxLayout:
+                    orientation: "horizontal"
+                    size_hint_y: None
+                    height: "40dp"
+                    padding: "15dp", 0, "40dp", 0
+                    MDLabel:
+                        text: "Kategori Adı"
+                        bold: True
+                    MDLabel:
+                        text: "Ana Kaynak Mı?"
+                        bold: True
+                        halign: "right"
+                ScrollView:
+                    MDBoxLayout:
+                        id: settings_list
+                        orientation: "vertical"
+                        size_hint_y: None
+                        height: self.minimum_height

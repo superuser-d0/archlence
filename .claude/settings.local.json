@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/bin/python -m py_compile services/transaction_service.py ui/components.py)",
+      "Bash(git init *)",
+      "Bash(git add *)"
+    ]
+  }
+}

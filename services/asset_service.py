@@ -1,0 +1,218 @@
+"""
+Asset Service — yfinance tabanlı canlı fiyat çekme & K/Z hesaplama.
+
+Borsa İstanbul (BIST) hisselerinde kullanıcı sembolü (örn: 'THYAO') girer;
+bu servis otomatik olarak '.IS' ekleyerek Yahoo Finance'tan veri çeker.
+
+Desteklenen asset_type değerleri:
+    'Hisse'  → BIST hissesi  (THYAO → THYAO.IS)
+    'Altın'  → GC=F veya XAUUSD  (ham sembolü kullanır)
+    'Tahvil' → sembol direkt gönderilir
+    'Döviz'  → sembol direkt gönderilir (örn: USDTRY=X)
+    'Diğer'  → sembol direkt gönderilir
+"""
+
+import threading
+
+
+# ─── Sembol normalleştirme & aday oluşturma ────────────────────────────────────
+
+def get_ticker_candidates(asset_code: str, asset_type: str) -> list:
+    """Kullanıcının girdiği kod için olası Yahoo Finance sembollerini döndürür."""
+    code = asset_code.strip().upper()
+    candidates = []
+    
+    if asset_type == "Hisse":
+        if not code.endswith(".IS") and "." not in code:
+            candidates.append(f"{code}.IS") # Önce BIST
+            candidates.append(code)         # Sonra Amerikan vb.
+        else:
+            candidates.append(code)
+            
+    elif asset_type == "Altın":
+        if code in ["ALTIN", "GOLD", "GRAM", "XAU", "GLD"]:
+            candidates.extend(["GC=F", "XAUUSD=X"])
+        else:
+            candidates.append(code)
+            
+    elif asset_type == "Döviz":
+        if len(code) == 3:
+            candidates.extend([f"{code}TRY=X", f"{code}USD=X"])
+        if not code.endswith("=X"):
+            candidates.append(f"{code}=X")
+        candidates.append(code)
+        
+    elif asset_type in ["Kripto", "Crypto"]:
+        if "-" not in code:
+            candidates.append(f"{code}-USD")
+        candidates.append(code)
+        
+    else:
+        candidates.append(code)
+        
+    return candidates
+
+
+# ─── Tek bir varlık için canlı fiyat çek ─────────────────────────────────────
+
+def fetch_current_price(asset_code: str, asset_type: str) -> float | None:
+    """
+    Verilen sembol için güncel kapanış/anlık fiyatı döndürür.
+    Alternatif sembolleri dener. Hata durumunda None döndürür.
+    """
+    import math
+    import yfinance as yf
+    import logging
+    
+    # yfinance ve önbellek kütüphanelerinin stderr loglarını tamamen sustur
+    logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+    logging.getLogger("requests_cache").setLevel(logging.CRITICAL)
+    logging.getLogger("urllib3").setLevel(logging.CRITICAL)
+
+    candidates = get_ticker_candidates(asset_code, asset_type)
+    
+    for ticker_sym in candidates:
+        try:
+            ticker = yf.Ticker(ticker_sym)
+            hist = ticker.history(period="5d")
+            if not hist.empty:
+                price = float(hist["Close"].dropna().iloc[-1])
+                if not math.isnan(price) and not math.isinf(price):
+                    return price
+        except Exception:
+            pass
+            
+    return None
+
+
+
+# ─── BIST 100 toplu fiyat çekme (hisse seçim listesi için) ───────────────────
+
+# BIST kodu olmayan istisnalar → doğrudan Yahoo Finance sembolü
+_BIST_SYMBOL_OVERRIDES = {"USDTR": "USDTRY=X"}
+
+
+def fetch_bist100_prices(codes: list, callback) -> None:
+    """
+    Arka plan thread'inde BIST hisse listesinin fiyatlarını tek toplu istekle
+    çeker (Yahoo Finance BIST verisi, ~15 dk gecikmeli).
+    Tamamlanınca callback({kod: fiyat}) çağrılır; alınamayanlar sözlükte olmaz.
+    """
+    import threading
+
+    def _worker():
+        import math
+        import logging
+        import yfinance as yf
+
+        logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+        logging.getLogger("urllib3").setLevel(logging.CRITICAL)
+
+        tickers = {
+            code: _BIST_SYMBOL_OVERRIDES.get(code, f"{code}.IS")
+            for code in codes
+        }
+        prices = {}
+        try:
+            data = yf.download(
+                list(tickers.values()),
+                period="1d",
+                progress=False,
+                threads=True,
+            )
+            close = data["Close"].iloc[-1]
+            for code, sym in tickers.items():
+                try:
+                    price = float(close[sym])
+                    if not math.isnan(price) and not math.isinf(price):
+                        prices[code] = price
+                except Exception:
+                    pass
+        except Exception as e:
+            print("BIST100 fiyat çekme hatası:", e)
+        callback(prices)
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+# ─── K/Z hesaplama ────────────────────────────────────────────────────────────
+
+def calculate_pnl(current_price: float, purchase_price: float, quantity: float) -> dict:
+    """
+    Kâr/Zarar bilgisini hesaplar.
+
+    Dönüş değeri::
+        {
+            'pnl_amount':  float,   # TL cinsinden net K/Z (current - purchase) * qty
+            'pnl_pct':     float,   # Yüzdesel K/Z
+            'total_value': float,   # Güncel portföy değeri
+            'total_cost':  float,   # Alım maliyeti
+            'signal':      str      # 'profit' | 'loss' | 'breakeven'
+        }
+    """
+    total_cost  = purchase_price * quantity
+    total_value = current_price  * quantity
+    pnl_amount  = total_value - total_cost
+    pnl_pct     = ((current_price - purchase_price) / purchase_price) * 100 if purchase_price > 0 else 0.0
+
+    if pnl_pct > 0:
+        signal = "profit"
+    elif pnl_pct < 0:
+        signal = "loss"
+    else:
+        signal = "breakeven"
+
+    return {
+        "pnl_amount":  round(pnl_amount,  2),
+        "pnl_pct":     round(pnl_pct,     2),
+        "total_value": round(total_value, 2),
+        "total_cost":  round(total_cost,  2),
+        "signal":      signal,
+    }
+
+
+# ─── Renk kodlaması (KivyMD rgba) ────────────────────────────────────────────
+
+PNL_COLORS = {
+    "profit":    [0.08, 0.86, 0.29, 1],   # yeşil
+    "loss":      [0.95, 0.22, 0.22, 1],   # kırmızı
+    "breakeven": [0.99, 0.86, 0.02, 1],   # sarı
+    "pending":   [0.65, 0.65, 0.65, 1],   # gri (veri bekleniyor)
+    "error":     [0.9, 0.2, 0.2, 1],      # kırmızı (bağlantı hatası)
+}
+
+
+def get_pnl_color(signal: str) -> list:
+    return PNL_COLORS.get(signal, PNL_COLORS["pending"])
+
+
+# ─── Tüm portföy için toplu fiyat çekme (threading destekli) ─────────────────
+
+def fetch_portfolio_with_prices(assets: list, callback) -> None:
+    """
+    Arka plan thread'inde tüm varlıkların canlı fiyatlarını çeker.
+    Tamamlandığında callback(enriched_assets) çağrılır.
+
+    Her eleman şunları içerir (orijinal asset dict + ekstra alanlar):
+        current_price, pnl_amount, pnl_pct, total_value, total_cost, signal
+    """
+    def _worker():
+        enriched = []
+        for asset in assets:
+            current_price = fetch_current_price(asset["asset_code"], asset["asset_type"])
+            entry = dict(asset)
+            if current_price is not None:
+                pnl = calculate_pnl(current_price, asset["purchase_price"], asset["quantity"])
+                entry.update(pnl)
+                entry["current_price"] = current_price
+            else:
+                entry["current_price"] = None
+                entry["pnl_amount"]    = None
+                entry["pnl_pct"]       = None
+                entry["total_value"]   = None
+                entry["total_cost"]    = None
+                entry["signal"]        = "error"
+            enriched.append(entry)
+        callback(enriched)
+
+    threading.Thread(target=_worker, daemon=True).start()

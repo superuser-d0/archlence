@@ -1,0 +1,13 @@
+# Çalışma zamanı verileri — kullanıcının kişisel finans verisi repoya girmemeli
+finance.db
+savings_goals.json
+crash.log
+
+# Şifreleme anahtarı — asla commit edilmemeli
+security/secret.key
+
+# Python / araç artıkları
+__pycache__/
+*.pyc
+.venv/
+.vscode/
