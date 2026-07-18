@@ -1,20 +1,2 @@
-from database.db import get_connection
-
-
-class TransactionHistoryService:
-
-    @staticmethod
-    def get_last_transactions(limit=10):
-
-        conn = get_connection()
-
-        rows = conn.execute("""
-            SELECT *
-            FROM transactions
-            ORDER BY id DESC
-            LIMIT ?
-        """, (limit,)).fetchall()
-
-        conn.close()
-
-        return rows
+# Geriye dönük uyumluluk: sınıf services/queries.py'ye taşındı.
+from services.queries import TransactionHistoryService  # noqa: F401
