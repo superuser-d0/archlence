@@ -3,7 +3,7 @@ import math
 from kivy.clock import Clock
 from kivy.metrics import dp
 from kivymd.toast import toast
-from kivymd.uix.button import MDFlatButton, MDRaisedButton
+from kivymd.uix.button import MDFlatButton, MDRaisedButton, MDIconButton
 from kivy.uix.scrollview import ScrollView
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.textfield import MDTextField
@@ -497,3 +497,215 @@ class CalculatorMixin:
         pdf.output(filepath)
         toast(f"PDF kaydedildi: {filepath}")
 
+
+    # ── Kredi/faiz hesaplayıcı yardımcıları ──────────────────────────────
+    # Bu metodlar main.py'deki FinoraApp gövdesinden taşındı; open_calculator
+    # içindeki buton bind'ları zaten bunlara başvuruyordu, artık aynı sınıfta
+    # tanımlılar. Davranışları değişmedi.
+
+    def toggle_compound_mode(self, segment, item):
+        if item.text == "Gelişmiş":
+            self.comp_deposit.opacity = 1
+            self.comp_deposit.disabled = False
+        else:
+            self.comp_deposit.opacity = 0
+            self.comp_deposit.disabled = True
+            self.comp_deposit.text = ""
+
+    def toggle_loan_mode(self, segment, item):
+        if item.text == "Gelişmiş":
+            self.loan_type.opacity = 1
+            self.loan_type.disabled = False
+            self.expense_header_layout.opacity = 1
+            self.expense_header_layout.disabled = False
+            self.expense_list_scroll.opacity = 1
+            self.expense_list_scroll.disabled = False
+        else:
+            self.loan_type.opacity = 0
+            self.loan_type.disabled = True
+            self.expense_header_layout.opacity = 0
+            self.expense_header_layout.disabled = True
+            self.expense_list_scroll.opacity = 0
+            self.expense_list_scroll.disabled = True
+            
+    def update_loan_type(self, segment, item):
+        self.loan_type_selected = item.text
+        
+        # Seçime göre dinamik hint_text (İpucu) güncellemesi
+        if item.text == "İhtiyaç":
+            self.loan_term.hint_text = "Vade (Ay - Maks 36)"
+        elif item.text == "Taşıt":
+            self.loan_term.hint_text = "Vade (Ay - Maks 48)"
+        elif item.text == "Konut":
+            self.loan_term.hint_text = "Vade (Ay - Maks 120)"
+        
+    def open_expense_dialog(self, *args):
+        if len(self.custom_expenses) >= 10:
+            toast("Maksimum 10 masraf ekleyebilirsiniz.")
+            return
+            
+        self.exp_dialog_layout = MDBoxLayout(orientation="vertical", spacing="10dp", size_hint_y=None, height="260dp")
+        
+        self.exp_name = MDTextField(hint_text="Masraf Adı (Örn: Ekspertiz)", max_text_length=30)
+        
+        self.exp_type_segment = MDSegmentedControl(size_hint_x=1)
+        self.exp_type_segment.add_widget(MDSegmentedControlItem(text="Tek Seferlik"))
+        self.exp_type_segment.add_widget(MDSegmentedControlItem(text="Çok Seferlik"))
+        
+        self.exp_amount = MDTextField(hint_text="Toplam Tutar (₺)", input_filter="float")
+        
+        self.exp_term = MDTextField(hint_text="Süre (Ay)", input_filter="int", opacity=0, disabled=True)
+        
+        def toggle_term_field(segment, item):
+            if item.text == "Çok Seferlik":
+                self.exp_term.opacity = 1
+                self.exp_term.disabled = False
+            else:
+                self.exp_term.opacity = 0
+                self.exp_term.disabled = True
+                self.exp_term.text = ""
+                
+        self.exp_type_segment.bind(on_active=toggle_term_field)
+        
+        self.exp_dialog_layout.add_widget(self.exp_name)
+        self.exp_dialog_layout.add_widget(self.exp_type_segment)
+        self.exp_dialog_layout.add_widget(self.exp_amount)
+        self.exp_dialog_layout.add_widget(self.exp_term)
+        
+        self.expense_dialog = MDDialog(
+            title="Özel Masraf Ekle",
+            type="custom",
+            content_cls=self.exp_dialog_layout,
+            buttons=[
+                MDFlatButton(text="İPTAL", on_release=lambda x: self.expense_dialog.dismiss()),
+                MDFlatButton(text="EKLE", on_release=self.add_custom_expense)
+            ]
+        )
+        self.expense_dialog.open()
+
+    def add_custom_expense(self, *args):
+        name = self.exp_name.text.strip()
+        amount_text = self.exp_amount.text
+        
+        if not name or not amount_text:
+            toast("Lütfen ad ve tutar girin!")
+            return
+            
+        amount = float(amount_text)
+        if amount <= 0:
+            toast("Tutar 0'dan büyük olmalı!")
+            return
+            
+        is_cok = not self.exp_term.disabled
+        exp_type = "Çok Seferlik" if is_cok else "Tek Seferlik"
+        
+        term = 0
+        if is_cok:
+            if not self.exp_term.text:
+                toast("Lütfen süre girin!")
+                return
+            term = int(self.exp_term.text)
+            if term <= 0:
+                toast("Süre 1 aydan büyük olmalı!")
+                return
+            if self.loan_term.text and term > int(self.loan_term.text):
+                toast(f"Süre, kredi vadesinden büyük olamaz ({self.loan_term.text} ay)!")
+                return
+
+        exp_data = {
+            "name": name,
+            "type": exp_type,
+            "amount": amount,
+            "term": term
+        }
+        self.custom_expenses.append(exp_data)
+        
+        self.expense_dialog.dismiss()
+        self.update_expense_list_ui()
+
+    def update_expense_list_ui(self):
+        self.expense_list_layout.clear_widgets()
+        self.expense_header_label.text = f"Özel Masraflar ({len(self.custom_expenses)}/10)"
+        
+        for idx, exp in enumerate(self.custom_expenses):
+            row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="24dp")
+            
+            desc = f"{exp['name']} ({exp['type']}) - {exp['amount']} ₺"
+            if exp["type"] == "Çok Seferlik":
+                desc += f" / {exp['term']} Ay"
+                
+            lbl = MDLabel(text=desc, font_style="Caption")
+            
+            del_btn = MDIconButton(
+                icon="close", 
+                icon_size="16sp",
+                size_hint=(None, None), 
+                size=("24dp", "24dp"),
+                pos_hint={"center_y": 0.5},
+                on_release=lambda x, index=idx: self.remove_custom_expense(index)
+            )
+            row.add_widget(lbl)
+            row.add_widget(del_btn)
+            self.expense_list_layout.add_widget(row)
+
+    def remove_custom_expense(self, index):
+        if 0 <= index < len(self.custom_expenses):
+            self.custom_expenses.pop(index)
+            self.update_expense_list_ui()
+
+    def calculate_interest(self, *args):
+        try:
+            p = float(self.int_principal.text)
+            r = float(self.int_rate.text)
+            d = int(self.int_days.text)
+            
+            if p <= 0 or r <= 0 or d <= 0:
+                toast("Lütfen 0'dan büyük değerler girin!")
+                return
+                
+            gross_profit = p * r * d / 36500
+            net_profit = gross_profit * 0.95 # Varsayılan %5 stopaj (Vergi)
+            total = p + net_profit
+            
+            f_profit = f"{net_profit:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
+            f_total = f"{total:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
+            
+            self.int_result_label.text = f"Net Getiri: + {f_profit}\nVade Sonu: {f_total}\n(%5 Stopaj düşülmüştür)"
+            self.int_result_label.theme_text_color = "Custom"
+            self.int_result_label.text_color = (0.13, 0.59, 0.95, 1)
+        except ValueError:
+            toast("Lütfen geçerli sayılar girin!")
+
+    def show_payment_plan_table(self, *args):
+        from kivymd.uix.datatables import MDDataTable
+        from kivy.metrics import dp
+        from kivymd.uix.boxlayout import MDBoxLayout
+        
+        table_layout = MDBoxLayout(orientation="vertical")
+        self.table = MDDataTable(
+            use_pagination=True,
+            rows_num=10,
+            column_data=[
+                ("Ay", dp(15)),
+                ("Temel Taksit", dp(30)),
+                ("Ek Masraf", dp(25)),
+                ("Toplam Ödeme", dp(30)),
+                ("Anapara", dp(25)),
+                ("Faiz/Vergi", dp(25)),
+                ("Bakiye", dp(30)),
+            ],
+            row_data=self.loan_table_data,
+        )
+        table_layout.add_widget(self.table)
+        
+        self.table_dialog = MDDialog(
+            title="Ödeme Planı",
+            type="custom",
+            content_cls=table_layout,
+            size_hint=(0.95, 0.95),
+            buttons=[
+                MDRaisedButton(text="KAPAT", on_release=lambda x: self.table_dialog.dismiss(), md_bg_color=(0.8, 0.2, 0.2, 1)),
+                MDRaisedButton(text="PDF İNDİR", on_release=self.export_plan_to_pdf, md_bg_color=(0.13, 0.59, 0.95, 1))
+            ]
+        )
+        self.table_dialog.open()
