@@ -4,13 +4,17 @@ import sys
 import textwrap
 import unittest
 
+# Testler tests/ altında; main.py proje kökünde. Kök, çalışma dizininden değil
+# bu dosyanın konumundan türetilir ki test her yerden çalıştırılabilsin.
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 class StartupImportTest(unittest.TestCase):
     def test_main_module_imports_without_system_exit(self):
         env = os.environ.copy()
         env.pop("KIVY_WINDOW", None)
         env.pop("KIVY_NO_ARGS", None)
-        env.setdefault("PYTHONPATH", os.getcwd())
+        env.setdefault("PYTHONPATH", PROJECT_ROOT)
 
         script = textwrap.dedent(
             """
@@ -29,7 +33,7 @@ class StartupImportTest(unittest.TestCase):
 
         completed = subprocess.run(
             [sys.executable, "-c", script],
-            cwd=os.getcwd(),
+            cwd=PROJECT_ROOT,
             env=env,
             capture_output=True,
             text=True,

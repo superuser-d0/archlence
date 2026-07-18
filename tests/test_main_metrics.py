@@ -1,4 +1,5 @@
 import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Setup Kivy headless for testing
 os.environ["KIVY_NO_ARGS"] = "1"

@@ -1,8 +1,8 @@
 import sys
 import os
 
-# Add the parent directory to sys.path so we can import utils.crypto
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Proje kökünü (tests/'in bir üstü) sys.path'e ekle ki utils.crypto bulunsun
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.crypto import encrypt, decrypt
 

@@ -19,7 +19,17 @@
       "Bash(echo \"test_metrics: $?\")",
       "Bash(.venv/bin/python test_main_metrics.py)",
       "Bash(echo \"test_main_metrics: $?\")",
-      "Bash(git commit -m 'main.py küçültme: bütçe, birikim ve hesaplayıcı metodları mixin'\\\\''lere taşındı *)"
+      "Bash(git commit -m 'main.py küçültme: bütçe, birikim ve hesaplayıcı metodları mixin'\\\\''lere taşındı *)",
+      "Bash(git stash *)",
+      "Bash(git checkout *)",
+      "Bash(echo \"c191b6a'da exit: $?\")",
+      "Bash(git rm *)",
+      "Bash(git commit -m 'Ölü tek seferlik scriptler silindi \\(8 dosya\\) *)",
+      "Bash(git mv *)",
+      "Bash(.venv/bin/python tests/test_startup_import.py)",
+      "Bash(.venv/bin/python tests/test_crypto.py)",
+      "Bash(.venv/bin/python tests/test_metrics.py)",
+      "Bash(git commit -m 'Test dosyaları tests/ klasörüne taşındı *)"
     ]
   }
 }

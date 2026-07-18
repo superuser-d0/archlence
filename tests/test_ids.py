@@ -1,3 +1,9 @@
+import os, sys
+# ui/dashboard.kv göreli yolla yüklendiği için proje köküne geçilir
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _ROOT)
+os.chdir(_ROOT)
+
 from kivy.lang import Builder
 from kivymd.app import MDApp
 from kivy.properties import ColorProperty
