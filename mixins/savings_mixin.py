@@ -5,6 +5,7 @@ renk döngüsü ve hedefe para ekleme akışı. main.py'deki FinoraApp gövdesin
 taşındı; hedef verisi self.savings_goals listesinde tutulur ve self.store
 (JsonStore) üzerinden savings_goals.json'a kalıcılaştırılır.
 """
+import datetime
 import math
 
 from kivy.metrics import dp
@@ -67,6 +68,7 @@ class SavingsMixin:
                 "color":        "green",
                 "current":      0.0,
                 "auto_deposit": getattr(self, "sg_auto_deposit", False),
+                "created_at":   datetime.date.today().isoformat(),
             }
             self.savings_goals.append(goal)
             self.store.put('goals', data=self.savings_goals)
@@ -104,6 +106,34 @@ class SavingsMixin:
         color_names = {"green": "Yeşil", "blue": "Mavi", "red": "Kırmızı"}
         toast(f"Renk değiştirildi: {color_names[nxt]}")
 
+    def _estimate_goal_eta(self, goal):
+        """Mevcut birikim hızına göre kalan ay tahminini metin olarak döndürür.
+        created_at eksikse (eski hedef) veya hız hesaplanamıyorsa 'yeterli veri
+        yok' döner."""
+        target = float(goal.get("target", 0))
+        current = float(goal.get("current", 0.0))
+        created_at = goal.get("created_at")
+
+        if target > 0 and current >= target:
+            return "Tebrikler, hedefe ulaştın! 🎉"
+        if not created_at or current <= 0:
+            return "Henüz tahmin için yeterli veri yok"
+
+        try:
+            created = datetime.date.fromisoformat(created_at)
+        except ValueError:
+            return "Henüz tahmin için yeterli veri yok"
+
+        days_elapsed = max(1, (datetime.date.today() - created).days)
+        months_elapsed = max(1.0, days_elapsed / 30.0)
+        avg_monthly_pace = current / months_elapsed
+
+        if avg_monthly_pace <= 0:
+            return "Henüz tahmin için yeterli veri yok"
+
+        remaining_months = math.ceil((target - current) / avg_monthly_pace)
+        return f"Şu anki hızla ~{remaining_months} ay kaldı"
+
     # ─── One-time deposit into a goal ────────────────────────────────────────
     def add_funds_to_goal(self, goal_idx, wave_widget, pct_label, *args):
         """Belirtilen hedefe tek seferlik fon/para eklemek için bir diyalog penceresi açar."""
@@ -120,12 +150,26 @@ class SavingsMixin:
                 if amount <= 0:
                     toast("0'dan b\u00fcy\u00fck bir tutar girin!")
                     return
+                target = float(g.get("target", 1)) or 1.0
+                old_pct = max(0.0, min(100.0, (g.get("current", 0.0) / target) * 100))
                 g["current"] = g.get("current", 0.0) + amount
+                new_pct = max(0.0, min(100.0, (g["current"] / target) * 100))
                 self.store.put('goals', data=self.savings_goals)
                 toast(f"\u20ba{amount:,.2f} eklendi!")
                 fund_dlg.dismiss()
                 self.render_savings_goals(0)
                 self.safe_refresh_charts()
+
+                crossed = [m for m in (25, 50, 75, 100) if old_pct < m <= new_pct]
+                if crossed:
+                    top = max(crossed)
+                    try:
+                        if self.root and 'confetti_overlay' in self.root.ids:
+                            self.root.ids.confetti_overlay.burst()
+                    except Exception:
+                        pass
+                    msg = "\U0001F389\U0001F389\U0001F389 Hedefe ula\u015ft\u0131n!" if top == 100 else f"\U0001F389 %{top} tamamland\u0131!"
+                    toast(msg)
             except ValueError:
                 toast("Ge\u00e7erli bir say\u0131 girin!")
 
@@ -188,7 +232,7 @@ class SavingsMixin:
             card = _MDCard(
                 orientation="vertical",
                 size_hint_y=None,
-                height=dp(180),
+                height=dp(198),
                 padding=dp(16),
                 spacing=dp(12),
                 style="outlined",
@@ -240,6 +284,16 @@ class SavingsMixin:
             )
             pct_lbl.bind(size=pct_lbl.setter('text_size'))
             card.add_widget(pct_lbl)
+
+            # Tahmini süre: mevcut birikim hızına göre "~N ay kaldı"
+            eta_lbl = MDLabel(
+                text=self._estimate_goal_eta(goal),
+                font_style="Caption",
+                theme_text_color="Secondary",
+                size_hint_y=None,
+                height=dp(18),
+            )
+            card.add_widget(eta_lbl)
 
             # Footer: MDBoxLayout with icon_size="28sp" buttons (Palette, Plus).
             act_row = MDBoxLayout(

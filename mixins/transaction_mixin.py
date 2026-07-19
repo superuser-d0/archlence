@@ -1,7 +1,9 @@
 from kivy.clock import Clock
+from kivy.metrics import dp
 from kivymd.toast import toast
 from kivymd.uix.button import MDRaisedButton
 from kivymd.uix.dialog import MDDialog
+from kivymd.uix.label import MDLabel
 from kivymd.uix.textfield import MDTextField
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.menu import MDDropdownMenu
@@ -19,13 +21,17 @@ class TransactionMixin:
     """
 
     def show_add_dialog(self):
-        """"Yeni İşlem" dialogunu açar: miktar alanı, gelir/gider seçici, kategori."""
+        """"Yeni İşlem" dialogunu açar: miktar alanı, gelir/gider seçici, kategori,
+        ve isteğe bağlı "tekrarlanan ödeme" alanları (isim, sıklık, otomatik düş)."""
+        from kivymd.uix.selectioncontrol import MDSwitch
+
         self.selected_type = "income"
         self.selected_category = "Kategori Seç"
-        
-        dialog_layout = MDBoxLayout(orientation="vertical", spacing="15dp", size_hint_y=None, height="180dp")
+        self.selected_frequency = "monthly"
+
+        dialog_layout = MDBoxLayout(orientation="vertical", spacing="15dp", size_hint_y=None, height="430dp")
         self.amount_input = MDTextField(hint_text="Miktar (₺)", input_filter="float", size_hint_y=None, height="48dp")
-        
+
         self.type_segment = MDSegmentedControl(size_hint_x=1)
         self.type_segment.add_widget(MDSegmentedControlItem(text="Gelir"))
         self.type_segment.add_widget(MDSegmentedControlItem(text="Gider"))
@@ -33,17 +39,49 @@ class TransactionMixin:
 
         self.category_button = MDRaisedButton(text="Kategori Seç", size_hint_x=1, elevation=0, on_release=self.open_category_menu)
 
+        # Tekrarlanan ödeme mi? (Kira, Netflix, Spotify vb. her ay tekrar eden giderler)
+        recurring_row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="44dp", spacing="12dp")
+        recurring_lbl = MDLabel(text="Tekrarlanan Ödeme mi?", valign="center")
+        recurring_lbl.bind(size=recurring_lbl.setter('text_size'))
+        self.recurring_switch = MDSwitch(size_hint_x=None, width=dp(65))
+        recurring_row.add_widget(recurring_lbl)
+        recurring_row.add_widget(self.recurring_switch)
+
+        self.recurring_name_input = MDTextField(
+            hint_text="Ödeme Adı (örn: Netflix)", size_hint_y=None, height="48dp"
+        )
+
+        self.recurring_freq_segment = MDSegmentedControl(size_hint_x=1)
+        self.recurring_freq_segment.add_widget(MDSegmentedControlItem(text="Aylık"))
+        self.recurring_freq_segment.add_widget(MDSegmentedControlItem(text="Yıllık"))
+        self.recurring_freq_segment.bind(on_active=self.on_recurring_freq_active)
+
+        auto_deduct_row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="44dp", spacing="12dp")
+        auto_deduct_lbl = MDLabel(text="Vadesi Gelince Otomatik Düş", valign="center")
+        auto_deduct_lbl.bind(size=auto_deduct_lbl.setter('text_size'))
+        self.auto_deduct_switch = MDSwitch(size_hint_x=None, width=dp(65))
+        auto_deduct_row.add_widget(auto_deduct_lbl)
+        auto_deduct_row.add_widget(self.auto_deduct_switch)
+
         dialog_layout.add_widget(self.amount_input)
         dialog_layout.add_widget(self.type_segment)
         dialog_layout.add_widget(self.category_button)
+        dialog_layout.add_widget(recurring_row)
+        dialog_layout.add_widget(self.recurring_name_input)
+        dialog_layout.add_widget(self.recurring_freq_segment)
+        dialog_layout.add_widget(auto_deduct_row)
 
         self.dialog = MDDialog(
             title="Yeni Bir İşlem Ekle",
             type="custom",
             content_cls=dialog_layout,
             buttons=[MDRaisedButton(text="KAYDET", on_release=self.save_transaction)]
-        )    
+        )
         self.dialog.open()
+
+    def on_recurring_freq_active(self, segmented_control, segmented_item):
+        """Tekrarlanan ödeme sıklığı seçimini (Aylık/Yıllık) günceller."""
+        self.selected_frequency = "yearly" if segmented_item.text == "Yıllık" else "monthly"
 
     def on_segment_active(self, segmented_control, segmented_item):
         """Gelir/Gider seçimi değişince türü günceller ve kategori seçimini sıfırlar
@@ -85,12 +123,20 @@ class TransactionMixin:
         toast("İşlem şifreleniyor...")
 
         import threading
+        import datetime
         from kivy.clock import Clock
+
+        is_recurring = self.recurring_switch.active
+        recurring_name = self.recurring_name_input.text.strip() or self.selected_category
+        recurring_frequency = self.selected_frequency
+        recurring_auto_deduct = self.auto_deduct_switch.active
 
         def success_callback(dt):
             self.dialog.dismiss()
             self.refresh_dashboard_data()
             self.generate_financial_advice()
+            if is_recurring and hasattr(self, "load_upcoming_recurring"):
+                self.load_upcoming_recurring()
             toast("İşlem başarıyla eklendi!")
 
         def error_callback(dt):
@@ -103,8 +149,15 @@ class TransactionMixin:
                     amount=user_amount,
                     transaction_type=self.selected_type,
                     category=self.selected_category,
-                    description=self.selected_category 
+                    description=self.selected_category
                 )
+                if is_recurring and self.selected_type == "expense":
+                    from database.db import insert_recurring_payment, _advance_due_date
+                    next_due = _advance_due_date(datetime.date.today().isoformat(), recurring_frequency)
+                    insert_recurring_payment(
+                        recurring_name, user_amount, self.selected_category,
+                        recurring_frequency, next_due, recurring_auto_deduct
+                    )
                 Clock.schedule_once(success_callback, 0)
             except Exception as e:
                 print(f"Save Transaction Error: {e}")

@@ -198,3 +198,98 @@ def get_asset_transaction_history(limit=50):
             "date":        r["t_date"],
         })
     return result
+
+
+# ─── Tekrarlanan Ödemeler ─────────────────────────────────────────────────────
+
+def insert_recurring_payment(name, amount, category, frequency, next_due_date, auto_deduct, account_id=1):
+    conn = get_connection()
+    cursor = conn.cursor()
+    enc_name = encrypt(str(name), SECRET_KEY)
+    enc_amount = encrypt(str(amount), SECRET_KEY)
+    cursor.execute("""
+        INSERT INTO recurring_payments (name, amount, category, frequency, next_due_date, auto_deduct, is_active, account_id)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+    """, (enc_name, enc_amount, category, frequency, next_due_date, int(bool(auto_deduct)), account_id))
+    conn.commit()
+    conn.close()
+
+
+def get_active_recurring_payments():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM recurring_payments WHERE is_active = 1 ORDER BY next_due_date ASC")
+    rows = cursor.fetchall()
+    conn.close()
+
+    payments = []
+    for r in rows:
+        try:
+            dec_name = decrypt(r["name"], SECRET_KEY)
+            dec_amount = float(decrypt(r["amount"], SECRET_KEY))
+        except Exception:
+            dec_name = "Bilinmeyen Ödeme"
+            dec_amount = 0.0
+        payments.append({
+            "id":            r["id"],
+            "name":          dec_name,
+            "amount":        dec_amount,
+            "category":      r["category"],
+            "frequency":     r["frequency"],
+            "next_due_date": r["next_due_date"],
+            "auto_deduct":   bool(r["auto_deduct"]),
+            "account_id":    r["account_id"],
+        })
+    return payments
+
+
+def deactivate_recurring_payment(payment_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE recurring_payments SET is_active = 0 WHERE id = ?", (payment_id,))
+    conn.commit()
+    conn.close()
+
+
+def _advance_due_date(date_str, frequency):
+    """'YYYY-MM-DD' tarihine 1 ay veya 1 yıl ekler. Ay sonu/artık yıl kenar
+    durumlarını calendar.monthrange ile ele alır (örn. 31 Ocak + 1 ay -> 28/29 Şubat,
+    29 Şubat + 1 yıl -> 28 Şubat)."""
+    from datetime import date
+    import calendar
+
+    d = date.fromisoformat(date_str)
+    if frequency == "yearly":
+        try:
+            return d.replace(year=d.year + 1).isoformat()
+        except ValueError:
+            return d.replace(year=d.year + 1, day=28).isoformat()
+
+    month = d.month + 1
+    year = d.year + (1 if month > 12 else 0)
+    month = 1 if month > 12 else month
+    last_day = calendar.monthrange(year, month)[1]
+    day = min(d.day, last_day)
+    return date(year, month, day).isoformat()
+
+
+def process_due_recurring_payment(payment):
+    """Vadesi gelen tekrarlanan ödemeyi işler: transactions tablosuna gider olarak
+    yazar (insert_asset_transaction'daki 'yan etki olarak transactions'a yazma'
+    kalıbını izler) ve next_due_date'i bir periyot ileri alır. Bu sayede aynı gün
+    tekrar çağrılsa da ödeme yeniden düşmez (next_due_date artık bugünü geçmiştir)."""
+    from datetime import datetime
+    conn = get_connection()
+    cursor = conn.cursor()
+    enc_amount = encrypt(str(payment["amount"]), SECRET_KEY)
+    enc_desc = encrypt(f"{payment['name']} (Otomatik)", SECRET_KEY)
+    tx_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("""
+        INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
+        VALUES (?, ?, 'expense', ?, ?, ?)
+    """, (payment["account_id"], enc_amount, payment["category"], enc_desc, tx_date))
+
+    new_due = _advance_due_date(payment["next_due_date"], payment["frequency"])
+    cursor.execute("UPDATE recurring_payments SET next_due_date = ? WHERE id = ?", (new_due, payment["id"]))
+    conn.commit()
+    conn.close()

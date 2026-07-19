@@ -206,7 +206,7 @@ except BaseException:
     pass
 
 
-from ui.charts import CurvedTrendChart, HorizontalBarChart, LiquidWaveWidget, PieChart, DashboardChartManager
+from ui.charts import CurvedTrendChart, HorizontalBarChart, LiquidWaveWidget, PieChart, DashboardChartManager, ConfettiWidget
 from ui.components import CategorySettingItem, RightButtonsContainer, BudgetListItem, LegendItem, LegendWidget
 from screens.admin_screen import AdminScreen
 
@@ -216,9 +216,10 @@ from mixins.calculator_mixin import CalculatorMixin
 from mixins.transaction_mixin import TransactionMixin
 from mixins.budget_mixin import BudgetMixin
 from mixins.savings_mixin import SavingsMixin
+from mixins.recurring_mixin import RecurringMixin
 
 class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
-                TransactionMixin, BudgetMixin, SavingsMixin):
+                TransactionMixin, BudgetMixin, SavingsMixin, RecurringMixin):
 
     # ──────────────────────────────────────────────────────────────────────────
     # ODE / RK4 Financial Projection Engine
@@ -633,6 +634,7 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
         self.load_active_debts()
         self.load_active_assets()
         self.load_asset_history()
+        self.process_due_auto_deductions()
 
     def purge_logs(self):
         import os, glob

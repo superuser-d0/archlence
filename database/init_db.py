@@ -80,6 +80,21 @@ def initialize_database():
     if "purchase_date" not in existing_cols:
         cursor.execute("ALTER TABLE active_assets ADD COLUMN purchase_date TEXT")
 
+    # 7. Tekrarlanan Ödemeler Tablosu (Kira, Netflix, Spotify vb.)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS recurring_payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            amount TEXT NOT NULL,
+            category TEXT,
+            frequency TEXT NOT NULL DEFAULT 'monthly',
+            next_due_date TEXT NOT NULL,
+            auto_deduct INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            account_id INTEGER DEFAULT 1
+        )
+    """)
+
     conn.commit()
 
     # 4. Varsayılan Hesapları Ekle

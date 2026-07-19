@@ -612,6 +612,46 @@ MDScreen:
                                                 font_style: "Body2"
                                                 halign: "center"
 
+                                # YENİ: YAKLAŞAN ÖDEMELER KARTI
+                                MDCard:
+                                    orientation: "vertical"
+                                    padding: "16dp"
+                                    spacing: "10dp"
+                                    size_hint_y: None
+                                    height: "220dp"
+                                    elevation: 0
+                                    radius: [16, 16, 16, 16]
+                                    md_bg_color: [1, 1, 1, 1]
+                                    line_color: [0.9, 0.9, 0.9, 1]
+                                    line_width: 1.2
+
+                                    MDBoxLayout:
+                                        size_hint_y: None
+                                        height: "30dp"
+                                        spacing: "10dp"
+                                        MDIcon:
+                                            icon: "calendar-clock-outline"
+                                            theme_text_color: "Custom"
+                                            text_color: app.theme_cls.primary_color
+                                            font_size: "24sp"
+                                        MDLabel:
+                                            text: "Yaklaşan Ödemeler"
+                                            font_style: "H6"
+                                            bold: True
+
+                                    ScrollView:
+                                        MDBoxLayout:
+                                            id: upcoming_payments_container
+                                            orientation: "vertical"
+                                            spacing: "10dp"
+                                            adaptive_height: True
+
+                                            MDLabel:
+                                                text: "Yaklaşan ödeme bulunmuyor."
+                                                theme_text_color: "Secondary"
+                                                font_style: "Body2"
+                                                halign: "center"
+
 
                                 # YENİ: SON İŞLEMLER LİSTESİ VE FİLTRESİ
                                 MDBoxLayout:
@@ -1094,8 +1134,13 @@ MDScreen:
                         
                         MDFloatingActionButton:
                             icon: "plus"
-                            pos_hint: {"right": 0.95, "y": 0.05} 
+                            pos_hint: {"right": 0.95, "y": 0.05}
                             on_release: app.show_add_dialog()
+
+                        ConfettiWidget:
+                            id: confetti_overlay
+                            size_hint: 1, 1
+                            pos_hint: {"x": 0, "y": 0}
 
                 # ==== 3. SEKME: ARAÇLAR ====
                 MDBottomNavigationItem:

@@ -609,6 +609,78 @@ class LiquidWaveWidget(Widget):
             self._clock.cancel()
 
 
+class ConfettiWidget(Widget):
+    """Birikim hedefinde bir eşik (%25/50/75/100) geçildiğinde tetiklenen kısa
+    süreli konfeti patlaması. burst() çağrılana kadar tamamen pasif kalır; tüm
+    parçacıklar söndüğünde kendi Clock'unu iptal eder (LiquidWaveWidget'taki
+    sürekli tick'in aksine, burada yalnızca aktifken tick atan bir döngü kullanılır).
+    """
+
+    PALETTE = [
+        (0.95, 0.75, 0.1, 1), (0.1, 0.8, 0.2, 1), (0.3, 0.45, 0.95, 1),
+        (0.9, 0.15, 0.15, 1), (0.8, 0.3, 0.9, 1),
+    ]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._particles = []
+        self._clock = None
+        self.bind(pos=self._redraw, size=self._redraw)
+
+    def burst(self, count=60):
+        import random
+        if self.width <= 0 or self.height <= 0:
+            return
+        cx, cy = self.center_x, self.top - dp(20)
+        for _ in range(count):
+            angle = random.uniform(0, 360)
+            speed = random.uniform(dp(60), dp(220))
+            self._particles.append({
+                "x": cx, "y": cy,
+                "vx": cos(radians(angle)) * speed,
+                "vy": sin(radians(angle)) * speed + dp(150),
+                "size": random.uniform(dp(4), dp(9)),
+                "color": random.choice(self.PALETTE),
+                "life": 1.0,
+            })
+        if self._clock is None:
+            self._clock = Clock.schedule_interval(self._tick, 1 / 60.0)
+
+    def _tick(self, dt):
+        gravity = dp(350)
+        alive = []
+        for p in self._particles:
+            p["vy"] -= gravity * dt
+            p["x"] += p["vx"] * dt
+            p["y"] += p["vy"] * dt
+            p["life"] -= dt * 0.6
+            if p["life"] > 0 and p["y"] > self.y - dp(40):
+                alive.append(p)
+        self._particles = alive
+        self._redraw()
+        if not self._particles and self._clock is not None:
+            self._clock.cancel()
+            self._clock = None
+
+    def _redraw(self, *args):
+        self.canvas.clear()
+        if not self._particles:
+            return
+        with self.canvas:
+            for p in self._particles:
+                r, g, b, a = p["color"]
+                Color(r, g, b, max(0.0, min(1.0, p["life"])))
+                Ellipse(
+                    pos=(p["x"] - p["size"] / 2, p["y"] - p["size"] / 2),
+                    size=(p["size"], p["size"]),
+                )
+
+    def on_parent(self, *args):
+        if not self.parent and self._clock is not None:
+            self._clock.cancel()
+            self._clock = None
+
+
 class PieChart(Widget):
     """Ortası boş halka (donut/pie) grafiği çizer. Yüzdelikleri ve dilimleri animasyonlu gösterir.
     Beklenen veri formatı (self.data):
