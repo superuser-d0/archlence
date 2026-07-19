@@ -1,5 +1,11 @@
 # Antigravity IDE Görev Listesi — Tur 3: "Hesaplarım / Kartlarım" Arayüzü
 
+> **DURUM: TAMAMLANDI (2026-07-20).** Görev 1 ve 2 uygulandı ve uçtan uca
+> doğrulandı (`76d3cc7`, `b872730`). Ardından diyalog yerleşimi yeniden yazıldı:
+> sekme geçişlerinde içeriğin başlığın üzerine taşması giderildi ve karanlık
+> tema kontrastı düzeltildi. Görev 3 (işlem diyaloğuna hesap seçici) YAPILMADI,
+> bir sonraki tura kaldı.
+
 Bu turda YALNIZCA arayüz (widget + layout) işi var. Backend (veritabanı şeması,
 bakiye matematiği, doğrulama, net servet hesabı) tamamlanmış ve testleri geçmiş
 durumda — commit `768638a` ve `cae0671`.
@@ -23,7 +29,7 @@ kalmalı.
 
 ---
 
-## Görev 1 — `ui/dashboard.kv`: "Kartlarım" sekmesi
+## ✅ Görev 1 — `ui/dashboard.kv`: "Kartlarım" sekmesi *(tamamlandı)*
 
 `MDBottomNavigation` altında şu an 4 sekme var: `home_tab` (satır ~303),
 `assets_tab` (~729), `tools_tab` (~1207), `settings_tab` (~1431).
@@ -84,7 +90,7 @@ sessizce hiçbir şey çizmez.
 
 ---
 
-## Görev 2 — `open_add_account_dialog` diyaloğu
+## ✅ Görev 2 — `open_add_account_dialog` diyaloğu *(tamamlandı, sonradan yerleşimi yeniden yazıldı)*
 
 `mixins/account_mixin.py` içindeki `open_add_account_dialog` şu an tek satırlık
 bir stub. Gövdesini diyaloğu kuracak şekilde doldur. Docstring'i **silme**,
@@ -143,7 +149,7 @@ doğrulama hatasında diyaloğun açık kalması gerekiyor ki kullanıcı düzel
 
 ---
 
-## Görev 3 — İşlem diyaloğuna hesap seçici (opsiyonel, vakit kalırsa)
+## ⬜ Görev 3 — İşlem diyaloğuna hesap seçici *(YAPILMADI — sonraki tur)*
 
 Şu an işlem ekleme `DEFAULT_ACCOUNT_ID` (=1) sabitini kullanıyor
 (`mixins/transaction_mixin.py:157`). Kullanıcının karttan harcama yapabilmesi
@@ -172,3 +178,42 @@ durumda olur.
 > Not: `tests.test_ids` bu turdan **önce de** kırıktı
 > (`ui/dashboard.kv:1640`, `app.active_category_type` binding hatası). Senin
 > eklediğin sekme yüzünden değil; düzeltmeye çalışma, o ayrı bir iş.
+
+---
+
+## Tur 3 sonrası: yerleşim ve kontrast düzeltmesi (2026-07-20)
+
+Görev 2 uygulandıktan sonra sekme geçişlerinde elemanlar yukarı fırlayıp
+başlığın üzerine biniyordu. Kök neden ölçülerek doğrulandı:
+
+`inner` kutusu `adaptive_height=True` idi, yani tür değişince (1 alan ↔ 3 alan)
+yüksekliği değişiyordu; `MDDialog` ise yüksekliğini yalnızca açılışta
+hesapladığından büyüyen içerik yukarı taşıyordu. Ölçüm: **1 alan → 51dp,
+3 alan → 193dp (+142dp)**.
+
+Yapılanlar (`mixins/account_mixin.py::open_add_account_dialog`):
+
+- [x] Değişen alanlar sabit yükseklikli `dynamic_container` (`DYNAMIC_H`, 3 alan
+      için ayrılmış) içine hapsedildi; `inner` yüksekliği artık SABİT. Tür
+      değişiminde yalnızca konteynerin içeriği değişiyor, yüksekliği değil.
+      Ölçüldü: yeni yaklaşımda 1 ↔ 3 alan geçişinde fark **0dp**.
+- [x] Alan başına `FIELD_SLOT` ayrıldı: `MDTextField` kendi yüksekliğini içeriden
+      hesaplayıp dışarıdan verileni ezdiği ve doğrulama hatasında helper_text
+      için büyüdüğü için, konteyner en kötü durumda bile taşmıyor.
+- [x] Karanlık tema kontrastı: `hint_text_color_normal`, `helper_text_color_normal`,
+      `text_color_normal` (+ focus ve `fill_color_normal`) her iki tema için
+      açıkça veriliyor; `mode="fill"` alanların koyu dolgusunda hint metni artık
+      okunuyor.
+- [x] `spacing=dp(16)` ve `padding=dp(24)`; hiyerarşi Başlık → Sekmeler →
+      Alanlar → Butonlar sırasında akıyor.
+
+**Not:** Diyalog tamamen Python'da (imperatif) kuruluyor, ona ait bir KV bloğu
+yok — KV tarafındaki tek parça `ui/dashboard.kv` içindeki `accounts_tab`. Diyalog
+KV'ye taşınmadı; bu, davranışı değiştirmeyen büyük bir yeniden yapılandırma
+olurdu.
+
+### Açık kalan
+- Görev 3: işlem ekleme diyaloğu hâlâ `DEFAULT_ACCOUNT_ID` kullanıyor; kullanıcı
+  arayüzden hangi hesaptan/karttan harcadığını seçemiyor.
+- KAYDET butonunun rengi `#5444E5` olarak koda gömülü; `41a11db` ile tema
+  seçilebilir yapıldığı için standart temada da indigo görünüyor.

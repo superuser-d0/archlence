@@ -1,15 +1,20 @@
 """Hesaplarım / Kartlarım sekmesi mixin'i.
 
-İş mantığı (doğrulama, kayıt, kart listesinin çizimi, net servet özeti) burada
-tamamlanmıştır. Eksik olan tek parça `open_add_account_dialog` — hesap/kart ekleme
-diyaloğunun KivyMD widget'ları. Diyaloğu kuran taraf, alanları okuyup tek bir
-çağrıyla `commit_new_account(...)` fonksiyonuna vermelidir; doğrulama, hata
-mesajı ve ekran tazeleme o fonksiyonun içindedir.
+İş mantığı (doğrulama, kayıt, kart listesinin çizimi, net servet özeti) ve
+hesap/kart ekleme diyaloğu burada. Arayüz katmanı alanları okuyup tek bir
+çağrıyla `commit_new_account(...)` fonksiyonuna verir; doğrulama, hata mesajı ve
+ekran tazeleme o fonksiyonun içindedir.
+
+Diyalog yerleşimindeki temel kural: içerik kutusunun (`inner`) yüksekliği
+SABİTTİR. Tür seçimine göre değişen alanlar sabit yükseklikli
+`dynamic_container` içinde tutulur, çünkü MDDialog yüksekliğini yalnızca
+açılışta hesaplar — içerik sonradan büyürse başlığın üzerine taşar.
 
 Diyalog üslubu için örnek: mixins/savings_mixin.py::add_funds_to_goal
 (MDDialog type="custom" + content_cls=MDBoxLayout + MDRaisedButton'lar).
 """
 from kivy.metrics import dp
+from kivy.uix.widget import Widget
 from kivymd.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
@@ -37,9 +42,8 @@ class AccountMixin:
     def open_add_account_dialog(self, *args):
         """'Hesap/Kart Ekle' diyaloğunu açar.
 
-        STUB — widget'ları ANTIGRAVITY_TASKS_ROUND3.md'ye göre kurulacak.
-        Diyalog şu alanları toplamalı ve KAYDET'e basılınca aynen şu çağrıyı
-        yapmalıdır (alan adları değiştirilmemeli):
+        Diyalog şu alanları toplar ve KAYDET'e basılınca aynen şu çağrıyı
+        yapar (alan adları değiştirilmemeli):
 
             self.commit_new_account(
                 name=<MDTextField metni>,
@@ -63,26 +67,64 @@ class AccountMixin:
 
         premium_indigo = get_color_from_hex("#5444E5")
 
-        inner = MDBoxLayout(
-            orientation="vertical", 
-            size_hint_y=None, 
-            adaptive_height=True, 
-            spacing=dp(20), 
-            padding=[0, dp(16), 0, 0]
-        )
+        # ── Yerleşim sabitleri ────────────────────────────────────────────────
+        # TAŞMA DÜZELTMESİ: içerik kutusu eskiden adaptive_height=True idi, yani
+        # tür değişince (1 alan <-> 3 alan) yüksekliği değişiyordu. MDDialog ise
+        # yüksekliğini yalnızca açılışta hesapladığından büyüyen içerik yukarı
+        # taşıp başlığın üzerine biniyordu. Çözüm: içerik kutusunun yüksekliği
+        # SABİT; değişen alanlar sabit yükseklikli `dynamic_container` içine
+        # hapsedildi. Böylece diyalog hiç yeniden ölçülmek zorunda kalmıyor.
+        PAD = dp(24)
+        GAP = dp(16)
+        SEG_H = dp(42)          # MDSegmentedControl.segment_panel_height varsayılanı
+        # MDTextField kendi yüksekliğini içeriden hesaplar (bu sürümde ~32dp) ve
+        # dışarıdan verilen height'i ezer; ayrıca doğrulama hatası gösterince
+        # helper_text için büyür. Bu yüzden alan başına SLOT ayrılır: konteyner
+        # en kötü durumda bile taşmaz, artan boşluk alanların altında kalır.
+        FIELD_SLOT = dp(56)
+        # En yüksek durum kredi kartıdır: borç + limit + kesim günü = 3 alan
+        DYNAMIC_H = FIELD_SLOT * 3 + GAP * 2
 
-        type_control = MDSegmentedControl(pos_hint={"center_x": 0.5})
+        type_control = MDSegmentedControl(
+            pos_hint={"center_x": 0.5},
+            segment_panel_height=SEG_H,
+        )
         type_checking = MDSegmentedControlItem(text="Nakit / Vadesiz")
         type_credit = MDSegmentedControlItem(text="Kredi Kartı")
         type_control.add_widget(type_checking)
         type_control.add_widget(type_credit)
-        
+
+        # ── Karanlık tema kontrastı ───────────────────────────────────────────
+        # mode="fill" alanların dolgusu karanlık temada koyu olduğundan hint ve
+        # metin varsayılan renkleriyle okunmuyordu; her iki temada da açıkça
+        # yüksek kontrastlı tonlar veriliyor.
+        is_dark = self.theme_cls.theme_style == "Dark"
+        if is_dark:
+            hint_color = (0.78, 0.80, 0.86, 1)
+            text_color = (0.95, 0.96, 0.98, 1)
+            fill_color = (1, 1, 1, 0.08)
+            line_color = (1, 1, 1, 0.24)
+        else:
+            hint_color = (0.35, 0.36, 0.41, 1)
+            text_color = (0.11, 0.12, 0.15, 1)
+            fill_color = (0, 0, 0, 0.05)
+            line_color = (0, 0, 0, 0.20)
+
         def create_modern_tf(hint, filter=None):
             return MDTextField(
                 hint_text=hint,
                 input_filter=filter,
                 mode="fill",
-                radius=[dp(12), dp(12), dp(12), dp(12)]
+                radius=[dp(12), dp(12), dp(12), dp(12)],
+                size_hint_y=None,
+                hint_text_color_normal=hint_color,
+                hint_text_color_focus=hint_color,
+                helper_text_color_normal=hint_color,
+                text_color_normal=text_color,
+                text_color_focus=text_color,
+                fill_color_normal=fill_color,
+                fill_color_focus=fill_color,
+                line_color_normal=line_color,
             )
 
         self.acc_name_field = create_modern_tf("Hesap / Kart Adı")
@@ -93,21 +135,46 @@ class AccountMixin:
 
         self.selected_account_type = "Nakit / Vadesiz"
 
+        # Tür değiştikçe SADECE bu konteynerin içeriği değişir; yüksekliği sabit
+        # olduğu için üstteki başlık ve sekme çubuğu asla yerinden oynamaz.
+        dynamic_container = MDBoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            height=DYNAMIC_H,
+            spacing=GAP,
+        )
+        self.acc_dynamic_container = dynamic_container
+
+        inner = MDBoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            spacing=GAP,
+            padding=[PAD, PAD, PAD, PAD],
+            height=PAD * 2 + SEG_H + GAP + FIELD_SLOT + GAP + DYNAMIC_H,
+        )
         inner.add_widget(type_control)
         inner.add_widget(self.acc_name_field)
-        inner.add_widget(self.acc_initial_balance_field)
+        inner.add_widget(dynamic_container)
+
+        def fill_dynamic(account_type_label):
+            """dynamic_container'ı seçili türe göre doldurur. Konteynerin
+            yüksekliğine DOKUNMAZ — taşmayı engelleyen şey tam olarak budur."""
+            dynamic_container.clear_widgets()
+            if account_type_label == "Kredi Kartı":
+                dynamic_container.add_widget(self.acc_debt_field)
+                dynamic_container.add_widget(self.acc_limit_field)
+                dynamic_container.add_widget(self.acc_statement_field)
+            else:
+                dynamic_container.add_widget(self.acc_initial_balance_field)
+                # Kalan boşluğu doldur ki tek alan konteynerin ortasına
+                # yayılmak yerine üstte hizalı kalsın.
+                dynamic_container.add_widget(Widget())
+
+        fill_dynamic(self.selected_account_type)
 
         def on_type_change(segment, item):
             self.selected_account_type = item.text
-            inner.clear_widgets()
-            inner.add_widget(type_control)
-            inner.add_widget(self.acc_name_field)
-            if item.text == "Kredi Kartı":
-                inner.add_widget(self.acc_debt_field)
-                inner.add_widget(self.acc_limit_field)
-                inner.add_widget(self.acc_statement_field)
-            else:
-                inner.add_widget(self.acc_initial_balance_field)
+            fill_dynamic(item.text)
 
         type_control.bind(on_active=on_type_change)
 
