@@ -233,6 +233,8 @@ class AssetMixin:
         self.asset_type_dialog.dismiss()
         if self._asset_selected_type == "Hisse":
             Clock.schedule_once(lambda dt: self._show_bist100_picker(), 0.15)
+        elif self._asset_selected_type == "Kripto":
+            Clock.schedule_once(lambda dt: self._show_crypto_picker(), 0.15)
         else:
             Clock.schedule_once(lambda dt: self._show_other_asset_dialog(), 0.15)
 
@@ -496,6 +498,259 @@ class AssetMixin:
             except Exception as e:
                 print("Stock insert error:", e)
                 Clock.schedule_once(lambda dt: toast("Hisse eklenirken hata oluştu!"), 0)
+
+        threading.Thread(target=_insert, daemon=True).start()
+
+    def _show_crypto_picker(self):
+        """Kripto para listesini arama destekli MDDialog'da gösterir."""
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.button import MDFlatButton
+        from kivymd.uix.boxlayout import MDBoxLayout
+        from kivymd.uix.textfield import MDTextField
+        from kivymd.uix.scrollview import MDScrollView
+        from kivymd.uix.list import MDList, TwoLineAvatarIconListItem, IconLeftWidget
+        from services.crypto_top100 import fetch_top_100_cryptos
+
+        self._crypto_selected_code = None
+        self._crypto_selected_name = None
+
+        content = MDBoxLayout(
+            orientation="vertical",
+            spacing="8dp",
+            size_hint_y=None,
+            height="420dp",
+            padding=["0dp", "4dp", "0dp", "0dp"],
+        )
+
+        search_field = MDTextField(
+            hint_text="Ara: Kripto adı veya sembol...",
+            size_hint_x=1,
+            size_hint_y=None,
+            height="48dp",
+        )
+
+        scroll = MDScrollView(size_hint=(1, 1))
+        self._crypto_list_widget = MDList()
+        scroll.add_widget(self._crypto_list_widget)
+
+        content.add_widget(search_field)
+        content.add_widget(scroll)
+
+        def _build_list(query=""):
+            self._crypto_list_widget.clear_widgets()
+            query_lower = query.strip().lower()
+            cryptos = getattr(self, "_crypto_list_data", [])
+            for c in cryptos:
+                code = c["symbol"]
+                name = c["name"]
+                price = c["price"]
+                
+                if query_lower and query_lower not in code.lower() and query_lower not in name.lower():
+                    continue
+                
+                price_text = f"   [color=#14B85F]${price:,.2f}[/color]" if price else ""
+                item = TwoLineAvatarIconListItem(
+                    text=f"[b]{code}[/b]{price_text}",
+                    secondary_text=name,
+                )
+                item.add_widget(IconLeftWidget(
+                    icon="bitcoin",
+                    theme_text_color="Custom",
+                    text_color=(0.85, 0.65, 0.13, 1),
+                ))
+                
+                try:
+                    item.ids._lbl_primary.markup = True
+                except Exception:
+                    pass
+                
+                if code == self._crypto_selected_code:
+                    try:
+                        item.bg_color = (0.08, 0.72, 0.42, 0.15)
+                    except Exception:
+                        pass
+
+                def _on_select(inst, c_code=code, n_name=name):
+                    self._crypto_selected_code = c_code
+                    self._crypto_selected_name = n_name
+                    for child in self._crypto_list_widget.children:
+                        try:
+                            child.bg_color = (0, 0, 0, 0)
+                        except Exception:
+                            pass
+                    try:
+                        inst.bg_color = (0.08, 0.72, 0.42, 0.15)
+                    except Exception:
+                        pass
+
+                item.bind(on_release=_on_select)
+                self._crypto_list_widget.add_widget(item)
+
+        _build_list()
+
+        def _on_search(instance, value):
+            _build_list(value)
+
+        search_field.bind(text=_on_search)
+
+        def _on_cryptos_fetched(cryptos):
+            self._crypto_list_data = cryptos
+            def _refresh(dt):
+                try:
+                    _build_list(search_field.text)
+                except Exception as e:
+                    print("Kripto liste yenileme hatası:", e)
+            Clock.schedule_once(_refresh, 0)
+
+        # Arka planda CoinGecko API verisini çek
+        fetch_top_100_cryptos(_on_cryptos_fetched)
+
+        def _confirm_crypto(instance):
+            if not self._crypto_selected_code:
+                toast("Lütfen bir kripto para seçin!")
+                return
+            self._crypto_dialog.dismiss()
+            # yfinance sembol uyumluluğu için -USD ekle (sadece yfinance isteğinde kullanılacak)
+            yf_symbol = f"{self._crypto_selected_code}-USD"
+            Clock.schedule_once(
+                lambda dt: self._show_crypto_price_dialog(
+                    yf_symbol,
+                    self._crypto_selected_name
+                ), 0.15
+            )
+
+        self._crypto_dialog = MDDialog(
+            title="Top 100 Kripto — Seç",
+            type="custom",
+            content_cls=content,
+            buttons=[
+                MDFlatButton(
+                    text="GERİ",
+                    on_release=lambda x: (self._crypto_dialog.dismiss(),
+                                          Clock.schedule_once(lambda dt: self.show_add_asset_dialog(), 0.15)),
+                ),
+                MDFlatButton(
+                    text="SEÇ  ✓",
+                    theme_text_color="Custom",
+                    text_color=(0.08, 0.72, 0.42, 1),
+                    on_release=_confirm_crypto,
+                ),
+            ],
+        )
+        self._crypto_dialog.open()
+
+    def _show_crypto_price_dialog(self, code, name):
+        """Kripto seçildikten sonra alım fiyatı ve miktar giriş diyaloğu."""
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.button import MDFlatButton, MDRaisedButton
+        from kivymd.uix.boxlayout import MDBoxLayout
+        from kivymd.uix.textfield import MDTextField
+        from kivymd.uix.label import MDLabel
+
+        self._asset_selected_type = "Kripto"
+        self._asset_name_input_val = name
+        self._asset_code_input_val = code
+
+        content = MDBoxLayout(
+            orientation="vertical",
+            spacing="12dp",
+            size_hint_y=None,
+            height="200dp",
+            padding=["0dp", "8dp", "0dp", "0dp"],
+        )
+
+        info_lbl = MDLabel(
+            text=f"[b]{code}[/b] — {name}",
+            markup=True,
+            font_style="Subtitle1",
+            theme_text_color="Primary",
+            size_hint_y=None,
+            height="32dp",
+        )
+
+        self._asset_price_input = MDTextField(
+            hint_text="Alım Fiyatı (₺ / adet)",
+            input_filter="float",
+            size_hint_x=1,
+        )
+        self._asset_qty_input = MDTextField(
+            hint_text="Miktar (adet)",
+            input_filter="float",
+            size_hint_x=1,
+        )
+
+        content.add_widget(info_lbl)
+        content.add_widget(self._asset_price_input)
+        content.add_widget(self._asset_qty_input)
+
+        def _go_back(instance):
+            self._crypto_price_dialog.dismiss()
+            Clock.schedule_once(lambda dt: self._show_crypto_picker(), 0.15)
+
+        self._crypto_price_dialog = MDDialog(
+            title="Alım Bilgileri",
+            type="custom",
+            content_cls=content,
+            buttons=[
+                MDFlatButton(text="GERİ", on_release=_go_back),
+                MDRaisedButton(
+                    text="PORTFÖYE EKLE",
+                    md_bg_color=(0.08, 0.72, 0.42, 1),
+                    on_release=lambda x: self._save_crypto_asset(),
+                ),
+            ],
+        )
+        self._crypto_price_dialog.open()
+
+    def _save_crypto_asset(self):
+        """Kripto akışından gelen varlığı kaydeder."""
+        price_text = self._asset_price_input.text.strip()
+        qty_text   = self._asset_qty_input.text.strip()
+
+        if not price_text or not qty_text:
+            toast("Fiyat ve miktar zorunludur!")
+            return
+        try:
+            purchase_price = float(price_text.replace(",", "."))
+            quantity       = float(qty_text.replace(",", "."))
+        except ValueError:
+            toast("Geçersiz fiyat veya miktar!")
+            return
+
+        asset_name = self._asset_name_input_val
+        asset_code = self._asset_code_input_val
+        asset_type = "Kripto"
+
+        self._crypto_price_dialog.dismiss()
+
+        import threading
+        def _insert():
+            try:
+                from datetime import datetime
+                from database.db import insert_asset, insert_asset_transaction
+                purchase_date   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                invested_amount = purchase_price * quantity
+                insert_asset(asset_name, asset_code, asset_type,
+                             purchase_price, quantity, purchase_date)
+                desc = (
+                    f"{asset_name} ({asset_code}) — "
+                    f"{quantity:g} adet @ {purchase_price:,.4f} ₺"
+                )
+                insert_asset_transaction(
+                    account_id=1,
+                    amount=invested_amount,
+                    tx_type="expense",
+                    category="Varlık Alımı",
+                    description=desc,
+                )
+                Clock.schedule_once(lambda dt: toast("Kripto eklendi! Fiyatlar güncelleniyor…"), 0)
+                Clock.schedule_once(lambda dt: self.load_active_assets(), 0)
+                Clock.schedule_once(lambda dt: self.load_asset_history(), 0)
+                Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
+                Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
+            except Exception as e:
+                print("Crypto insert error:", e)
+                Clock.schedule_once(lambda dt: toast("Kripto eklenirken hata oluştu!"), 0)
 
         threading.Thread(target=_insert, daemon=True).start()
 
