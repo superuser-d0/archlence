@@ -551,7 +551,7 @@ class AssetMixin:
         def _insert():
             try:
                 from datetime import datetime
-                from database.db import insert_asset, insert_asset_transaction
+                from database.db import insert_asset, insert_asset_transaction, DEFAULT_ACCOUNT_ID
                 purchase_date   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 invested_amount = purchase_price * quantity
                 insert_asset(asset_name, asset_code, asset_type,
@@ -561,7 +561,7 @@ class AssetMixin:
                     f"{quantity:g} adet, birim fiyat {format_price_tl(purchase_price)}"
                 )
                 insert_asset_transaction(
-                    account_id=1,
+                    account_id=DEFAULT_ACCOUNT_ID,
                     amount=invested_amount,
                     tx_type="expense",
                     category="Varlık Alımı",
@@ -837,7 +837,7 @@ class AssetMixin:
         def _insert():
             try:
                 from datetime import datetime
-                from database.db import insert_asset, insert_asset_transaction
+                from database.db import insert_asset, insert_asset_transaction, DEFAULT_ACCOUNT_ID
                 purchase_date   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 invested_amount = purchase_price * quantity
                 insert_asset(asset_name, asset_code, asset_type,
@@ -847,7 +847,7 @@ class AssetMixin:
                     f"{quantity:g} adet, birim fiyat {format_price_tl(purchase_price)}"
                 )
                 insert_asset_transaction(
-                    account_id=1,
+                    account_id=DEFAULT_ACCOUNT_ID,
                     amount=invested_amount,
                     tx_type="expense",
                     category="Varlık Alımı",
@@ -1147,7 +1147,7 @@ class AssetMixin:
         def _insert():
             try:
                 from datetime import datetime
-                from database.db import insert_asset, insert_asset_transaction
+                from database.db import insert_asset, insert_asset_transaction, DEFAULT_ACCOUNT_ID
                 purchase_date   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 invested_amount = purchase_price * quantity
 
@@ -1161,7 +1161,7 @@ class AssetMixin:
                     f"{quantity:g} adet, birim fiyat {format_price_tl(purchase_price)}"
                 )
                 insert_asset_transaction(
-                    account_id=1,
+                    account_id=DEFAULT_ACCOUNT_ID,
                     amount=invested_amount,
                     tx_type="expense",
                     category="Varlık Alımı",
@@ -1495,7 +1495,7 @@ class AssetMixin:
     def _execute_sell(self, asset, sell_price_per_unit):
         """Satış işlemini background thread'de gerçekleştirir."""
         import threading
-        from database.db import delete_asset, insert_asset_transaction
+        from database.db import delete_asset, insert_asset_transaction, DEFAULT_ACCOUNT_ID
         from kivymd.toast import toast
 
         def _do_sell():
@@ -1513,7 +1513,7 @@ class AssetMixin:
 
                 # Cüzdana ekle: income + 'Varlık Satışı'
                 insert_asset_transaction(
-                    account_id=1,
+                    account_id=DEFAULT_ACCOUNT_ID,
                     amount=total_proceeds,
                     tx_type="income",
                     category="Varlık Satışı",

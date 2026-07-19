@@ -6,10 +6,28 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_NAME = os.path.join(BASE_DIR, "finance.db")
 SECRET_KEY = 'finora_secure_2026'
 
+# Arayüzde henüz hesap seçimi olmadığından işlem ekleyen tüm çağıranlar
+# (transaction_mixin, debt_mixin, recurring_mixin, asset_mixin) bu tek
+# noktadan varsayılan hesabı okur — ileride bir hesap seçici eklenirse
+# değişmesi gereken tek yer burası, 8 ayrı dosyaya dağılmış literal "1" değil.
+DEFAULT_ACCOUNT_ID = 1
+
 def get_connection():
     conn = sqlite3.connect(DB_NAME, check_same_thread=False, timeout=10)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+def adjust_account_balance(cursor, account_id, transaction_type, amount):
+    """accounts.balance'ı işlem tutarına göre senkron günceller (Hesaplar Kopuk
+    düzeltmesi): gelir bakiyeyi artırır, gider azaltır. Açık bir cursor alır ki
+    çağıran INSERT ile aynı commit'te atomik olarak yazılsın — ayrı bir
+    connection açılırsa iki yazım arasında tutarsız bir ara durum oluşabilir."""
+    delta = amount if transaction_type in ("income", "Gelir") else -amount
+    cursor.execute(
+        "UPDATE accounts SET balance = balance + ? WHERE id = ?",
+        (delta, account_id),
+    )
 
 def insert_debt(debt_name, total_amount, monthly_payment, total_installments, is_auto_pay=0, auto_pay_day=1):
     conn = get_connection()
@@ -172,6 +190,7 @@ def insert_asset_transaction(account_id, amount, tx_type, category, description)
         INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
         VALUES (?, ?, ?, ?, ?, ?)
     """, (account_id, enc_amount, tx_type, category, enc_desc, tx_date))
+    adjust_account_balance(cursor, account_id, tx_type, amount)
     conn.commit()
     conn.close()
 
@@ -216,7 +235,7 @@ def get_asset_transaction_history(limit=50):
 
 # ─── Tekrarlanan Ödemeler ─────────────────────────────────────────────────────
 
-def insert_recurring_payment(name, amount, category, frequency, next_due_date, auto_deduct, account_id=1):
+def insert_recurring_payment(name, amount, category, frequency, next_due_date, auto_deduct, account_id=DEFAULT_ACCOUNT_ID):
     conn = get_connection()
     cursor = conn.cursor()
     enc_name = encrypt(str(name), SECRET_KEY)
@@ -324,6 +343,7 @@ def process_due_recurring_payment(payment):
         INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
         VALUES (?, ?, 'expense', ?, ?, ?)
     """, (payment["account_id"], enc_amount, payment["category"], enc_desc, tx_date))
+    adjust_account_balance(cursor, payment["account_id"], "expense", payment["amount"])
 
     new_due = _advance_due_date(payment["next_due_date"], payment["frequency"])
     cursor.execute("UPDATE recurring_payments SET next_due_date = ? WHERE id = ?", (new_due, payment["id"]))

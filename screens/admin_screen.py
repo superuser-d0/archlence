@@ -96,6 +96,9 @@ class AdminScreen(MDScreen):
         try:
             cursor.execute("DELETE FROM transactions")
             cursor.execute("DELETE FROM monthly_budget_plan")
+            # Hesaplar Kopuk düzeltmesi: işlemler silinince accounts.balance de
+            # sıfırlanır, yoksa tablo artık karşılığı olmayan eski bir bakiyede kalır.
+            cursor.execute("UPDATE accounts SET balance = 0")
             conn.commit()
         except Exception:
             pass

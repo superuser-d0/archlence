@@ -1,4 +1,4 @@
-from database.db import get_connection
+from database.db import get_connection, adjust_account_balance
 from utils.crypto import encrypt, decrypt
 from datetime import datetime
 
@@ -10,7 +10,7 @@ class TransactionService:
         conn = get_connection()
         try:
             cursor = conn.cursor()
-            
+
             # Yalnızca tutar ve açıklama şifrelenir; type/category düz metin kalır
             # çünkü SQL sorguları (filtreleme ve categories JOIN'i) bu kolonlar
             # üzerinden çalışıyor — şifrelenirlerse raporlama sorguları bozulur.
@@ -27,7 +27,11 @@ class TransactionService:
                 INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (account_id, encrypted_amount, transaction_type, category, encrypted_description, date_now))
-            
+
+            # Hesaplar Kopuk düzeltmesi: accounts.balance işlemle aynı commit'te
+            # senkron güncellenir (gelir artırır, gider azaltır).
+            adjust_account_balance(cursor, account_id, transaction_type, amount)
+
             conn.commit()
         finally:
             conn.close()

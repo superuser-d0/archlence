@@ -152,8 +152,9 @@ class TransactionMixin:
 
         def background_task():
             try:
+                from database.db import DEFAULT_ACCOUNT_ID
                 TransactionService.add_transaction(
-                    account_id=1,
+                    account_id=DEFAULT_ACCOUNT_ID,
                     amount=user_amount,
                     transaction_type=self.selected_type,
                     category=self.selected_category,

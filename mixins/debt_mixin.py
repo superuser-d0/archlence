@@ -122,14 +122,14 @@ class DebtMixin:
         
         def confirm(*args):
             self.dialog.dismiss()
-            from database.db import update_debt_progress
+            from database.db import update_debt_progress, DEFAULT_ACCOUNT_ID
             from services.transaction_service import TransactionService
 
             def process():
                 try:
                     update_debt_progress(debt['id'], remaining_installments, is_active=0)
                     TransactionService.add_transaction(
-                        account_id=1,
+                        account_id=DEFAULT_ACCOUNT_ID,
                         amount=remaining_balance,
                         transaction_type="expense",
                         category="Borç Ödeme",
@@ -184,14 +184,14 @@ class DebtMixin:
             amount_to_pay = selected_installments * debt['monthly_payment']
             is_active = 0 if selected_installments == remaining_installments else 1
 
-            from database.db import update_debt_progress
+            from database.db import update_debt_progress, DEFAULT_ACCOUNT_ID
             from services.transaction_service import TransactionService
 
             def process():
                 try:
                     update_debt_progress(debt['id'], selected_installments, is_active=is_active)
                     TransactionService.add_transaction(
-                        account_id=1,
+                        account_id=DEFAULT_ACCOUNT_ID,
                         amount=amount_to_pay,
                         transaction_type="expense",
                         category="Kredi Taksiti",

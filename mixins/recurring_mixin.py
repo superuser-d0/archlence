@@ -134,7 +134,8 @@ class RecurringMixin:
     def process_due_auto_deductions(self):
         from database.db import (
             get_active_recurring_payments, process_due_recurring_payment,
-            get_active_debts, update_debt_progress, update_debt_last_auto_pay
+            get_active_debts, update_debt_progress, update_debt_last_auto_pay,
+            DEFAULT_ACCOUNT_ID,
         )
         from services.transaction_service import TransactionService
 
@@ -206,7 +207,7 @@ class RecurringMixin:
                     # ve işlem geçmişi gerçek taksit sayısını yansıtsın.
                     for _ in range(installments_to_pay):
                         TransactionService.add_transaction(
-                            account_id=1,
+                            account_id=DEFAULT_ACCOUNT_ID,
                             amount=debt['monthly_payment'],
                             transaction_type="expense",
                             category="Kredi Taksiti",

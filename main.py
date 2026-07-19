@@ -614,6 +614,9 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
             cursor.execute("DELETE FROM active_assets")
             cursor.execute("DELETE FROM active_debts")
             cursor.execute("DELETE FROM monthly_budget_plan")
+            # Hesaplar Kopuk düzeltmesi: tüm işlemler silindiğinde accounts.balance
+            # de sıfırlanır, yoksa tablo eski (artık karşılığı olmayan) bir bakiyede kalır.
+            cursor.execute("UPDATE accounts SET balance = 0")
             conn.commit()
             conn.close()
             
