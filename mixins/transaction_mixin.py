@@ -120,16 +120,24 @@ class TransactionMixin:
             toast("Lütfen geçerli bir sayı girin!")
             return
 
+        is_recurring = self.recurring_switch.active
+        recurring_name = self.recurring_name_input.text.strip() or self.selected_category
+        recurring_frequency = self.selected_frequency
+        recurring_auto_deduct = self.auto_deduct_switch.active
+
+        if is_recurring and self.selected_type == "expense":
+            # Abonelik Duplikasyonu koruması: aynı isimle (harf duyarsız)
+            # ikinci kez aktif bir abonelik eklenmesin.
+            from database.db import has_active_recurring_payment
+            if has_active_recurring_payment(recurring_name):
+                toast("Bu isimde aktif bir aboneliğiniz zaten var!")
+                return
+
         toast("İşlem şifreleniyor...")
 
         import threading
         import datetime
         from kivy.clock import Clock
-
-        is_recurring = self.recurring_switch.active
-        recurring_name = self.recurring_name_input.text.strip() or self.selected_category
-        recurring_frequency = self.selected_frequency
-        recurring_auto_deduct = self.auto_deduct_switch.active
 
         def success_callback(dt):
             self.dialog.dismiss()

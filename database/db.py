@@ -229,6 +229,28 @@ def insert_recurring_payment(name, amount, category, frequency, next_due_date, a
     conn.close()
 
 
+def has_active_recurring_payment(name):
+    """Aktif tekrarlanan ödemeler arasında aynı isimde (büyük/küçük harf
+    duyarsız) bir kayıt olup olmadığını kontrol eder. İsimler şifreli
+    tutulduğundan SQL WHERE ile aranamaz; aktif kayıtlar çözülüp Python'da
+    karşılaştırılır (abonelik duplikasyonunu engellemek için)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM recurring_payments WHERE is_active = 1")
+    rows = cursor.fetchall()
+    conn.close()
+
+    target = str(name).strip().lower()
+    for r in rows:
+        try:
+            existing_name = decrypt(r["name"], SECRET_KEY)
+        except Exception:
+            continue
+        if existing_name.strip().lower() == target:
+            return True
+    return False
+
+
 def get_active_recurring_payments():
     conn = get_connection()
     cursor = conn.cursor()
