@@ -54,13 +54,22 @@ class AccountMixin:
         hata gösterilmiştir, diyalog AÇIK kalmalıdır ki kullanıcı düzeltebilsin.
         """
         from kivymd.uix.dialog import MDDialog
-        from kivymd.uix.button import MDRaisedButton
+        from kivymd.uix.button import MDRaisedButton, MDFlatButton
         from kivymd.uix.textfield import MDTextField
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivymd.uix.segmentedcontrol import MDSegmentedControl, MDSegmentedControlItem
         from kivy.metrics import dp
+        from kivy.utils import get_color_from_hex
 
-        inner = MDBoxLayout(orientation="vertical", size_hint_y=None, height=dp(380), spacing=dp(10))
+        premium_indigo = get_color_from_hex("#5444E5")
+
+        inner = MDBoxLayout(
+            orientation="vertical", 
+            size_hint_y=None, 
+            adaptive_height=True, 
+            spacing=dp(20), 
+            padding=[0, dp(16), 0, 0]
+        )
 
         type_control = MDSegmentedControl(pos_hint={"center_x": 0.5})
         type_checking = MDSegmentedControlItem(text="Nakit / Vadesiz")
@@ -68,50 +77,37 @@ class AccountMixin:
         type_control.add_widget(type_checking)
         type_control.add_widget(type_credit)
         
-        self.acc_name_field = MDTextField(hint_text="Hesap / Kart Adı")
-        
-        self.acc_initial_balance_field = MDTextField(hint_text="Başlangıç Bakiyesi (₺)", input_filter="float")
-        
-        self.acc_debt_field = MDTextField(hint_text="Mevcut Borç (₺)", input_filter="float")
-        self.acc_limit_field = MDTextField(hint_text="Toplam Limit (₺)", input_filter="float")
-        self.acc_statement_field = MDTextField(hint_text="Hesap Kesim Günü (1-31, opsiyonel)", input_filter="int")
+        def create_modern_tf(hint, filter=None):
+            return MDTextField(
+                hint_text=hint,
+                input_filter=filter,
+                mode="fill",
+                radius=[dp(12), dp(12), dp(12), dp(12)]
+            )
 
-        self.acc_debt_field.opacity = 0
-        self.acc_debt_field.height = 0
-        self.acc_limit_field.opacity = 0
-        self.acc_limit_field.height = 0
-        self.acc_statement_field.opacity = 0
-        self.acc_statement_field.height = 0
+        self.acc_name_field = create_modern_tf("Hesap / Kart Adı")
+        self.acc_initial_balance_field = create_modern_tf("Başlangıç Bakiyesi (₺)", "float")
+        self.acc_debt_field = create_modern_tf("Mevcut Borç (₺)", "float")
+        self.acc_limit_field = create_modern_tf("Toplam Limit (₺)", "float")
+        self.acc_statement_field = create_modern_tf("Hesap Kesim Günü (1-31, opsiyonel)", "int")
+
+        self.selected_account_type = "Nakit / Vadesiz"
 
         inner.add_widget(type_control)
         inner.add_widget(self.acc_name_field)
         inner.add_widget(self.acc_initial_balance_field)
-        inner.add_widget(self.acc_debt_field)
-        inner.add_widget(self.acc_limit_field)
-        inner.add_widget(self.acc_statement_field)
-
-        self.selected_account_type = "Nakit / Vadesiz"
 
         def on_type_change(segment, item):
             self.selected_account_type = item.text
+            inner.clear_widgets()
+            inner.add_widget(type_control)
+            inner.add_widget(self.acc_name_field)
             if item.text == "Kredi Kartı":
-                self.acc_initial_balance_field.opacity = 0
-                self.acc_initial_balance_field.height = 0
-                self.acc_debt_field.opacity = 1
-                self.acc_debt_field.height = dp(48)
-                self.acc_limit_field.opacity = 1
-                self.acc_limit_field.height = dp(48)
-                self.acc_statement_field.opacity = 1
-                self.acc_statement_field.height = dp(48)
+                inner.add_widget(self.acc_debt_field)
+                inner.add_widget(self.acc_limit_field)
+                inner.add_widget(self.acc_statement_field)
             else:
-                self.acc_initial_balance_field.opacity = 1
-                self.acc_initial_balance_field.height = dp(48)
-                self.acc_debt_field.opacity = 0
-                self.acc_debt_field.height = 0
-                self.acc_limit_field.opacity = 0
-                self.acc_limit_field.height = 0
-                self.acc_statement_field.opacity = 0
-                self.acc_statement_field.height = 0
+                inner.add_widget(self.acc_initial_balance_field)
 
         type_control.bind(on_active=on_type_change)
 
@@ -140,14 +136,27 @@ class AccountMixin:
             if getattr(self, "account_dialog", None):
                 self.account_dialog.dismiss()
 
+        btn_cancel = MDFlatButton(
+            text="VAZGEÇ",
+            on_release=do_cancel,
+            theme_text_color="Custom",
+            text_color=(0.5, 0.5, 0.5, 1)
+        )
+        
+        btn_save = MDRaisedButton(
+            text="KAYDET",
+            on_release=do_save,
+            md_bg_color=premium_indigo,
+            elevation=0,
+            theme_text_color="Custom",
+            text_color=(1, 1, 1, 1)
+        )
+
         self.account_dialog = MDDialog(
             title="Hesap / Kart Ekle",
             type="custom",
             content_cls=inner,
-            buttons=[
-                MDRaisedButton(text="VAZGEÇ", on_release=do_cancel, md_bg_color=(0.8, 0.2, 0.2, 1)),
-                MDRaisedButton(text="KAYDET", on_release=do_save, md_bg_color=(0.18, 0.8, 0.25, 1)),
-            ],
+            buttons=[btn_cancel, btn_save],
         )
         self.account_dialog.open()
 
