@@ -13,6 +13,14 @@ from kivymd.uix.label import MDLabel
 
 
 class CalculatorMixin:
+    """Finansal hesaplayıcılar: basit hesap makinesi, bileşik faiz, kredi/taksit
+    hesaplama, birikim hedefi ve ödeme planı tablosu + PDF dışa aktarma.
+
+    open_calculator(calc_type) tek giriş noktasıdır; calc_type'a göre ("basic",
+    "interest", "compound", "loan", "savings_goal") ilgili dialogu kurar. Hesap sonuçları
+    self.last_calculated_loan gibi alanlarda tutulur ve DebtMixin bunları okur.
+    """
+
     def open_calculator(self, calc_type):
 
         if calc_type == "basic":

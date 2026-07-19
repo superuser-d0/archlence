@@ -4,7 +4,8 @@ Tek başına dosya olamayacak kadar küçük üç servis burada toplandı:
 CategoryService (eski services/category_service.py), TransactionHistoryService
 (eski services/transaction_history_service.py) ve DashboardService (eski
 screens/dashboard.py — ekran değil, yanlış klasörde duran bir servisti).
-Eski modül yolları geriye dönük uyumluluk için re-export shim'i olarak duruyor.
+Eski modül yollarındaki shim dosyaları, tüm import'lar buraya yönlendirildikten
+sonra kaldırıldı.
 
 Not: Bu servisler amount/description kolonlarını çözmeden (şifreli haliyle)
 döndürür; şifre çözme çağıran tarafın sorumluluğundadır (bkz. utils/crypto.py).

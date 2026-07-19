@@ -9,7 +9,13 @@ from kivy.metrics import dp
 
 
 class AdminScreen(MDScreen):
+    """Yönetici paneli: kayıt istatistikleri, CSV dışa aktarma ve fabrika sıfırlama.
+
+    Bu ekrana yalnızca admin girişi (main.py check_login) sonrası ulaşılır.
+    """
+
     def on_enter(self, *args):
+        """Ekran her açıldığında işlem ve bütçe kayıt sayılarını DB'den okuyup gösterir."""
         from database.db import get_connection
         conn = get_connection()
         cursor = conn.cursor()
@@ -32,6 +38,8 @@ class AdminScreen(MDScreen):
             self.ids.stats_label.text = f"Toplam İşlem Kaydı: {t_count}\nToplam Bütçe Kalemi: {b_count}"
 
     def export_to_csv(self):
+        """Tüm işlemleri Masaüstü'ne (yoksa Desktop, o da yoksa ev dizinine)
+        export.csv olarak yazar. Tutar/açıklama kolonları şifreli haliyle çıkar."""
         from database.db import get_connection
         conn = get_connection()
         cursor = conn.cursor()
@@ -81,6 +89,8 @@ class AdminScreen(MDScreen):
         self.reset_dialog.open()
 
     def factory_reset(self, *args):
+        """Onaylanan sıfırlama: işlem ve bütçe tablolarını boşaltır, admin oturumunu kapatır.
+        Kategoriler ve hesap tanımları silinmez (init_db onları yeniden oluşturmaz)."""
         self.reset_dialog.dismiss()
         from database.db import get_connection
         conn = get_connection()

@@ -177,7 +177,7 @@ SECRET_KEY = 'finora_secure_2026'
 from database.init_db import initialize_database
 from database.db import get_connection
 from services.transaction_service import TransactionService
-from services.category_service import CategoryService
+from services.queries import CategoryService
 
 from kivy.properties import NumericProperty
 

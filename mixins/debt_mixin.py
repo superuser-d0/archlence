@@ -8,7 +8,15 @@ from services.transaction_service import TransactionService
 
 
 class DebtMixin:
+    """Borç/kredi takibi: hesaplanan krediyi borç olarak kaydetme, aktif borç
+    kartlarını listeleme, taksit ödeme ve borcu tamamen kapatma akışları.
+
+    Taksit ödemeleri aynı zamanda "expense" tipinde bir işlem kaydı üretir; böylece
+    borç ödemeleri bakiye ve grafiklere de yansır. DB erişimleri thread'de yapılır.
+    """
+
     def add_loan_to_debts(self, *args):
+        """CalculatorMixin'in son kredi hesabını (last_calculated_loan) borç olarak kaydeder."""
         if not hasattr(self, 'last_calculated_loan'):
             toast("Önce hesaplama yapın!")
             return
@@ -90,6 +98,8 @@ class DebtMixin:
             print("Error rendering debts:", e)
 
     def close_debt_completely(self, debt):
+        """Kalan tüm taksitleri tek seferde kapatır: onay dialogu gösterir, onayda
+        borcu pasife çeker ve kalan bakiye tutarında gider işlemi oluşturur."""
         from kivymd.uix.dialog import MDDialog
         from kivymd.uix.button import MDFlatButton
 
@@ -134,6 +144,8 @@ class DebtMixin:
         self.dialog.open()
 
     def pay_debt_installments(self, debt):
+        """Slider ile seçilen sayıda taksiti öder; son taksit ödeniyorsa borcu
+        pasife çeker. Ödeme "Kredi Taksiti" kategorisinde gider olarak kaydedilir."""
         from kivymd.uix.dialog import MDDialog
         from kivymd.uix.button import MDFlatButton
         from kivymd.uix.boxlayout import MDBoxLayout
@@ -200,8 +212,3 @@ class DebtMixin:
             ]
         )
         self.dialog.open()
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # AKTİF VARLIKLARI — Dialog, yükleme, render
-    # ═══════════════════════════════════════════════════════════════════════════
-
