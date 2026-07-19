@@ -1368,8 +1368,20 @@ class AssetMixin:
                 f"{entry['date']}  |  "
                 f"[color={amount_clr}]{sign}₺{entry['amount']:,.2f}[/color]"
             )
+            
+            import re
+            desc = entry["description"] or entry["category"]
+            if desc:
+                # BIST hisselerindeki .IS ekini kaldır
+                desc = desc.replace(".IS)", ")")
+                # Küsüratlı fiyattaki gereksiz sondaki sıfırları sil (örn: 400.0000 ₺ -> 400 ₺)
+                desc = re.sub(r'\.(\d*?[1-9])0+ ₺', r'.\1 ₺', desc)
+                desc = re.sub(r'\.0+ ₺', ' ₺', desc)
+                # "adet @" yerine daha sade "x @"
+                desc = desc.replace(" adet @ ", "x @ ")
+
             item = TwoLineIconListItem(
-                text=entry["description"] or entry["category"],
+                text=desc,
                 secondary_text=sec,
             )
             if hasattr(item.ids, '_lbl_secondary'):
