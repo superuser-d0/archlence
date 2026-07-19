@@ -17,3 +17,6 @@ test_output*.txt
 test_exit*.txt
 discover_output*.txt
 run_tests.py
+
+# graphify çıktısı — makineye özgü mutlak yollar ve üretilmiş graf verisi içerir
+graphify-out/
