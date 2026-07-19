@@ -2,6 +2,7 @@
 finance.db
 finance.db.bak*
 savings_goals.json
+finora_config.json
 crash.log
 
 # Şifreleme anahtarı — asla commit edilmemeli

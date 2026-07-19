@@ -448,9 +448,9 @@ class HorizontalBarChart(Widget):
         super().__init__(**kwargs)
         self.bind(pos=self.update_chart, size=self.update_chart, anim_progress=self.update_chart)
         self.data = {"Veri Bekleniyor": 1}
-        # Premium Banking teması: çubuklar marka indigo'suyla çizilir
-        from ui.theme import FINORA_PRIMARY
-        self.colors = [tuple(FINORA_PRIMARY)]
+        # Gerçek renk update_chart'ta aktif temadan alınır (standart: Teal,
+        # premium: Indigo); bu yalnızca tema yüklenmeden önceki geçici değer.
+        self.colors = [(0.8, 0.8, 0.8, 1)]
 
     def highlight_bar(self, targets):
         self.selected_targets = targets
@@ -461,6 +461,12 @@ class HorizontalBarChart(Widget):
         self.canvas.clear()
         total = sum(self.data.values())
         if total == 0: return
+
+        # Çubuk rengi aktif temanın primary'sinden gelir: standart temada Teal,
+        # premium temada Indigo (#5444E5) — tema değişince otomatik uyar.
+        _app = MDApp.get_running_app()
+        if _app is not None:
+            self.colors = [tuple(_app.theme_cls.primary_color)]
 
         with self.canvas:
             max_val = max(self.data.values())

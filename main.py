@@ -533,6 +533,9 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
     home_filter = "Bug\u00fcn"  # Ba\u015flang\u0131\u00e7 Zaman Filtresi
     home_circle_color = ColorProperty((0.5, 0.5, 0.5, 0.2))
     savings_goals = []   # list of goal dicts, max 3
+    # Aktif görünüm teması: 'standard' (KivyMD varsayılanı) | 'premium' (Indigo).
+    # Ayarlar'daki anahtar buna bağlı olduğu için Property olmalı.
+    theme_name = StringProperty("standard")
 
     def build(self):
         initialize_database()
@@ -540,11 +543,64 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
         if self.store.exists('goals'):
             self.savings_goals = self.store.get('goals')['data']
         self.theme_cls.theme_style = "Light"
-        # Premium Banking teması: Indigo paleti + zemin/metin token'ları
-        from ui.theme import apply_finora_theme
-        apply_finora_theme(self.theme_cls)
+        # Tema tercihi kalıcı: kayıt yoksa standart (stabil KivyMD) ile açılır.
+        self.config_store = JsonStore('finora_config.json')
+        pref = "standard"
+        if self.config_store.exists('theme'):
+            pref = self.config_store.get('theme').get('name', 'standard')
+        # persist=False: açılışta okuduğumuzu geri yazmanın anlamı yok.
+        self.apply_theme(pref, persist=False)
         return Builder.load_file("ui/dashboard.kv")
-        
+
+    # ─── Görünüm Teması ───────────────────────────────────────────────────────
+    def apply_theme(self, theme_name, persist=True):
+        """Standart (KivyMD Teal) ya da Premium (Indigo) temayı dinamik uygular.
+
+        Palet değişimi ui/theme.py'de; burada ek olarak kart gölgeleri
+        normalize edilir (bkz. _normalize_card_shadows) ve tercih diske yazılır.
+        """
+        from ui.theme import apply_premium_theme, apply_standard_theme
+
+        theme_name = "premium" if theme_name == "premium" else "standard"
+        self.theme_name = theme_name
+        if theme_name == "premium":
+            apply_premium_theme(self.theme_cls)
+        else:
+            apply_standard_theme(self.theme_cls)
+
+        self._normalize_card_shadows()
+
+        if persist:
+            try:
+                if not hasattr(self, 'config_store'):
+                    self.config_store = JsonStore('finora_config.json')
+                self.config_store.put('theme', name=theme_name)
+            except Exception as e:
+                print("Tema tercihi kaydedilemedi:", e)
+
+    def _normalize_card_shadows(self, *args):
+        """Tüm MDCard'ların elevation/gölge değerlerini sıfırlar.
+
+        KivyMD 1.2'de elevation + shadow_softness kombinasyonu, özellikle
+        premium temanın açık zemininde, kartın arkasında yumuşak gölge yerine
+        sert gri bir blok olarak render ediliyordu. Düz (flat) kart + yuvarlak
+        köşe her iki temada da stabil; bu yüzden gölge kv'den değil buradan,
+        tema uygulanırken merkezî olarak kapatılır.
+        """
+        if not self.root:
+            return
+        from kivymd.uix.card import MDCard
+        for widget in self.root.walk():
+            if isinstance(widget, MDCard):
+                try:
+                    widget.elevation = 0
+                    if hasattr(widget, 'shadow_softness'):
+                        widget.shadow_softness = 0
+                    if hasattr(widget, 'shadow_color'):
+                        widget.shadow_color = (0, 0, 0, 0)
+                except Exception:
+                    pass
+
     def contact_us(self):
         from kivymd.uix.dialog import MDDialog
         from kivymd.uix.button import MDFlatButton, MDRaisedButton
@@ -640,6 +696,9 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
 
     def on_start(self):
         import logging
+        # Kart gölgeleri build() sırasında root henüz yokken normalize edilemiyor;
+        # ilk kare çizilmeden önce burada kapatılır (gri blok hatası).
+        self._normalize_card_shadows()
         # yfinance / requests_cache DEBUG loglarını uygulama başlangıcında sustur
         logging.getLogger("yfinance").setLevel(logging.CRITICAL)
         logging.getLogger("requests_cache").setLevel(logging.CRITICAL)
