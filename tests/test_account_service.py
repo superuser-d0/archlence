@@ -241,6 +241,27 @@ class AccountServiceTestCase(unittest.TestCase):
 
         self.assertEqual(AccountService.get_net_worth()["net"], round(raw_sum, 2))
 
+    def test_migrated_card_without_limit_is_not_blocked(self):
+        """Migration'dan gelen kartlar credit_limit=0 ile gelir; bu 'limit
+        belirlenmemiş' demektir, harcama engellenmemeli."""
+        import sqlite3 as _sq
+        conn = _sq.connect(self.db_path)
+        conn.execute("UPDATE accounts SET credit_limit = 0 WHERE account_type = 'credit_card'")
+        conn.commit()
+        conn.close()
+
+        from services.account_service import AccountService
+        from services.transaction_service import TransactionService
+
+        card = [a for a in AccountService.get_accounts()
+                if a["account_type"] == "credit_card"][0]
+        TransactionService.add_transaction(
+            account_id=card["id"], amount=750.0, transaction_type="expense",
+            category="Süpermarket", description="Limitsiz kart harcaması",
+        )
+        self.assertEqual(AccountService.get_account(card["id"])["debt"],
+                         round(card["debt"] + 750.0, 2))
+
 
 if __name__ == "__main__":
     unittest.main()

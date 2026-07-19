@@ -24,6 +24,12 @@ ACCOUNT_TYPE_LABELS = {
 }
 
 
+def _fmt_try(value):
+    """Tutarı Türkçe biçimde (₺1.234,56) yazar — kullanıcıya gösterilen hata
+    mesajları uygulamanın geri kalanıyla aynı biçimi kullansın diye."""
+    return f"₺{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
 class AccountService:
 
     @staticmethod
@@ -183,6 +189,11 @@ class AccountService:
             return False, "Hesap bulunamadı."
         if acc["account_type"] != CREDIT_CARD:
             return True, ""
+        # Limit 0 = "belirlenmemiş", yasak değil. Migration'dan gelen eski kartlar
+        # credit_limit=0 ile geliyor; bunları limitsiz saymazsak kullanıcının
+        # mevcut kartından yapacağı HER harcama reddedilirdi.
+        if acc["credit_limit"] <= 0:
+            return True, ""
         try:
             amount = float(amount)
         except (TypeError, ValueError):
@@ -190,6 +201,6 @@ class AccountService:
         if amount > acc["available_limit"]:
             return False, (
                 f"Limit yetersiz: kullanılabilir limit "
-                f"₺{acc['available_limit']:,.2f}, harcama ₺{amount:,.2f}."
+                f"{_fmt_try(acc['available_limit'])}, harcama {_fmt_try(amount)}."
             )
         return True, ""
