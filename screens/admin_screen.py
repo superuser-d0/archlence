@@ -108,6 +108,7 @@ class AdminScreen(MDScreen):
         toast("Sistem sıfırlandı!")
 
         app = MDApp.get_running_app()
-        app.admin_logout()
+        if app:
+            app.admin_logout() # type: ignore
 
 

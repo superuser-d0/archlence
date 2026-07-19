@@ -5,7 +5,7 @@ from kivy.clock import Clock
 from kivy.properties import NumericProperty, ColorProperty
 from kivy.uix.widget import Widget
 from kivy.graphics import Color, Line, RoundedRectangle, Ellipse, Mesh, Rectangle
-from kivy.core.text import Label as CoreLabel
+from kivy.core.text import Label as CoreLabel  # type: ignore
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.app import MDApp
 from services.transaction_service import TransactionService
@@ -78,6 +78,7 @@ class CurvedTrendChart(Widget):
         return str(int(val))
 
     def _redraw(self, *args):
+        if not self.canvas: return
         self.canvas.clear()
         if self.width <= 0 or self.height <= 0:
             return
@@ -107,7 +108,7 @@ class CurvedTrendChart(Widget):
                 Color(*self.COLOR_AXIS)
                 Line(points=[cx0, cy0, cx1, cy0], width=dp(1))
                 Line(points=[cx0, cy0, cx0, cy1], width=dp(1))
-                msg = CoreLabel(text="Bu dönemde veri yok",
+                msg = CoreLabel(text="Bu dönemde veri yok",  # type: ignore
                                 font_size=dp(13), color=(0.6, 0.6, 0.6, 1))
                 msg.refresh()
                 mt = msg.texture
@@ -123,7 +124,7 @@ class CurvedTrendChart(Widget):
             # ── Nice Y-axis range ───────────────────────────────────────────
             all_inc = [d['income']  for d in data]
             all_exp = [d['expense'] for d in data]
-            raw_max = max(max(all_inc), max(all_exp), 1)
+            raw_max = max(max(all_inc), max(all_exp), 1.0)
 
             # Round up to a clean step
             mag      = 10 ** (len(str(int(raw_max))) - 1)
@@ -142,7 +143,7 @@ class CurvedTrendChart(Widget):
                 Color(*self.COLOR_GRID)
                 Line(points=[cx0, gy, cx1, gy], width=dp(0.5))
                 # Y label
-                lbl = CoreLabel(text=self._fmt_k(val), font_size=dp(11),
+                lbl = CoreLabel(text=self._fmt_k(val), font_size=dp(11),  # type: ignore
                                 color=(*self.COLOR_LABEL[:3], 0.9))
                 lbl.refresh()
                 lt = lbl.texture
@@ -157,7 +158,7 @@ class CurvedTrendChart(Widget):
                 if i % x_step != 0 and i != n - 1:
                     continue
                 lx = px(i)
-                xl = CoreLabel(text=d['label'], font_size=dp(11),
+                xl = CoreLabel(text=d['label'], font_size=dp(11),  # type: ignore
                                color=(*self.COLOR_LABEL[:3], 0.9))
                 xl.refresh()
                 xt = xl.texture
@@ -227,7 +228,7 @@ class CurvedTrendChart(Widget):
                     last_idx = min(len(visible) - 1, len(data) - 1)
                     last_val = data[last_idx][key]
                     if last_val > 0:
-                        vl = CoreLabel(text=self._fmt_k(last_val), font_size=dp(11),
+                        vl = CoreLabel(text=self._fmt_k(last_val), font_size=dp(11),  # type: ignore
                                        color=(*line_col[:3], la), bold=True)
                         vl.refresh()
                         vt = vl.texture
@@ -248,7 +249,7 @@ class CurvedTrendChart(Widget):
                 leg_x     = cx1
                 for ltext, lcol in [('Gider', self.COLOR_EXPENSE_LINE),
                                      ('Gelir', self.COLOR_INCOME_LINE)]:
-                    ll = CoreLabel(text=ltext, font_size=dp(11),
+                    ll = CoreLabel(text=ltext, font_size=dp(11),  # type: ignore
                                    color=(*lcol[:3], leg_alpha), bold=True)
                     ll.refresh()
                     lt2 = ll.texture
@@ -454,6 +455,7 @@ class HorizontalBarChart(Widget):
         self.update_chart()
 
     def update_chart(self, *args):
+        if not self.canvas: return
         self.canvas.clear()
         total = sum(self.data.values())
         if total == 0: return
@@ -478,8 +480,8 @@ class HorizontalBarChart(Widget):
                     app = MDApp.get_running_app()
                     text_color = app.theme_cls.text_color if app else (0, 0, 0, 1)
                     
-                    from kivy.core.text import Label as CoreLabel
-                    lbl = CoreLabel(text=f"%{pct:.1f}", font_size=14, color=(*text_color[:3], txt_alpha), bold=True)
+                    from kivy.core.text import Label as CoreLabel  # type: ignore
+                    lbl = CoreLabel(text=f"%{pct:.1f}", font_size=14, color=(*text_color[:3], txt_alpha), bold=True)  # type: ignore
                     lbl.refresh()
                     tex = lbl.texture
                     
@@ -518,6 +520,7 @@ class LiquidWaveWidget(Widget):
             Color, Mesh, Line, RoundedRectangle,
             StencilPush, StencilUse, StencilUnUse, StencilPop,
         )
+        if not self.canvas: return
         self.canvas.clear()
         self.canvas.before.clear()
         self.canvas.after.clear()
@@ -663,6 +666,7 @@ class ConfettiWidget(Widget):
             self._clock = None
 
     def _redraw(self, *args):
+        if not self.canvas: return
         self.canvas.clear()
         if not self._particles:
             return
@@ -704,6 +708,7 @@ class PieChart(Widget):
         # This is kept empty temporarily to avoid crashes if called before restart
         pass
     def update_chart(self, *args):
+        if not self.canvas: return
         self.canvas.clear()
         
         # Persistent categories and colors
@@ -772,7 +777,7 @@ class PieChart(Widget):
                     percentage = (value / total) * 100
                     if percentage >= 5 and total > 1 and self.anim_progress > 0.9:
                         alpha = min(1.0, max(0.0, (self.anim_progress - 0.9) * 10))
-                        text_label = CoreLabel(text=f"%{percentage:.1f}", font_size=14, color=(1, 1, 1, alpha), bold=True)
+                        text_label = CoreLabel(text=f"%{percentage:.1f}", font_size=14, color=(1, 1, 1, alpha), bold=True)  # type: ignore
                         text_label.refresh()
                         texture = text_label.texture
                         
@@ -794,7 +799,7 @@ class PieChart(Widget):
             else:
                 if self.anim_progress > 0.9:
                     alpha = min(1.0, max(0.0, (self.anim_progress - 0.9) * 10))
-                    text_label = CoreLabel(text="%0", font_size=16, color=(0.5, 0.5, 0.5, alpha), bold=True)
+                    text_label = CoreLabel(text="%0", font_size=16, color=(0.5, 0.5, 0.5, alpha), bold=True)  # type: ignore
                     text_label.refresh()
                     texture = text_label.texture
                     Rectangle(texture=texture, pos=(self.center_x - texture.size[0]/2, self.center_y - texture.size[1]/2), size=texture.size)

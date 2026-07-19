@@ -2,9 +2,11 @@ import threading
 import time
 import requests
 
+from typing import Any
+
 # 5 minutes cache to avoid rate limiting
 _CACHE_TTL = 300
-_crypto_cache = {
+_crypto_cache: dict[str, Any] = {
     "data": None,
     "timestamp": 0
 }

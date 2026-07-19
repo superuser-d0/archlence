@@ -219,7 +219,7 @@ from mixins.savings_mixin import SavingsMixin
 from mixins.recurring_mixin import RecurringMixin
 from mixins.migration_mixin import MigrationMixin
 
-class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
+class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
                 TransactionMixin, BudgetMixin, SavingsMixin, RecurringMixin,
                 MigrationMixin):
 
@@ -435,7 +435,7 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
                 daily_expense = exp_30 / 30.0
 
                 # Başlangıç varlığı W(0) = mevcut net bakiye
-                W0 = float(total_balance)
+                W0 = total_balance
 
                 # RK4 ile 30 günlük projeksiyon (r = 0.0001 ≈ %3,65 yıllık)
                 DAILY_RATE = 0.0001
@@ -1163,7 +1163,7 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
         """)
         expense_rows_this_month = cursor.fetchall()
         
-        cat_sums = {}
+        cat_sums: dict[str, float] = {}
         this_month_exp = 0.0
         for cat, amount in expense_rows_this_month:
             try:
@@ -1173,7 +1173,7 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
             cat_sums[cat] = cat_sums.get(cat, 0.0) + val
             this_month_exp += val
             
-        highest_cat_name = max(cat_sums, key=cat_sums.get) if cat_sums else "Yok"
+        highest_cat_name = max(cat_sums, key=lambda k: cat_sums[k]) if cat_sums else "Yok"
         
         # 2. Geçen döneme kıyasla harcama değişimi
         cursor.execute("""

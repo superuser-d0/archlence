@@ -19,7 +19,11 @@ from kivymd.uix.textfield import MDTextField
 from ui.charts import LiquidWaveWidget
 
 
+from typing import Any
+
 class SavingsMixin:
+    savings_goals: list[dict[str, Any]]
+    
     def calculate_savings_goal(self, *args):
         """Birikim hedefi için girilen verilere göre hedefe ulaşma süresini hesaplar
         ve sonucu dialog üzerinde gösterir."""

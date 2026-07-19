@@ -43,7 +43,8 @@ GOLD_TYPE_MULTIPLIERS = {
     "GOLD-TAM": 7.0,
 }
 
-_gold_gram_cache = {"price": None, "time": 0.0}
+from typing import Any
+_gold_gram_cache: dict[str, Any] = {"price": None, "time": 0.0}
 _GOLD_GRAM_CACHE_TTL = 300
 
 
