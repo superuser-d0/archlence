@@ -35,7 +35,9 @@
       "Bash(.venv/bin/python -c \"from data.bist100 import BIST100_STOCKS; print\\('liste uzunluğu:', len\\(BIST100_STOCKS\\)\\)\")",
       "Bash(git commit -m 'BIST100 hisse listesi data/bist100.py'\\\\''ye taşındı *)",
       "Bash(.venv/bin/python -c \"from services.category_service import CategoryService; from services.transaction_history_service import TransactionHistoryService; from screens.dashboard import DashboardService; from services.queries import CategoryService as C2; print\\('eski ve yeni yollar OK, aynı sınıf mı:', CategoryService is C2\\)\")",
-      "Bash(git commit -m 'Mini servisler services/queries.py altında birleştirildi *)"
+      "Bash(git commit -m 'Mini servisler services/queries.py altında birleştirildi *)",
+      "Bash(.venv/bin/python -m py_compile main.py mixins/*.py services/*.py database/*.py ui/*.py screens/*.py security/*.py utils/*.py data/*.py)",
+      "Bash(git commit -m 'ANTIGRAVITY_TASKS.md kaldırıldı — görevlerin tamamı uygulandı *)"
     ]
   }
 }
