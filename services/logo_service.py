@@ -1,10 +1,10 @@
 """
-Logo Service — Varlık Geçmişi listesinde Kripto ve Döviz kalemleri için uzak
-logo/bayrak görseli çeker, yerel diske önbellekler.
+Logo Service — Varlık Geçmişi listesinde Kripto, Döviz ve Altın kalemleri için
+uzak logo/bayrak/simge görseli çeker, yerel diske önbellekler.
 
 BIST hisseleri için zaten yerel bir logo mekanizması var (mixins/asset_mixin.py
-get_stock_logo, assets/stock_logos/) — burada tekrarlanmıyor, sadece Kripto ve
-Döviz için (bu ikisinin yerel karşılığı yok) ele alınıyor. Altın/Tahvil/Diğer
+get_stock_logo, assets/stock_logos/) — burada tekrarlanmıyor, sadece Kripto,
+Döviz ve Altın için (bunların yerel karşılığı yok) ele alınıyor. Tahvil/Diğer
 için de logo aranmıyor, mevcut renkli MDI ikon fallback'i yeterli.
 
 Ağ erişimi HER ZAMAN best-effort'tur: zaman aşımı, DNS hatası, 404, bozuk
@@ -28,11 +28,17 @@ _FOREX_COUNTRY = {
     "CHF": "ch", "CAD": "ca", "AUD": "au",
 }
 
+# Altın için kod içinde aranan anahtar kelimeler (Yahoo Finance sembolü
+# "GC=F", uluslararası kod "XAU" veya serbest girilen "ALTIN" metni).
+_GOLD_KEYWORDS = ("GC=F", "XAU", "ALTIN")
+# Twemoji CDN (jsdelivr) üzerinden sabit bir altın külçe/madeni para görseli.
+_GOLD_LOGO_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1fa99.png"
+
 
 def _classify(code: str):
-    """Ham kod (ör. 'BTC-USD', 'USDTRY=X') için (cache_key, remote_url) döndürür.
-    Tanınmayan/desteklenmeyen kodlar için (None, None) — bu durumda hiçbir ağ
-    çağrısı denenmez."""
+    """Ham kod (ör. 'BTC-USD', 'USDTRY=X', 'GC=F') için (cache_key, remote_url)
+    döndürür. Tanınmayan/desteklenmeyen kodlar için (None, None) — bu durumda
+    hiçbir ağ çağrısı denenmez."""
     c = (code or "").strip().upper()
 
     if c.endswith("-USD"):
@@ -40,10 +46,13 @@ def _classify(code: str):
         if sym in _CRYPTO_SYMBOLS:
             return sym, f"https://assets.coincap.io/assets/icons/{sym.lower()}@2x.png"
 
-    if c.endswith("=X") and len(c) >= 5:
+    elif c.endswith("=X") and len(c) >= 5:
         base = c[:3]
         if base in _FOREX_COUNTRY:
             return base, f"https://flagcdn.com/w80/{_FOREX_COUNTRY[base]}.png"
+
+    elif any(keyword in c for keyword in _GOLD_KEYWORDS):
+        return "XAU", _GOLD_LOGO_URL
 
     return None, None
 
