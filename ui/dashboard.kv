@@ -423,6 +423,32 @@ MDScreen:
                                             font_size: "12sp"
                                             theme_text_color: "Secondary"
 
+                                # NEGATİF BAKİYE UYARISI: toplam nakit bakiye 0'ın altına
+                                # düştüğünde görünür olur, artıya dönünce tekrar gizlenir
+                                # (bkz. main.py update_metrics_and_goals).
+                                MDBoxLayout:
+                                    id: negative_balance_warning
+                                    orientation: "horizontal"
+                                    size_hint_y: None
+                                    height: 0
+                                    opacity: 0
+                                    spacing: "6dp"
+                                    pos_hint: {"center_x": .5}
+
+                                    MDIcon:
+                                        icon: "alert-circle"
+                                        theme_text_color: "Error"
+                                        font_size: "16sp"
+                                        pos_hint: {"center_y": .5}
+                                    MDLabel:
+                                        id: negative_balance_label
+                                        text: "Dikkat: Bakiye Negatif!"
+                                        theme_text_color: "Error"
+                                        font_style: "Caption"
+                                        bold: True
+                                        adaptive_width: True
+                                        pos_hint: {"center_y": .5}
+
                                 # ZAMAN FİLTRESİ
                                 MDSegmentedControl:
                                     pos_hint: {"center_x": .5}

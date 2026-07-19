@@ -1,3 +1,4 @@
+import calendar
 import datetime
 import threading
 
@@ -152,31 +153,66 @@ class RecurringMixin:
                     process_due_recurring_payment(p)
                     ui_needs_refresh = True
                 
-                # 2. YENİ: OTOMATİK BORÇ/KREDİ TAKSİT ÖDEMELERİ
+                # 2. OTOMATİK BORÇ/KREDİ TAKSİT ÖDEMELERİ
                 debts = get_active_debts()
                 current_month_str = today.strftime("%Y-%m")
-                
+
                 for debt in debts:
-                    if debt.get("is_auto_pay") and today.day >= debt.get("auto_pay_day"):
-                        # Bu ay içinde zaten çekilmiş mi diye kontrol ediyoruz
-                        if debt.get("last_auto_pay_date") != current_month_str:
-                            remaining = debt['total_installments'] - debt['paid_installments']
-                            
-                            if remaining > 0:
-                                is_active = 0 if remaining == 1 else 1
-                                # 1 taksit ilerlet ve veritabanına bu ay çekildiğini kaydet
-                                update_debt_progress(debt['id'], 1, is_active=is_active)
-                                update_debt_last_auto_pay(debt['id'], current_month_str)
-                                
-                                # Gider işlemini oluştur (Ana bakiyeden parasını düşürmek için)
-                                TransactionService.add_transaction(
-                                    account_id=1,
-                                    amount=debt['monthly_payment'],
-                                    transaction_type="expense",
-                                    category="Kredi Taksiti",
-                                    description=f"{debt['debt_name']} (Otomatik Taksit Ödemesi)"
-                                )
-                                ui_needs_refresh = True
+                    if not debt.get("is_auto_pay"):
+                        continue
+
+                    remaining = debt['total_installments'] - debt['paid_installments']
+                    if remaining <= 0:
+                        continue
+
+                    # 29-31 Taksit Tuzağı: auto_pay_day 31 seçilip ay 30 (veya Şubat
+                    # 28/29) çekiyorsa today.day hiçbir zaman 31'e ulaşamaz ve taksit
+                    # sessizce atlanırdı. Ayın gerçek son gününü aşmayan güvenli bir
+                    # ödeme günü kullan.
+                    days_in_month = calendar.monthrange(today.year, today.month)[1]
+                    effective_pay_day = min(debt.get("auto_pay_day") or 1, days_in_month)
+                    if today.day < effective_pay_day:
+                        continue
+
+                    last_pay_str = debt.get("last_auto_pay_date")
+                    if last_pay_str == current_month_str:
+                        continue  # bu ay zaten çekilmiş
+
+                    # Birikmiş Dönem Kaybı: uygulama birkaç ay açılmadıysa, son çekilen
+                    # ay ile şu an arasında kaç ay atlandığını hesaplayıp aradaki
+                    # taksitleri geriye dönük düş (recurring_mixin'deki abonelik
+                    # telafi mantığıyla aynı fikir: son bilinen tarihten şimdiye kaç
+                    # periyot geçtiğini say). last_auto_pay_date hiç set edilmemişse
+                    # (ilk otomatik ödeme) geriye dönük referans yok, sadece bu ayı öde.
+                    if last_pay_str:
+                        last_year, last_month = (int(x) for x in last_pay_str.split("-"))
+                        months_missed = (today.year - last_year) * 12 + (today.month - last_month)
+                    else:
+                        months_missed = 1
+                    months_missed = max(1, months_missed)
+
+                    installments_to_pay = min(months_missed, remaining)
+                    new_paid_total = debt['paid_installments'] + installments_to_pay
+                    is_active = 0 if new_paid_total >= debt['total_installments'] else 1
+
+                    update_debt_progress(debt['id'], installments_to_pay, is_active=is_active)
+                    update_debt_last_auto_pay(debt['id'], current_month_str)
+
+                    desc = f"{debt['debt_name']} (Otomatik Taksit Ödemesi)"
+                    if installments_to_pay > 1:
+                        desc = f"{debt['debt_name']} (Otomatik Taksit Ödemesi — {installments_to_pay} ay telafi)"
+
+                    # Atlanan her ay için ayrı gider kaydı oluştur ki toplam bakiye
+                    # ve işlem geçmişi gerçek taksit sayısını yansıtsın.
+                    for _ in range(installments_to_pay):
+                        TransactionService.add_transaction(
+                            account_id=1,
+                            amount=debt['monthly_payment'],
+                            transaction_type="expense",
+                            category="Kredi Taksiti",
+                            description=desc
+                        )
+                    ui_needs_refresh = True
 
                 # 3. ORTAK UI SENKRONİZASYONU
                 if ui_needs_refresh:

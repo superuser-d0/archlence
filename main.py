@@ -357,6 +357,19 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
                 self.root.ids.home_total_balance.text = formatted_balance
                 self.root.ids.total_card_amount.text  = formatted_balance
 
+                # Gizli eksi bakiye uyarısı: toplam nakit bakiye eksiye düştüğünde
+                # KivyMD "Error" temalı kırmızı uyarı satırını göster, artıdaysa gizle.
+                try:
+                    warning_row = self.root.ids.negative_balance_warning
+                    if total_balance < 0:
+                        warning_row.height = "22dp"
+                        warning_row.opacity = 1
+                    else:
+                        warning_row.height = 0
+                        warning_row.opacity = 0
+                except Exception:
+                    pass
+
                 self.root.ids.home_change_title.text = f"Değişim ({filter_text})"
                 self.root.ids.today_card_title.text  = filter_text
 
