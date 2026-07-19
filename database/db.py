@@ -36,6 +36,17 @@ def update_debt_progress(debt_id, extra_installments_paid, is_active=1):
     conn.commit()
     conn.close()
 
+def update_debt_auto_pay(debt_id, is_auto_pay, auto_pay_day):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE active_debts
+        SET is_auto_pay = ?, auto_pay_day = ?
+        WHERE id = ?
+    """, (int(is_auto_pay), auto_pay_day, debt_id))
+    conn.commit()
+    conn.close()
+
 def get_active_debts():
     conn = get_connection()
     cursor = conn.cursor()

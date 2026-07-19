@@ -1,6 +1,6 @@
 from kivy.clock import Clock
 from kivymd.toast import toast
-from kivymd.uix.button import MDFlatButton, MDRaisedButton
+from kivymd.uix.button import MDFlatButton, MDRaisedButton, MDIconButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.label import MDLabel
@@ -9,6 +9,9 @@ import threading
 from kivymd.uix.card import MDCard
 from kivymd.uix.progressbar import MDProgressBar
 from kivymd.uix.slider import MDSlider
+
+AUTO_PAY_ACTIVE_COLOR = (0.18, 0.6, 0.25, 1)
+AUTO_PAY_INACTIVE_COLOR = (0.6, 0.6, 0.6, 1)
 
 
 class DebtMixin:
@@ -31,12 +34,10 @@ class DebtMixin:
             try:
                 loan = self.last_calculated_loan
                 insert_debt(
-                    loan["name"], 
-                    loan["total_amount"], 
-                    loan["monthly_payment"], 
-                    loan["total_installments"],
-                    loan.get("is_auto_pay", False),
-                    loan.get("auto_pay_day", 1)
+                    loan["name"],
+                    loan["total_amount"],
+                    loan["monthly_payment"],
+                    loan["total_installments"]
                 )
                 Clock.schedule_once(lambda dt: toast("Borç başarıyla eklendi!"), 0)
                 Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
@@ -76,12 +77,26 @@ class DebtMixin:
                 header = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="24dp")
                 name_lbl = MDLabel(text=f"{debt['debt_name']}", font_style="Subtitle2", bold=True)
                 amount_lbl = MDLabel(text=f"Aylık: {debt['monthly_payment']:,.2f} ₺", font_style="Caption", theme_text_color="Secondary", halign="right")
+                auto_pay_btn = MDIconButton(
+                    icon="calendar-sync" if debt.get("is_auto_pay") else "calendar-sync-outline",
+                    theme_text_color="Custom",
+                    text_color=AUTO_PAY_ACTIVE_COLOR if debt.get("is_auto_pay") else AUTO_PAY_INACTIVE_COLOR,
+                    icon_size="18dp",
+                    size_hint_x=None,
+                    width="24dp",
+                    pos_hint={"center_y": .5},
+                    on_release=lambda x, d=debt: self.show_auto_pay_dialog(d),
+                )
                 header.add_widget(name_lbl)
                 header.add_widget(amount_lbl)
+                header.add_widget(auto_pay_btn)
 
                 progress = MDProgressBar(value=debt["paid_installments"], max=debt["total_installments"], size_hint_y=None, height="8dp")
-                
-                status_lbl = MDLabel(text=f"Kalan: {debt['total_installments'] - debt['paid_installments']}/{debt['total_installments']} Taksit", font_style="Caption", theme_text_color="Primary")
+
+                status_text = f"Kalan: {debt['total_installments'] - debt['paid_installments']}/{debt['total_installments']} Taksit"
+                if debt.get("is_auto_pay"):
+                    status_text += f"   [color=#2E7D32]•  Ayın {debt.get('auto_pay_day', 1)}. günü otomatik ödenecek[/color]"
+                status_lbl = MDLabel(text=status_text, font_style="Caption", theme_text_color="Primary", markup=True)
 
                 btn_layout = MDBoxLayout(orientation="horizontal", spacing="10dp", size_hint_y=None, height="36dp")
                 pay_btn = MDFlatButton(text="Taksit Öde", on_release=lambda x, d=debt: self.pay_debt_installments(d))
@@ -202,3 +217,57 @@ class DebtMixin:
             ]
         )
         self.dialog.open()
+
+    def show_auto_pay_dialog(self, debt):
+        """Borç kartındaki takvim ikonuna basılınca açılır: otomatik ödemeyi
+        açıp/kapatma ve ödeme gününü (1-31) belirleme diyaloğu. Kaydedilince
+        active_debts.is_auto_pay / auto_pay_day sütunlarını günceller."""
+        from kivymd.uix.selectioncontrol import MDSwitch
+        from kivymd.uix.textfield import MDTextField
+
+        content = MDBoxLayout(orientation="vertical", spacing="14dp", size_hint_y=None, height="110dp")
+
+        switch_row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="40dp")
+        switch_lbl = MDLabel(text="Otomatik Ödeme", theme_text_color="Secondary")
+        auto_switch = MDSwitch(active=bool(debt.get("is_auto_pay")))
+        switch_row.add_widget(switch_lbl)
+        switch_row.add_widget(auto_switch)
+
+        day_input = MDTextField(
+            hint_text="Ödeme Günü (1-31)",
+            input_filter="int",
+            text=str(debt.get("auto_pay_day", 1)),
+        )
+
+        content.add_widget(switch_row)
+        content.add_widget(day_input)
+
+        def confirm(*args):
+            self.auto_pay_dialog.dismiss()
+            day_text = day_input.text.strip()
+            auto_pay_day = int(day_text) if day_text.isdigit() and 1 <= int(day_text) <= 31 else 1
+            is_auto_pay = auto_switch.active
+
+            from database.db import update_debt_auto_pay
+
+            def process():
+                try:
+                    update_debt_auto_pay(debt["id"], is_auto_pay, auto_pay_day)
+                    Clock.schedule_once(lambda dt: toast("Otomatik ödeme ayarları güncellendi!"), 0)
+                    Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
+                except Exception as e:
+                    print("Error updating auto-pay settings:", e)
+                    Clock.schedule_once(lambda dt: toast("Güncellenirken hata oluştu!"), 0)
+
+            threading.Thread(target=process, daemon=True).start()
+
+        self.auto_pay_dialog = MDDialog(
+            title=f"{debt['debt_name']} — Otomatik Ödeme",
+            type="custom",
+            content_cls=content,
+            buttons=[
+                MDFlatButton(text="İPTAL", on_release=lambda x: self.auto_pay_dialog.dismiss()),
+                MDFlatButton(text="KAYDET", on_release=confirm),
+            ],
+        )
+        self.auto_pay_dialog.open()

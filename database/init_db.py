@@ -67,6 +67,14 @@ def initialize_database():
     if "name" in existing_debt_cols and "debt_name" not in existing_debt_cols:
         cursor.execute("ALTER TABLE active_debts RENAME COLUMN name TO debt_name")
 
+    # Borç kartındaki otomatik ödeme talimatı için sütunlar (migration guard)
+    if "is_auto_pay" not in existing_debt_cols:
+        cursor.execute("ALTER TABLE active_debts ADD COLUMN is_auto_pay INTEGER DEFAULT 0")
+    if "auto_pay_day" not in existing_debt_cols:
+        cursor.execute("ALTER TABLE active_debts ADD COLUMN auto_pay_day INTEGER DEFAULT 1")
+    if "last_auto_pay_date" not in existing_debt_cols:
+        cursor.execute("ALTER TABLE active_debts ADD COLUMN last_auto_pay_date TEXT")
+
 
     # 6. Aktif Varlıklar Tablosu (Hisse, Altın, Tahvil vb.)
     cursor.execute("""
