@@ -53,7 +53,103 @@ class AccountMixin:
         Dönüş True ise diyalog kapatılabilir; False ise kullanıcıya toast ile
         hata gösterilmiştir, diyalog AÇIK kalmalıdır ki kullanıcı düzeltebilsin.
         """
-        toast("Hesap/kart ekleme formu henüz bağlanmadı.")
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.button import MDRaisedButton
+        from kivymd.uix.textfield import MDTextField
+        from kivymd.uix.boxlayout import MDBoxLayout
+        from kivymd.uix.segmentedcontrol import MDSegmentedControl, MDSegmentedControlItem
+        from kivy.metrics import dp
+
+        inner = MDBoxLayout(orientation="vertical", size_hint_y=None, height=dp(380), spacing=dp(10))
+
+        type_control = MDSegmentedControl(pos_hint={"center_x": 0.5})
+        type_checking = MDSegmentedControlItem(text="Nakit / Vadesiz")
+        type_credit = MDSegmentedControlItem(text="Kredi Kartı")
+        type_control.add_widget(type_checking)
+        type_control.add_widget(type_credit)
+        
+        self.acc_name_field = MDTextField(hint_text="Hesap / Kart Adı")
+        
+        self.acc_initial_balance_field = MDTextField(hint_text="Başlangıç Bakiyesi (₺)", input_filter="float")
+        
+        self.acc_debt_field = MDTextField(hint_text="Mevcut Borç (₺)", input_filter="float")
+        self.acc_limit_field = MDTextField(hint_text="Toplam Limit (₺)", input_filter="float")
+        self.acc_statement_field = MDTextField(hint_text="Hesap Kesim Günü (1-31, opsiyonel)", input_filter="int")
+
+        self.acc_debt_field.opacity = 0
+        self.acc_debt_field.height = 0
+        self.acc_limit_field.opacity = 0
+        self.acc_limit_field.height = 0
+        self.acc_statement_field.opacity = 0
+        self.acc_statement_field.height = 0
+
+        inner.add_widget(type_control)
+        inner.add_widget(self.acc_name_field)
+        inner.add_widget(self.acc_initial_balance_field)
+        inner.add_widget(self.acc_debt_field)
+        inner.add_widget(self.acc_limit_field)
+        inner.add_widget(self.acc_statement_field)
+
+        self.selected_account_type = "Nakit / Vadesiz"
+
+        def on_type_change(segment, item):
+            self.selected_account_type = item.text
+            if item.text == "Kredi Kartı":
+                self.acc_initial_balance_field.opacity = 0
+                self.acc_initial_balance_field.height = 0
+                self.acc_debt_field.opacity = 1
+                self.acc_debt_field.height = dp(48)
+                self.acc_limit_field.opacity = 1
+                self.acc_limit_field.height = dp(48)
+                self.acc_statement_field.opacity = 1
+                self.acc_statement_field.height = dp(48)
+            else:
+                self.acc_initial_balance_field.opacity = 1
+                self.acc_initial_balance_field.height = dp(48)
+                self.acc_debt_field.opacity = 0
+                self.acc_debt_field.height = 0
+                self.acc_limit_field.opacity = 0
+                self.acc_limit_field.height = 0
+                self.acc_statement_field.opacity = 0
+                self.acc_statement_field.height = 0
+
+        type_control.bind(on_active=on_type_change)
+
+        def do_save(instance):
+            is_credit = (self.selected_account_type == "Kredi Kartı")
+            acc_type = "credit_card" if is_credit else "checking"
+            
+            if is_credit:
+                initial_balance = float(self.acc_debt_field.text or 0)
+                credit_limit = float(self.acc_limit_field.text or 0)
+            else:
+                initial_balance = float(self.acc_initial_balance_field.text or 0)
+                credit_limit = 0.0
+                
+            statement_date = self.acc_statement_field.text or None
+            
+            self.commit_new_account(
+                name=self.acc_name_field.text,
+                account_type=acc_type,
+                initial_balance=initial_balance,
+                credit_limit=credit_limit,
+                statement_date=statement_date,
+            )
+
+        def do_cancel(instance):
+            if getattr(self, "account_dialog", None):
+                self.account_dialog.dismiss()
+
+        self.account_dialog = MDDialog(
+            title="Hesap / Kart Ekle",
+            type="custom",
+            content_cls=inner,
+            buttons=[
+                MDRaisedButton(text="VAZGEÇ", on_release=do_cancel, md_bg_color=(0.8, 0.2, 0.2, 1)),
+                MDRaisedButton(text="KAYDET", on_release=do_save, md_bg_color=(0.18, 0.8, 0.25, 1)),
+            ],
+        )
+        self.account_dialog.open()
 
     # ─── İş mantığı (tamamlandı — değiştirmeyin) ──────────────────────────────
     def commit_new_account(self, name, account_type, initial_balance=0.0,

@@ -1203,6 +1203,116 @@ MDScreen:
                             size_hint: 1, 1
                             pos_hint: {"x": 0, "y": 0}
 
+                # ==== YENİ SEKME: HESAPLARIM / KARTLARIM ====
+                MDBottomNavigationItem:
+                    name: "accounts_tab"
+                    text: "Kartlarım"
+                    icon: "credit-card-multiple-outline"
+                    on_tab_press: app.render_accounts()
+                    
+                    MDFloatLayout:
+                        MDBoxLayout:
+                            orientation: "vertical"
+                            MDTopAppBar:
+                                title: "Kartlarım"
+                                elevation: 4
+                            
+                            AnchorLayout:
+                                anchor_x: "center"
+                                anchor_y: "top"
+                                
+                                ScrollView:
+                                    size_hint_x: 1
+                                    
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        adaptive_height: True
+                                        padding: "24dp"
+                                        spacing: "24dp"
+
+                                        # --- DÖNEM ÖZET KARTI (3 metrik) ---
+                                        MDBoxLayout:
+                                            orientation: "horizontal"
+                                            size_hint_y: None
+                                            height: "96dp"
+                                            spacing: "10dp"
+
+                                            # Nakit
+                                            MDCard:
+                                                elevation: 0
+                                                line_color: 0.8, 0.8, 0.8, 0.3
+                                                orientation: "vertical"
+                                                padding: ["12dp", "10dp", "12dp", "10dp"]
+                                                radius: [20, 20, 20, 20]
+                                                md_bg_color: 0.85, 0.95, 0.88, 1
+                                                MDLabel:
+                                                    text: "Nakit"
+                                                    font_style: "Caption"
+                                                    theme_text_color: "Secondary"
+                                                    halign: "center"
+                                                MDLabel:
+                                                    id: accounts_cash_label
+                                                    text: "₺0,00"
+                                                    font_style: "Subtitle2"
+                                                    bold: True
+                                                    halign: "center"
+                                                    theme_text_color: "Custom"
+                                                    text_color: 0.06, 0.55, 0.18, 1
+
+                                            # Kart Borcu
+                                            MDCard:
+                                                elevation: 0
+                                                line_color: 0.8, 0.8, 0.8, 0.3
+                                                orientation: "vertical"
+                                                padding: ["12dp", "10dp", "12dp", "10dp"]
+                                                radius: [20, 20, 20, 20]
+                                                md_bg_color: 0.98, 0.88, 0.88, 1
+                                                MDLabel:
+                                                    text: "Kart Borcu"
+                                                    font_style: "Caption"
+                                                    theme_text_color: "Secondary"
+                                                    halign: "center"
+                                                MDLabel:
+                                                    id: accounts_debt_label
+                                                    text: "₺0,00"
+                                                    font_style: "Subtitle2"
+                                                    bold: True
+                                                    halign: "center"
+                                                    theme_text_color: "Custom"
+                                                    text_color: 0.78, 0.1, 0.1, 1
+
+                                            # Net Servet
+                                            MDCard:
+                                                elevation: 0
+                                                line_color: 0.8, 0.8, 0.8, 0.3
+                                                orientation: "vertical"
+                                                padding: ["12dp", "10dp", "12dp", "10dp"]
+                                                radius: [20, 20, 20, 20]
+                                                md_bg_color: 0.88, 0.94, 0.98, 1
+                                                MDLabel:
+                                                    text: "Net Servet"
+                                                    font_style: "Caption"
+                                                    theme_text_color: "Secondary"
+                                                    halign: "center"
+                                                MDLabel:
+                                                    id: accounts_net_label
+                                                    text: "₺0,00"
+                                                    font_style: "Subtitle2"
+                                                    bold: True
+                                                    halign: "center"
+                                                    theme_text_color: "Primary"
+
+                                        MDRaisedButton:
+                                            text: "+ HESAP / KART EKLE"
+                                            pos_hint: {"center_x": .5}
+                                            on_release: app.open_add_account_dialog()
+
+                                        MDBoxLayout:
+                                            id: accounts_container
+                                            orientation: "vertical"
+                                            adaptive_height: True
+                                            spacing: "12dp"
+
                 # ==== 3. SEKME: ARAÇLAR ====
                 MDBottomNavigationItem:
                     name: "tools_tab"
