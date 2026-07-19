@@ -110,6 +110,23 @@ def initialize_database():
         )
     """)
 
+    # 8. Birikim Hedefleri Tablosu (Yaz Tatili, Araç Peşinatı, Acil Durum Fonu vb.)
+    # goal_name AES şifreli tutulur (kişisel hayal/plan bilgisidir); tutarlar
+    # monthly_budget_plan'daki gibi düz REAL kalır — hedefe para ekleme/çekme
+    # accounts.balance ile aynı SQL işleminde atomik güncellenmek zorunda,
+    # şifreli kolonla "current_amount = current_amount + ?" yazılamazdı.
+    # status: 'aktif' | 'tamamlandi'
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS savings_goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            goal_name TEXT NOT NULL,
+            target_amount REAL NOT NULL,
+            current_amount REAL DEFAULT 0,
+            target_date TEXT,
+            status TEXT DEFAULT 'aktif'
+        )
+    """)
+
     conn.commit()
 
     # 4. Varsayılan Hesapları Ekle
