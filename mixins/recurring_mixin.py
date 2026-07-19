@@ -67,7 +67,7 @@ class RecurringMixin:
 
                 card = MDCard(
                     orientation="vertical", padding="12dp", spacing="6dp",
-                    size_hint_y=None, height="100dp", elevation=1, radius=[10]
+                    size_hint_y=None, height="100dp", elevation=0, line_color=(0.8, 0.8, 0.8, 0.3), radius=[10]
                 )
 
                 header = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="24dp")

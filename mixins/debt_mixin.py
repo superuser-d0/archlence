@@ -72,7 +72,7 @@ class DebtMixin:
 
             for debt in debts:
 
-                card = MDCard(orientation="vertical", padding="12dp", spacing="8dp", size_hint_y=None, height="140dp", elevation=1, radius=[10])
+                card = MDCard(orientation="vertical", padding="12dp", spacing="8dp", size_hint_y=None, height="140dp", elevation=0, line_color=(0.8, 0.8, 0.8, 0.3), radius=[10])
                 
                 header = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="24dp")
                 name_lbl = MDLabel(text=f"{debt['debt_name']}", font_style="Subtitle2", bold=True)

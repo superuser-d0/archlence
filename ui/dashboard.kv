@@ -67,12 +67,13 @@
                 adaptive_height: True
 
                 MDCard:
+                    elevation: 0
+                    line_color: 0.8, 0.8, 0.8, 0.3
                     orientation: "vertical"
                     padding: "16dp"
                     spacing: "10dp"
                     size_hint_y: None
                     height: "120dp"
-                    elevation: 2
                     radius: [24]
                     
                     MDLabel:
@@ -475,11 +476,11 @@ MDScreen:
                                     spacing: "15dp"
 
                                     MDCard:
+                                        elevation: 0
+                                        line_color: 0.8, 0.8, 0.8, 0.3
                                         padding: "15dp"
                                         radius: [24]
-                                        elevation: 2
-                                        shadow_softness: 14
-                                        md_bg_color: (0.1, 0.1, 0.1, 0.5) if app.theme_cls.theme_style == "Dark" else (0.9, 0.9, 0.9, 0.5)
+                                        md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (0.95, 0.95, 0.95, 1)
                                         orientation: "vertical"
                                         
                                         MDLabel:
@@ -494,11 +495,11 @@ MDScreen:
                                             bold: True
 
                                     MDCard:
+                                        elevation: 0
+                                        line_color: 0.8, 0.8, 0.8, 0.3
                                         padding: "15dp"
                                         radius: [24]
-                                        elevation: 2
-                                        shadow_softness: 14
-                                        md_bg_color: (0.1, 0.1, 0.1, 0.5) if app.theme_cls.theme_style == "Dark" else (0.9, 0.9, 0.9, 0.5)
+                                        md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (0.95, 0.95, 0.95, 1)
                                         orientation: "vertical"
                                         
                                         MDLabel:
@@ -513,13 +514,13 @@ MDScreen:
 
                                 # YENİ: MATEMATİKSEL ÖNGÖRÜ KARTI
                                 MDCard:
+                                    elevation: 0
+                                    line_color: 0.8, 0.8, 0.8, 0.3
                                     size_hint_y: None
                                     height: "90dp"
                                     padding: "15dp"
                                     radius: [24]
-                                    elevation: 2
-                                    shadow_softness: 14
-                                    md_bg_color: (0.1, 0.1, 0.1, 0.5) if app.theme_cls.theme_style == "Dark" else (0.9, 0.9, 0.9, 0.5)
+                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (0.95, 0.95, 0.95, 1)
                                     orientation: "horizontal"
                                     spacing: "15dp"
 
@@ -550,13 +551,13 @@ MDScreen:
 
                                 # YENİ: AYLIK BÜTÇE PLANI KARTI
                                 MDCard:
+                                    elevation: 0
+                                    line_color: 0.8, 0.8, 0.8, 0.3
                                     orientation: "vertical"
                                     padding: "16dp"
                                     spacing: "10dp"
                                     size_hint_y: None
                                     height: "240dp"
-                                    elevation: 2
-                                    shadow_softness: 14
                                     radius: [24, 24, 24, 24]
                                     md_bg_color: [1, 1, 1, 1]
 
@@ -605,13 +606,13 @@ MDScreen:
 
                                 # YENİ: AKTİF BORÇLARIM KARTI
                                 MDCard:
+                                    elevation: 0
+                                    line_color: 0.8, 0.8, 0.8, 0.3
                                     orientation: "vertical"
                                     padding: "16dp"
                                     spacing: "10dp"
                                     size_hint_y: None
                                     height: "260dp"
-                                    elevation: 2
-                                    shadow_softness: 14
                                     radius: [24, 24, 24, 24]
                                     md_bg_color: [1, 1, 1, 1]
 
@@ -644,13 +645,13 @@ MDScreen:
 
                                 # YENİ: YAKLAŞAN ÖDEMELER KARTI
                                 MDCard:
+                                    elevation: 0
+                                    line_color: 0.8, 0.8, 0.8, 0.3
                                     orientation: "vertical"
                                     padding: "16dp"
                                     spacing: "10dp"
                                     size_hint_y: None
                                     height: "220dp"
-                                    elevation: 2
-                                    shadow_softness: 14
                                     radius: [24, 24, 24, 24]
                                     md_bg_color: [1, 1, 1, 1]
 
@@ -762,12 +763,12 @@ MDScreen:
 
                                             # Gelir kartı
                                             MDCard:
+                                                elevation: 0
+                                                line_color: 0.8, 0.8, 0.8, 0.3
                                                 orientation: "vertical"
                                                 padding: ["12dp", "10dp", "12dp", "10dp"]
                                                 radius: [20, 20, 20, 20]
-                                                elevation: 2
-                                                shadow_softness: 14
-                                                md_bg_color: 0.06, 0.55, 0.18, 0.08
+                                                md_bg_color: 0.85, 0.95, 0.88, 1
                                                 MDLabel:
                                                     text: "Gelir"
                                                     font_style: "Caption"
@@ -784,12 +785,12 @@ MDScreen:
 
                                             # Gider kartı
                                             MDCard:
+                                                elevation: 0
+                                                line_color: 0.8, 0.8, 0.8, 0.3
                                                 orientation: "vertical"
                                                 padding: ["12dp", "10dp", "12dp", "10dp"]
                                                 radius: [20, 20, 20, 20]
-                                                elevation: 2
-                                                shadow_softness: 14
-                                                md_bg_color: 0.78, 0.1, 0.1, 0.08
+                                                md_bg_color: 0.98, 0.88, 0.88, 1
                                                 MDLabel:
                                                     text: "Gider"
                                                     font_style: "Caption"
@@ -806,12 +807,12 @@ MDScreen:
 
                                             # Net bakiye kartı
                                             MDCard:
+                                                elevation: 0
+                                                line_color: 0.8, 0.8, 0.8, 0.3
                                                 orientation: "vertical"
                                                 padding: ["12dp", "10dp", "12dp", "10dp"]
                                                 radius: [20, 20, 20, 20]
-                                                elevation: 2
-                                                shadow_softness: 14
-                                                md_bg_color: 0.05, 0.47, 0.7, 0.08
+                                                md_bg_color: 0.88, 0.94, 0.98, 1
                                                 MDLabel:
                                                     text: "Net Bakiye"
                                                     font_style: "Caption"
@@ -916,12 +917,12 @@ MDScreen:
 
                                                 # --- TOPLAM VARLIK KARTI ---
                                                 MDCard:
+                                                    elevation: 0
+                                                    line_color: 0.8, 0.8, 0.8, 0.3
                                                     id: total_wealth_card
                                                     size_hint_y: None
                                                     height: "120dp"
                                                     radius: [24, 24, 24, 24]
-                                                    elevation: 2
-                                                    shadow_softness: 14
                                                     md_bg_color: [1, 1, 1, 1] if app.theme_cls.theme_style == "Light" else [0.15, 0.15, 0.15, 1]
                                                     padding: ["20dp", "14dp", "20dp", "14dp"]
 
@@ -982,13 +983,13 @@ MDScreen:
 
                                                 # AKTİF VARLIKLARIM KARTI
                                                 MDCard:
+                                                    elevation: 0
+                                                    line_color: 0.8, 0.8, 0.8, 0.3
                                                     orientation: "vertical"
                                                     padding: "16dp"
                                                     spacing: "10dp"
                                                     size_hint_y: None
                                                     height: "280dp"
-                                                    elevation: 2
-                                                    shadow_softness: 14
                                                     radius: [24, 24, 24, 24]
                                                     md_bg_color: [1, 1, 1, 1] if app.theme_cls.theme_style == "Light" else [0.15, 0.15, 0.15, 1]
 
@@ -1039,13 +1040,13 @@ MDScreen:
 
                                                 # VARLIK GEÇMİŞİ KARTI
                                                 MDCard:
+                                                    elevation: 0
+                                                    line_color: 0.8, 0.8, 0.8, 0.3
                                                     orientation: "vertical"
                                                     padding: "16dp"
                                                     spacing: "10dp"
                                                     size_hint_y: None
                                                     height: "320dp"
-                                                    elevation: 2
-                                                    shadow_softness: 14
                                                     radius: [24, 24, 24, 24]
                                                     md_bg_color: [1, 1, 1, 1]
 
@@ -1103,12 +1104,14 @@ MDScreen:
                                                     padding: "16dp"
 
                                                     MDCard:
+                                                        elevation: 0
+                                                        line_color: 0.8, 0.8, 0.8, 0.3
                                                         id: metric_card_income
                                                         orientation: "vertical"
                                                         padding: "16dp"
                                                         size_hint_y: None
                                                         height: "120dp"
-                                                        md_bg_color: 0.18, 0.8, 0.25, 0.1
+                                                        md_bg_color: 0.88, 0.97, 0.9, 1
                                                         opacity: 0
                                                         MDIcon:
                                                             icon: "trending-up"
@@ -1123,12 +1126,14 @@ MDScreen:
                                                             bold: True
                                                 
                                                     MDCard:
+                                                        elevation: 0
+                                                        line_color: 0.8, 0.8, 0.8, 0.3
                                                         id: metric_card_expense
                                                         orientation: "vertical"
                                                         padding: "16dp"
                                                         size_hint_y: None
                                                         height: "120dp"
-                                                        md_bg_color: 0.9, 0.2, 0.2, 0.1
+                                                        md_bg_color: 0.98, 0.9, 0.9, 1
                                                         opacity: 0
                                                         MDIcon:
                                                             icon: "trending-down"
@@ -1143,12 +1148,14 @@ MDScreen:
                                                             bold: True
 
                                                     MDCard:
+                                                        elevation: 0
+                                                        line_color: 0.8, 0.8, 0.8, 0.3
                                                         id: metric_card_savings
                                                         orientation: "vertical"
                                                         padding: "16dp"
                                                         size_hint_y: None
                                                         height: "120dp"
-                                                        md_bg_color: 0.13, 0.59, 0.95, 0.1
+                                                        md_bg_color: 0.9, 0.95, 0.99, 1
                                                         opacity: 0
                                                         MDIcon:
                                                             icon: "piggy-bank"
@@ -1163,12 +1170,14 @@ MDScreen:
                                                             bold: True
 
                                                     MDCard:
+                                                        elevation: 0
+                                                        line_color: 0.8, 0.8, 0.8, 0.3
                                                         id: metric_card_trend
                                                         orientation: "vertical"
                                                         padding: "16dp"
                                                         size_hint_y: None
                                                         height: "120dp"
-                                                        md_bg_color: 0.95, 0.6, 0.1, 0.1
+                                                        md_bg_color: 0.99, 0.95, 0.9, 1
                                                         opacity: 0
                                                         MDIcon:
                                                             icon: "chart-timeline-variant"
@@ -1215,10 +1224,11 @@ MDScreen:
                                 height: self.minimum_height
                                 
                                 MDCard:
+                                    elevation: 0
+                                    line_color: 0.8, 0.8, 0.8, 0.3
                                     size_hint_y: None
                                     height: "140dp"
                                     radius: [24]
-                                    elevation: 2
                                     md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
                                     orientation: "vertical"
                                     padding: "20dp"
@@ -1248,10 +1258,11 @@ MDScreen:
                                         bold: True
                                 
                                 MDCard:
+                                    elevation: 0
+                                    line_color: 0.8, 0.8, 0.8, 0.3
                                     size_hint_y: None
                                     height: "140dp"
                                     radius: [24]
-                                    elevation: 2
                                     md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
                                     orientation: "vertical"
                                     padding: "20dp"
@@ -1281,10 +1292,11 @@ MDScreen:
                                         bold: True
 
                                 MDCard:
+                                    elevation: 0
+                                    line_color: 0.8, 0.8, 0.8, 0.3
                                     size_hint_y: None
                                     height: "140dp"
                                     radius: [24]
-                                    elevation: 2
                                     md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
                                     orientation: "vertical"
                                     padding: "20dp"
@@ -1314,10 +1326,11 @@ MDScreen:
                                         bold: True
 
                                 MDCard:
+                                    elevation: 0
+                                    line_color: 0.8, 0.8, 0.8, 0.3
                                     size_hint_y: None
                                     height: "140dp"
                                     radius: [24]
-                                    elevation: 2
                                     md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
                                     orientation: "vertical"
                                     padding: "20dp"
@@ -1347,10 +1360,11 @@ MDScreen:
                                         bold: True
 
                                 MDCard:
+                                    elevation: 0
+                                    line_color: 0.8, 0.8, 0.8, 0.3
                                     size_hint_y: None
                                     height: "140dp"
                                     radius: [24]
-                                    elevation: 2
                                     md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
                                     orientation: "vertical"
                                     padding: "20dp"
@@ -1380,10 +1394,11 @@ MDScreen:
                                         bold: True
 
                                 MDCard:
+                                    elevation: 0
+                                    line_color: 0.8, 0.8, 0.8, 0.3
                                     size_hint_y: None
                                     height: "140dp"
                                     radius: [24]
-                                    elevation: 2
                                     md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
                                     orientation: "vertical"
                                     padding: "20dp"

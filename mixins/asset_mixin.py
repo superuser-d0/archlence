@@ -1301,7 +1301,8 @@ class AssetMixin:
                 spacing="4dp",
                 size_hint_y=None,
                 height="100dp",
-                elevation=1,
+                elevation=0,
+                line_color=(0.8, 0.8, 0.8, 0.3),
                 radius=[10],
             )
 
