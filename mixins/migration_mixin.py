@@ -103,3 +103,42 @@ class MigrationMixin:
                     lambda dt: toast("İçe aktarma sırasında hata oluştu!"), 0)
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def show_data_privacy_dialog(self):
+        """Veriler ve Gizlilik menüsünü diyalog olarak açar."""
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.list import MDList, OneLineIconListItem, IconLeftWidget
+        from kivymd.uix.boxlayout import MDBoxLayout
+        from kivy.metrics import dp
+        
+        content = MDBoxLayout(orientation="vertical", size_hint_y=None, height=dp(112))
+        md_list = MDList()
+        
+        export_item = OneLineIconListItem(text="CSV Olarak Dışa Aktar")
+        export_icon = IconLeftWidget(icon="file-export-outline")
+        export_item.add_widget(export_icon)
+        export_item.bind(on_release=lambda x: self._on_export_selected(self._data_privacy_dialog))
+        
+        import_item = OneLineIconListItem(text="CSV'den İçe Aktar")
+        import_icon = IconLeftWidget(icon="file-import-outline")
+        import_item.add_widget(import_icon)
+        import_item.bind(on_release=lambda x: self._on_import_selected(self._data_privacy_dialog))
+        
+        md_list.add_widget(export_item)
+        md_list.add_widget(import_item)
+        content.add_widget(md_list)
+        
+        self._data_privacy_dialog = MDDialog(
+            title="Veriler ve Gizlilik",
+            type="custom",
+            content_cls=content,
+        )
+        self._data_privacy_dialog.open()
+
+    def _on_export_selected(self, dialog):
+        dialog.dismiss()
+        self.export_data_csv()
+
+    def _on_import_selected(self, dialog):
+        dialog.dismiss()
+        self.show_import_csv_dialog()

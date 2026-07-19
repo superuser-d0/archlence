@@ -1459,57 +1459,23 @@ MDScreen:
 
                                 MDSeparator:
 
-                                # --- VERİ YÖNETİMİ (Migration) ---
-                                MDLabel:
-                                    text: "Veri Yönetimi"
-                                    font_style: "Caption"
-                                    bold: True
-                                    theme_text_color: "Secondary"
-                                    size_hint_y: None
-                                    height: "32dp"
-                                    padding: ["20dp", 0]
-                                    valign: "bottom"
-
+                                # --- VERİLER VE GİZLİLİK ---
                                 ClickableSettingsRow:
                                     orientation: "horizontal"
                                     size_hint_y: None
                                     height: "64dp"
                                     padding: ["20dp", 0, "20dp", 0]
                                     spacing: "20dp"
-                                    on_release: app.export_data_csv()
+                                    on_release: app.show_data_privacy_dialog()
                                     MDIcon:
-                                        icon: "file-export-outline"
+                                        icon: "shield-account-outline"
                                         size_hint_x: None
                                         width: "36dp"
                                         halign: "center"
                                         pos_hint: {"center_y": .5}
                                         theme_text_color: "Primary"
                                     MDLabel:
-                                        text: "CSV Olarak Dışa Aktar"
-                                        theme_text_color: "Primary"
-                                    MDIcon:
-                                        icon: "chevron-right"
-                                        pos_hint: {"center_y": .5}
-                                        theme_text_color: "Hint"
-
-                                MDSeparator:
-
-                                ClickableSettingsRow:
-                                    orientation: "horizontal"
-                                    size_hint_y: None
-                                    height: "64dp"
-                                    padding: ["20dp", 0, "20dp", 0]
-                                    spacing: "20dp"
-                                    on_release: app.show_import_csv_dialog()
-                                    MDIcon:
-                                        icon: "file-import-outline"
-                                        size_hint_x: None
-                                        width: "36dp"
-                                        halign: "center"
-                                        pos_hint: {"center_y": .5}
-                                        theme_text_color: "Primary"
-                                    MDLabel:
-                                        text: "CSV'den İçe Aktar"
+                                        text: "Veriler ve Gizlilik"
                                         theme_text_color: "Primary"
                                     MDIcon:
                                         icon: "chevron-right"
