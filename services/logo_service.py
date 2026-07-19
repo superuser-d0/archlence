@@ -29,8 +29,9 @@ _FOREX_COUNTRY = {
 }
 
 # Altın için kod içinde aranan anahtar kelimeler (Yahoo Finance sembolü
-# "GC=F", uluslararası kod "XAU" veya serbest girilen "ALTIN" metni).
-_GOLD_KEYWORDS = ("GC=F", "XAU", "ALTIN")
+# "GC=F", uluslararası kod "XAU", serbest girilen "ALTIN" metni veya fiziksel
+# altın türleri için dahili "GOLD-*" semboller — bkz. asset_mixin.py _GOLD_TYPES).
+_GOLD_KEYWORDS = ("GC=F", "XAU", "ALTIN", "GOLD")
 # Twemoji CDN (jsdelivr) üzerinden sabit bir altın külçe/madeni para görseli.
 _GOLD_LOGO_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1fa99.png"
 

@@ -854,12 +854,14 @@ class AssetMixin:
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivymd.uix.textfield import MDTextField
 
-        quick_picks_height = 44 if self._get_quick_picks(self._asset_selected_type) else 0
+        is_gold = self._asset_selected_type == "Altın"
+        quick_picks = self._get_quick_picks(self._asset_selected_type)
+        extra_row_height = 44 if (is_gold or quick_picks) else 0
         content = MDBoxLayout(
             orientation="vertical",
             spacing="12dp",
             size_hint_y=None,
-            height=f"{320 + quick_picks_height}dp",
+            height=f"{320 + extra_row_height}dp",
             padding=["0dp", "8dp", "0dp", "0dp"]
         )
 
@@ -870,8 +872,39 @@ class AssetMixin:
         self._type_logo_slot.add_widget(self._make_type_fallback_icon())
         content.add_widget(self._type_logo_slot)
 
-        quick_picks = self._get_quick_picks(self._asset_selected_type)
-        if quick_picks:
+        if is_gold:
+            from kivymd.uix.menu import MDDropdownMenu
+
+            gold_types = self._GOLD_TYPES
+            gold_row = MDBoxLayout(
+                orientation="horizontal", spacing="8dp",
+                size_hint_y=None, height="36dp",
+            )
+            gold_btn = MDRaisedButton(
+                text=f"Altın Türü: {gold_types[0][0]}",
+                size_hint_x=1,
+                md_bg_color=GOLD_ICON_COLOR,
+            )
+
+            def _select_gold_type(label, symbol, friendly_name):
+                gold_btn.text = f"Altın Türü: {label}"
+                self._asset_code_input.text = symbol
+                self._asset_name_input.text = friendly_name
+                self._gold_type_menu.dismiss()
+
+            gold_menu_items = [
+                {
+                    "text": label,
+                    "on_release": lambda x, l=label, s=symbol, n=friendly_name: _select_gold_type(l, s, n),
+                }
+                for label, symbol, friendly_name in gold_types
+            ]
+            self._gold_type_menu = MDDropdownMenu(caller=gold_btn, items=gold_menu_items, width_mult=3)
+            gold_btn.bind(on_release=lambda x: self._gold_type_menu.open())
+
+            gold_row.add_widget(gold_btn)
+            content.add_widget(gold_row)
+        elif quick_picks:
             quick_row = MDBoxLayout(
                 orientation="horizontal", spacing="8dp",
                 size_hint_y=None, height="36dp",
@@ -1013,12 +1046,23 @@ class AssetMixin:
     # Tür başına hızlı seçim çipleri: (buton metni, yfinance sembolü, dostane isim)
     _QUICK_PICKS = {
         "Döviz":  [("Dolar", "USDTRY=X", "Amerikan Doları"), ("Euro", "EURTRY=X", "Euro")],
-        "Altın":  [("Gram Altın", "GC=F", "Gram Altın")],
         "Kripto": [("Bitcoin", "BTC-USD", "Bitcoin"), ("Ethereum", "ETH-USD", "Ethereum")],
     }
 
+    # Altın için fiziksel tür seçimi: (buton metni, dahili/yfinance sembolü, dostane isim).
+    # Gram Altın gerçek bir yfinance sembolü (GC=F) kullanır; diğerleri gram
+    # fiyatının piyasa çarpanıyla türetildiği dahili "GOLD-*" sembolleridir
+    # (bkz. services/asset_service.py GOLD_TYPE_MULTIPLIERS).
+    _GOLD_TYPES = [
+        ("Gram Altın", "GC=F", "Gram Altın"),
+        ("Ons Altın", "GOLD-ONS", "Ons Altın"),
+        ("Çeyrek Altın", "GOLD-CEYREK", "Çeyrek Altın"),
+        ("Yarım Altın", "GOLD-YARIM", "Yarım Altın"),
+        ("Tam Altın", "GOLD-TAM", "Tam Altın"),
+    ]
+
     def _get_quick_picks(self, asset_type):
-        """Döviz/Altın/Kripto için tek dokunuşla sembol dolduran çip listesini döndürür."""
+        """Döviz/Kripto için tek dokunuşla sembol dolduran çip listesini döndürür."""
         return self._QUICK_PICKS.get(asset_type, [])
 
     def _apply_quick_pick(self, symbol, friendly_name):
@@ -1038,7 +1082,7 @@ class AssetMixin:
 
     def _get_symbol_helper(self, asset_type):
         helpers = {
-            "Altın": "Altın: GC=F, Gümüş: SI=F, Platin: PL=F",
+            "Altın": "Yukarıdan tür seçin veya elle girin (Gram: GC=F)",
             "Kripto": "Bitcoin: BTC-USD, Ethereum: ETH-USD",
             "Döviz": "Dolar: USDTRY=X, Euro: EURTRY=X",
             "Tahvil": "Yahoo Finance sembolü girin",

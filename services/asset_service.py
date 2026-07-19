@@ -7,6 +7,10 @@ bu servis otomatik olarak '.IS' ekleyerek Yahoo Finance'tan veri çeker.
 Desteklenen asset_type değerleri:
     'Hisse'  → BIST hissesi  (THYAO → THYAO.IS)
     'Altın'  → GC=F veya XAUUSD  (ons/USD çekilir, ₺/gram'a çevrilir — bkz. _normalize_to_try)
+               Çeyrek/Yarım/Tam/Ons gibi fiziksel altın türleri için gerçek bir
+               yfinance sembolü yoktur; bunun yerine dahili GOLD-* sembolleri
+               kullanılır ve gram/₺ fiyatı üzerinden çarpanla hesaplanır (bkz.
+               GOLD_TYPE_MULTIPLIERS, _fetch_gold_gram_price_try).
     'Tahvil' → sembol direkt gönderilir
     'Döviz'  → sembol direkt gönderilir (örn: USDTRY=X, zaten ₺ cinsinden)
     'Kripto' → CODE-USD çekilir, ₺'ye çevrilir (bkz. _normalize_to_try)
@@ -28,6 +32,19 @@ GRAMS_PER_TROY_OUNCE = 31.1034768
 # fiyatlarını her seferinde ayrı bir yfinance isteğiyle çevirmemek için.
 _usdtry_cache = {"rate": None, "time": 0.0}
 _USDTRY_CACHE_TTL = 300  # 5 dakika — uygulamadaki diğer fiyat önbellekleriyle tutarlı
+
+# Fiziksel altın türleri için gerçek bir yfinance sembolü yok; bu dahili
+# sembollerin fiyatı gram altın (GC=F) fiyatının standart piyasa çarpanıyla
+# türetilir (ör. Çeyrek Altın ≈ 1,75 gram karşılığı).
+GOLD_TYPE_MULTIPLIERS = {
+    "GOLD-ONS": GRAMS_PER_TROY_OUNCE,  # 1 ons = ~31.10 gram karşılığı
+    "GOLD-CEYREK": 1.75,
+    "GOLD-YARIM": 3.5,
+    "GOLD-TAM": 7.0,
+}
+
+_gold_gram_cache = {"price": None, "time": 0.0}
+_GOLD_GRAM_CACHE_TTL = 300
 
 
 def _fetch_usdtry_rate() -> float | None:
@@ -107,13 +124,38 @@ def get_ticker_candidates(asset_code: str, asset_type: str) -> list:
 
 # ─── Tek bir varlık için canlı fiyat çek ─────────────────────────────────────
 
+def _fetch_gold_gram_price_try() -> float | None:
+    """Güncel gram altın (GC=F) fiyatını ₺ cinsinden döndürür; 5 dakika
+    önbelleklenir. Çeyrek/Yarım/Tam/Ons gibi türetilmiş altın türleri bu temel
+    fiyatı GOLD_TYPE_MULTIPLIERS ile çarpar (bkz. fetch_current_price)."""
+    now = time.time()
+    if _gold_gram_cache["price"] is not None and (now - _gold_gram_cache["time"]) < _GOLD_GRAM_CACHE_TTL:
+        return _gold_gram_cache["price"]
+
+    price = fetch_current_price("GC=F", "Altın")
+    if price is not None:
+        _gold_gram_cache["price"] = price
+        _gold_gram_cache["time"] = now
+        return price
+    return _gold_gram_cache["price"]  # varsa bayat değeri döndür, yoksa None
+
+
 def fetch_current_price(asset_code: str, asset_type: str) -> float | None:
     """
     Verilen sembol için güncel kapanış/anlık fiyatı ₺ cinsinden döndürür.
     Alternatif sembolleri dener. 'Altın' ve 'Kripto' için yfinance'tan USD
     gelen ham fiyat _normalize_to_try ile ₺'ye çevrilir (bkz. modül docstring'i).
-    Hata durumunda None döndürür.
+    GOLD-ONS/GOLD-CEYREK/GOLD-YARIM/GOLD-TAM gibi dahili sembollerin gerçek bir
+    yfinance karşılığı yoktur; bunlar için gram altın fiyatı çekilip standart
+    piyasa çarpanıyla ölçeklenir. Hata durumunda None döndürür.
     """
+    code = (asset_code or "").strip().upper()
+    if asset_type == "Altın" and code in GOLD_TYPE_MULTIPLIERS:
+        gram_price = _fetch_gold_gram_price_try()
+        if gram_price is None:
+            return None
+        return gram_price * GOLD_TYPE_MULTIPLIERS[code]
+
     import math
     import yfinance as yf
     import logging
