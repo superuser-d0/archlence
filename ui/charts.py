@@ -448,7 +448,9 @@ class HorizontalBarChart(Widget):
         super().__init__(**kwargs)
         self.bind(pos=self.update_chart, size=self.update_chart, anim_progress=self.update_chart)
         self.data = {"Veri Bekleniyor": 1}
-        self.colors = [(0.8, 0.8, 0.8, 1)]
+        # Premium Banking teması: çubuklar marka indigo'suyla çizilir
+        from ui.theme import FINORA_PRIMARY
+        self.colors = [tuple(FINORA_PRIMARY)]
 
     def highlight_bar(self, targets):
         self.selected_targets = targets

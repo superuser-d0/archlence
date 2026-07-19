@@ -539,8 +539,10 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
         self.store = JsonStore('savings_goals.json')
         if self.store.exists('goals'):
             self.savings_goals = self.store.get('goals')['data']
-        self.theme_cls.theme_style = "Light" 
-        self.theme_cls.primary_palette = "Teal" 
+        self.theme_cls.theme_style = "Light"
+        # Premium Banking teması: Indigo paleti + zemin/metin token'ları
+        from ui.theme import apply_finora_theme
+        apply_finora_theme(self.theme_cls)
         return Builder.load_file("ui/dashboard.kv")
         
     def contact_us(self):

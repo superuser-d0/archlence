@@ -73,7 +73,7 @@
                     size_hint_y: None
                     height: "120dp"
                     elevation: 2
-                    radius: [15]
+                    radius: [24]
                     
                     MDLabel:
                         text: "Veritabanı Durumu"
@@ -292,9 +292,11 @@ MDScreen:
             MDBottomNavigation:
                 id: bottom_nav
                 transition_duration: 0.4
-                selected_color_background: 0, 0, 0, 0
+                # Aktif sekme: %12 opaklıkta indigo vurgu kartı (Premium Banking)
+                selected_color_background: app.theme_cls.primary_color[:3] + [0.12]
                 text_color_active: app.theme_cls.primary_color
-                panel_color: app.theme_cls.bg_normal
+                # Navigasyon paneli açık temada saf beyaz yüzey
+                panel_color: (1, 1, 1, 1) if app.theme_cls.theme_style == "Light" else app.theme_cls.bg_normal
 
                 # ==== 1. SEKME: ANA SAYFA ====
                 MDBottomNavigationItem:
@@ -474,8 +476,9 @@ MDScreen:
 
                                     MDCard:
                                         padding: "15dp"
-                                        radius: [16]
-                                        elevation: 0
+                                        radius: [24]
+                                        elevation: 2
+                                        shadow_softness: 14
                                         md_bg_color: (0.1, 0.1, 0.1, 0.5) if app.theme_cls.theme_style == "Dark" else (0.9, 0.9, 0.9, 0.5)
                                         orientation: "vertical"
                                         
@@ -492,8 +495,9 @@ MDScreen:
 
                                     MDCard:
                                         padding: "15dp"
-                                        radius: [16]
-                                        elevation: 0
+                                        radius: [24]
+                                        elevation: 2
+                                        shadow_softness: 14
                                         md_bg_color: (0.1, 0.1, 0.1, 0.5) if app.theme_cls.theme_style == "Dark" else (0.9, 0.9, 0.9, 0.5)
                                         orientation: "vertical"
                                         
@@ -512,8 +516,9 @@ MDScreen:
                                     size_hint_y: None
                                     height: "90dp"
                                     padding: "15dp"
-                                    radius: [16]
-                                    elevation: 0
+                                    radius: [24]
+                                    elevation: 2
+                                    shadow_softness: 14
                                     md_bg_color: (0.1, 0.1, 0.1, 0.5) if app.theme_cls.theme_style == "Dark" else (0.9, 0.9, 0.9, 0.5)
                                     orientation: "horizontal"
                                     spacing: "15dp"
@@ -550,11 +555,10 @@ MDScreen:
                                     spacing: "10dp"
                                     size_hint_y: None
                                     height: "240dp"
-                                    elevation: 0
-                                    radius: [16, 16, 16, 16]
+                                    elevation: 2
+                                    shadow_softness: 14
+                                    radius: [24, 24, 24, 24]
                                     md_bg_color: [1, 1, 1, 1]
-                                    line_color: [0.9, 0.9, 0.9, 1]
-                                    line_width: 1.2
 
                                     MDBoxLayout:
                                         size_hint_y: None
@@ -606,11 +610,10 @@ MDScreen:
                                     spacing: "10dp"
                                     size_hint_y: None
                                     height: "260dp"
-                                    elevation: 0
-                                    radius: [16, 16, 16, 16]
+                                    elevation: 2
+                                    shadow_softness: 14
+                                    radius: [24, 24, 24, 24]
                                     md_bg_color: [1, 1, 1, 1]
-                                    line_color: [0.9, 0.9, 0.9, 1]
-                                    line_width: 1.2
 
                                     MDBoxLayout:
                                         size_hint_y: None
@@ -646,11 +649,10 @@ MDScreen:
                                     spacing: "10dp"
                                     size_hint_y: None
                                     height: "220dp"
-                                    elevation: 0
-                                    radius: [16, 16, 16, 16]
+                                    elevation: 2
+                                    shadow_softness: 14
+                                    radius: [24, 24, 24, 24]
                                     md_bg_color: [1, 1, 1, 1]
-                                    line_color: [0.9, 0.9, 0.9, 1]
-                                    line_width: 1.2
 
                                     MDBoxLayout:
                                         size_hint_y: None
@@ -762,11 +764,10 @@ MDScreen:
                                             MDCard:
                                                 orientation: "vertical"
                                                 padding: ["12dp", "10dp", "12dp", "10dp"]
-                                                radius: [14, 14, 14, 14]
-                                                elevation: 0
+                                                radius: [20, 20, 20, 20]
+                                                elevation: 2
+                                                shadow_softness: 14
                                                 md_bg_color: 0.06, 0.55, 0.18, 0.08
-                                                line_color: 0.06, 0.55, 0.18, 0.3
-                                                line_width: 1
                                                 MDLabel:
                                                     text: "Gelir"
                                                     font_style: "Caption"
@@ -785,11 +786,10 @@ MDScreen:
                                             MDCard:
                                                 orientation: "vertical"
                                                 padding: ["12dp", "10dp", "12dp", "10dp"]
-                                                radius: [14, 14, 14, 14]
-                                                elevation: 0
+                                                radius: [20, 20, 20, 20]
+                                                elevation: 2
+                                                shadow_softness: 14
                                                 md_bg_color: 0.78, 0.1, 0.1, 0.08
-                                                line_color: 0.78, 0.1, 0.1, 0.3
-                                                line_width: 1
                                                 MDLabel:
                                                     text: "Gider"
                                                     font_style: "Caption"
@@ -808,11 +808,10 @@ MDScreen:
                                             MDCard:
                                                 orientation: "vertical"
                                                 padding: ["12dp", "10dp", "12dp", "10dp"]
-                                                radius: [14, 14, 14, 14]
-                                                elevation: 0
+                                                radius: [20, 20, 20, 20]
+                                                elevation: 2
+                                                shadow_softness: 14
                                                 md_bg_color: 0.05, 0.47, 0.7, 0.08
-                                                line_color: 0.05, 0.47, 0.7, 0.3
-                                                line_width: 1
                                                 MDLabel:
                                                     text: "Net Bakiye"
                                                     font_style: "Caption"
@@ -920,11 +919,10 @@ MDScreen:
                                                     id: total_wealth_card
                                                     size_hint_y: None
                                                     height: "120dp"
-                                                    radius: [16, 16, 16, 16]
-                                                    elevation: 0
+                                                    radius: [24, 24, 24, 24]
+                                                    elevation: 2
+                                                    shadow_softness: 14
                                                     md_bg_color: [1, 1, 1, 1] if app.theme_cls.theme_style == "Light" else [0.15, 0.15, 0.15, 1]
-                                                    line_color: [0.9, 0.9, 0.9, 1] if app.theme_cls.theme_style == "Light" else [0.25, 0.25, 0.25, 1]
-                                                    line_width: 1.2
                                                     padding: ["20dp", "14dp", "20dp", "14dp"]
 
                                                     MDBoxLayout:
@@ -989,11 +987,10 @@ MDScreen:
                                                     spacing: "10dp"
                                                     size_hint_y: None
                                                     height: "280dp"
-                                                    elevation: 0
-                                                    radius: [16, 16, 16, 16]
+                                                    elevation: 2
+                                                    shadow_softness: 14
+                                                    radius: [24, 24, 24, 24]
                                                     md_bg_color: [1, 1, 1, 1] if app.theme_cls.theme_style == "Light" else [0.15, 0.15, 0.15, 1]
-                                                    line_color: [0.9, 0.9, 0.9, 1] if app.theme_cls.theme_style == "Light" else [0.25, 0.25, 0.25, 1]
-                                                    line_width: 1.2
 
                                                     MDBoxLayout:
                                                         size_hint_y: None
@@ -1047,11 +1044,10 @@ MDScreen:
                                                     spacing: "10dp"
                                                     size_hint_y: None
                                                     height: "320dp"
-                                                    elevation: 0
-                                                    radius: [16, 16, 16, 16]
+                                                    elevation: 2
+                                                    shadow_softness: 14
+                                                    radius: [24, 24, 24, 24]
                                                     md_bg_color: [1, 1, 1, 1]
-                                                    line_color: [0.9, 0.9, 0.9, 1]
-                                                    line_width: 1.2
 
                                                     MDBoxLayout:
                                                         size_hint_y: None
@@ -1221,7 +1217,7 @@ MDScreen:
                                 MDCard:
                                     size_hint_y: None
                                     height: "140dp"
-                                    radius: [20]
+                                    radius: [24]
                                     elevation: 2
                                     md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
                                     orientation: "vertical"
@@ -1254,7 +1250,7 @@ MDScreen:
                                 MDCard:
                                     size_hint_y: None
                                     height: "140dp"
-                                    radius: [20]
+                                    radius: [24]
                                     elevation: 2
                                     md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
                                     orientation: "vertical"
@@ -1287,7 +1283,7 @@ MDScreen:
                                 MDCard:
                                     size_hint_y: None
                                     height: "140dp"
-                                    radius: [20]
+                                    radius: [24]
                                     elevation: 2
                                     md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
                                     orientation: "vertical"
@@ -1320,7 +1316,7 @@ MDScreen:
                                 MDCard:
                                     size_hint_y: None
                                     height: "140dp"
-                                    radius: [20]
+                                    radius: [24]
                                     elevation: 2
                                     md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
                                     orientation: "vertical"
@@ -1353,7 +1349,7 @@ MDScreen:
                                 MDCard:
                                     size_hint_y: None
                                     height: "140dp"
-                                    radius: [20]
+                                    radius: [24]
                                     elevation: 2
                                     md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
                                     orientation: "vertical"
@@ -1386,7 +1382,7 @@ MDScreen:
                                 MDCard:
                                     size_hint_y: None
                                     height: "140dp"
-                                    radius: [20]
+                                    radius: [24]
                                     elevation: 2
                                     md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
                                     orientation: "vertical"
