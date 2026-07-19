@@ -20,9 +20,27 @@ def get_connection():
 
 def adjust_account_balance(cursor, account_id, transaction_type, amount):
     """accounts.balance'ı işlem tutarına göre senkron günceller (Hesaplar Kopuk
-    düzeltmesi): gelir bakiyeyi artırır, gider azaltır. Açık bir cursor alır ki
-    çağıran INSERT ile aynı commit'te atomik olarak yazılsın — ayrı bir
-    connection açılırsa iki yazım arasında tutarsız bir ara durum oluşabilir."""
+    düzeltmesi). Açık bir cursor alır ki çağıran INSERT ile aynı commit'te atomik
+    olarak yazılsın — ayrı bir connection açılırsa iki yazım arasında tutarsız bir
+    ara durum oluşabilir.
+
+    İŞARET KONVANSİYONU (kredi kartı desteğinin temeli):
+    accounts.balance her zaman "bu hesabın net servete KATKISI"dır.
+      * Vadesiz (checking): bakiye pozitiftir, gider onu DÜŞÜRÜR.
+      * Kredi kartı (credit_card): borç NEGATİF bakiye olarak tutulur. Karttan
+        gider işlenince bakiye daha da negatife gider, yani KART BORCU ARTAR;
+        karta ödeme yapılınca (income) bakiye 0'a yaklaşır, borç azalır.
+
+    Bu konvansiyonun tek ama kritik faydası: net servet hâlâ düz bir
+    SUM(balance) ile doğru çıkar (kart borçları kendiliğinden eksi düşer) ve
+    accounts.balance'a dokunan diğer yerler (savings_service, admin sıfırlama,
+    CSV içe aktarımı) hiçbir tür ayrımı yapmak zorunda kalmaz. Borcu pozitif bir
+    sayı olarak saklasaydık SUM(balance) borcu servete EKLERDİ ve tek bir unutulan
+    çağrı noktası sessizce yanlış net servet üretirdi.
+
+    Ekrana pozitif borç ("₺3.500 borcunuz var") göstermek isteyen taraf
+    services/account_service.py içindeki türetilmiş `debt` / `available_limit`
+    alanlarını kullanır; ham işaretli değeri UI'da göstermez."""
     delta = amount if transaction_type in ("income", "Gelir") else -amount
     cursor.execute(
         "UPDATE accounts SET balance = balance + ? WHERE id = ?",

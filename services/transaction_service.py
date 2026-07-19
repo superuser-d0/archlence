@@ -1,4 +1,5 @@
 from database.db import get_connection, adjust_account_balance
+from services.account_service import AccountService
 from utils.crypto import encrypt, decrypt
 from datetime import datetime
 
@@ -7,10 +8,21 @@ SECRET_KEY = 'finora_secure_2026'
 class TransactionService:
     @staticmethod
     def add_transaction(account_id, amount, transaction_type, category, description,
-                        transaction_date=None):
+                        transaction_date=None, enforce_credit_limit=True):
         """transaction_date verilmezse şu an kullanılır; CSV içe aktarımı gibi
         geçmiş tarihli kayıtlar tarihi açıkça geçer — bakiye senkronu dahil
-        aynı atomik yoldan geçmiş olurlar."""
+        aynı atomik yoldan geçmiş olurlar.
+
+        Kredi kartından yapılan giderlerde kullanılabilir limit kontrol edilir ve
+        aşılıyorsa ValueError fırlatılır. CSV içe aktarımı gibi geçmişi olduğu
+        gibi yeniden kuran çağıranlar `enforce_credit_limit=False` geçebilir —
+        aksi halde geçmişte limiti zorlamış gerçek bir harcama içe aktarılamazdı.
+        """
+        if enforce_credit_limit and transaction_type in ("expense", "Gider"):
+            allowed, reason = AccountService.check_spending_allowed(account_id, amount)
+            if not allowed:
+                raise ValueError(reason)
+
         conn = get_connection()
         try:
             cursor = conn.cursor()

@@ -147,8 +147,12 @@ class TransactionMixin:
                 self.load_upcoming_recurring()
             toast("İşlem başarıyla eklendi!")
 
+        # Kredi kartı limit aşımı gibi kullanıcıya anlamlı gelen hatalarda genel
+        # "bir hata oluştu" yerine gerçek sebebi göstermek için mesaj taşınır.
+        error_message = {"text": "İşlem kaydedilirken bir hata oluştu!"}
+
         def error_callback(dt):
-            toast("İşlem kaydedilirken bir hata oluştu!")
+            toast(error_message["text"])
 
         def background_task():
             try:
@@ -168,6 +172,11 @@ class TransactionMixin:
                         recurring_frequency, next_due, recurring_auto_deduct
                     )
                 Clock.schedule_once(success_callback, 0)
+            except ValueError as e:
+                # add_transaction doğrulama hatalarını (limit aşımı) ValueError
+                # olarak fırlatır; metni doğrudan kullanıcıya gösterilebilir.
+                error_message["text"] = str(e)
+                Clock.schedule_once(error_callback, 0)
             except Exception as e:
                 print(f"Save Transaction Error: {e}")
                 Clock.schedule_once(error_callback, 0)

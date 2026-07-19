@@ -218,10 +218,11 @@ from mixins.budget_mixin import BudgetMixin
 from mixins.savings_mixin import SavingsMixin
 from mixins.recurring_mixin import RecurringMixin
 from mixins.migration_mixin import MigrationMixin
+from mixins.account_mixin import AccountMixin
 
 class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
                 TransactionMixin, BudgetMixin, SavingsMixin, RecurringMixin,
-                MigrationMixin):
+                MigrationMixin, AccountMixin):
 
     # ──────────────────────────────────────────────────────────────────────────
     # ODE / RK4 Financial Projection Engine

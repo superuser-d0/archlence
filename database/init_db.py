@@ -10,9 +10,32 @@ def initialize_database():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             type TEXT NOT NULL,
-            balance REAL DEFAULT 0
+            balance REAL DEFAULT 0,
+            account_type TEXT NOT NULL DEFAULT 'checking',
+            credit_limit REAL DEFAULT 0,
+            statement_date INTEGER
         )
     """)
+
+    # Çoklu Hesap / Kredi Kartı sütunları (migration guard).
+    # Mevcut veritabanlarında accounts tablosu yalnızca (id, name, type, balance)
+    # içeriyor; aşağıdaki üç sütun sonradan eklendi. ALTER TABLE ... ADD COLUMN
+    # eski satırlara NULL yazar, bu yüzden account_type hemen eski "type"
+    # değerinden geriye doldurulur ('credit' -> 'credit_card', diğerleri
+    # 'checking'). Böylece hiçbir mevcut hesap türsüz kalmaz.
+    cursor.execute("PRAGMA table_info(accounts)")
+    existing_account_cols = {row[1] for row in cursor.fetchall()}
+    if "account_type" not in existing_account_cols:
+        cursor.execute("ALTER TABLE accounts ADD COLUMN account_type TEXT")
+        cursor.execute("""
+            UPDATE accounts
+            SET account_type = CASE WHEN type = 'credit' THEN 'credit_card' ELSE 'checking' END
+        """)
+    if "credit_limit" not in existing_account_cols:
+        cursor.execute("ALTER TABLE accounts ADD COLUMN credit_limit REAL DEFAULT 0")
+        cursor.execute("UPDATE accounts SET credit_limit = 0 WHERE credit_limit IS NULL")
+    if "statement_date" not in existing_account_cols:
+        cursor.execute("ALTER TABLE accounts ADD COLUMN statement_date INTEGER")
 
     # 2. İşlemler Tablosu
     cursor.execute("""
@@ -132,13 +155,16 @@ def initialize_database():
     # 4. Varsayılan Hesapları Ekle
     cursor.execute("SELECT COUNT(*) FROM accounts")
     if cursor.fetchone()[0] == 0:
+        # balance İŞARETLİ tutulur: kredi kartı borcu NEGATİF bakiyedir
+        # (bkz. database/db.py::adjust_account_balance docstring'i).
         accounts = [
-            ("Nakit", "cash", 2500),
-            ("Banka", "bank", 15000),
-            ("Kredi Kartı", "credit", -3500),
+            ("Nakit", "cash", 2500, "checking", 0, None),
+            ("Banka", "bank", 15000, "checking", 0, None),
+            ("Kredi Kartı", "credit", -3500, "credit_card", 20000, 15),
         ]
         cursor.executemany(
-            "INSERT INTO accounts(name,type,balance) VALUES(?,?,?)",
+            "INSERT INTO accounts(name,type,balance,account_type,credit_limit,statement_date)"
+            " VALUES(?,?,?,?,?,?)",
             accounts,
         )
         conn.commit()

@@ -231,6 +231,9 @@ def import_transactions_from_csv(path, account_id=DEFAULT_ACCOUNT_ID):
             category=rec["category"],
             description=rec["description"] or rec["category"],
             transaction_date=rec["date"],
+            # Geçmişi olduğu gibi yeniden kuruyoruz: gerçekte limiti zorlamış bir
+            # kart harcaması da içeri alınabilmeli, içe aktarım reddedilmemeli.
+            enforce_credit_limit=False,
         )
         net_delta += rec["amount"] if rec["type"] == "income" else -rec["amount"]
         imported += 1
