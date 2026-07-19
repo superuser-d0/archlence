@@ -1339,6 +1339,7 @@ class AssetMixin:
         except Exception:
             return
         from kivymd.uix.list import TwoLineIconListItem, IconLeftWidget, ImageLeftWidget
+        from kivy.metrics import dp
         from kivy.factory import Factory
         container.clear_widgets()
 
@@ -1378,7 +1379,17 @@ class AssetMixin:
 
             logo_path, pending_code = resolve_history_logo_source(entry["description"])
             if logo_path:
-                item.add_widget(ImageLeftWidget(source=logo_path))
+                # ImageLeftWidget zaten kivymd.uix.fitimage.FitImage'ı miras alır
+                # (bkz. kivymd.uix.list.ImageLeftWidget), bu yüzden radius doğrudan
+                # desteklenir; kare logoların (ör. Aselsan) sivri köşelerini yumuşatır.
+                # FitImage kendi Container.adjust_size mantığıyla görseli orantısını
+                # bozmadan kırpıp doldurur — allow_stretch/keep_ratio bu widget'ta
+                # yoktur (Kivy'nin klasik Image sınıfına özgüdür), aynı garantiyi
+                # zaten yapısal olarak sağlar.
+                item.add_widget(ImageLeftWidget(
+                    source=logo_path,
+                    radius=[dp(12), dp(12), dp(12), dp(12)],
+                ))
             else:
                 item.add_widget(IconLeftWidget(
                     icon=icon_name,
