@@ -833,12 +833,13 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
         threading.Thread(target=fetch_task, daemon=True).start()
 
     def _render_recent_transactions(self, transactions):
-        from kivymd.uix.list import TwoLineIconListItem, IconLeftWidget
-        from kivy.factory import Factory
+        """Son işlemler listesini RecycleView'ın data listesine tek seferde atar
+        (bkz. mixins/asset_mixin.py::render_asset_history — aynı RecycleView
+        deseni, ui/components.py::RecycleListRow)."""
         try:
             recent_list = self.root.ids.recent_transactions_list
-            recent_list.clear_widgets()
-            
+            data = []
+
             icon_mapping = {
                 'su': ('water', (0.13, 0.59, 0.95, 1)),                 
                 'fatura': ('receipt', (0.4, 0.4, 0.4, 1)),              
@@ -883,16 +884,15 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
                 # Şifrelenmiş açıklamayı atlayıp, sadece işlem tarihi ve tutarı gösterilir
                 sec_text = f"{t_date[:10]} | {amount_text}"
 
-                item = TwoLineIconListItem(text=category, secondary_text=sec_text)
-                if hasattr(item.ids, '_lbl_secondary'):
-                    item.ids._lbl_secondary.markup = True
-                elif hasattr(item, '_secondary_label'):
-                    item._secondary_label.markup = True
-                    
-                icon = IconLeftWidget(icon=icon_name, theme_text_color="Custom", text_color=icon_col)
-                item.add_widget(icon)
-                recent_list.add_widget(item)
-                recent_list.add_widget(Factory.MDSeparator())
+                data.append({
+                    "text": category,
+                    "secondary_text": sec_text,
+                    "icon_source": "",
+                    "icon_name": icon_name,
+                    "icon_color": list(icon_col),
+                })
+
+            recent_list.data = data
         except Exception as e:
             print("Error rendering recent UI:", e)
 

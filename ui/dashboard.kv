@@ -1,6 +1,7 @@
 #:import FadeTransition kivy.uix.screenmanager.FadeTransition
 #:import Window kivy.core.window.Window
 #:import LiquidWaveWidget ui.charts.LiquidWaveWidget
+#:import RecycleListRow ui.components.RecycleListRow
 
 # --- 0. GLOBAL WIDGET KURALLARI ---
 <MDBottomNavigationBar>:
@@ -707,9 +708,21 @@ MDScreen:
                                         MDSegmentedControlItem:
                                             text: "Aylık"
                                             
-                                    MDList:
+                                    RecycleView:
                                         id: recent_transactions_list
-                                        
+                                        viewclass: RecycleListRow
+                                        size_hint_y: None
+                                        height: recent_tx_rv_box.height
+                                        do_scroll_y: False
+
+                                        RecycleBoxLayout:
+                                            id: recent_tx_rv_box
+                                            orientation: "vertical"
+                                            default_size: None, dp(73)
+                                            default_size_hint: 1, None
+                                            size_hint_y: None
+                                            height: self.minimum_height
+
                 # ==== 2. SEKME: VARLIKLARIM ====
                 MDBottomNavigationItem:
                     name: "assets_tab"
@@ -1057,9 +1070,27 @@ MDScreen:
                                                             bold: True
                                                             pos_hint: {"center_y": .5}
 
-                                                    ScrollView:
-                                                        MDList:
-                                                            id: asset_history_list
+                                                    RecycleView:
+                                                        id: asset_history_list
+                                                        viewclass: RecycleListRow
+
+                                                        RecycleBoxLayout:
+                                                            id: asset_history_rv_box
+                                                            orientation: "vertical"
+                                                            default_size: None, dp(73)
+                                                            default_size_hint: 1, None
+                                                            size_hint_y: None
+                                                            height: self.minimum_height
+
+                                                    MDLabel:
+                                                        id: asset_history_empty_label
+                                                        text: "Henüz varlık işlemi bulunmuyor."
+                                                        theme_text_color: "Secondary"
+                                                        font_style: "Body2"
+                                                        halign: "center"
+                                                        size_hint_y: None
+                                                        height: 0
+                                                        opacity: 0
 
                                                 Widget:
                                                     size_hint: None, None

@@ -1,10 +1,47 @@
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.list import TwoLineAvatarIconListItem, IRightBodyTouch
+from kivymd.uix.list import (
+    TwoLineAvatarIconListItem, TwoLineIconListItem, IRightBodyTouch,
+    IconLeftWidget, ImageLeftWidget,
+)
 from kivy.properties import StringProperty, NumericProperty, ListProperty, ColorProperty, BooleanProperty
 from kivy.metrics import dp
 from kivy.clock import Clock
+from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivymd.app import MDApp
 from kivymd.uix.label import MDLabel
+
+class RecycleListRow(RecycleDataViewBehavior, TwoLineIconListItem):
+    """Varlık Geçmişi ve Son İşlemler listelerinin RecycleView satırı.
+
+    TwoLineIconListItem'ı birebir kullanır (aynı font/renk/divider davranışı);
+    tek fark, sol ikon slotunun (_left_container) her satır yeniden
+    kullanıldığında verideki icon_source/icon_name'e göre imperatif olarak
+    yeniden kurulmasıdır — RecycleView satırları geri dönüştürdüğü için
+    IconLeftWidget/ImageLeftWidget kv'de statik olarak tanımlanamaz.
+    """
+    icon_source = StringProperty("")
+    icon_name = StringProperty("")
+    icon_color = ListProperty([0.08, 0.72, 0.42, 1])
+
+    def refresh_view_attrs(self, rv, index, data):
+        super().refresh_view_attrs(rv, index, data)
+        self._sync_left_widget()
+
+    def _sync_left_widget(self):
+        self.ids._left_container.clear_widgets()
+        self._touchable_widgets = []
+        if self.icon_source:
+            self.add_widget(ImageLeftWidget(
+                source=self.icon_source,
+                radius=[dp(12)] * 4,
+            ))
+        else:
+            self.add_widget(IconLeftWidget(
+                icon=self.icon_name or "help-circle-outline",
+                theme_text_color="Custom",
+                text_color=self.icon_color,
+            ))
+
 
 class CategorySettingItem(MDBoxLayout):
     """Kategori ayarları listesindeki her bir öğeyi (kategori adı, türü, önemi) temsil eden bileşen."""

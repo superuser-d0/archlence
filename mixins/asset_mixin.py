@@ -1556,29 +1556,31 @@ class AssetMixin:
         threading.Thread(target=_fetch, daemon=True).start()
 
     def render_asset_history(self, history):
-        """Varlık geçmişi listesini UI üzerinde doldurur."""
+        """Varlık geçmişi listesini RecycleView'ın data listesine tek seferde atar.
+
+        Eskiden her satır için TwoLineIconListItem/IconLeftWidget/ImageLeftWidget
+        nesneleri tek tek clear_widgets()+add_widget() ile inşa ediliyordu; bu
+        yaklaşım tüm satırları anında widget ağacına çeviriyordu. RecycleView
+        yalnızca görünür viewport kadar satırı gerçek widget'a çevirip
+        kaydırıldıkça yeniden kullanır (bkz. ui/components.py::RecycleListRow).
+        """
         try:
-            container = self.root.ids.asset_history_list
+            rv = self.root.ids.asset_history_list
+            empty_label = self.root.ids.asset_history_empty_label
         except Exception:
             return
-        from kivymd.uix.list import TwoLineIconListItem, IconLeftWidget, ImageLeftWidget
-        from kivy.metrics import dp
-        from kivy.factory import Factory
-        container.clear_widgets()
 
         if not history:
-            from kivymd.uix.label import MDLabel
-            container.add_widget(
-                MDLabel(
-                    text="Henüz varlık işlemi bulunmuyor.",
-                    theme_text_color="Secondary",
-                    font_style="Body2",
-                    halign="center",
-                )
-            )
+            rv.data = []
+            empty_label.height = "40dp"
+            empty_label.opacity = 1
             return
 
+        empty_label.height = 0
+        empty_label.opacity = 0
+
         codes_to_prefetch = set()
+        data = []
 
         for entry in history:
             is_buy = entry["category"] == "Varlık Alımı"
@@ -1597,47 +1599,27 @@ class AssetMixin:
                 sec_parts.append(f"[color={kz_color}]{kz_text}[/color]")
             sec = "   ".join(sec_parts)
 
-            item = TwoLineIconListItem(
-                text=desc,
-                secondary_text=sec,
-            )
-            if hasattr(item.ids, '_lbl_secondary'):
-                item.ids._lbl_secondary.markup = True
-            elif hasattr(item, '_secondary_label'):
-                item._secondary_label.markup = True
-
             logo_path, pending_code = resolve_history_logo_source(entry["description"])
-            if logo_path:
-                # ImageLeftWidget zaten kivymd.uix.fitimage.FitImage'ı miras alır
-                # (bkz. kivymd.uix.list.ImageLeftWidget), bu yüzden radius doğrudan
-                # desteklenir; kare logoların (ör. Aselsan) sivri köşelerini yumuşatır.
-                # FitImage kendi Container.adjust_size mantığıyla görseli orantısını
-                # bozmadan kırpıp doldurur — allow_stretch/keep_ratio bu widget'ta
-                # yoktur (Kivy'nin klasik Image sınıfına özgüdür), aynı garantiyi
-                # zaten yapısal olarak sağlar.
-                item.add_widget(ImageLeftWidget(
-                    source=logo_path,
-                    radius=[dp(12), dp(12), dp(12), dp(12)],
-                ))
-            else:
-                item.add_widget(IconLeftWidget(
-                    icon=icon_name,
-                    theme_text_color="Custom",
-                    text_color=icon_color,
-                ))
-                if pending_code:
-                    codes_to_prefetch.add(pending_code)
+            if not logo_path and pending_code:
+                codes_to_prefetch.add(pending_code)
 
-            container.add_widget(item)
-            container.add_widget(Factory.MDSeparator())
+            data.append({
+                "text": desc,
+                "secondary_text": sec,
+                "icon_source": logo_path or "",
+                "icon_name": icon_name,
+                "icon_color": list(icon_color),
+            })
+
+        rv.data = data
 
         if codes_to_prefetch:
             self._prefetch_asset_logos(codes_to_prefetch, history)
-            
+
         # Kart yüksekliğini dinamik güncelle (boşlukları yok et)
         try:
             item_count = len(history)
-            parent_card = container.parent.parent  # ScrollView -> MDCard
+            parent_card = rv.parent  # RecycleView artık doğrudan MDCard'ın çocuğu
             from kivy.metrics import dp as _dp
             # Base height ~80dp (padding + header), each item ~73dp
             new_height = max(120, 80 + item_count * 73)

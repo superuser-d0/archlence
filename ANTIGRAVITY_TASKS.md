@@ -72,29 +72,38 @@ import ediliyor (`from kivymd.uix.label import MDLabel` vb.).
 ile 300ms bekletme). BIST100/kripto seçici diyaloglarındaki ~100 kalemlik `MDList`
 artık her tuş vuruşunda değil, yazma durduktan sonra tek seferde yeniden çiziliyor.
 
-`MDList` → `RecycleView` geçişi bilinçli olarak YAPILMADI çünkü:
-- `asset_history_list` (`ui/dashboard.kv:1036`) ve `recent_transactions_list`
-  (`ui/dashboard.kv:685`) sorguları zaten `LIMIT 50` / `LIMIT 15` ile sınırlı
-  (bkz. `database/db.py:get_asset_transaction_history`, `main.py` recent tx sorgusu)
-  — 1000+ kayıt DB'de olsa da ekrana asla 50'den fazlası basılmıyor, bu yüzden
-  bu iki liste için RecycleView'ın performans kazancı sınırlı.
-- Her iki liste de tekil `MDList` değil; sabit yükseklikli `MDCard` + `ScrollView`
-  içine iç içe yerleştirilmiş, kendi bağımsız viewport'u yok. RecycleView'ın
-  kendi kaydırma/viewport yönetimini devralması için üst KV hiyerarşisinin
-  (özellikle `asset_history_list`'i saran 320dp sabit `MDCard`) yeniden
-  tasarlanması gerekir.
-- Satır render mantığı: dinamik logo indirme (`_prefetch_asset_logos`), markup'lı
-  K/Z renklendirmesi, `MDSeparator` araya ekleme, dinamik kart yüksekliği
-  hesaplama (`render_asset_history` sonundaki `parent_card.height` bloğu) —
-  bunların hepsi RecycleView'ın `viewclass`/`RecycleDataViewBehavior` modeline
-  taşınmalı; mekanik bir port değil, tam bir yeniden yazım gerektiriyor.
+**Güncelleme (2026-07-19, aynı gün ilerleyen saatler): `asset_history_list` ve
+`recent_transactions_list` RecycleView'a taşındı.** Aşağıdaki eski gerekçe artık
+geçerli değil — kullanıcı LIMIT sınırına rağmen mimari tutarlılık için geçişi
+istedi. Yapılanlar:
+- `ui/components.py::RecycleListRow` — `RecycleDataViewBehavior` + `TwoLineIconListItem`
+  birleşimi, tek paylaşılan viewclass (her iki liste de kullanıyor). Sol ikon
+  slotunu (`_left_container`) `refresh_view_attrs` içinde imperatif olarak
+  temizleyip yeniden kuruyor (Image ya da Icon), çünkü RecycleView satırları
+  geri dönüştürüyor ve statik kv çocukları yeterli olmuyor.
+- `ui/dashboard.kv` — `#:import RecycleListRow ui.components.RecycleListRow` +
+  `viewclass: RecycleListRow` (string değil, doğrudan sınıf referansı — Kivy'nin
+  `RecycleBoxLayout.viewclass` `ObjectProperty`'si string verilirse `Factory`'den
+  çözer, class objesi verilirse doğrudan kullanır; Factory kaydı gerekmedi).
+  `asset_history_list` artık doğrudan 320dp `MDCard`'ın çocuğu (ScrollView katmanı
+  kalktı, RecycleView kendi scroll'unu yönetiyor). `recent_transactions_list` ise
+  `do_scroll_y: False` ile kendi içine gömülü `RecycleBoxLayout`'un yüksekliğine
+  bağlanmış (`height: recent_tx_rv_box.height`) — bağımsız scroll YOK, eskisi gibi
+  sayfa seviyesindeki dış ScrollView'a devrediyor (görsel/UX birebir korunuyor).
+- `mixins/asset_mixin.py::render_asset_history` ve `main.py::_render_recent_transactions`
+  artık `clear_widgets()`/`add_widget()` döngüsü yerine tek seferde `.data = [...]`
+  atıyor. Manuel `MDSeparator` eklemeleri kaldırıldı — `TwoLineIconListItem`'ın
+  `divider="Full"` varsayılanı zaten alt çizgiyi otomatik çiziyordu (öncekiler
+  aslında çift çizgiydi, bu artık tekile indi — kasıtlı, görünüşte fark yaratmıyor).
+  `asset_history_list` boşken gösterilen "Henüz varlık işlemi bulunmuyor." mesajı
+  artık statik `asset_history_empty_label` id'li MDLabel (height/opacity toggle).
+- Gerçek uygulama çalıştırılıp (`FinoraApp` + gerçek veritabanı) ekran görüntüsüyle
+  doğrulandı: ikon renkleri, yuvarlatılmış logo köşeleri (12dp), K/Z markup
+  renklendirmesi, kart yükseklik hesaplaması (`rv.parent` — artık `rv.parent.parent`
+  değil, ScrollView katmanı kalktığı için) hepsi orijinaliyle birebir eşleşiyor.
 
-Gerçek risk `render_active_assets` (`mixins/asset_mixin.py:1208`,
-`active_assets_container`, `ui/dashboard.kv:994`) — bu tek liste SORGU
-LİMİTİ YOK, kullanıcının tuttuğu tüm aktif varlıkları basıyor. Pratikte bir
-kişi 1000+ farklı varlık tutmaz ama teorik tavan burada. İleride bu listeye
-dokunulacaksa öncelik sırası:
-1. `active_assets_container`'ı RecycleView'a taşı (limitsiz olan tek liste).
-2. Gerekirse `asset_history_list` / `recent_transactions_list`'i de taşı,
-   ama önce LIMIT değerini büyütme ihtiyacı doğarsa (ör. kullanıcı "tüm
-   geçmişi göster" isterse) yapılmalı — şu an gerek yok.
+Hâlâ RecycleView'a taşınMAmış: `render_active_assets` / `active_assets_container`
+(`mixins/asset_mixin.py:1208`, `ui/dashboard.kv`) — bu liste hâlâ SORGU LİMİTİ YOK
+ve hâlâ `MDBoxLayout` + `clear_widgets()` deseninde. Pratikte bir kullanıcı 1000+
+farklı varlık tutmaz ama teorik tavan hâlâ burada; ileride dokunulacaksa aynı
+`RecycleListRow` deseni (veya `MDCard` içerikli farklı bir viewclass) uygulanabilir.
