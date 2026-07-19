@@ -895,7 +895,7 @@ class AssetMixin:
             gold_menu_items = [
                 {
                     "text": label,
-                    "on_release": lambda x, l=label, s=symbol, n=friendly_name: _select_gold_type(l, s, n),
+                    "on_release": lambda l=label, s=symbol, n=friendly_name: _select_gold_type(l, s, n),
                 }
                 for label, symbol, friendly_name in gold_types
             ]
