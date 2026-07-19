@@ -398,8 +398,17 @@ class AssetMixin:
 
         _build_list()
 
+        self._bist_search_event = None
+
         def _on_search(instance, value):
-            _build_list(value)
+            # Her tuş vuruşunda listeyi yeniden çizmek 100 kalemlik listede
+            # arama kutusunun kasmasına yol açıyordu; kullanıcı yazmayı
+            # bitirene kadar (300ms sessizlik) yeniden çizimi ertele.
+            if self._bist_search_event:
+                self._bist_search_event.cancel()
+            self._bist_search_event = Clock.schedule_once(
+                lambda dt: _build_list(value), 0.3
+            )
 
         search_field.bind(text=_on_search)
 
@@ -664,8 +673,16 @@ class AssetMixin:
 
         _build_list()
 
+        self._crypto_search_event = None
+
         def _on_search(instance, value):
-            _build_list(value)
+            # BIST picker'daki ile aynı sebep: 100 kalemi her tuş vuruşunda
+            # yeniden çizmek yerine 300ms sessizlik sonrası tek seferde çiz.
+            if self._crypto_search_event:
+                self._crypto_search_event.cancel()
+            self._crypto_search_event = Clock.schedule_once(
+                lambda dt: _build_list(value), 0.3
+            )
 
         search_field.bind(text=_on_search)
 

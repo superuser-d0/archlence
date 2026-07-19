@@ -64,3 +64,37 @@ import ediliyor (`from kivymd.uix.label import MDLabel` vb.).
 - Şifreleme (utils/crypto), veritabanı şeması, RK4 projeksiyon matematiği
 - Thread/Clock akışlarının yeniden düzenlenmesi
 - Herhangi bir dosya birleştirme/taşıma/silme
+
+## 5. Mimari yol haritası — RecycleView geçişi (Fable 5 / Claude Code için, Antigravity'ye ATANMAZ)
+
+2026-07-19 QA turunda arama kutularına debounce eklendi (bkz. `mixins/asset_mixin.py`
+`_show_bist100_picker` / `_show_crypto_picker`, `_on_search` içindeki `Clock.schedule_once`
+ile 300ms bekletme). BIST100/kripto seçici diyaloglarındaki ~100 kalemlik `MDList`
+artık her tuş vuruşunda değil, yazma durduktan sonra tek seferde yeniden çiziliyor.
+
+`MDList` → `RecycleView` geçişi bilinçli olarak YAPILMADI çünkü:
+- `asset_history_list` (`ui/dashboard.kv:1036`) ve `recent_transactions_list`
+  (`ui/dashboard.kv:685`) sorguları zaten `LIMIT 50` / `LIMIT 15` ile sınırlı
+  (bkz. `database/db.py:get_asset_transaction_history`, `main.py` recent tx sorgusu)
+  — 1000+ kayıt DB'de olsa da ekrana asla 50'den fazlası basılmıyor, bu yüzden
+  bu iki liste için RecycleView'ın performans kazancı sınırlı.
+- Her iki liste de tekil `MDList` değil; sabit yükseklikli `MDCard` + `ScrollView`
+  içine iç içe yerleştirilmiş, kendi bağımsız viewport'u yok. RecycleView'ın
+  kendi kaydırma/viewport yönetimini devralması için üst KV hiyerarşisinin
+  (özellikle `asset_history_list`'i saran 320dp sabit `MDCard`) yeniden
+  tasarlanması gerekir.
+- Satır render mantığı: dinamik logo indirme (`_prefetch_asset_logos`), markup'lı
+  K/Z renklendirmesi, `MDSeparator` araya ekleme, dinamik kart yüksekliği
+  hesaplama (`render_asset_history` sonundaki `parent_card.height` bloğu) —
+  bunların hepsi RecycleView'ın `viewclass`/`RecycleDataViewBehavior` modeline
+  taşınmalı; mekanik bir port değil, tam bir yeniden yazım gerektiriyor.
+
+Gerçek risk `render_active_assets` (`mixins/asset_mixin.py:1208`,
+`active_assets_container`, `ui/dashboard.kv:994`) — bu tek liste SORGU
+LİMİTİ YOK, kullanıcının tuttuğu tüm aktif varlıkları basıyor. Pratikte bir
+kişi 1000+ farklı varlık tutmaz ama teorik tavan burada. İleride bu listeye
+dokunulacaksa öncelik sırası:
+1. `active_assets_container`'ı RecycleView'a taşı (limitsiz olan tek liste).
+2. Gerekirse `asset_history_list` / `recent_transactions_list`'i de taşı,
+   ama önce LIMIT değerini büyütme ihtiyacı doğarsa (ör. kullanıcı "tüm
+   geçmişi göster" isterse) yapılmalı — şu an gerek yok.
