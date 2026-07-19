@@ -6,13 +6,65 @@ bu servis otomatik olarak '.IS' ekleyerek Yahoo Finance'tan veri çeker.
 
 Desteklenen asset_type değerleri:
     'Hisse'  → BIST hissesi  (THYAO → THYAO.IS)
-    'Altın'  → GC=F veya XAUUSD  (ham sembolü kullanır)
+    'Altın'  → GC=F veya XAUUSD  (ons/USD çekilir, ₺/gram'a çevrilir — bkz. _normalize_to_try)
     'Tahvil' → sembol direkt gönderilir
-    'Döviz'  → sembol direkt gönderilir (örn: USDTRY=X)
-    'Diğer'  → sembol direkt gönderilir
+    'Döviz'  → sembol direkt gönderilir (örn: USDTRY=X, zaten ₺ cinsinden)
+    'Kripto' → CODE-USD çekilir, ₺'ye çevrilir (bkz. _normalize_to_try)
+    'Diğer'  → sembol direkt gönderilir, çevrilmez
+
+Not: Uygulamadaki tüm alım fiyatları (`purchase_price`) kullanıcı tarafından ₺
+cinsinden girilir (bkz. mixins/asset_mixin.py "Alım Fiyatı (₺)" alanı). Altın ve
+Kripto için yfinance sembolleri USD döndürdüğünden, bu iki tür için güncel fiyat
+burada ₺'ye çevrilmeden K/Z hesabı (services/asset_service.calculate_pnl) TL alım
+fiyatını USD güncel fiyatla kıyaslar ve tamamen yanlış sonuç üretirdi.
 """
 
 import threading
+import time
+
+GRAMS_PER_TROY_OUNCE = 31.1034768
+
+# USD/TRY kuru için modül seviyesinde, kısa ömürlü önbellek — Altın/Kripto
+# fiyatlarını her seferinde ayrı bir yfinance isteğiyle çevirmemek için.
+_usdtry_cache = {"rate": None, "time": 0.0}
+_USDTRY_CACHE_TTL = 300  # 5 dakika — uygulamadaki diğer fiyat önbellekleriyle tutarlı
+
+
+def _fetch_usdtry_rate() -> float | None:
+    """Güncel USD/TRY kurunu döndürür (₺ cinsinden 1 USD). 5 dakika önbelleklenir;
+    ağ hatasında eski (varsa) değeri, hiç yoksa None döner."""
+    now = time.time()
+    if _usdtry_cache["rate"] is not None and (now - _usdtry_cache["time"]) < _USDTRY_CACHE_TTL:
+        return _usdtry_cache["rate"]
+
+    import math
+    import yfinance as yf
+    try:
+        hist = yf.Ticker("USDTRY=X").history(period="5d")
+        if not hist.empty:
+            rate = float(hist["Close"].dropna().iloc[-1])
+            if not math.isnan(rate) and not math.isinf(rate) and rate > 0:
+                _usdtry_cache["rate"] = rate
+                _usdtry_cache["time"] = now
+                return rate
+    except Exception:
+        pass
+    return _usdtry_cache["rate"]  # varsa bayat değeri döndür, yoksa None
+
+
+def _normalize_to_try(raw_price: float, asset_type: str) -> float | None:
+    """yfinance'tan USD cinsinden gelen ham fiyatı ₺'ye çevirir.
+
+    'Altın' için ayrıca ons -> gram dönüşümü uygular (yfinance altın sembolleri
+    ons/USD fiyat verir, uygulama gram/₺ üzerinden çalışır). 'Kripto' için sadece
+    USD -> ₺ çevrilir. Diğer türler zaten ₺ cinsinden geldiği için dokunulmaz.
+    Kur çekilemezse None döner (çağıran taraf bunu 'fiyat alınamadı' sayar)."""
+    usdtry = _fetch_usdtry_rate()
+    if usdtry is None:
+        return None
+    if asset_type == "Altın":
+        return (raw_price * usdtry) / GRAMS_PER_TROY_OUNCE
+    return raw_price * usdtry  # Kripto
 
 
 # ─── Sembol normalleştirme & aday oluşturma ────────────────────────────────────
@@ -57,20 +109,22 @@ def get_ticker_candidates(asset_code: str, asset_type: str) -> list:
 
 def fetch_current_price(asset_code: str, asset_type: str) -> float | None:
     """
-    Verilen sembol için güncel kapanış/anlık fiyatı döndürür.
-    Alternatif sembolleri dener. Hata durumunda None döndürür.
+    Verilen sembol için güncel kapanış/anlık fiyatı ₺ cinsinden döndürür.
+    Alternatif sembolleri dener. 'Altın' ve 'Kripto' için yfinance'tan USD
+    gelen ham fiyat _normalize_to_try ile ₺'ye çevrilir (bkz. modül docstring'i).
+    Hata durumunda None döndürür.
     """
     import math
     import yfinance as yf
     import logging
-    
+
     # yfinance ve önbellek kütüphanelerinin stderr loglarını tamamen sustur
     logging.getLogger("yfinance").setLevel(logging.CRITICAL)
     logging.getLogger("requests_cache").setLevel(logging.CRITICAL)
     logging.getLogger("urllib3").setLevel(logging.CRITICAL)
 
     candidates = get_ticker_candidates(asset_code, asset_type)
-    
+
     for ticker_sym in candidates:
         try:
             ticker = yf.Ticker(ticker_sym)
@@ -78,10 +132,12 @@ def fetch_current_price(asset_code: str, asset_type: str) -> float | None:
             if not hist.empty:
                 price = float(hist["Close"].dropna().iloc[-1])
                 if not math.isnan(price) and not math.isinf(price):
+                    if asset_type in ("Altın", "Kripto", "Crypto"):
+                        return _normalize_to_try(price, "Altın" if asset_type == "Altın" else "Kripto")
                     return price
         except Exception:
             pass
-            
+
     return None
 
 

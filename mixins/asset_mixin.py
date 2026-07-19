@@ -470,11 +470,12 @@ class AssetMixin:
         from kivymd.uix.textfield import MDTextField
         from kivymd.uix.label import MDIcon
 
+        quick_picks_height = 44 if self._get_quick_picks(self._asset_selected_type) else 0
         content = MDBoxLayout(
             orientation="vertical",
             spacing="12dp",
             size_hint_y=None,
-            height="320dp",
+            height=f"{320 + quick_picks_height}dp",
             padding=["0dp", "8dp", "0dp", "0dp"]
         )
 
@@ -488,6 +489,23 @@ class AssetMixin:
             height="40dp",
         )
         content.add_widget(type_icon)
+
+        quick_picks = self._get_quick_picks(self._asset_selected_type)
+        if quick_picks:
+            quick_row = MDBoxLayout(
+                orientation="horizontal", spacing="8dp",
+                size_hint_y=None, height="36dp",
+            )
+            for label, symbol, friendly_name in quick_picks:
+                chip = MDFlatButton(
+                    text=label,
+                    theme_text_color="Custom",
+                    text_color=(0.08, 0.72, 0.42, 1),
+                    size_hint_x=1,
+                )
+                chip.bind(on_release=lambda x, s=symbol, n=friendly_name: self._apply_quick_pick(s, n))
+                quick_row.add_widget(chip)
+            content.add_widget(quick_row)
 
         self._asset_code_input = MDTextField(
             hint_text=self._get_symbol_hint(self._asset_selected_type),
@@ -537,6 +555,23 @@ class AssetMixin:
             ],
         )
         self.asset_dialog.open()
+
+    # Tür başına hızlı seçim çipleri: (buton metni, yfinance sembolü, dostane isim)
+    _QUICK_PICKS = {
+        "Döviz":  [("Dolar", "USDTRY=X", "Amerikan Doları"), ("Euro", "EURTRY=X", "Euro")],
+        "Altın":  [("Gram Altın", "GC=F", "Gram Altın")],
+        "Kripto": [("Bitcoin", "BTC-USD", "Bitcoin"), ("Ethereum", "ETH-USD", "Ethereum")],
+    }
+
+    def _get_quick_picks(self, asset_type):
+        """Döviz/Altın/Kripto için tek dokunuşla sembol dolduran çip listesini döndürür."""
+        return self._QUICK_PICKS.get(asset_type, [])
+
+    def _apply_quick_pick(self, symbol, friendly_name):
+        """Hızlı seçim çipine tıklanınca sembol ve (boşsa) varlık adı alanını doldurur."""
+        self._asset_code_input.text = symbol
+        if not self._asset_name_input.text.strip():
+            self._asset_name_input.text = friendly_name
 
     def _get_symbol_hint(self, asset_type):
         hints = {
