@@ -1,4 +1,5 @@
 import os
+import re
 from kivy.clock import Clock
 from kivymd.toast import toast
 from kivymd.uix.button import MDFlatButton, MDRaisedButton
@@ -90,6 +91,42 @@ def get_asset_icon(asset_type, asset_code=""):
     if asset_type == "Hisse" and asset_code:
         return get_stock_icon(asset_code)
     return ASSET_TYPE_ICONS.get(asset_type, "wallet-outline")
+
+
+_HISTORY_CODE_RE = re.compile(r'\(([^)]+)\)')
+
+
+def _extract_history_asset_code(description):
+    """'Aselsan (ASELS.IS) — ...' gibi Varlık Geçmişi açıklama metninden
+    parantez içindeki sembolü çıkarır; formata uymazsa None döner (bu durumda
+    logo aranmaz, mevcut MDI ikon fallback'i kullanılır)."""
+    if not description:
+        return None
+    m = _HISTORY_CODE_RE.search(description)
+    return m.group(1) if m else None
+
+
+def resolve_history_logo_source(description):
+    """Varlık Geçmişi satırı için gösterilecek logo dosya yolunu döndürür
+    (AĞ ÇAĞRISI YOK, sadece yerel disk kontrolü — UI thread'inden güvenle
+    çağrılabilir). Önce BIST hissesi yerel logosunu, sonra Kripto/Döviz için
+    önbelleğe alınmış uzak logoyu dener. Hiçbiri yoksa (None, code) döner —
+    code doluysa arka planda indirme denemesi için kullanılabilir."""
+    code = _extract_history_asset_code(description)
+    if not code:
+        return None, None
+
+    bare_code = code.split(".")[0]  # "ASELS.IS" -> "ASELS"
+    local_logo = get_stock_logo(bare_code)
+    if local_logo:
+        return local_logo, None  # bulundu, indirme gerekmiyor
+
+    from services.logo_service import resolve_cached_logo_path
+    cached = resolve_cached_logo_path(code)
+    if cached:
+        return cached, None
+
+    return None, code  # bulunamadı; code doluysa arka planda denenebilir
 
 
 # Tür seçim dropdown'ında ikon gösterebilen menü öğesi
@@ -1046,7 +1083,7 @@ class AssetMixin:
             container = self.root.ids.asset_history_list
         except Exception:
             return
-        from kivymd.uix.list import TwoLineIconListItem, IconLeftWidget
+        from kivymd.uix.list import TwoLineIconListItem, IconLeftWidget, ImageLeftWidget
         from kivy.factory import Factory
         container.clear_widgets()
 
@@ -1061,6 +1098,8 @@ class AssetMixin:
                 )
             )
             return
+
+        codes_to_prefetch = set()
 
         for entry in history:
             is_buy = entry["category"] == "Varlık Alımı"
@@ -1081,14 +1120,24 @@ class AssetMixin:
                 item.ids._lbl_secondary.markup = True
             elif hasattr(item, '_secondary_label'):
                 item._secondary_label.markup = True
-            icon = IconLeftWidget(
-                icon=icon_name,
-                theme_text_color="Custom",
-                text_color=icon_color,
-            )
-            item.add_widget(icon)
+
+            logo_path, pending_code = resolve_history_logo_source(entry["description"])
+            if logo_path:
+                item.add_widget(ImageLeftWidget(source=logo_path))
+            else:
+                item.add_widget(IconLeftWidget(
+                    icon=icon_name,
+                    theme_text_color="Custom",
+                    text_color=icon_color,
+                ))
+                if pending_code:
+                    codes_to_prefetch.add(pending_code)
+
             container.add_widget(item)
             container.add_widget(Factory.MDSeparator())
+
+        if codes_to_prefetch:
+            self._prefetch_asset_logos(codes_to_prefetch, history)
             
         # Kart yüksekliğini dinamik güncelle (boşlukları yok et)
         try:
@@ -1102,4 +1151,25 @@ class AssetMixin:
             parent_card.height = _dp(new_height)
         except Exception:
             pass
+
+    def _prefetch_asset_logos(self, codes, history):
+        """Yerelde bulunamayan Kripto/Döviz logolarını arka planda indirir.
+        Ağ hatası (zaman aşımı, DNS, 404) tamamen sessiz yutulur — indirme
+        başarısız olan kalemler mevcut MDI ikonlarıyla görünmeye devam eder.
+        En az biri başarıyla indirilirse liste bir kez yeniden çizilir."""
+        import threading
+        from services.logo_service import fetch_and_cache_logo
+
+        def _worker():
+            any_success = False
+            for code in codes:
+                try:
+                    if fetch_and_cache_logo(code):
+                        any_success = True
+                except Exception as e:
+                    print("Logo indirme hatası:", code, e)
+            if any_success:
+                Clock.schedule_once(lambda dt: self.render_asset_history(history), 0)
+
+        threading.Thread(target=_worker, daemon=True).start()
 

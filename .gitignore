@@ -20,3 +20,6 @@ run_tests.py
 
 # graphify çıktısı — makineye özgü mutlak yollar ve üretilmiş graf verisi içerir
 graphify-out/
+
+# Varlık Geçmişi için çalışma zamanında indirilen kripto/döviz logoları
+assets/logo_cache/
