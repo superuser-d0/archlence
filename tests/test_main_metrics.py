@@ -3,7 +3,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Setup Kivy headless for testing
 os.environ["KIVY_NO_ARGS"] = "1"
-os.environ["KIVY_WINDOW"] = "headless"
+os.environ["KIVY_WINDOW"] = "mock"
 
 from main import FinoraApp
 try:

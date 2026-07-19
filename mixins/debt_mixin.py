@@ -5,6 +5,10 @@ from kivymd.uix.dialog import MDDialog
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.label import MDLabel
 from services.transaction_service import TransactionService
+import threading
+from kivymd.uix.card import MDCard
+from kivymd.uix.progressbar import MDProgressBar
+from kivymd.uix.slider import MDSlider
 
 
 class DebtMixin:
@@ -22,9 +26,7 @@ class DebtMixin:
             return
             
         from database.db import insert_debt
-        import threading
-        from kivy.clock import Clock
-        
+
         def save_debt():
             try:
                 loan = self.last_calculated_loan
@@ -40,8 +42,6 @@ class DebtMixin:
 
     def load_active_debts(self, *args):
         from database.db import get_active_debts
-        import threading
-        from kivy.clock import Clock
 
         def fetch_debts():
             try:
@@ -58,17 +58,11 @@ class DebtMixin:
             container.clear_widgets()
 
             if not debts:
-                from kivymd.uix.label import MDLabel
                 lbl = MDLabel(text="Henüz aktif bir borcunuz bulunmuyor.", theme_text_color="Secondary", font_style="Body2", halign="center")
                 container.add_widget(lbl)
                 return
 
             for debt in debts:
-                from kivymd.uix.card import MDCard
-                from kivymd.uix.label import MDLabel
-                from kivymd.uix.button import MDRaisedButton, MDFlatButton
-                from kivymd.uix.boxlayout import MDBoxLayout
-                from kivymd.uix.progressbar import MDProgressBar
 
                 card = MDCard(orientation="vertical", padding="12dp", spacing="8dp", size_hint_y=None, height="140dp", elevation=1, radius=[10])
                 
@@ -100,16 +94,12 @@ class DebtMixin:
     def close_debt_completely(self, debt):
         """Kalan tüm taksitleri tek seferde kapatır: onay dialogu gösterir, onayda
         borcu pasife çeker ve kalan bakiye tutarında gider işlemi oluşturur."""
-        from kivymd.uix.dialog import MDDialog
-        from kivymd.uix.button import MDFlatButton
 
         remaining_installments = debt['total_installments'] - debt['paid_installments']
         remaining_balance = remaining_installments * debt['monthly_payment']
         
         def confirm(*args):
             self.dialog.dismiss()
-            import threading
-            from kivy.clock import Clock
             from database.db import update_debt_progress
             from services.transaction_service import TransactionService
 
@@ -146,11 +136,6 @@ class DebtMixin:
     def pay_debt_installments(self, debt):
         """Slider ile seçilen sayıda taksiti öder; son taksit ödeniyorsa borcu
         pasife çeker. Ödeme "Kredi Taksiti" kategorisinde gider olarak kaydedilir."""
-        from kivymd.uix.dialog import MDDialog
-        from kivymd.uix.button import MDFlatButton
-        from kivymd.uix.boxlayout import MDBoxLayout
-        from kivymd.uix.slider import MDSlider
-        from kivymd.uix.label import MDLabel
 
         remaining_installments = debt['total_installments'] - debt['paid_installments']
         if remaining_installments <= 0:
@@ -177,8 +162,6 @@ class DebtMixin:
             amount_to_pay = selected_installments * debt['monthly_payment']
             is_active = 0 if selected_installments == remaining_installments else 1
 
-            import threading
-            from kivy.clock import Clock
             from database.db import update_debt_progress
             from services.transaction_service import TransactionService
 

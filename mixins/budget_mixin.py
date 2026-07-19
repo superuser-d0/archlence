@@ -20,6 +20,9 @@ SECRET_KEY = 'finora_secure_2026'
 
 class BudgetMixin:
     def setup_dynamic_months(self):
+        """Uygulama açılışında, içinde bulunulan aydan yıl sonuna kadar olan ayları
+        gösteren yatay buton listesini (ay seçici) oluşturur.
+        """
         import datetime
         MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
                   "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
@@ -39,11 +42,13 @@ class BudgetMixin:
                 container.add_widget(btn)
 
     def change_budget_month(self, month_index):
+        """Ay seçiciden farklı bir ay tıklandığında aktif ayı günceller ve listeyi/projeksiyonu yeniler."""
         self.active_budget_month = month_index
         self.load_budget_list()
         self.generate_next_month_projection()
 
     def generate_next_month_projection(self):
+        """Seçili ay için gelir-gider farkını (harcanabilir limit) hesaplar ve arayüze tavsiye metniyle birlikte yansıtır."""
         import datetime
         target_month = getattr(self, "active_budget_month", datetime.datetime.now().month)
         
@@ -114,6 +119,7 @@ class BudgetMixin:
         }
 
     def show_budget_planner(self):
+        """Bütçe planlama arayüzünü (kalem ekleme/düzenleme diyaloğu) açar."""
         from kivymd.uix.dialog import MDDialog
         from kivymd.uix.button import MDRaisedButton, MDFlatButton
         from kivymd.uix.boxlayout import MDBoxLayout
@@ -252,6 +258,7 @@ class BudgetMixin:
         self.load_budget_list()
 
     def load_budget_list(self):
+        """Seçili aya ait planlanan gelir ve gider kalemlerini veritabanından çekerek listeyi günceller."""
         # Works with both the new bp_list_container and the old bp_list (MDList)
         container = getattr(self, "bp_list_container", getattr(self, "bp_list", None))
         if container is None:
@@ -357,6 +364,9 @@ class BudgetMixin:
             container.add_widget(sep)
 
     def save_budget_item(self, *args):
+        """Diyalogdan girilen verileri (yeni kalem veya düzenleme) veritabanına kaydeder.
+        'Diğer aylara da uygula' açıksa, seçili aylara da kopyalar.
+        """
         # Strip ALL invisible characters — prevents the Admin[] artifact
         name = self.bp_name_input.text.strip().replace('\n', '').replace('\r', '')
         if not name:
@@ -420,6 +430,7 @@ class BudgetMixin:
         self.generate_next_month_projection()
         
     def toggle_custom_month_button(self, btn):
+        """Çoklu ay seçimi sırasında (kalem kopyalarken) ay butonlarının basılı/basılmamış durumunu değiştirir."""
         if not getattr(btn, 'is_selected', False):
             btn.is_selected = True
             btn.md_bg_color = (0.07, 0.38, 0.38, 1)  # Darker teal when selected
@@ -428,6 +439,7 @@ class BudgetMixin:
             btn.md_bg_color = (0.12, 0.53, 0.53, 1)  # Original teal when unselected
 
     def delete_budget_item(self, item_id):
+        """Verilen ID'ye sahip bütçe kalemini siler ve listeyi/projeksiyonu günceller."""
         from database.db import get_connection
         conn = get_connection()
         cursor = conn.cursor()
@@ -439,6 +451,8 @@ class BudgetMixin:
         toast("Kalem silindi.")
 
     def edit_budget_item(self, item_id):
+        """Silme işleminin yanındaki düzenle butonuna tıklandığında,
+        seçili bütçe kaleminin bilgilerini form alanlarına doldurur."""
         from database.db import get_connection
         conn = get_connection()
         cursor = conn.cursor()

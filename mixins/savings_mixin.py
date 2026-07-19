@@ -20,6 +20,8 @@ from ui.charts import LiquidWaveWidget
 
 class SavingsMixin:
     def calculate_savings_goal(self, *args):
+        """Birikim hedefi için girilen verilere göre hedefe ulaşma süresini hesaplar
+        ve sonucu dialog üzerinde gösterir."""
         try:
             target = float(self.sg_target_input.text)
             deposit = float(self.sg_deposit_input.text)
@@ -49,7 +51,7 @@ class SavingsMixin:
             toast("L\u00fctfen ge\u00e7erli say\u0131lar girin!")
 
     def commit_savings_goal(self, *args):
-        """Append new goal to list (max 3) and refresh dashboard."""
+        """Yeni birikim hedefini listeye (maksimum 3 adet) ekler ve ana ekranı (dashboard) günceller."""
         try:
             target = float(self.sg_target_input.text)
             name   = self.sg_name_input.text.strip() or "Birikim Hedefim"
@@ -89,7 +91,8 @@ class SavingsMixin:
     }
 
     def cycle_goal_color(self, goal_idx, wave_widget, *args):
-        """Cycle the color of a specific goal and live-update its wave widget."""
+        """Belirtilen hedefin tema rengini (yeşil, mavi, kırmızı) döngüsel olarak değiştirir
+        ve dalga (wave) animasyon widget'ını canlı günceller."""
         if goal_idx >= len(self.savings_goals):
             return
         g = self.savings_goals[goal_idx]
@@ -103,7 +106,7 @@ class SavingsMixin:
 
     # ─── One-time deposit into a goal ────────────────────────────────────────
     def add_funds_to_goal(self, goal_idx, wave_widget, pct_label, *args):
-        """Open a quick dialog to add a one-time amount to a specific goal."""
+        """Belirtilen hedefe tek seferlik fon/para eklemek için bir diyalog penceresi açar."""
         if goal_idx >= len(self.savings_goals):
             return
         g = self.savings_goals[goal_idx]
@@ -139,7 +142,8 @@ class SavingsMixin:
 
     # ─── Main goal card renderer ──────────────────────────────────────────────
     def render_savings_goals(self, total_balance, *args):
-        """Dynamically build one outlined MDCard per goal inside goals_container."""
+        """Aktif birikim hedefleri için dashboard üzerinde her bir hedefe özel dinamik
+        çerçeveli kartlar (MDCard) oluşturur ve çizer."""
         from kivymd.uix.card import MDCard as _MDCard
         if not (self.root and 'goals_container' in self.root.ids):
             return

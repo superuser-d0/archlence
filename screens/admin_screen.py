@@ -4,6 +4,7 @@ from kivymd.uix.screen import MDScreen
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.button import MDFlatButton, MDRaisedButton
 from kivymd.toast import toast
+from kivymd.app import MDApp
 from kivy.clock import Clock
 from kivy.metrics import dp
 
@@ -49,7 +50,6 @@ class AdminScreen(MDScreen):
             rows = cursor.fetchall()
             
             if not rows:
-                from kivymd.toast import toast
                 toast("Dışa aktarılacak kayıt bulunamadı.")
                 return
                 
@@ -68,11 +68,8 @@ class AdminScreen(MDScreen):
                 writer = csv.writer(f)
                 writer.writerow(col_names)
                 writer.writerows(rows)
-                
-            from kivymd.toast import toast
             toast(f"Dışa aktarıldı: {filepath}")
         except Exception as e:
-            from kivymd.toast import toast
             toast(f"Hata: {e}")
         finally:
             conn.close()
@@ -104,11 +101,9 @@ class AdminScreen(MDScreen):
             pass
         finally:
             conn.close()
-            
-        from kivymd.toast import toast
+
         toast("Sistem sıfırlandı!")
-        
-        from kivymd.app import MDApp
+
         app = MDApp.get_running_app()
         app.admin_logout()
 

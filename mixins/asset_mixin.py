@@ -632,15 +632,19 @@ class AssetMixin:
         threading.Thread(target=_insert, daemon=True).start()
 
     def refresh_asset_prices(self):
+        """Kullanıcının tetiklediği manuel fiyat yenileme işlemi.
+        Arka planda load_active_assets() çağırarak yfinance'tan güncel fiyatları (₺ veya $) çeker.
+        """
         from kivymd.toast import toast
         toast("Fiyatlar anlık olarak güncelleniyor...")
         self.load_active_assets()
 
 
     def load_active_assets(self, *args):
-        """
-        DB'den tüm varlıkları çeker, ardından yfinance üzerinden canlı
+        """DB'den tüm varlıkları çeker, ardından yfinance üzerinden canlı
         fiyatları arka plan thread'inde alır ve UI'ı günceller.
+        Fiyatlar Yahoo Finance (yfinance) üzerinden gelir, BIST için TRY, diğerleri için ilgili kurlardadır.
+        5 dakikalık önbellek (cache) kullanılarak API limitlerine takılma önlenir.
         """
         import threading
         from database.db import get_all_assets
@@ -669,7 +673,9 @@ class AssetMixin:
         threading.Thread(target=_fetch_and_enrich, daemon=True).start()
 
     def render_active_assets(self, assets):
-        """Varlık kartlarını renk kodlu K/Z bilgisiyle dashboard'a basar."""
+        """Varlık kartlarını renk kodlu K/Z (Kâr/Zarar) bilgisiyle dashboard'a basar.
+        Kâr/Zarar (K/Z) hesaplaması: (Güncel Fiyat - Alım Fiyatı) * Miktar. Para birimi ₺'dir.
+        """
         try:
             container = self.root.ids.active_assets_container
         except Exception as e:
@@ -983,7 +989,9 @@ class AssetMixin:
 
     # ─── Varlık Geçmişi (Ledger) ────────────────────────────────────────────
     def load_asset_history(self, *args):
-        """Varlık alım/satış geçmişini arka planda çeker ve UI'a render eder."""
+        """Varlık alım/satış geçmişini arka planda çeker ve UI'a render eder.
+        Geçmişteki tüm işlemlerin logudur.
+        """
         import threading
         from database.db import get_asset_transaction_history
 
@@ -998,7 +1006,7 @@ class AssetMixin:
         threading.Thread(target=_fetch, daemon=True).start()
 
     def render_asset_history(self, history):
-        """Varlık geçmişi listesini doldurur."""
+        """Varlık geçmişi listesini UI üzerinde doldurur."""
         try:
             container = self.root.ids.asset_history_list
         except Exception:

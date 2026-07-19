@@ -3,6 +3,9 @@
 asset_mixin'deki hisse seçim diyaloğu ve toplu fiyat çekme bu listeyi
 kullanır; assets/stock_logos/ altındaki logo dosya adları da bu kodlardaki
 sembollerle eşleşir. Yeni hisse eklerken logosunu da eklemeyi unutma.
+
+Format: [(Hisse Kodu, Şirket Adı), ...]
+Son Güncelleme: Temmuz 2026
 """
 
 BIST100_STOCKS = [

@@ -14,7 +14,10 @@ from services.transaction_service import TransactionService
 from ui.components import LegendWidget
 
 class CurvedTrendChart(Widget):
-    """Smooth curved area chart showing income and expense trends over time."""
+    """Zaman içindeki gelir ve gider trendlerini gösteren eğimli alan (area) grafiği çizer.
+    Beklenen veri formatı (self.chart_data):
+    [{'label': '01 Eki', 'income': 1500.0, 'expense': 800.0}, ...]
+    """
 
     anim_progress = NumericProperty(0.0)
 
@@ -433,6 +436,10 @@ class DashboardChartManager(MDBoxLayout):
 
 
 class HorizontalBarChart(Widget):
+    """Yatay çubuk grafiği (horizontal bar chart) çizer.
+    Beklenen veri formatı (self.data):
+    {"Kategori Adı": 1500.0, "Diğer Kategori": 800.0, ...} (Dict)
+    """
     anim_progress = NumericProperty(0)
     selected_targets = []
 
@@ -485,7 +492,10 @@ class HorizontalBarChart(Widget):
 
 
 class LiquidWaveWidget(Widget):
-    """Horizontal left-to-right liquid fill bar with animated wavy top edge."""
+    """Yatay, soldan sağa dolan ve üst kısmı dalgalı (sıvı animasyonlu) bir ilerleme çubuğu çizer.
+    Beklenen veri formatı:
+    Sözlük veya liste beklemez; 'progress' adlı NumericProperty üzerinden (0.0 ile 100.0 arası) değer alır.
+    """
     phase      = NumericProperty(0.0)
     progress   = NumericProperty(0.0)   # 0–100
     wave_color = ColorProperty((0.1, 0.8, 0.2, 0.9))
@@ -600,6 +610,10 @@ class LiquidWaveWidget(Widget):
 
 
 class PieChart(Widget):
+    """Ortası boş halka (donut/pie) grafiği çizer. Yüzdelikleri ve dilimleri animasyonlu gösterir.
+    Beklenen veri formatı (self.data):
+    {'Ana Gelir': 5000, 'Ek Gelir': 1500, 'Temel Gider': 3000, 'Ekstra Gider': 800} (Dict)
+    """
     anim_progress = NumericProperty(0)
     selected_targets = []
     

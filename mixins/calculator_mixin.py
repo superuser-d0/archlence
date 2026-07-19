@@ -284,6 +284,9 @@ class CalculatorMixin:
             self.sg_dialog.open()
 
     def calculate_compound(self, *args):
+        """Bileşik faiz hesaplar (A = P * (1 + r)^t).
+        Aylık düzenli ekleme varsa gelecek değer (FV) formülünü de sürece katar.
+        """
         try:
             p = float(self.comp_principal.text)
             r = float(self.comp_rate.text) / 100
@@ -318,6 +321,9 @@ class CalculatorMixin:
             toast("Lütfen geçerli sayılar girin!")
 
     def calculate_loan(self, *args):
+        """Kredi hesaplar (Anüite formülü: Taksit = P * (i * (1+i)^n) / ((1+i)^n - 1)).
+        Gelişmiş modda ek masrafları (peşin/taksitli) ve vergileri (KKDF/BSMV) dahil eder.
+        """
         try:
             p = float(self.loan_amount.text)
             r_percent = float(self.loan_rate.text)
@@ -436,6 +442,7 @@ class CalculatorMixin:
             toast("Lütfen tüm alanları sayılarla doldurun!")
 
     def export_plan_to_pdf(self, *args):
+        """Kredi ödeme planını masaüstüne 'Ödeme_Planı.pdf' olarak dışa aktarır."""
         import os
         from fpdf import FPDF
         
@@ -506,6 +513,7 @@ class CalculatorMixin:
     # tanımlılar. Davranışları değişmedi.
 
     def toggle_compound_mode(self, segment, item):
+        """Bileşik faiz hesaplayıcısında basit/gelişmiş mod geçişini yönetir."""
         if item.text == "Gelişmiş":
             self.comp_deposit.opacity = 1
             self.comp_deposit.disabled = False
@@ -515,6 +523,7 @@ class CalculatorMixin:
             self.comp_deposit.text = ""
 
     def toggle_loan_mode(self, segment, item):
+        """Kredi hesaplayıcısında gelişmiş mod açıldığında özel masraf alanlarını görünür yapar."""
         if item.text == "Gelişmiş":
             self.loan_type.opacity = 1
             self.loan_type.disabled = False
@@ -531,6 +540,7 @@ class CalculatorMixin:
             self.expense_list_scroll.disabled = True
             
     def update_loan_type(self, segment, item):
+        """Kredi türü (İhtiyaç/Taşıt/Konut) değiştikçe maksimum vade uyarısını ve ipucunu günceller."""
         self.loan_type_selected = item.text
         
         # Seçime göre dinamik hint_text (İpucu) güncellemesi
@@ -542,6 +552,7 @@ class CalculatorMixin:
             self.loan_term.hint_text = "Vade (Ay - Maks 120)"
         
     def open_expense_dialog(self, *args):
+        """Krediye özel masraf eklemek için bir diyalog penceresi açar (maks. 10 masraf)."""
         if len(self.custom_expenses) >= 10:
             toast("Maksimum 10 masraf ekleyebilirsiniz.")
             return
@@ -586,6 +597,7 @@ class CalculatorMixin:
         self.expense_dialog.open()
 
     def add_custom_expense(self, *args):
+        """Girilen özel masrafı doğrular ve kredi masrafları listesine ekler."""
         name = self.exp_name.text.strip()
         amount_text = self.exp_amount.text
         
@@ -626,6 +638,7 @@ class CalculatorMixin:
         self.update_expense_list_ui()
 
     def update_expense_list_ui(self):
+        """Özel masraflar listesi arayüzünü (UI) yeniden çizer."""
         self.expense_list_layout.clear_widgets()
         self.expense_header_label.text = f"Özel Masraflar ({len(self.custom_expenses)}/10)"
         
@@ -651,11 +664,13 @@ class CalculatorMixin:
             self.expense_list_layout.add_widget(row)
 
     def remove_custom_expense(self, index):
+        """Belirtilen indeksteki özel masrafı listeden çıkarır."""
         if 0 <= index < len(self.custom_expenses):
             self.custom_expenses.pop(index)
             self.update_expense_list_ui()
 
     def calculate_interest(self, *args):
+        """Basit mevduat faizi hesaplar (Getiri = P * r * d / 36500) ve %5 stopaj düşer."""
         try:
             p = float(self.int_principal.text)
             r = float(self.int_rate.text)
@@ -679,6 +694,7 @@ class CalculatorMixin:
             toast("Lütfen geçerli sayılar girin!")
 
     def show_payment_plan_table(self, *args):
+        """Hesaplanan kredi ödeme planını bir veri tablosu (Data Table) diyaloğunda gösterir."""
         from kivymd.uix.datatables import MDDataTable
         from kivy.metrics import dp
         from kivymd.uix.boxlayout import MDBoxLayout

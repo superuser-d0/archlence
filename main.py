@@ -60,7 +60,7 @@ from kivy.properties import NumericProperty
 from kivy.clock import Clock
 import math
 import datetime
-from kivy.properties import ColorProperty, BooleanProperty, StringProperty
+from kivy.properties import ColorProperty, BooleanProperty
 from kivy.storage.jsonstore import JsonStore
 
 try:
@@ -179,7 +179,7 @@ from database.db import get_connection
 from services.transaction_service import TransactionService
 from services.queries import CategoryService
 
-from kivy.properties import NumericProperty
+
 
 from kivy.metrics import dp
 
@@ -189,7 +189,6 @@ except Exception:
     _KivyWindow = None
 
 import csv
-import os
 
 try:
     from kivymd.uix.screen import MDScreen
@@ -262,7 +261,6 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
             k4 = f(t + dt,   W + dt   * k3)
             W  = W + (dt / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
             t += dt
-            # print(f"[RK4] Day {int(t):>2}: Projected Wealth = {W:>14,.2f} ₺") # Kapatıldı: Kasma sorunu
         return W
 
     def update_metrics_and_goals(self):
@@ -491,7 +489,7 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
             else:
                 self.root.ids.metric_val_savings.text = "%0,0"
 
-            # Aylık Gelir Amacı card: display total income for the period
+            # Aylık Gelir Amacı kartı: seçili döneme ait toplam geliri gösterir
             if 'metric_val_trend' in self.root.ids:
                 aim_text = (f"{total_income:,.0f} ₺".replace(",", ".")
                             if total_income > 0 else "Veri Yok")
@@ -762,7 +760,7 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
         import threading
         from kivy.clock import Clock
         
-        # 1. Main thread updates
+        # 1. Ana iş parçacığı (main thread) UI güncellemeleri
         try:
             self.update_metrics_and_goals()
             self.update_change_rate_ui()
@@ -867,7 +865,7 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
                 else:
                     amount_text = f"[color=#D32F2F]- ₺{amount:,.2f}[/color]"
 
-                # Just transaction date and amount - completely dropping encrypted string description
+                # Şifrelenmiş açıklamayı atlayıp, sadece işlem tarihi ve tutarı gösterilir
                 sec_text = f"{t_date[:10]} | {amount_text}"
 
                 item = TwoLineIconListItem(text=category, secondary_text=sec_text)

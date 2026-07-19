@@ -7,12 +7,14 @@ from kivymd.app import MDApp
 from kivymd.uix.label import MDLabel
 
 class CategorySettingItem(MDBoxLayout):
+    """Kategori ayarları listesindeki her bir öğeyi (kategori adı, türü, önemi) temsil eden bileşen."""
     cat_name = StringProperty("")
     cat_type = StringProperty("")
     cat_importance = StringProperty("")
 
 
 class RightButtonsContainer(IRightBodyTouch, MDBoxLayout):
+    """Liste öğelerinin sağ tarafında hizalanan buton grubunu (düzenle/sil) tutan taşıyıcı bileşen."""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # Sabit genişlik şart: adaptive_width açık kalırsa KivyMD, liste öğesi
@@ -27,10 +29,12 @@ class RightButtonsContainer(IRightBodyTouch, MDBoxLayout):
 
 
 class BudgetListItem(TwoLineAvatarIconListItem):
+    """Bütçe planlayıcı listesindeki her bir gelir/gider kalemini temsil eden bileşen."""
     item_id = NumericProperty(0)
 
 
 class LegendItem(MDBoxLayout):
+    """Grafik lejantında yer alan ve tıklandığında ilgili dilimi vurgulayan (highlight) tekil öğe."""
     text = StringProperty("")
     color = ColorProperty((1, 1, 1, 1))
     is_selected = BooleanProperty(False)
@@ -75,7 +79,7 @@ class LegendItem(MDBoxLayout):
 
 
 class LegendWidget(MDBoxLayout):
-    """Static 4-category legend. Built once in __init__. Call update_percentages() to refresh text."""
+    """Statik 4 kategorili lejant bileşeni. Başlangıçta oluşturulur, 'update_percentages()' ile güncellenir."""
 
     # Fixed palette — must match PieChart.category_colors
     CATEGORY_COLORS = {
