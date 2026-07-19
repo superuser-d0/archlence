@@ -20,9 +20,7 @@ ana_gelir, ek_gelir, temel_gider, ekstra_gider = 0.0, 0.0, 0.0, 0.0
 for amount, t_type, importance in rows:
     try:
         dec = float(decrypt(str(amount), SECRET_KEY))
-        print(f"Decrypted {amount} -> {dec} (Type: {t_type}, Imp: {importance})")
-    except Exception as e:
-        print(f"Failed to decrypt {amount}: {e}")
+    except Exception:
         dec = 0.0
         
     if t_type == "income" or t_type == "Gelir":

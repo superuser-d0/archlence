@@ -1,5 +1,6 @@
 # Çalışma zamanı verileri — kullanıcının kişisel finans verisi repoya girmemeli
 finance.db
+finance.db.bak*
 savings_goals.json
 crash.log
 

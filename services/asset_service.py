@@ -288,16 +288,110 @@ def get_pnl_color(signal: str) -> list:
 
 def fetch_portfolio_with_prices(assets: list, callback) -> None:
     """
-    Arka plan thread'inde tüm varlıkların canlı fiyatlarını çeker.
-    Tamamlandığında callback(enriched_assets) çağrılır.
+    Arka plan thread'inde tüm varlıkların canlı fiyatlarını TEK bir toplu
+    yfinance isteğiyle çeker (bkz. fetch_bist100_prices'daki aynı toplu indirme
+    deseni). Önceki sürüm her varlık için ayrı, sıralı bir yfinance çağrısı
+    yapıyordu; 12+ varlıklı bir portföyde bu, uygulamanın onlarca saniye ila
+    birkaç dakika donmasına yol açıyordu.
 
-    Her eleman şunları içerir (orijinal asset dict + ekstra alanlar):
+    GOLD-ONS/GOLD-CEYREK/GOLD-YARIM/GOLD-TAM gibi dahili altın sembollerinin
+    gerçek bir yfinance karşılığı yoktur; bunlar toplu istekten hariç tutulur,
+    gerektiğinde tek seferlik GC=F (gram altın) fiyatından çarpanla türetilir
+    (bkz. GOLD_TYPE_MULTIPLIERS).
+
+    Tamamlandığında callback(enriched_assets) çağrılır. Her eleman şunları
+    içerir (orijinal asset dict + ekstra alanlar):
         current_price, pnl_amount, pnl_pct, total_value, total_cost, signal
     """
     def _worker():
+        import math
+        import logging
+        import yfinance as yf
+
+        logging.getLogger("yfinance").setLevel(logging.CRITICAL)
+        logging.getLogger("requests_cache").setLevel(logging.CRITICAL)
+        logging.getLogger("urllib3").setLevel(logging.CRITICAL)
+
+        # Her varlık için toplu indirmede kullanılacak tek yfinance sembolünü
+        # belirle (get_ticker_candidates'ın ilk/en olası adayı). GOLD-* dahili
+        # sembollerin gerçek bir ticker'ı yok — id -> None ile işaretlenir,
+        # bunun yerine GC=F'nin (varsa) toplu isteğe dahil edilmesi sağlanır.
+        ticker_by_id = {}
+        needs_gold_gram = False
+        for asset in assets:
+            code = (asset["asset_code"] or "").strip().upper()
+            a_type = asset["asset_type"]
+            if a_type == "Altın" and code in GOLD_TYPE_MULTIPLIERS:
+                ticker_by_id[asset["id"]] = None
+                needs_gold_gram = True
+            else:
+                candidates = get_ticker_candidates(asset["asset_code"], a_type)
+                ticker_by_id[asset["id"]] = candidates[0] if candidates else None
+
+        unique_tickers = {t for t in ticker_by_id.values() if t}
+        if needs_gold_gram:
+            unique_tickers.add("GC=F")
+
+        raw_prices = {}  # yfinance sembolü -> ham kapanış fiyatı (USD veya doğrudan ₺)
+        if unique_tickers:
+            try:
+                if len(unique_tickers) == 1:
+                    # Tek sembolde yf.download düz (MultiIndex olmayan) bir
+                    # DataFrame döner; çoklu-sembol dalındaki data["Close"][sym]
+                    # erişimi bu durumda çalışmaz, ayrı ele alınması gerekir.
+                    sym = next(iter(unique_tickers))
+                    hist = yf.download(sym, period="5d", progress=False)
+                    if not hist.empty:
+                        price = float(hist["Close"].dropna().iloc[-1])
+                        if not math.isnan(price) and not math.isinf(price):
+                            raw_prices[sym] = price
+                else:
+                    data = yf.download(
+                        list(unique_tickers),
+                        period="5d",
+                        progress=False,
+                        threads=True,
+                    )
+                    close_df = data["Close"]
+                    for sym in unique_tickers:
+                        try:
+                            price = float(close_df[sym].dropna().iloc[-1])
+                            if not math.isnan(price) and not math.isinf(price):
+                                raw_prices[sym] = price
+                        except Exception:
+                            pass
+            except Exception as e:
+                print("Portföy fiyat çekme hatası:", e)
+
+        # Gram altın (₺) fiyatı: toplu istekten geldiyse onu kullan (ve
+        # önbelleğe yaz), gelmediyse tekil/önbellek yedeğine düş.
+        gram_gold_try = None
+        if "GC=F" in raw_prices:
+            gram_gold_try = _normalize_to_try(raw_prices["GC=F"], "Altın")
+            if gram_gold_try is not None:
+                _gold_gram_cache["price"] = gram_gold_try
+                _gold_gram_cache["time"] = time.time()
+        elif needs_gold_gram:
+            gram_gold_try = _fetch_gold_gram_price_try()
+
         enriched = []
         for asset in assets:
-            current_price = fetch_current_price(asset["asset_code"], asset["asset_type"])
+            code = (asset["asset_code"] or "").strip().upper()
+            a_type = asset["asset_type"]
+            current_price = None
+
+            if a_type == "Altın" and code in GOLD_TYPE_MULTIPLIERS:
+                if gram_gold_try is not None:
+                    current_price = gram_gold_try * GOLD_TYPE_MULTIPLIERS[code]
+            else:
+                sym = ticker_by_id.get(asset["id"])
+                raw = raw_prices.get(sym) if sym else None
+                if raw is not None:
+                    if a_type in ("Altın", "Kripto", "Crypto"):
+                        current_price = _normalize_to_try(raw, "Altın" if a_type == "Altın" else "Kripto")
+                    else:
+                        current_price = raw
+
             entry = dict(asset)
             if current_price is not None:
                 pnl = calculate_pnl(current_price, asset["purchase_price"], asset["quantity"])
