@@ -61,6 +61,13 @@ def initialize_database():
         )
     """)
 
+    # Mevcut veritabanlarında "name" sütununu "debt_name" olarak güncelleme (migration guard)
+    cursor.execute("PRAGMA table_info(active_debts)")
+    existing_debt_cols = {row[1] for row in cursor.fetchall()}
+    if "name" in existing_debt_cols and "debt_name" not in existing_debt_cols:
+        cursor.execute("ALTER TABLE active_debts RENAME COLUMN name TO debt_name")
+
+
     # 6. Aktif Varlıklar Tablosu (Hisse, Altın, Tahvil vb.)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS active_assets (

@@ -11,7 +11,7 @@ def get_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-def insert_debt(debt_name, total_amount, monthly_payment, total_installments):
+def insert_debt(debt_name, total_amount, monthly_payment, total_installments, is_auto_pay=0, auto_pay_day=1):
     conn = get_connection()
     cursor = conn.cursor()
     enc_name = encrypt(str(debt_name), SECRET_KEY)
@@ -19,9 +19,9 @@ def insert_debt(debt_name, total_amount, monthly_payment, total_installments):
     enc_monthly = encrypt(str(monthly_payment), SECRET_KEY)
     
     cursor.execute("""
-        INSERT INTO active_debts (debt_name, total_amount, monthly_payment, total_installments, paid_installments, is_active)
-        VALUES (?, ?, ?, ?, 0, 1)
-    """, (enc_name, enc_total, enc_monthly, total_installments))
+        INSERT INTO active_debts (debt_name, total_amount, monthly_payment, total_installments, paid_installments, is_active, is_auto_pay, auto_pay_day)
+        VALUES (?, ?, ?, ?, 0, 1, ?, ?)
+    """, (enc_name, enc_total, enc_monthly, total_installments, int(is_auto_pay), auto_pay_day))
     conn.commit()
     conn.close()
 
@@ -60,7 +60,10 @@ def get_active_debts():
             "total_amount": dec_total,
             "monthly_payment": dec_monthly,
             "total_installments": r["total_installments"],
-            "paid_installments": r["paid_installments"]
+            "paid_installments": r["paid_installments"],
+            "is_auto_pay": bool(r["is_auto_pay"]) if "is_auto_pay" in r.keys() and r["is_auto_pay"] else False,
+            "auto_pay_day": r["auto_pay_day"] if "auto_pay_day" in r.keys() and r["auto_pay_day"] else 1,
+            "last_auto_pay_date": r["last_auto_pay_date"] if "last_auto_pay_date" in r.keys() else None
         })
     return debts
 
@@ -291,5 +294,16 @@ def process_due_recurring_payment(payment):
 
     new_due = _advance_due_date(payment["next_due_date"], payment["frequency"])
     cursor.execute("UPDATE recurring_payments SET next_due_date = ? WHERE id = ?", (new_due, payment["id"]))
+    conn.commit()
+    conn.close()
+
+def update_debt_last_auto_pay(debt_id, current_month_str):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE active_debts 
+        SET last_auto_pay_date = ? 
+        WHERE id = ?
+    """, (current_month_str, debt_id))
     conn.commit()
     conn.close()

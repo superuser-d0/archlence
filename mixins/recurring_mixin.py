@@ -131,14 +131,18 @@ class RecurringMixin:
         threading.Thread(target=process, daemon=True).start()
 
     def process_due_auto_deductions(self):
-        """on_start()'tan çağrılır: auto_deduct=True ve vadesi bugün/geçmiş olan
-        ödemeleri arka planda otomatik işler, ardından kalan (7 gün içindeki)
-        listeyi render eder."""
-        from database.db import get_active_recurring_payments, process_due_recurring_payment
+        from database.db import (
+            get_active_recurring_payments, process_due_recurring_payment,
+            get_active_debts, update_debt_progress, update_debt_last_auto_pay
+        )
+        from services.transaction_service import TransactionService
 
         def process():
             try:
                 today = datetime.date.today()
+                ui_needs_refresh = False
+                
+                # 1. MEVCUT TEKRARLANAN ÖDEMELER (Kira, Faturalar vb.)
                 payments = get_active_recurring_payments()
                 due_auto = [
                     p for p in payments
@@ -146,9 +150,43 @@ class RecurringMixin:
                 ]
                 for p in due_auto:
                     process_due_recurring_payment(p)
-                if due_auto:
+                    ui_needs_refresh = True
+                
+                # 2. YENİ: OTOMATİK BORÇ/KREDİ TAKSİT ÖDEMELERİ
+                debts = get_active_debts()
+                current_month_str = today.strftime("%Y-%m")
+                
+                for debt in debts:
+                    if debt.get("is_auto_pay") and today.day >= debt.get("auto_pay_day"):
+                        # Bu ay içinde zaten çekilmiş mi diye kontrol ediyoruz
+                        if debt.get("last_auto_pay_date") != current_month_str:
+                            remaining = debt['total_installments'] - debt['paid_installments']
+                            
+                            if remaining > 0:
+                                is_active = 0 if remaining == 1 else 1
+                                # 1 taksit ilerlet ve veritabanına bu ay çekildiğini kaydet
+                                update_debt_progress(debt['id'], 1, is_active=is_active)
+                                update_debt_last_auto_pay(debt['id'], current_month_str)
+                                
+                                # Gider işlemini oluştur (Ana bakiyeden parasını düşürmek için)
+                                TransactionService.add_transaction(
+                                    account_id=1,
+                                    amount=debt['monthly_payment'],
+                                    transaction_type="expense",
+                                    category="Kredi Taksiti",
+                                    description=f"{debt['debt_name']} (Otomatik Taksit Ödemesi)"
+                                )
+                                ui_needs_refresh = True
+
+                # 3. ORTAK UI SENKRONİZASYONU
+                if ui_needs_refresh:
                     Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                     Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
+                    
+                    # UI üzerindeki ilerleme çubuğu (progress bar) ve kalan taksit yazısını yenile
+                    if hasattr(self, 'load_active_debts'):
+                        Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
+                        
                 Clock.schedule_once(lambda dt: self.load_upcoming_recurring(), 0)
             except Exception as e:
                 print("Error processing auto deductions:", e)

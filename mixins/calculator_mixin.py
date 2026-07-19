@@ -213,6 +213,38 @@ class CalculatorMixin:
             self.loan_layout.add_widget(self.loan_rate)
             self.loan_layout.add_widget(self.loan_term)
             self.loan_layout.add_widget(self.loan_type)
+            
+            # --- Otomatik Ödeme UI Eklentisi ---
+            from kivymd.uix.selectioncontrol import MDSwitch
+            
+            self.loan_auto_pay = False
+            
+            self.auto_pay_layout = MDBoxLayout(orientation="horizontal", spacing="10dp", size_hint_y=None, height="48dp")
+            lbl_auto = MDLabel(text="Otomatik Öde (Aylık)", theme_text_color="Secondary", size_hint_x=0.5)
+            
+            self.auto_pay_switch = MDSwitch(size_hint_x=None, width=dp(50))
+            
+            self.auto_pay_day_input = MDTextField(
+                hint_text="Gün (1-31)", 
+                input_filter="int", 
+                size_hint_x=0.3,
+                disabled=True,
+                opacity=0
+            )
+
+            def _on_auto_switch(instance, val):
+                self.loan_auto_pay = val
+                self.auto_pay_day_input.disabled = not val
+                self.auto_pay_day_input.opacity = 1 if val else 0
+                
+            self.auto_pay_switch.bind(active=_on_auto_switch)
+            
+            self.auto_pay_layout.add_widget(lbl_auto)
+            self.auto_pay_layout.add_widget(self.auto_pay_switch)
+            self.auto_pay_layout.add_widget(self.auto_pay_day_input)
+            
+            self.loan_layout.add_widget(self.auto_pay_layout)
+            # ------------------------------------
             self.loan_layout.add_widget(self.expense_header_layout)
             self.loan_layout.add_widget(self.expense_list_scroll)
             self.loan_layout.add_widget(self.loan_result_label)
@@ -431,11 +463,16 @@ class CalculatorMixin:
             
             self.add_debt_btn.opacity = 1
             self.add_debt_btn.disabled = False
+            day_text = self.auto_pay_day_input.text if hasattr(self, 'auto_pay_day_input') else "1"
+            auto_pay_day = int(day_text) if day_text.isdigit() and 1 <= int(day_text) <= 31 else 1
+
             self.last_calculated_loan = {
                 "name": self.loan_custom_name.text.strip() if self.loan_custom_name.text.strip() else f"{self.loan_type_selected} Kredisi",
                 "total_amount": total_payment,
                 "monthly_payment": emi,
-                "total_installments": n
+                "total_installments": n,
+                "is_auto_pay": getattr(self, "loan_auto_pay", False),
+                "auto_pay_day": auto_pay_day
             }
             
         except ValueError:

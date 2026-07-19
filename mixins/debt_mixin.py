@@ -30,7 +30,14 @@ class DebtMixin:
         def save_debt():
             try:
                 loan = self.last_calculated_loan
-                insert_debt(loan["name"], loan["total_amount"], loan["monthly_payment"], loan["total_installments"])
+                insert_debt(
+                    loan["name"], 
+                    loan["total_amount"], 
+                    loan["monthly_payment"], 
+                    loan["total_installments"],
+                    loan.get("is_auto_pay", False),
+                    loan.get("auto_pay_day", 1)
+                )
                 Clock.schedule_once(lambda dt: toast("Borç başarıyla eklendi!"), 0)
                 Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
                 Clock.schedule_once(lambda dt: self.loan_dialog.dismiss(), 0)
