@@ -453,15 +453,15 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
                         pred_icon.text_color = (0.9, 0.2, 0.2, 1)
                         pred_text.text = (
                             f"{ode_label}\n"
-                            f"Dikkat: ODE modeli varliginizin eksiye dusecegini "
-                            f"gosteriyor. Harcamalarinizi acilen gozden gecirin!"
+                            f"Dikkat: ODE modeli varlığınızın eksiye düşeceğini "
+                            f"gösteriyor. Harcamalarınızı acilen gözden geçirin!"
                         )
                     elif net_change < 0:
                         pred_icon.icon  = "trending-down"
                         pred_icon.text_color = (0.95, 0.75, 0.1, 1)
                         pred_text.text = (
                             f"{ode_label}\n"
-                            f"Gider ivmeniz gelirinizi asiyor; varliginiz "
+                            f"Gider ivmeniz gelirinizi aşıyor; varlığınız "
                             f"{_fmt(abs(net_change))} azalabilir."
                         )
                     else:
@@ -469,8 +469,8 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin,
                         pred_icon.text_color = (0.18, 0.8, 0.25, 1)
                         pred_text.text = (
                             f"{ode_label}\n"
-                            f"Mevcut gelir-gider dengesiyle varliginiz "
-                            f"{_fmt(net_change)} artis gosterebilir."
+                            f"Mevcut gelir-gider dengesiyle varlığınız "
+                            f"{_fmt(net_change)} artış gösterebilir."
                         )
 
             except Exception:

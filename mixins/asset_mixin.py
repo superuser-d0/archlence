@@ -86,6 +86,74 @@ def format_price_tl(price):
     return f"{price:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " ₺"
 
 
+def _parse_price_str(s):
+    """'400,00' (Türkçe) veya '1,500,000.0000' (eski/İngilizce) gibi bir sayı
+    metnini float'a çevirir. Son geçen '.' veya ',' ondalık ayracı kabul edilir."""
+    s = s.strip()
+    last_dot, last_comma = s.rfind("."), s.rfind(",")
+    if last_dot > last_comma:
+        return float(s.replace(",", ""))
+    if last_comma > last_dot:
+        return float(s.replace(".", "").replace(",", "."))
+    return float(s)
+
+
+_KZ_SUFFIX_RE = re.compile(r'\s*[|(]\s*K/Z:\s*([+-])\s*₺?\s*([\d.,]+)\s*₺?\)?\s*$')
+_LEGACY_HISTORY_BODY_RE = re.compile(
+    r'^(?P<name>.*?)\s*\((?P<code>[^)]+)\)\s*—\s*'
+    r'(?P<qty>[\d.,]+)\s*adet\s*@\s*(?P<price>[\d.,]+)\s*₺\s*$'
+)
+
+
+def _extract_and_strip_kz(text):
+    """Açıklama metninin sonundaki K/Z bilgisini (eski '| K/Z: ...' veya yeni
+    '(K/Z: ...)' biçimlerinden) ayıklayıp metinden temizler; K/Z yoksa
+    (text, None) döner. Ana açıklama artık K/Z ile bölünmüyor, K/Z ayrı bir
+    metrik olarak gösterilebiliyor."""
+    if not text:
+        return text, None
+    m = _KZ_SUFFIX_RE.search(text)
+    if not m:
+        return text, None
+    stripped = text[:m.start()].rstrip()
+    try:
+        kz_amount = _parse_price_str(m.group(2))
+    except ValueError:
+        return stripped, None
+    return stripped, f"K/Z: {m.group(1)}{format_price_tl(kz_amount)}"
+
+
+def format_history_description(description, category, is_buy):
+    """Varlık Geçmişi listesinde gösterilecek açıklamayı profesyonel, akıcı bir
+    Türkçe cümleye dönüştürür ve varsa K/Z'yi ayrı döner (ana metinden çıkarılır,
+    çağıran taraf bunu ayrı bir metrik olarak — altta/sağda — gösterebilir).
+
+    Yeni kayıtlar zaten bu şablonla ("... alındı/satıldı — N adet, birim fiyat
+    X ₺") yazıldığı için burada sadece K/Z ayıklanır. Eski kayıtlardaki teknik
+    gösterim ("N adet @ X ₺") da aynı şablona çevrilir. Tanınmayan bir metin
+    varsa (K/Z ayıklanmış hâliyle) olduğu gibi döner — asla hata fırlatmaz."""
+    raw = description or category
+    body, kz_text = _extract_and_strip_kz(raw)
+
+    if body and " adet @ " in body:
+        m = _LEGACY_HISTORY_BODY_RE.match(body)
+        if m:
+            try:
+                qty = _parse_price_str(m.group("qty"))
+                price = _parse_price_str(m.group("price"))
+                verb = "alındı" if is_buy else "satıldı"
+                code = m.group("code").replace(".IS", "")
+                body = f"{m.group('name').strip()} ({code}) {verb} — {qty:g} adet, birim fiyat {format_price_tl(price)}"
+            except ValueError:
+                pass
+
+    if body:
+        import re
+        body = re.sub(r'\s*\([^)]+\)', '', body)
+
+    return body, kz_text
+
+
 def get_asset_icon(asset_type, asset_code=""):
     """Varlık türü (Hisse ise sembolüne göre) için ikon adını döndürür."""
     if asset_type == "Hisse" and asset_code:
@@ -480,8 +548,8 @@ class AssetMixin:
                 insert_asset(asset_name, asset_code, asset_type,
                              purchase_price, quantity, purchase_date)
                 desc = (
-                    f"{asset_name} ({asset_code}.IS) — "
-                    f"{quantity:g} adet @ {purchase_price:,.4f} ₺"
+                    f"{asset_name} ({asset_code}) alındı — "
+                    f"{quantity:g} adet, birim fiyat {format_price_tl(purchase_price)}"
                 )
                 insert_asset_transaction(
                     account_id=1,
@@ -733,8 +801,8 @@ class AssetMixin:
                 insert_asset(asset_name, asset_code, asset_type,
                              purchase_price, quantity, purchase_date)
                 desc = (
-                    f"{asset_name} ({asset_code}) — "
-                    f"{quantity:g} adet @ {purchase_price:,.4f} ₺"
+                    f"{asset_name} ({asset_code}) alındı — "
+                    f"{quantity:g} adet, birim fiyat {format_price_tl(purchase_price)}"
                 )
                 insert_asset_transaction(
                     account_id=1,
@@ -934,8 +1002,8 @@ class AssetMixin:
 
                 # 2. Cüzdandan düş: expense + 'Varlık Alımı' kategorisi
                 desc = (
-                    f"{asset_name} ({asset_code.upper()}) — "
-                    f"{quantity:g} adet @ {purchase_price:,.4f} ₺"
+                    f"{asset_name} ({asset_code.upper()}) alındı — "
+                    f"{quantity:g} adet, birim fiyat {format_price_tl(purchase_price)}"
                 )
                 insert_asset_transaction(
                     account_id=1,
@@ -1283,9 +1351,9 @@ class AssetMixin:
                 sign           = "+" if pnl >= 0 else "-"
 
                 desc = (
-                    f"{asset['asset_name']} ({asset['asset_code']}) — "
-                    f"{asset['quantity']:g} adet @ {sell_price_per_unit:,.4f} ₺ "
-                    f"| K/Z: {sign}₺{abs(pnl):,.2f}"
+                    f"{asset['asset_name']} ({asset['asset_code']}) satıldı — "
+                    f"{asset['quantity']:g} adet, birim fiyat {format_price_tl(sell_price_per_unit)} "
+                    f"(K/Z: {sign}{format_price_tl(abs(pnl))})"
                 )
 
                 # Cüzdana ekle: income + 'Varlık Satışı'
@@ -1364,21 +1432,15 @@ class AssetMixin:
             sign       = "-" if is_buy else "+"
             amount_clr = "#0277BD" if is_buy else "#2E7D32"
 
-            sec = (
-                f"{entry['date']}  |  "
-                f"[color={amount_clr}]{sign}₺{entry['amount']:,.2f}[/color]"
+            desc, kz_text = format_history_description(
+                entry["description"], entry["category"], is_buy
             )
-            
-            import re
-            desc = entry["description"] or entry["category"]
-            if desc:
-                # BIST hisselerindeki .IS ekini kaldır
-                desc = desc.replace(".IS)", ")")
-                # Küsüratlı fiyattaki gereksiz sondaki sıfırları sil (örn: 400.0000 ₺ -> 400 ₺)
-                desc = re.sub(r'\.(\d*?[1-9])0+ ₺', r'.\1 ₺', desc)
-                desc = re.sub(r'\.0+ ₺', ' ₺', desc)
-                # "adet @" yerine daha sade "x @"
-                desc = desc.replace(" adet @ ", "x @ ")
+
+            sec_parts = [entry["date"], f"[color={amount_clr}]{sign}₺{entry['amount']:,.2f}[/color]"]
+            if kz_text:
+                kz_color = "#2E7D32" if kz_text.startswith("K/Z: +") else "#C62828"
+                sec_parts.append(f"[color={kz_color}]{kz_text}[/color]")
+            sec = "   ".join(sec_parts)
 
             item = TwoLineIconListItem(
                 text=desc,
