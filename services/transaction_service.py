@@ -6,7 +6,11 @@ SECRET_KEY = 'finora_secure_2026'
 
 class TransactionService:
     @staticmethod
-    def add_transaction(account_id, amount, transaction_type, category, description):
+    def add_transaction(account_id, amount, transaction_type, category, description,
+                        transaction_date=None):
+        """transaction_date verilmezse şu an kullanılır; CSV içe aktarımı gibi
+        geçmiş tarihli kayıtlar tarihi açıkça geçer — bakiye senkronu dahil
+        aynı atomik yoldan geçmiş olurlar."""
         conn = get_connection()
         try:
             cursor = conn.cursor()
@@ -21,7 +25,7 @@ class TransactionService:
             # transaction_date DB tarafında değil uygulamada üretilir; böylece
             # get_transactions_by_period'daki 'localtime' filtreleriyle aynı
             # saat diliminde kalır.
-            date_now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            date_now = transaction_date or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             cursor.execute("""
                 INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)

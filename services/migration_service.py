@@ -1,0 +1,238 @@
+"""Veri İçe/Dışa Aktarma (Migration) servisi.
+
+Başka platformdan geçen kullanıcılar için: mevcut veriler şifresi çözülmüş,
+okunabilir tek bir CSV'ye yazılır; dışarıdan gelen CSV'deki işlemler ise
+TransactionService.add_transaction üzerinden içeri alınır — böylece şifreleme
+ve accounts.balance senkronu tek noktadan, atomik olarak işler.
+
+CSV şeması (tek dosya, kayit_turu ayırt edici kolonu):
+    kayit_turu ∈ {islem, varlik, borc, tekrarlanan}
+    islem       → tarih, tur(gelir/gider), kategori, tutar, aciklama
+    varlik      → tarih=alım tarihi, tur=varlık türü, kategori=sembol,
+                  tutar=birim alım fiyatı, miktar=adet, aciklama=varlık adı
+    borc        → tutar=toplam borç, aciklama=borç adı,
+                  detay="aylik_odeme=..;toplam_taksit=..;odenen_taksit=.."
+    tekrarlanan → tarih=sonraki vade, tur=sıklık, tutar, aciklama=ad,
+                  detay="otomatik=0/1"
+
+İçe aktarım yalnızca işlem satırlarını okur (varlık/borç yapıları platformlar
+arası birebir taşınamayacak kadar farklıdır); hem bu dosyanın kendi formatını
+hem de jenerik "Tarih,Tür,Kategori,Tutar,Açıklama" başlıklı CSV'leri tanır.
+"""
+
+import csv
+import os
+from datetime import datetime
+
+from database.db import get_connection, DEFAULT_ACCOUNT_ID, SECRET_KEY
+from utils.crypto import decrypt
+
+CSV_HEADER = ["kayit_turu", "tarih", "tur", "kategori", "tutar", "miktar", "aciklama", "detay"]
+
+# Jenerik CSV başlıklarını alan adlarına eşleme (küçük harfe indirilmiş halleriyle)
+_COLUMN_ALIASES = {
+    "tarih": "tarih", "date": "tarih",
+    "tur": "tur", "tür": "tur", "type": "tur",
+    "kategori": "kategori", "category": "kategori",
+    "tutar": "tutar", "miktar": "tutar", "amount": "tutar",
+    "aciklama": "aciklama", "açıklama": "aciklama", "description": "aciklama",
+}
+
+_INCOME_WORDS = {"gelir", "income"}
+_EXPENSE_WORDS = {"gider", "expense", "harcama"}
+
+_DATE_FORMATS = [
+    "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d",
+    "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%d/%m/%Y",
+    "%d.%m.%Y %H:%M:%S", "%d.%m.%Y %H:%M", "%d.%m.%Y",
+]
+
+
+def get_export_path():
+    """Dışa aktarım hedefini döndürür: masaüstü varsa oraya, yoksa uygulama dizinine."""
+    home = os.path.expanduser("~")
+    for candidate in ("Masaüstü", "Desktop"):
+        desktop = os.path.join(home, candidate)
+        if os.path.isdir(desktop):
+            return os.path.join(desktop, "finora_export.csv")
+    from database.db import BASE_DIR
+    return os.path.join(BASE_DIR, "finora_export.csv")
+
+
+def _dec(value):
+    """Şifreli kolonu çözer; çözülemeyen (eski/bozuk) kayıtta boş döner ki
+    tek bir bozuk satır tüm dışa aktarımı düşürmesin."""
+    try:
+        return decrypt(str(value), SECRET_KEY)
+    except Exception:
+        return ""
+
+
+def export_all_to_csv(path=None):
+    """transactions + active_assets + active_debts + recurring_payments
+    tablolarını çözülmüş halde tek CSV'ye yazar. (yol, satır sayısı) döndürür."""
+    path = path or get_export_path()
+    conn = get_connection()
+    cursor = conn.cursor()
+    rows_out = []
+
+    cursor.execute(
+        "SELECT transaction_date, type, category, amount, description "
+        "FROM transactions ORDER BY id"
+    )
+    for r in cursor.fetchall():
+        tur = "gelir" if r["type"] in ("income", "Gelir") else "gider"
+        rows_out.append([
+            "islem", r["transaction_date"] or "", tur, r["category"] or "",
+            _dec(r["amount"]), "", _dec(r["description"]), "",
+        ])
+
+    cursor.execute(
+        "SELECT asset_name, asset_code, asset_type, purchase_price, quantity, purchase_date "
+        "FROM active_assets ORDER BY id"
+    )
+    for r in cursor.fetchall():
+        rows_out.append([
+            "varlik", r["purchase_date"] or "", r["asset_type"] or "", r["asset_code"] or "",
+            _dec(r["purchase_price"]), _dec(r["quantity"]), _dec(r["asset_name"]), "",
+        ])
+
+    cursor.execute(
+        "SELECT debt_name, total_amount, monthly_payment, total_installments, "
+        "paid_installments FROM active_debts WHERE is_active = 1 ORDER BY id"
+    )
+    for r in cursor.fetchall():
+        detay = (
+            f"aylik_odeme={_dec(r['monthly_payment'])};"
+            f"toplam_taksit={r['total_installments']};"
+            f"odenen_taksit={r['paid_installments']}"
+        )
+        rows_out.append([
+            "borc", "", "", "", _dec(r["total_amount"]), "", _dec(r["debt_name"]), detay,
+        ])
+
+    cursor.execute(
+        "SELECT name, amount, category, frequency, next_due_date, auto_deduct "
+        "FROM recurring_payments WHERE is_active = 1 ORDER BY id"
+    )
+    for r in cursor.fetchall():
+        rows_out.append([
+            "tekrarlanan", r["next_due_date"] or "", r["frequency"] or "", r["category"] or "",
+            _dec(r["amount"]), "", _dec(r["name"]), f"otomatik={r['auto_deduct']}",
+        ])
+
+    conn.close()
+
+    # utf-8-sig: Excel'in Türkçe karakterleri doğru açması BOM'a bağlı
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.writer(f)
+        writer.writerow(CSV_HEADER)
+        writer.writerows(rows_out)
+
+    return path, len(rows_out)
+
+
+def _normalize_date(raw):
+    """Desteklenen formatlardaki tarihi DB'nin kullandığı biçime çevirir;
+    tanınmazsa None döner (satır atlanır, tarih uydurmayız)."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(raw, fmt).strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            continue
+    return None
+
+
+def parse_transactions_csv(path):
+    """CSV'den içe aktarılabilir işlem satırlarını çıkarır.
+
+    Dönen her öğe: {date, type('income'/'expense'), category, amount, description}.
+    Finora'nın kendi export formatında yalnızca kayit_turu=islem satırları alınır;
+    jenerik dosyalarda tüm satırlar denenir. Bozuk satırlar sessizce atlanır ve
+    (kayıtlar, atlanan_sayısı) olarak raporlanır.
+    """
+    records, skipped = [], 0
+
+    with open(path, "r", newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        if not reader.fieldnames:
+            return [], 0
+        field_map = {}
+        for name in reader.fieldnames:
+            key = _COLUMN_ALIASES.get((name or "").strip().lower())
+            if key and key not in field_map:
+                field_map[key] = name
+        has_type_col = "kayit_turu" in [(n or "").strip().lower() for n in reader.fieldnames]
+
+        for row in reader:
+            if has_type_col:
+                kayit_turu = (row.get("kayit_turu") or "").strip().lower()
+                if kayit_turu != "islem":
+                    continue  # varlık/borç/tekrarlanan satırları işlem değildir
+
+            raw_tur = (row.get(field_map.get("tur", ""), "") or "").strip().lower()
+            if raw_tur in _INCOME_WORDS:
+                tx_type = "income"
+            elif raw_tur in _EXPENSE_WORDS:
+                tx_type = "expense"
+            else:
+                skipped += 1
+                continue
+
+            date = _normalize_date(row.get(field_map.get("tarih", ""), ""))
+            if not date:
+                skipped += 1
+                continue
+
+            raw_amount = (row.get(field_map.get("tutar", ""), "") or "").strip()
+            try:
+                # "1.234,56" Türk biçimini de kabul et
+                if "," in raw_amount and raw_amount.count(",") == 1:
+                    raw_amount = raw_amount.replace(".", "").replace(",", ".")
+                amount = float(raw_amount)
+                if amount <= 0:
+                    raise ValueError
+            except ValueError:
+                skipped += 1
+                continue
+
+            records.append({
+                "date": date,
+                "type": tx_type,
+                "category": (row.get(field_map.get("kategori", ""), "") or "").strip() or "Diğer",
+                "amount": amount,
+                "description": (row.get(field_map.get("aciklama", ""), "") or "").strip(),
+            })
+
+    return records, skipped
+
+
+def import_transactions_from_csv(path, account_id=DEFAULT_ACCOUNT_ID):
+    """CSV'deki işlemleri TransactionService üzerinden içeri alır.
+
+    Şifreleme ve accounts.balance güncellemesi add_transaction içinde atomik
+    yapıldığından burada ayrıca bir şey yapılmaz — geçmiş tarihli her kayıt
+    bakiyeyi kendi yönünde (gelir +, gider -) etkiler.
+    (aktarılan_sayısı, atlanan_sayısı, net_bakiye_etkisi) döndürür.
+    """
+    from services.transaction_service import TransactionService
+
+    records, skipped = parse_transactions_csv(path)
+    net_delta = 0.0
+    imported = 0
+    for rec in records:
+        TransactionService.add_transaction(
+            account_id=account_id,
+            amount=rec["amount"],
+            transaction_type=rec["type"],
+            category=rec["category"],
+            description=rec["description"] or rec["category"],
+            transaction_date=rec["date"],
+        )
+        net_delta += rec["amount"] if rec["type"] == "income" else -rec["amount"]
+        imported += 1
+
+    return imported, skipped, net_delta
