@@ -11,3 +11,9 @@ __pycache__/
 *.pyc
 .venv/
 .vscode/
+
+# IDE ajanlarının (Antigravity vb.) bıraktığı tek seferlik test çıktıları
+test_output*.txt
+test_exit*.txt
+discover_output*.txt
+run_tests.py
