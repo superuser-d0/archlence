@@ -576,7 +576,7 @@ class AssetMixin:
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivymd.uix.textfield import MDTextField
         from kivymd.uix.scrollview import MDScrollView
-        from kivymd.uix.list import MDList, TwoLineAvatarIconListItem, IconLeftWidget
+        from kivymd.uix.list import MDList, TwoLineAvatarIconListItem, IconLeftWidget, ImageLeftWidget
         from services.crypto_top100 import fetch_top_100_cryptos
 
         self._crypto_selected_code = None
@@ -621,12 +621,20 @@ class AssetMixin:
                     text=f"[b]{code}[/b]{price_text}",
                     secondary_text=name,
                 )
-                item.add_widget(IconLeftWidget(
-                    icon="bitcoin",
-                    theme_text_color="Custom",
-                    text_color=(0.85, 0.65, 0.13, 1),
-                ))
-                
+                image_url = c.get("image")
+                if image_url:
+                    logo = ImageLeftWidget(source=image_url)
+                    self._bind_fitimage_error(
+                        logo, lambda *a, itm=item, im=logo: self._crypto_row_logo_fallback(itm, im)
+                    )
+                    item.add_widget(logo)
+                else:
+                    item.add_widget(IconLeftWidget(
+                        icon="bitcoin",
+                        theme_text_color="Custom",
+                        text_color=(0.85, 0.65, 0.13, 1),
+                    ))
+
                 try:
                     item.ids._lbl_primary.markup = True
                 except Exception:
@@ -706,6 +714,23 @@ class AssetMixin:
             ],
         )
         self._crypto_dialog.open()
+
+    def _crypto_row_logo_fallback(self, item, broken_image):
+        """CoinGecko logo URL'i yüklenemezse (on_error) satırdaki görseli
+        kaldırıp sabit 'bitcoin' ikonuna döner. ImageLeftWidget, BaseListItem
+        tarafından item.ids._left_container içine eklendiği için doğrudan
+        item.remove_widget() onu bulamaz — kaldırma da aynı container'dan
+        yapılmalı."""
+        from kivymd.uix.list import IconLeftWidget
+        try:
+            item.ids._left_container.remove_widget(broken_image)
+            item.add_widget(IconLeftWidget(
+                icon="bitcoin",
+                theme_text_color="Custom",
+                text_color=(0.85, 0.65, 0.13, 1),
+            ))
+        except Exception:
+            pass
 
     def _show_crypto_price_dialog(self, code, name):
         """Kripto seçildikten sonra alım fiyatı ve miktar giriş diyaloğu."""
@@ -828,7 +853,6 @@ class AssetMixin:
         from kivymd.uix.button import MDFlatButton, MDRaisedButton
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivymd.uix.textfield import MDTextField
-        from kivymd.uix.label import MDIcon
 
         quick_picks_height = 44 if self._get_quick_picks(self._asset_selected_type) else 0
         content = MDBoxLayout(
@@ -839,16 +863,12 @@ class AssetMixin:
             padding=["0dp", "8dp", "0dp", "0dp"]
         )
 
-        type_icon = MDIcon(
-            icon=ASSET_TYPE_ICONS.get(self._asset_selected_type, "wallet-outline"),
-            font_size="40sp",
-            halign="center",
-            theme_text_color="Custom",
-            text_color=GOLD_ICON_COLOR if self._asset_selected_type == "Altın" else (0.08, 0.72, 0.42, 1),
+        self._type_logo_slot = MDBoxLayout(
             size_hint_y=None,
             height="40dp",
         )
-        content.add_widget(type_icon)
+        self._type_logo_slot.add_widget(self._make_type_fallback_icon())
+        content.add_widget(self._type_logo_slot)
 
         quick_picks = self._get_quick_picks(self._asset_selected_type)
         if quick_picks:
@@ -874,6 +894,8 @@ class AssetMixin:
             size_hint_x=1,
         )
         self._asset_code_input.text = self._get_default_symbol(self._asset_selected_type)
+        self._asset_code_input.bind(text=self._refresh_type_logo_preview)
+        self._refresh_type_logo_preview()
 
         self._asset_name_input = MDTextField(
             hint_text="Varlık Adı (isteğe bağlı)",
@@ -915,6 +937,78 @@ class AssetMixin:
             ],
         )
         self.asset_dialog.open()
+
+    def _make_type_fallback_icon(self):
+        """Döviz/Altın için uzak logo çözülene (veya hiç çözülemeyene) kadar
+        gösterilen statik MDI ikon — mevcut renkli ikon fallback'i."""
+        from kivymd.uix.label import MDIcon
+        return MDIcon(
+            icon=ASSET_TYPE_ICONS.get(self._asset_selected_type, "wallet-outline"),
+            font_size="40sp",
+            halign="center",
+            theme_text_color="Custom",
+            text_color=GOLD_ICON_COLOR if self._asset_selected_type == "Altın" else (0.08, 0.72, 0.42, 1),
+        )
+
+    def _refresh_type_logo_preview(self, *args):
+        """Sembol alanı her değiştiğinde (elle yazma veya hızlı seçim çipi)
+        çağrılır: kod Döviz/Altın olarak tanınıyorsa uzak logoyu önizler,
+        tanınmıyorsa mevcut MDI ikonuna döner. Ağ isteği yoktur — sadece URL
+        üretilir, indirmeyi widget'ın kendi async loader'ı yapar."""
+        from services.logo_service import resolve_remote_logo_url
+        code = self._asset_code_input.text.strip() if hasattr(self, "_asset_code_input") else ""
+        url = resolve_remote_logo_url(code)
+        if url:
+            self._swap_type_logo(url)
+        else:
+            self._reset_type_logo_icon()
+
+    def _swap_type_logo(self, url):
+        """type_logo_slot içeriğini uzak logo görseline değiştirir; görsel
+        yüklenemezse (on_error) otomatik olarak MDI ikon fallback'ine döner."""
+        slot = getattr(self, "_type_logo_slot", None)
+        if not slot:
+            return
+        from kivymd.uix.fitimage import FitImage
+        from kivy.metrics import dp
+        slot.clear_widgets()
+        image = FitImage(
+            source=url,
+            radius=[dp(20)] * 4,
+            size_hint=(None, None),
+            size=(dp(40), dp(40)),
+            pos_hint={"center_x": .5},
+        )
+        self._bind_fitimage_error(image, lambda *a: self._reset_type_logo_icon())
+        slot.add_widget(image)
+
+    def _bind_fitimage_error(self, fit_image, on_error):
+        """FitImage'ın iç AsyncImage'ı (_container.image) bir sonraki Clock
+        frame'inde geç oluşturulduğu (bkz. FitImage._late_init) için, container
+        henüz hazır değilse özelliğin kendisine bind edip hazır olunca bağlar.
+
+        Kivy'nin Loader'ı uzak görsel indirmede 'on_error'ı ana thread'e
+        Clock ile geçirmeden doğrudan arka plan indirme thread'inden
+        dispatch eder (bkz. kivy/loader.py LoaderBase._load_urllib) — bu
+        yüzden callback'i burada Clock.schedule_once ile ana thread'e
+        erteliyoruz, yoksa widget ağacını değiştirmek 'Cannot change
+        graphics instruction outside the main Kivy thread' hatası verir."""
+        def _attach(instance, container):
+            if container:
+                container.image.bind(
+                    on_error=lambda *a: Clock.schedule_once(lambda dt: on_error(*a))
+                )
+        if fit_image._container:
+            _attach(fit_image, fit_image._container)
+        else:
+            fit_image.bind(_container=_attach)
+
+    def _reset_type_logo_icon(self):
+        slot = getattr(self, "_type_logo_slot", None)
+        if not slot:
+            return
+        slot.clear_widgets()
+        slot.add_widget(self._make_type_fallback_icon())
 
     # Tür başına hızlı seçim çipleri: (buton metni, yfinance sembolü, dostane isim)
     _QUICK_PICKS = {

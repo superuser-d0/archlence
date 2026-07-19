@@ -57,6 +57,16 @@ def _classify(code: str):
     return None, None
 
 
+def resolve_remote_logo_url(code: str) -> str | None:
+    """Ham kod için (AĞ ÇAĞRISI YOK) doğrudan bir AsyncImage/FitImage
+    `source`'una verilebilecek uzak logo URL'sini döndürür; tanınmayan kodlar
+    için None. Asıl ağ isteğini widget'ın kendi async loader'ı yapar, bu
+    fonksiyon sadece URL üretir — Varlık Ekle akışındaki anlık önizleme için
+    kullanılır (kalıcı önbelleğe yazmaz, bkz. fetch_and_cache_logo)."""
+    _, url = _classify(code)
+    return url
+
+
 def resolve_cached_logo_path(code: str) -> str | None:
     """Sadece yerel diski kontrol eder (AĞ ÇAĞRISI YOK) — UI thread'inden
     güvenle çağrılabilir. Daha önce başarıyla indirilmiş bir logo varsa yolunu
