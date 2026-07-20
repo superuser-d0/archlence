@@ -36,6 +36,13 @@ def initialize_database():
         cursor.execute("UPDATE accounts SET credit_limit = 0 WHERE credit_limit IS NULL")
     if "statement_date" not in existing_account_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN statement_date INTEGER")
+        
+    if "card_number_full" not in existing_account_cols:
+        cursor.execute("ALTER TABLE accounts ADD COLUMN card_number_full TEXT")
+    if "expiry_date" not in existing_account_cols:
+        cursor.execute("ALTER TABLE accounts ADD COLUMN expiry_date TEXT")
+    if "cvc_code" not in existing_account_cols:
+        cursor.execute("ALTER TABLE accounts ADD COLUMN cvc_code TEXT")
 
     # 2. İşlemler Tablosu
     cursor.execute("""

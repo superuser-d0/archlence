@@ -25,8 +25,9 @@ from services.account_service import (
     ACCOUNT_TYPE_LABELS,
     CHECKING,
     CREDIT_CARD,
-    AccountService,
+    AccountService
 )
+from ui.components import PremiumCreditCardWidget, BentoAccountWidget
 
 
 def _fmt(value):
@@ -80,8 +81,8 @@ class AccountMixin:
         # helper_text için büyür. Bu yüzden alan başına SLOT ayrılır: konteyner
         # en kötü durumda bile taşmaz, artan boşluk alanların altında kalır.
         FIELD_SLOT = dp(56)
-        # En yüksek durum kredi kartıdır: borç + limit + kesim günü = 3 alan
-        DYNAMIC_H = FIELD_SLOT * 3 + GAP * 2
+        # En yüksek durum kredi kartıdır: borç + limit + kesim günü + kart no + SKT + CVC = 6 alan
+        DYNAMIC_H = FIELD_SLOT * 6 + GAP * 5
 
         type_control = MDSegmentedControl(
             pos_hint={"center_x": 0.5},
@@ -92,17 +93,14 @@ class AccountMixin:
         type_control.add_widget(type_checking)
         type_control.add_widget(type_credit)
 
-        # Karanlık tema kontrastı (hint/helper/metin/dolgu renkleri) artık
-        # ui/dashboard.kv'deki global `<MDTextField>` kuralından geliyor; burada
-        # tekrar edilmiyor ki tek kaynak kalsın ve tema değişiminde canlı
-        # güncellensin.
-        def create_modern_tf(hint, filter=None):
+        def create_modern_tf(hint, filter=None, password=False):
             return MDTextField(
                 hint_text=hint,
                 input_filter=filter,
                 mode="fill",
                 radius=[dp(12), dp(12), dp(12), dp(12)],
                 size_hint_y=None,
+                password=password
             )
 
         self.acc_name_field = create_modern_tf("Hesap / Kart Adı")
@@ -110,11 +108,12 @@ class AccountMixin:
         self.acc_debt_field = create_modern_tf("Mevcut Borç (₺)", "float")
         self.acc_limit_field = create_modern_tf("Toplam Limit (₺)", "float")
         self.acc_statement_field = create_modern_tf("Hesap Kesim Günü (1-31, opsiyonel)", "int")
+        self.acc_card_number_field = create_modern_tf("Kart Numarası (Örn: 1234 5678 1234 5678)")
+        self.acc_expiry_field = create_modern_tf("Son Kullanma Tarihi (AA/YY)")
+        self.acc_cvc_field = create_modern_tf("CVC (Arkada yer alan 3 hane)", filter="int", password=True)
 
         self.selected_account_type = "Nakit / Vadesiz"
 
-        # Tür değiştikçe SADECE bu konteynerin içeriği değişir; yüksekliği sabit
-        # olduğu için üstteki başlık ve sekme çubuğu asla yerinden oynamaz.
         dynamic_container = MDBoxLayout(
             orientation="vertical",
             size_hint_y=None,
@@ -135,17 +134,16 @@ class AccountMixin:
         inner.add_widget(dynamic_container)
 
         def fill_dynamic(account_type_label):
-            """dynamic_container'ı seçili türe göre doldurur. Konteynerin
-            yüksekliğine DOKUNMAZ — taşmayı engelleyen şey tam olarak budur."""
             dynamic_container.clear_widgets()
             if account_type_label == "Kredi Kartı":
+                dynamic_container.add_widget(self.acc_card_number_field)
+                dynamic_container.add_widget(self.acc_expiry_field)
+                dynamic_container.add_widget(self.acc_cvc_field)
                 dynamic_container.add_widget(self.acc_debt_field)
                 dynamic_container.add_widget(self.acc_limit_field)
                 dynamic_container.add_widget(self.acc_statement_field)
             else:
                 dynamic_container.add_widget(self.acc_initial_balance_field)
-                # Kalan boşluğu doldur ki tek alan konteynerin ortasına
-                # yayılmak yerine üstte hizalı kalsın.
                 dynamic_container.add_widget(Widget())
 
         fill_dynamic(self.selected_account_type)
@@ -160,9 +158,16 @@ class AccountMixin:
             is_credit = (self.selected_account_type == "Kredi Kartı")
             acc_type = "credit_card" if is_credit else "checking"
             
+            card_number_full = None
+            expiry_date = None
+            cvc_code = None
+
             if is_credit:
                 initial_balance = float(self.acc_debt_field.text or 0)
                 credit_limit = float(self.acc_limit_field.text or 0)
+                card_number_full = self.acc_card_number_field.text.strip()
+                expiry_date = self.acc_expiry_field.text.strip()
+                cvc_code = self.acc_cvc_field.text.strip()
             else:
                 initial_balance = float(self.acc_initial_balance_field.text or 0)
                 credit_limit = 0.0
@@ -175,6 +180,9 @@ class AccountMixin:
                 initial_balance=initial_balance,
                 credit_limit=credit_limit,
                 statement_date=statement_date,
+                card_number_full=card_number_full,
+                expiry_date=expiry_date,
+                cvc_code=cvc_code
             )
 
         def do_cancel(instance):
@@ -207,7 +215,8 @@ class AccountMixin:
 
     # ─── İş mantığı (tamamlandı — değiştirmeyin) ──────────────────────────────
     def commit_new_account(self, name, account_type, initial_balance=0.0,
-                           credit_limit=0.0, statement_date=None):
+                           credit_limit=0.0, statement_date=None,
+                           card_number_full=None, expiry_date=None, cvc_code=None):
         """Formdan gelen veriyi doğrular, hesabı kaydeder ve ekranı tazeler.
 
         Başarılıysa True, doğrulama hatası varsa (toast göstererek) False döner.
@@ -221,6 +230,9 @@ class AccountMixin:
                 initial_balance=initial_balance,
                 credit_limit=credit_limit,
                 statement_date=statement_date,
+                card_number_full=card_number_full,
+                expiry_date=expiry_date,
+                cvc_code=cvc_code
             )
         except ValueError as exc:
             toast(str(exc))
@@ -248,14 +260,17 @@ class AccountMixin:
         """Hesap/kart kartlarını `accounts_container`'a çizer ve özet etiketlerini
         günceller. Konteyner henüz kv'de yoksa sessizce çıkar — böylece arayüz
         parçası eklenmeden önce de backend testleri çağırabilir."""
-        if not (self.root and "accounts_container" in self.root.ids):
+        if not (self.root and "accounts_container" in self.root.ids and "cards_container" in self.root.ids):
             return
 
         summary = AccountService.get_net_worth()
         self._update_account_summary(summary)
 
-        container = self.root.ids.accounts_container
-        container.clear_widgets()
+        container_cards = self.root.ids.cards_container
+        container_accounts = self.root.ids.accounts_container
+        
+        container_cards.clear_widgets()
+        container_accounts.clear_widgets()
 
         accounts = AccountService.get_accounts()
         if not accounts:
@@ -269,11 +284,26 @@ class AccountMixin:
                 height=dp(40),
             )
             lbl.bind(size=lbl.setter("text_size"))
-            container.add_widget(lbl)
+            container_accounts.add_widget(lbl)
             return
 
         for acc in accounts:
-            container.add_widget(self._build_account_card(acc))
+            is_card = acc["account_type"] == CREDIT_CARD
+            if is_card:
+                card = PremiumCreditCardWidget(
+                    card_name=acc["name"],
+                    masked_number=acc.get("masked_number", "**** **** **** 0000"),
+                    available_limit=_fmt(acc["available_limit"]),
+                    current_debt=_fmt(acc["debt"])
+                )
+                container_cards.add_widget(card)
+            else:
+                card = BentoAccountWidget(
+                    account_name=acc["name"],
+                    account_type_label=acc["type_label"],
+                    balance=_fmt(acc["balance"])
+                )
+                container_accounts.add_widget(card)
 
     def _update_account_summary(self, summary):
         """Nakit / kart borcu / net servet etiketlerini doldurur (varsa)."""
@@ -286,72 +316,3 @@ class AccountMixin:
         for widget_id, text in pairs:
             if widget_id in ids:
                 ids[widget_id].text = text
-
-    def _build_account_card(self, acc):
-        """Tek bir hesap/kart için özet kartı üretir.
-
-        Kredi kartında borç ve kullanılabilir limit gösterilir (ham negatif
-        bakiye ASLA gösterilmez); vadesizde düz bakiye gösterilir.
-        """
-        is_card = acc["account_type"] == CREDIT_CARD
-
-        card = ftheme.apply_card_theme(
-            MDCard(
-                orientation="vertical",
-                size_hint_y=None,
-                height=dp(104) if is_card else dp(84),
-                padding=dp(16),
-                spacing=dp(4),
-                style="outlined",
-                radius=[dp(20)] * 4,
-            ),
-            self.theme_cls,
-            tint="red" if is_card else "green",
-        )
-
-        title = MDLabel(
-            text=f"{acc['name']}  ·  {acc['type_label']}",
-            bold=True,
-            font_style="Subtitle2",
-            size_hint_y=None,
-            height=dp(24),
-        )
-        card.add_widget(title)
-
-        if is_card:
-            detail = MDLabel(
-                text=f"Güncel borç: {_fmt(acc['debt'])}",
-                theme_text_color="Custom",
-                text_color=(0.78, 0.1, 0.1, 1),
-                bold=True,
-                font_style="Body2",
-                size_hint_y=None,
-                height=dp(24),
-            )
-            card.add_widget(detail)
-
-            limit_text = (
-                f"Kullanılabilir limit: {_fmt(acc['available_limit'])} "
-                f"/ {_fmt(acc['credit_limit'])}"
-            )
-            if acc["statement_date"]:
-                limit_text += f"  ·  Kesim: her ayın {acc['statement_date']}'i"
-            card.add_widget(MDLabel(
-                text=limit_text,
-                font_style="Caption",
-                theme_text_color="Secondary",
-                size_hint_y=None,
-                height=dp(20),
-            ))
-        else:
-            card.add_widget(MDLabel(
-                text=f"Bakiye: {_fmt(acc['balance'])}",
-                theme_text_color="Custom",
-                text_color=(0.06, 0.55, 0.18, 1) if acc["balance"] >= 0 else (0.78, 0.1, 0.1, 1),
-                bold=True,
-                font_style="Body2",
-                size_hint_y=None,
-                height=dp(24),
-            ))
-
-        return card

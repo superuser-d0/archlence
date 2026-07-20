@@ -34,7 +34,8 @@ class AccountService:
 
     @staticmethod
     def create_account(name, account_type, initial_balance=0.0,
-                       credit_limit=0.0, statement_date=None):
+                       credit_limit=0.0, statement_date=None,
+                       card_number_full=None, expiry_date=None, cvc_code=None):
         """Yeni hesap/kart oluşturur ve eklenen satırın id'sini döndürür.
 
         Kredi kartı için `initial_balance` MEVCUT BORÇ olarak (pozitif sayı)
@@ -81,19 +82,21 @@ class AccountService:
             credit_limit = 0.0
             statement_date = None
             legacy_type = "bank"
+            
+        from utils.crypto import encrypt
+        from database.db import SECRET_KEY
+        enc_card_number = encrypt(card_number_full, SECRET_KEY) if card_number_full else None
+        enc_expiry = encrypt(expiry_date, SECRET_KEY) if expiry_date else None
+        enc_cvc = encrypt(cvc_code, SECRET_KEY) if cvc_code else None
 
         conn = get_connection()
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO accounts (name, type, balance, account_type, credit_limit, statement_date)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (name, legacy_type, balance, account_type, credit_limit, statement_date))
+                INSERT INTO accounts (name, type, balance, account_type, credit_limit, statement_date, card_number_full, expiry_date, cvc_code)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (name, legacy_type, balance, account_type, credit_limit, statement_date, enc_card_number, enc_expiry, enc_cvc))
             account_id = cursor.lastrowid
-            # [Faz 2 · defter 7/8] Hesap açılışı da bir bakiye hareketidir.
-            # UPDATE değil INSERT olduğu için ilk taramada gözden kaçmıştı:
-            # açılış bakiyesi deftere yazılmazsa replay toplamı hiçbir zaman
-            # gerçek SUM(balance) ile tutmaz (açılış kadar eksik kalır).
             record_balance_event(cursor, ACCOUNT, account_id, balance, balance,
                                  "account_opened")
             conn.commit()
@@ -103,22 +106,28 @@ class AccountService:
 
     @staticmethod
     def _to_dict(row):
-        """accounts satırını türetilmiş alanlarla birlikte dict'e çevirir.
-
-        Eski satırlarda account_type NULL olabilir (migration öncesi yazılmışsa);
-        o durumda legacy `type` sütunundan türetilir ki UI hiçbir zaman türsüz
-        hesap görmesin.
-        """
         account_type = row["account_type"]
         if not account_type:
             account_type = CREDIT_CARD if row["type"] == "credit" else CHECKING
 
         balance = float(row["balance"] or 0)
         credit_limit = float(row["credit_limit"] or 0)
+        
+        from utils.crypto import decrypt
+        from database.db import SECRET_KEY
+        
+        # Determine masked number
+        masked_number = "**** **** **** 0000"
+        if row.get("card_number_full"):
+            try:
+                dec_num = decrypt(row["card_number_full"], SECRET_KEY)
+                # Keep only the last 4 digits
+                last4 = dec_num[-4:] if len(dec_num) >= 4 else dec_num
+                masked_number = f"**** **** **** {last4}"
+            except Exception:
+                pass
 
         if account_type == CREDIT_CARD:
-            # balance negatif tutulur; borç onun mutlak değeridir. Kart artıya
-            # geçmişse (fazla ödeme) borç 0'dır, negatif borç göstermeyiz.
             debt = max(0.0, -balance)
             available_limit = max(0.0, credit_limit - debt)
         else:
@@ -135,6 +144,7 @@ class AccountService:
             "statement_date": row["statement_date"],
             "debt": round(debt, 2),
             "available_limit": round(available_limit, 2),
+            "masked_number": masked_number
         }
 
     @staticmethod
