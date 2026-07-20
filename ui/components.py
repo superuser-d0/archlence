@@ -361,7 +361,10 @@ Builder.load_string('''
                 text: "İnternet Alışverişi"
                 font_style: "Caption"
                 size_hint_x: None
-                width: "120dp"
+                # 100dp: en uzun etiket ("İnternet Alışverişi") Caption boyunda
+                # 91dp ölçüldü; kutu switch'i gereksiz sağa itmeyecek kadar dar,
+                # metni kırpmayacak kadar geniş.
+                width: "100dp"
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
@@ -388,7 +391,10 @@ Builder.load_string('''
                 text: "Kartı Dondur"
                 font_style: "Caption"
                 size_hint_x: None
-                width: "120dp"
+                # 100dp: en uzun etiket ("İnternet Alışverişi") Caption boyunda
+                # 91dp ölçüldü; kutu switch'i gereksiz sağa itmeyecek kadar dar,
+                # metni kırpmayacak kadar geniş.
+                width: "100dp"
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
@@ -555,7 +561,10 @@ Builder.load_string('''
                 text: "İnternet Alışverişi"
                 font_style: "Caption"
                 size_hint_x: None
-                width: "120dp"
+                # 100dp: en uzun etiket ("İnternet Alışverişi") Caption boyunda
+                # 91dp ölçüldü; kutu switch'i gereksiz sağa itmeyecek kadar dar,
+                # metni kırpmayacak kadar geniş.
+                width: "100dp"
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
@@ -582,7 +591,10 @@ Builder.load_string('''
                 text: "Kartı Dondur"
                 font_style: "Caption"
                 size_hint_x: None
-                width: "120dp"
+                # 100dp: en uzun etiket ("İnternet Alışverişi") Caption boyunda
+                # 91dp ölçüldü; kutu switch'i gereksiz sağa itmeyecek kadar dar,
+                # metni kırpmayacak kadar geniş.
+                width: "100dp"
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
