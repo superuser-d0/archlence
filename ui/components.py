@@ -232,6 +232,8 @@ Builder.load_string('''
             font_style: "H6"
             bold: True
             pos_hint: {"x": 0.08, "top": 0.90}
+            size_hint_x: 0.84
+            halign: "left"
             adaptive_height: True
             
         MDIcon:
@@ -249,6 +251,8 @@ Builder.load_string('''
             text_color: 0.7, 0.7, 0.7, 1
             font_style: "Subtitle2"
             pos_hint: {"x": 0.08, "center_y": 0.45}
+            size_hint_x: 0.84
+            halign: "left"
             adaptive_height: True
             
         MDLabel:
@@ -257,6 +261,8 @@ Builder.load_string('''
             text_color: 0.8, 0.8, 0.8, 1
             font_style: "Caption"
             pos_hint: {"x": 0.08, "y": 0.15}
+            size_hint_x: 0.84
+            halign: "left"
             adaptive_height: True
 
         # Sabit en-boy oranı ile Visa/Mastercard Logosu
@@ -457,6 +463,8 @@ Builder.load_string('''
             font_style: "H6"
             bold: True
             pos_hint: {"x": 0.08, "top": 0.90}
+            size_hint_x: 0.84
+            halign: "left"
             adaptive_height: True
             
         MDIcon:
@@ -474,6 +482,8 @@ Builder.load_string('''
             text_color: 0.7, 0.7, 0.7, 1
             font_style: "Subtitle2"
             pos_hint: {"x": 0.08, "center_y": 0.45}
+            size_hint_x: 0.84
+            halign: "left"
             adaptive_height: True
             
         MDLabel:
@@ -482,6 +492,8 @@ Builder.load_string('''
             text_color: 0.8, 0.8, 0.8, 1
             font_style: "Caption"
             pos_hint: {"x": 0.08, "y": 0.15}
+            size_hint_x: 0.84
+            halign: "left"
             adaptive_height: True
 
         Image:
