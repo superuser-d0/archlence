@@ -27,7 +27,7 @@ from services.account_service import (
     CREDIT_CARD,
     AccountService
 )
-from ui.components import PremiumCreditCardWidget, BentoAccountWidget
+from ui.components import PremiumCreditCardWidget, PremiumDebitCardWidget, BentoAccountWidget
 
 
 def _fmt(value):
@@ -288,13 +288,24 @@ class AccountMixin:
             return
 
         for acc in accounts:
-            is_card = acc["account_type"] == CREDIT_CARD
-            if is_card:
+            is_credit_card = acc["account_type"] == CREDIT_CARD
+            has_card = acc.get("masked_number") and acc["masked_number"] != "**** **** **** 0000"
+
+            if is_credit_card:
                 card = PremiumCreditCardWidget(
                     card_name=acc["name"],
                     masked_number=acc.get("masked_number", "**** **** **** 0000"),
+                    network_logo=acc.get("network_logo", ""),
                     available_limit=_fmt(acc["available_limit"]),
                     current_debt=_fmt(acc["debt"])
+                )
+                container_cards.add_widget(card)
+            elif has_card:
+                card = PremiumDebitCardWidget(
+                    card_name=acc["name"],
+                    masked_number=acc.get("masked_number", "**** **** **** 0000"),
+                    network_logo=acc.get("network_logo", ""),
+                    balance=_fmt(acc["balance"])
                 )
                 container_cards.add_widget(card)
             else:

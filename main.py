@@ -1193,6 +1193,11 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
         Clock.schedule_once(_switch_theme, 0.2)
 
     def _after_theme_switch(self, *args):
+        try:
+            from ui.theme import _refresh
+            _refresh(self.theme_cls)
+        except Exception:
+            pass
         self._normalize_card_shadows()
         self._resync_text_fields()
 

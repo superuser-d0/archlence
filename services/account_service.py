@@ -105,6 +105,15 @@ class AccountService:
             conn.close()
 
     @staticmethod
+    def check_card_network(card_number):
+        if not card_number: return ""
+        num = str(card_number).replace(" ", "").replace("-", "")
+        if num.startswith("4"): return "assets/visa.png"
+        if num.startswith("5"): return "assets/mastercard.png"
+        if num.startswith("9792"): return "assets/troy.png"
+        return ""
+
+    @staticmethod
     def _to_dict(row):
         account_type = row["account_type"]
         if not account_type:
@@ -116,11 +125,13 @@ class AccountService:
         from utils.crypto import decrypt
         from database.db import SECRET_KEY
         
-        # Determine masked number
+        # Determine masked number and network logo
         masked_number = "**** **** **** 0000"
-        if row.get("card_number_full"):
+        network_logo = ""
+        if "card_number_full" in row.keys() and row["card_number_full"]:
             try:
                 dec_num = decrypt(row["card_number_full"], SECRET_KEY)
+                network_logo = AccountService.check_card_network(dec_num)
                 # Keep only the last 4 digits
                 last4 = dec_num[-4:] if len(dec_num) >= 4 else dec_num
                 masked_number = f"**** **** **** {last4}"
@@ -144,7 +155,8 @@ class AccountService:
             "statement_date": row["statement_date"],
             "debt": round(debt, 2),
             "available_limit": round(available_limit, 2),
-            "masked_number": masked_number
+            "masked_number": masked_number,
+            "network_logo": network_logo
         }
 
     @staticmethod
@@ -209,15 +221,18 @@ class AccountService:
         # Limit 0 = "belirlenmemiş", yasak değil. Migration'dan gelen eski kartlar
         # credit_limit=0 ile geliyor; bunları limitsiz saymazsak kullanıcının
         # mevcut kartından yapacağı HER harcama reddedilirdi.
-        if acc["credit_limit"] <= 0:
+        limit = float(acc["credit_limit"])
+        if limit <= 0:
             return True, ""
         try:
             amount = float(amount)
         except (TypeError, ValueError):
             return False, "Geçersiz tutar."
-        if amount > acc["available_limit"]:
+        
+        avail = float(acc["available_limit"])
+        if amount > avail:
             return False, (
                 f"Limit yetersiz: kullanılabilir limit "
-                f"{_fmt_try(acc['available_limit'])}, harcama {_fmt_try(amount)}."
+                f"{_fmt_try(avail)}, harcama {_fmt_try(amount)}."
             )
         return True, ""

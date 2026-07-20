@@ -1471,7 +1471,7 @@ MDScreen:
 
                                         ScrollView:
                                             size_hint_y: None
-                                            height: "440dp"
+                                            height: "500dp"
                                             do_scroll_y: False
                                             do_scroll_x: True
                                             bar_width: 0
@@ -1498,6 +1498,12 @@ MDScreen:
                                             cols: 2 if root.width > dp(600) else 1
                                             adaptive_height: True
                                             spacing: "12dp"
+                                            
+                        MDFloatingActionButton:
+                            icon: "credit-card-plus"
+                            md_bg_color: (0.33, 0.27, 0.90, 1) # #5444E5
+                            pos_hint: {"right": 0.95, "y": 0.05}
+                            on_release: app.open_add_account_dialog()
 
                 # ==== 3. SEKME: ARAÇLAR ====
                 MDBottomNavigationItem:

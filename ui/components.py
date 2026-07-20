@@ -202,7 +202,8 @@ from kivymd.uix.card import MDCard
 Builder.load_string('''
 <PremiumCreditCardWidget>:
     size_hint: None, None
-    size: "300dp", "420dp"
+    width: "300dp"
+    adaptive_height: True
     orientation: "vertical"
     padding: "12dp"
     spacing: "12dp"
@@ -260,11 +261,12 @@ Builder.load_string('''
 
         # Sabit en-boy oranı ile Visa/Mastercard Logosu
         Image:
-            source: "assets/visa.png" # Logonun bulunduğu varsayılan konum
+            source: root.network_logo if root.network_logo else "assets/blank.png"
+            opacity: 1 if root.network_logo else 0
             keep_ratio: True
             allow_stretch: True
             size_hint: None, None
-            size: "50dp", "30dp"
+            size: "40dp", "24dp"
             pos_hint: {"right": 0.92, "y": 0.12}
 
     # Orta Kısım: Başlık ve Rozet
@@ -328,40 +330,54 @@ Builder.load_string('''
 
     Widget:
         size_hint_y: None
-        height: "4dp"
+        height: "8dp"
 
-    # Araçlar (Toggles)
+    # Araçlar (Toggles) - Sola Dayalı
     MDBoxLayout:
         size_hint_y: None
-        height: "32dp"
-        orientation: "horizontal"
-        MDIcon:
-            icon: "web"
-            size_hint_x: None
-            width: "32dp"
-            theme_text_color: "Secondary"
-        MDLabel:
-            text: "İnternet Alışverişi"
-            font_style: "Caption"
-        MDSwitch:
-            active: True
-            width: "48dp"
+        height: "48dp"
+        orientation: "vertical"
+        spacing: "8dp"
 
-    MDBoxLayout:
-        size_hint_y: None
-        height: "32dp"
-        orientation: "horizontal"
-        MDIcon:
-            icon: "snowflake"
-            size_hint_x: None
-            width: "32dp"
-            theme_text_color: "Secondary"
-        MDLabel:
-            text: "Kartı Dondur"
-            font_style: "Caption"
-        MDSwitch:
-            active: False
-            width: "48dp"
+        MDBoxLayout:
+            size_hint_y: None
+            height: "20dp"
+            orientation: "horizontal"
+            MDIcon:
+                icon: "web"
+                size_hint_x: None
+                width: "24dp"
+                font_size: "16sp"
+                theme_text_color: "Secondary"
+            MDLabel:
+                text: "İnternet Alışverişi"
+                font_style: "Caption"
+                size_hint_x: 1
+            MDSwitch:
+                active: True
+                size_hint_x: None
+                width: "36dp"
+                pos_hint: {"center_y": 0.5}
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "20dp"
+            orientation: "horizontal"
+            MDIcon:
+                icon: "snowflake"
+                size_hint_x: None
+                width: "24dp"
+                font_size: "16sp"
+                theme_text_color: "Secondary"
+            MDLabel:
+                text: "Kartı Dondur"
+                font_style: "Caption"
+                size_hint_x: 1
+            MDSwitch:
+                active: False
+                size_hint_x: None
+                width: "36dp"
+                pos_hint: {"center_y": 0.5}
 
     Widget:
         size_hint_y: 1
@@ -369,7 +385,7 @@ Builder.load_string('''
     # Butonlar
     MDBoxLayout:
         size_hint_y: None
-        height: "40dp"
+        height: "36dp"
         spacing: "8dp"
         orientation: "horizontal"
         MDFlatButton:
@@ -384,6 +400,161 @@ Builder.load_string('''
             line_color: app.theme_cls.primary_color
             theme_text_color: "Custom"
             text_color: app.theme_cls.primary_color
+<PremiumDebitCardWidget>:
+    size_hint: None, None
+    width: "300dp"
+    adaptive_height: True
+    orientation: "vertical"
+    padding: "12dp"
+    spacing: "12dp"
+    elevation: 1
+    radius: [dp(20)]
+    style: "outlined"
+    md_bg_color: app.theme_cls.bg_dark if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+
+    MDFloatLayout:
+        size_hint_y: None
+        height: "170dp"
+        
+        canvas.before:
+            Color:
+                rgba: 0.1, 0.11, 0.13, 1
+            RoundedRectangle:
+                size: self.size
+                pos: self.pos
+                radius: [dp(16)]
+                
+        MDLabel:
+            text: "Finora"
+            theme_text_color: "Custom"
+            text_color: 1, 1, 1, 1
+            font_style: "H6"
+            bold: True
+            pos_hint: {"x": 0.08, "top": 0.90}
+            adaptive_height: True
+            
+        MDIcon:
+            icon: "contactless-payment"
+            theme_text_color: "Custom"
+            text_color: 0.8, 0.8, 0.8, 1
+            font_size: "24sp"
+            pos_hint: {"right": 0.92, "top": 0.90}
+            size_hint: None, None
+            size: self.texture_size
+            
+        MDLabel:
+            text: root.masked_number
+            theme_text_color: "Custom"
+            text_color: 0.7, 0.7, 0.7, 1
+            font_style: "Subtitle2"
+            pos_hint: {"x": 0.08, "center_y": 0.45}
+            adaptive_height: True
+            
+        MDLabel:
+            text: "BANKA KARTI"
+            theme_text_color: "Custom"
+            text_color: 0.8, 0.8, 0.8, 1
+            font_style: "Caption"
+            pos_hint: {"x": 0.08, "y": 0.15}
+            adaptive_height: True
+
+        Image:
+            source: root.network_logo if root.network_logo else "assets/blank.png"
+            opacity: 1 if root.network_logo else 0
+            keep_ratio: True
+            allow_stretch: True
+            size_hint: None, None
+            size: "40dp", "24dp"
+            pos_hint: {"right": 0.92, "y": 0.12}
+
+    MDBoxLayout:
+        size_hint_y: None
+        height: "30dp"
+        orientation: "horizontal"
+        MDLabel:
+            text: root.card_name
+            font_style: "Subtitle1"
+            bold: True
+        MDCard:
+            size_hint: None, None
+            size: "80dp", "24dp"
+            md_bg_color: (0.9, 0.9, 1, 1) if app.theme_cls.theme_style == "Light" else (0.2, 0.2, 0.3, 1)
+            radius: [dp(8)]
+            elevation: 0
+            MDLabel:
+                text: "Banka Kartı"
+                font_style: "Caption"
+                theme_text_color: "Custom"
+                text_color: (0.3, 0.3, 0.8, 1) if app.theme_cls.theme_style == "Light" else (0.6, 0.6, 1, 1)
+                halign: "center"
+                valign: "center"
+
+    MDBoxLayout:
+        size_hint_y: None
+        height: "40dp"
+        orientation: "vertical"
+        MDLabel:
+            text: "Güncel Bakiye"
+            font_style: "Caption"
+            theme_text_color: "Secondary"
+        MDLabel:
+            text: root.balance
+            font_style: "Subtitle1"
+            bold: True
+
+    Widget:
+        size_hint_y: None
+        height: "8dp"
+
+    MDBoxLayout:
+        size_hint_y: None
+        height: "48dp"
+        orientation: "vertical"
+        spacing: "8dp"
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "20dp"
+            orientation: "horizontal"
+            MDIcon:
+                icon: "web"
+                size_hint_x: None
+                width: "24dp"
+                font_size: "16sp"
+                theme_text_color: "Secondary"
+            MDLabel:
+                text: "İnternet Alışverişi"
+                font_style: "Caption"
+                size_hint_x: 1
+            MDSwitch:
+                active: True
+                size_hint_x: None
+                width: "36dp"
+                pos_hint: {"center_y": 0.5}
+
+        MDBoxLayout:
+            size_hint_y: None
+            height: "20dp"
+            orientation: "horizontal"
+            MDIcon:
+                icon: "snowflake"
+                size_hint_x: None
+                width: "24dp"
+                font_size: "16sp"
+                theme_text_color: "Secondary"
+            MDLabel:
+                text: "Kartı Dondur"
+                font_style: "Caption"
+                size_hint_x: 1
+            MDSwitch:
+                active: False
+                size_hint_x: None
+                width: "36dp"
+                pos_hint: {"center_y": 0.5}
+
+    Widget:
+        size_hint_y: 1
+
 <BentoAccountWidget>:
     size_hint_y: None
     height: "100dp"
@@ -422,8 +593,15 @@ Builder.load_string('''
 class PremiumCreditCardWidget(MDCard):
     card_name = StringProperty("")
     masked_number = StringProperty("**** **** **** 0000")
+    network_logo = StringProperty("")
     available_limit = StringProperty("₺0,00")
     current_debt = StringProperty("₺0,00")
+
+class PremiumDebitCardWidget(MDCard):
+    card_name = StringProperty("")
+    masked_number = StringProperty("**** **** **** 0000")
+    network_logo = StringProperty("")
+    balance = StringProperty("₺0,00")
 
 class BentoAccountWidget(MDCard):
     account_name = StringProperty("")

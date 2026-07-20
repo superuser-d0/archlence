@@ -80,12 +80,13 @@ def _patch_text_color_once():
             from kivymd.app import MDApp
             _app = MDApp.get_running_app()
             if _app is not None and getattr(_app, "theme_name", "standard") == "premium":
-                return get_color_from_hex("151C27")
+                c = get_color_from_hex("151C27")
+                return tuple(c)
             color = get_color_from_hex("000000")
             color[3] = 0.87
-            return color
+            return tuple(color)
         color = get_color_from_hex("FFFFFF")
-        return color
+        return tuple(color)
 
     ThemeManager._get_text_color.__code__ = _finora_get_text_color.__code__
     ThemeManager._finora_text_patched = True

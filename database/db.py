@@ -13,6 +13,12 @@ SECRET_KEY = 'finora_secure_2026'
 # değişmesi gereken tek yer burası, 8 ayrı dosyaya dağılmış literal "1" değil.
 DEFAULT_ACCOUNT_ID = 1
 
+NETWORK_LOGOS = {
+    "Visa": "assets/visa.png",
+    "Mastercard": "assets/mastercard.png",
+    "Troy": "assets/troy.png",
+}
+
 def get_connection():
     conn = sqlite3.connect(DB_NAME, check_same_thread=False, timeout=10)
     conn.row_factory = sqlite3.Row
