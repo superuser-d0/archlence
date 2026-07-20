@@ -8,6 +8,7 @@ from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDFlatButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
+import ui.theme as ftheme
 
 
 class RecurringMixin:
@@ -65,10 +66,10 @@ class RecurringMixin:
                 else:
                     status = f"{days_left} gün kaldı"
 
-                card = MDCard(
+                card = ftheme.apply_card_theme(MDCard(
                     orientation="vertical", padding="12dp", spacing="6dp",
-                    size_hint_y=None, height="100dp", elevation=0, line_color=(0.8, 0.8, 0.8, 0.3), radius=[10]
-                )
+                    size_hint_y=None, height="100dp", radius=[10]
+                ), self.theme_cls)
 
                 header = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="24dp")
                 name_lbl = MDLabel(text=p["name"], font_style="Subtitle2", bold=True)

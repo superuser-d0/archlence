@@ -587,13 +587,21 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
         sert gri bir blok olarak render ediliyordu. Düz (flat) kart + yuvarlak
         köşe her iki temada da stabil; bu yüzden gölge kv'den değil buradan,
         tema uygulanırken merkezî olarak kapatılır.
+
+        Ayrıca `ui.theme.apply_card_theme` ile işaretlenmiş (Python'da imperatif
+        kurulmuş) kartların dolgu ve kenarlık renkleri burada tazelenir: KV'deki
+        kartlar bağlamalarla kendiliğinden güncellenir, Python'dakiler rengi bir
+        kez hesapladığı için tema değişimini kaçırırdı.
         """
         if not self.root:
             return
         from kivymd.uix.card import MDCard
-        for widget in self.root.walk():
+        from ui.theme import refresh_card_theme
+        for widget in self._all_widgets():
             if isinstance(widget, MDCard):
                 try:
+                    if hasattr(widget, "_finora_tint"):
+                        refresh_card_theme(widget, self.theme_cls)
                     widget.elevation = 0
                     if hasattr(widget, 'shadow_softness'):
                         widget.shadow_softness = 0
@@ -601,6 +609,29 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
                         widget.shadow_color = (0, 0, 0, 0)
                 except Exception:
                     pass
+
+    def _all_widgets(self):
+        """root + tüm ScreenManager ekranları + açık diyaloglar üzerinde gezer.
+
+        `Widget.walk()` tek başına yetmiyor: ScreenManager yalnızca GÖRÜNEN
+        ekranı children'ında tutar (diğerleri `.screens` içinde), diyaloglar ise
+        root'a değil Window'a bağlanır. Tema tazeleme her ikisini de görmek
+        zorunda.
+        """
+        from kivy.uix.screenmanager import ScreenManager
+        from kivy.core.window import Window
+
+        seen = set()
+        stack = [self.root] + list(Window.children)
+        while stack:
+            widget = stack.pop()
+            if widget is None or id(widget) in seen:
+                continue
+            seen.add(id(widget))
+            yield widget
+            stack.extend(widget.children)
+            if isinstance(widget, ScreenManager):
+                stack.extend(widget.screens)
 
     def contact_us(self):
         from kivymd.uix.dialog import MDDialog
@@ -1105,9 +1136,42 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
         self.sg_period = item.text
 
     def toggle_theme(self, is_active):
+        """Açık/karanlık mod geçişi.
+
+        Renk token'ları KV bağlamalarıyla kendiliğinden güncellenir; burada
+        yalnızca bağlamayla ulaşılamayan iki şey toparlanır: MDCard gölgeleri ve
+        AÇIK DİYALOGLARDAKİ giriş alanları (diyaloglar Window'a bağlanır,
+        app.root ağacında olmadıkları için normalize taraması onları görmez).
+        """
         def _switch_theme(dt):
+            from ui.theme import apply_dark_surface_tokens
+            apply_dark_surface_tokens()
             self.theme_cls.theme_style = "Dark" if is_active else "Light"
+            Clock.schedule_once(self._after_theme_switch, 0)
         Clock.schedule_once(_switch_theme, 0.2)
+
+    def _after_theme_switch(self, *args):
+        self._normalize_card_shadows()
+        self._resync_text_fields()
+
+    def _resync_text_fields(self):
+        """Giriş alanlarının iç (_hint_text_color vb.) renklerini tazeler.
+
+        MDTextField, çizimde kullandığı özel `_` alanlarını public renklerden
+        yalnızca belirli anlarda kopyalar; KV kuralı public değerleri
+        güncelledikten sonra bu kopyalamayı açıkça tetiklemezsek açık kalan bir
+        diyalogda hint metni eski temanın renginde kalır.
+        """
+        from kivymd.uix.textfield import MDTextField
+
+        if not self.root:
+            return
+        for widget in self._all_widgets():
+            if isinstance(widget, MDTextField):
+                try:
+                    widget.set_default_colors(0)
+                except Exception:
+                    pass
 
     def check_login(self):
         from security.security_service import SecurityService

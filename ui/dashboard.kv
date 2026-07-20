@@ -2,8 +2,24 @@
 #:import Window kivy.core.window.Window
 #:import LiquidWaveWidget ui.charts.LiquidWaveWidget
 #:import RecycleListRow ui.components.RecycleListRow
+#:import ftheme ui.theme
 
 # --- 0. GLOBAL WIDGET KURALLARI ---
+# Tüm giriş alanları: karanlık temada hint/helper metinleri KivyMD varsayılanıyla
+# siyaha yakın kalıp okunmuyordu. Kural sınıf düzeyinde olduğu için Python'da
+# imperatif kurulan diyalog alanlarına da uygulanır ve tema değişiminde canlı
+# güncellenir.
+<MDTextField>:
+    hint_text_color_normal: ftheme.field_color(app.theme_cls.theme_style, 'hint')
+    hint_text_color_focus: ftheme.field_color(app.theme_cls.theme_style, 'hint')
+    helper_text_color_normal: ftheme.field_color(app.theme_cls.theme_style, 'hint')
+    helper_text_color_focus: ftheme.field_color(app.theme_cls.theme_style, 'hint')
+    text_color_normal: ftheme.field_color(app.theme_cls.theme_style, 'text')
+    text_color_focus: ftheme.field_color(app.theme_cls.theme_style, 'text')
+    fill_color_normal: ftheme.field_color(app.theme_cls.theme_style, 'fill')
+    fill_color_focus: ftheme.field_color(app.theme_cls.theme_style, 'fill')
+    line_color_normal: ftheme.field_color(app.theme_cls.theme_style, 'line')
+
 <MDBottomNavigationBar>:
     elevation: 0
     shadow_softness: 0
@@ -49,7 +65,7 @@
     IconLeftWidget:
         icon: "cash-plus" if "Gelir" in root.secondary_text else "cash-minus"
         theme_text_color: "Custom"
-        text_color: (0.18, 0.8, 0.25, 1) if "Gelir" in root.secondary_text else (0.9, 0.2, 0.2, 1)
+        text_color: ftheme.accent(app.theme_cls.theme_style, 'green') if "Gelir" in root.secondary_text else (0.9, 0.2, 0.2, 1)
 
 <AdminScreen@MDScreen>:
     MDBoxLayout:
@@ -68,7 +84,7 @@
 
                 MDCard:
                     elevation: 0
-                    line_color: 0.8, 0.8, 0.8, 0.3
+                    line_color: ftheme.card_line(app.theme_cls.theme_style)
                     orientation: "vertical"
                     padding: "16dp"
                     spacing: "10dp"
@@ -97,7 +113,7 @@
                     text: "Sistemi Sıfırla (Factory Reset)"
                     icon: "delete-forever"
                     size_hint_x: 1
-                    md_bg_color: 0.9, 0.2, 0.2, 1
+                    md_bg_color: (0.85, 0.33, 0.33, 1) if app.theme_cls.theme_style == 'Dark' else (0.83, 0.18, 0.18, 1)
                     on_release: root.confirm_factory_reset()
 
         Widget:
@@ -411,12 +427,12 @@ MDScreen:
                                                 text: "%0.0"
                                                 font_size: "14sp"
                                                 theme_text_color: "Custom"
-                                                text_color: 0.13, 0.59, 0.95, 1
+                                                text_color: ftheme.accent(app.theme_cls.theme_style, 'blue')
                                                 adaptive_width: True
                                             MDIcon:
                                                 icon: "chart-line-variant"
                                                 theme_text_color: "Custom"
-                                                text_color: 0.13, 0.59, 0.95, 1
+                                                text_color: ftheme.accent(app.theme_cls.theme_style, 'blue')
                                                 font_size: "16sp"
                                                 pos_hint: {"center_y": .5}
                                                 
@@ -457,8 +473,8 @@ MDScreen:
                                 MDSegmentedControl:
                                     pos_hint: {"center_x": .5}
                                     size_hint_x: 0.9
-                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (0.9, 0.9, 0.9, 1)
-                                    segment_color: (0.3, 0.3, 0.3, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                    md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
+                                    segment_color: ftheme.card_bg(app.theme_cls.theme_style)
                                     on_active: app.change_home_filter(args[1].text)
                                     MDSegmentedControlItem:
                                         text: "Bugün"
@@ -477,10 +493,10 @@ MDScreen:
 
                                     MDCard:
                                         elevation: 0
-                                        line_color: 0.8, 0.8, 0.8, 0.3
+                                        line_color: ftheme.card_line(app.theme_cls.theme_style)
                                         padding: "15dp"
                                         radius: [24]
-                                        md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (0.95, 0.95, 0.95, 1)
+                                        md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
                                         orientation: "vertical"
                                         
                                         MDLabel:
@@ -496,10 +512,10 @@ MDScreen:
 
                                     MDCard:
                                         elevation: 0
-                                        line_color: 0.8, 0.8, 0.8, 0.3
+                                        line_color: ftheme.card_line(app.theme_cls.theme_style)
                                         padding: "15dp"
                                         radius: [24]
-                                        md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (0.95, 0.95, 0.95, 1)
+                                        md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
                                         orientation: "vertical"
                                         
                                         MDLabel:
@@ -515,12 +531,12 @@ MDScreen:
                                 # YENİ: MATEMATİKSEL ÖNGÖRÜ KARTI
                                 MDCard:
                                     elevation: 0
-                                    line_color: 0.8, 0.8, 0.8, 0.3
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     size_hint_y: None
                                     height: "90dp"
                                     padding: "15dp"
                                     radius: [24]
-                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (0.95, 0.95, 0.95, 1)
+                                    md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
                                     orientation: "horizontal"
                                     spacing: "15dp"
 
@@ -528,7 +544,7 @@ MDScreen:
                                         id: prediction_icon
                                         icon: "robot-outline"
                                         theme_text_color: "Custom"
-                                        text_color: 0.5, 0.5, 0.5, 1
+                                        text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
                                         font_size: "36sp"
                                         pos_hint: {"center_y": .5}
 
@@ -552,14 +568,14 @@ MDScreen:
                                 # YENİ: AYLIK BÜTÇE PLANI KARTI
                                 MDCard:
                                     elevation: 0
-                                    line_color: 0.8, 0.8, 0.8, 0.3
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     orientation: "vertical"
                                     padding: "16dp"
                                     spacing: "10dp"
                                     size_hint_y: None
                                     height: "240dp"
                                     radius: [24, 24, 24, 24]
-                                    md_bg_color: [1, 1, 1, 1]
+                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
 
                                     MDBoxLayout:
                                         size_hint_y: None
@@ -607,14 +623,14 @@ MDScreen:
                                 # YENİ: AKTİF BORÇLARIM KARTI
                                 MDCard:
                                     elevation: 0
-                                    line_color: 0.8, 0.8, 0.8, 0.3
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     orientation: "vertical"
                                     padding: "16dp"
                                     spacing: "10dp"
                                     size_hint_y: None
                                     height: "260dp"
                                     radius: [24, 24, 24, 24]
-                                    md_bg_color: [1, 1, 1, 1]
+                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
 
                                     MDBoxLayout:
                                         size_hint_y: None
@@ -646,14 +662,14 @@ MDScreen:
                                 # YENİ: YAKLAŞAN ÖDEMELER KARTI
                                 MDCard:
                                     elevation: 0
-                                    line_color: 0.8, 0.8, 0.8, 0.3
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     orientation: "vertical"
                                     padding: "16dp"
                                     spacing: "10dp"
                                     size_hint_y: None
                                     height: "220dp"
                                     radius: [24, 24, 24, 24]
-                                    md_bg_color: [1, 1, 1, 1]
+                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
 
                                     MDBoxLayout:
                                         size_hint_y: None
@@ -701,8 +717,8 @@ MDScreen:
                                     MDSegmentedControl:
                                         pos_hint: {"center_x": .5}
                                         size_hint_x: 1
-                                        md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (0.9, 0.9, 0.9, 1)
-                                        segment_color: (0.3, 0.3, 0.3, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                        md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
+                                        segment_color: ftheme.card_bg(app.theme_cls.theme_style)
                                         on_active: app.load_recent_transactions(args[1].text)
                                         MDSegmentedControlItem:
                                             text: "Günlük"
@@ -764,11 +780,11 @@ MDScreen:
                                             # Gelir kartı
                                             MDCard:
                                                 elevation: 0
-                                                line_color: 0.8, 0.8, 0.8, 0.3
+                                                line_color: ftheme.card_line(app.theme_cls.theme_style)
                                                 orientation: "vertical"
                                                 padding: ["12dp", "10dp", "12dp", "10dp"]
                                                 radius: [20, 20, 20, 20]
-                                                md_bg_color: 0.85, 0.95, 0.88, 1
+                                                md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'green')
                                                 MDLabel:
                                                     text: "Gelir"
                                                     font_style: "Caption"
@@ -781,16 +797,16 @@ MDScreen:
                                                     bold: True
                                                     halign: "center"
                                                     theme_text_color: "Custom"
-                                                    text_color: 0.06, 0.55, 0.18, 1
+                                                    text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
 
                                             # Gider kartı
                                             MDCard:
                                                 elevation: 0
-                                                line_color: 0.8, 0.8, 0.8, 0.3
+                                                line_color: ftheme.card_line(app.theme_cls.theme_style)
                                                 orientation: "vertical"
                                                 padding: ["12dp", "10dp", "12dp", "10dp"]
                                                 radius: [20, 20, 20, 20]
-                                                md_bg_color: 0.98, 0.88, 0.88, 1
+                                                md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'red')
                                                 MDLabel:
                                                     text: "Gider"
                                                     font_style: "Caption"
@@ -803,16 +819,16 @@ MDScreen:
                                                     bold: True
                                                     halign: "center"
                                                     theme_text_color: "Custom"
-                                                    text_color: 0.78, 0.1, 0.1, 1
+                                                    text_color: ftheme.accent(app.theme_cls.theme_style, 'red')
 
                                             # Net bakiye kartı
                                             MDCard:
                                                 elevation: 0
-                                                line_color: 0.8, 0.8, 0.8, 0.3
+                                                line_color: ftheme.card_line(app.theme_cls.theme_style)
                                                 orientation: "vertical"
                                                 padding: ["12dp", "10dp", "12dp", "10dp"]
                                                 radius: [20, 20, 20, 20]
-                                                md_bg_color: 0.88, 0.94, 0.98, 1
+                                                md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'blue')
                                                 MDLabel:
                                                     text: "Net Bakiye"
                                                     font_style: "Caption"
@@ -825,7 +841,7 @@ MDScreen:
                                                     bold: True
                                                     halign: "center"
                                                     theme_text_color: "Custom"
-                                                    text_color: 0.05, 0.47, 0.7, 1
+                                                    text_color: ftheme.accent(app.theme_cls.theme_style, 'blue')
                                     
                                         MDBoxLayout:
                                             orientation: "vertical"
@@ -860,32 +876,32 @@ MDScreen:
                                                     id: btn_filter_week
                                                     text: "1 Hafta"
                                                     size_hint_x: 0.2
-                                                    md_bg_color: 0.9, 0.9, 0.9, 1
-                                                    text_color: 0.5, 0.5, 0.5, 1
+                                                    md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
+                                                    text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
                                                     on_release: app.change_home_filter("1 Hafta")
                                                 
                                                 MDFillRoundFlatButton:
                                                     id: btn_filter_month
                                                     text: "1 Ay"
                                                     size_hint_x: 0.2
-                                                    md_bg_color: 0.9, 0.9, 0.9, 1
-                                                    text_color: 0.5, 0.5, 0.5, 1
+                                                    md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
+                                                    text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
                                                     on_release: app.change_home_filter("1 Ay")
                                                 
                                                 MDFillRoundFlatButton:
                                                     id: btn_filter_year
                                                     text: "1 Yıl"
                                                     size_hint_x: 0.2
-                                                    md_bg_color: 0.9, 0.9, 0.9, 1
-                                                    text_color: 0.5, 0.5, 0.5, 1
+                                                    md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
+                                                    text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
                                                     on_release: app.change_home_filter("1 Yıl")
 
                                                 MDFillRoundFlatButton:
                                                     id: btn_filter_lifetime
                                                     text: "Hayat Boyu"
                                                     size_hint_x: 0.2
-                                                    md_bg_color: 0.9, 0.9, 0.9, 1
-                                                    text_color: 0.5, 0.5, 0.5, 1
+                                                    md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
+                                                    text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
                                                     on_release: app.change_home_filter("Hayat Boyu")
                                             
                                             MDBoxLayout:
@@ -918,12 +934,12 @@ MDScreen:
                                                 # --- TOPLAM VARLIK KARTI ---
                                                 MDCard:
                                                     elevation: 0
-                                                    line_color: 0.8, 0.8, 0.8, 0.3
+                                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
                                                     id: total_wealth_card
                                                     size_hint_y: None
                                                     height: "120dp"
                                                     radius: [24, 24, 24, 24]
-                                                    md_bg_color: [1, 1, 1, 1] if app.theme_cls.theme_style == "Light" else [0.15, 0.15, 0.15, 1]
+                                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style) if app.theme_cls.theme_style == "Light" else [0.15, 0.15, 0.15, 1]
                                                     padding: ["20dp", "14dp", "20dp", "14dp"]
 
                                                     MDBoxLayout:
@@ -972,7 +988,7 @@ MDScreen:
                                                             size_hint_y: None
                                                             height: "18dp"
                                                             theme_text_color: "Custom"
-                                                            text_color: 0.5, 0.5, 0.5, 1
+                                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
 
                                                 MDBoxLayout:
                                                     id: goals_container
@@ -984,14 +1000,14 @@ MDScreen:
                                                 # AKTİF VARLIKLARIM KARTI
                                                 MDCard:
                                                     elevation: 0
-                                                    line_color: 0.8, 0.8, 0.8, 0.3
+                                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
                                                     orientation: "vertical"
                                                     padding: "16dp"
                                                     spacing: "10dp"
                                                     size_hint_y: None
                                                     height: "280dp"
                                                     radius: [24, 24, 24, 24]
-                                                    md_bg_color: [1, 1, 1, 1] if app.theme_cls.theme_style == "Light" else [0.15, 0.15, 0.15, 1]
+                                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style) if app.theme_cls.theme_style == "Light" else [0.15, 0.15, 0.15, 1]
 
                                                     MDBoxLayout:
                                                         size_hint_y: None
@@ -1000,7 +1016,7 @@ MDScreen:
                                                         MDIcon:
                                                             icon: "chart-line"
                                                             theme_text_color: "Custom"
-                                                            text_color: 0.08, 0.72, 0.42, 1
+                                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
                                                             font_size: "24sp"
                                                             pos_hint: {"center_y": .5}
                                                         MDLabel:
@@ -1012,7 +1028,7 @@ MDScreen:
                                                         MDIconButton:
                                                             icon: "refresh"
                                                             theme_text_color: "Custom"
-                                                            text_color: 0.08, 0.72, 0.42, 1
+                                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
                                                             icon_size: "28dp"
                                                             pos_hint: {"center_y": .5}
                                                             on_release: app.refresh_asset_prices()
@@ -1020,7 +1036,7 @@ MDScreen:
                                                             id: add_asset_btn
                                                             icon: "plus-circle"
                                                             theme_text_color: "Custom"
-                                                            text_color: 0.08, 0.72, 0.42, 1
+                                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
                                                             icon_size: "28dp"
                                                             pos_hint: {"center_y": .5}
                                                             on_release: app.show_add_asset_dialog()
@@ -1041,14 +1057,14 @@ MDScreen:
                                                 # VARLIK GEÇMİŞİ KARTI
                                                 MDCard:
                                                     elevation: 0
-                                                    line_color: 0.8, 0.8, 0.8, 0.3
+                                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
                                                     orientation: "vertical"
                                                     padding: "16dp"
                                                     spacing: "10dp"
                                                     size_hint_y: None
                                                     height: "320dp"
                                                     radius: [24, 24, 24, 24]
-                                                    md_bg_color: [1, 1, 1, 1]
+                                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
 
                                                     MDBoxLayout:
                                                         size_hint_y: None
@@ -1057,7 +1073,7 @@ MDScreen:
                                                         MDIcon:
                                                             icon: "history"
                                                             theme_text_color: "Custom"
-                                                            text_color: 0.55, 0.27, 0.07, 1
+                                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'amber')
                                                             font_size: "24sp"
                                                             pos_hint: {"center_y": .5}
                                                         MDLabel:
@@ -1105,18 +1121,18 @@ MDScreen:
 
                                                     MDCard:
                                                         elevation: 0
-                                                        line_color: 0.8, 0.8, 0.8, 0.3
+                                                        line_color: ftheme.card_line(app.theme_cls.theme_style)
                                                         id: metric_card_income
                                                         orientation: "vertical"
                                                         padding: "16dp"
                                                         size_hint_y: None
                                                         height: "120dp"
-                                                        md_bg_color: 0.88, 0.97, 0.9, 1
+                                                        md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'green')
                                                         opacity: 0
                                                         MDIcon:
                                                             icon: "trending-up"
                                                             theme_text_color: "Custom"
-                                                            text_color: 0.18, 0.8, 0.25, 1
+                                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
                                                         MDLabel:
                                                             text: "Toplam Gelir"
                                                             font_style: "Caption"
@@ -1127,18 +1143,18 @@ MDScreen:
                                                 
                                                     MDCard:
                                                         elevation: 0
-                                                        line_color: 0.8, 0.8, 0.8, 0.3
+                                                        line_color: ftheme.card_line(app.theme_cls.theme_style)
                                                         id: metric_card_expense
                                                         orientation: "vertical"
                                                         padding: "16dp"
                                                         size_hint_y: None
                                                         height: "120dp"
-                                                        md_bg_color: 0.98, 0.9, 0.9, 1
+                                                        md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'red')
                                                         opacity: 0
                                                         MDIcon:
                                                             icon: "trending-down"
                                                             theme_text_color: "Custom"
-                                                            text_color: 0.9, 0.2, 0.2, 1
+                                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'red')
                                                         MDLabel:
                                                             text: "Toplam Gider"
                                                             font_style: "Caption"
@@ -1149,18 +1165,18 @@ MDScreen:
 
                                                     MDCard:
                                                         elevation: 0
-                                                        line_color: 0.8, 0.8, 0.8, 0.3
+                                                        line_color: ftheme.card_line(app.theme_cls.theme_style)
                                                         id: metric_card_savings
                                                         orientation: "vertical"
                                                         padding: "16dp"
                                                         size_hint_y: None
                                                         height: "120dp"
-                                                        md_bg_color: 0.9, 0.95, 0.99, 1
+                                                        md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'blue')
                                                         opacity: 0
                                                         MDIcon:
                                                             icon: "piggy-bank"
                                                             theme_text_color: "Custom"
-                                                            text_color: 0.13, 0.59, 0.95, 1
+                                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'blue')
                                                         MDLabel:
                                                             text: "Tasarruf Oranı"
                                                             font_style: "Caption"
@@ -1171,18 +1187,18 @@ MDScreen:
 
                                                     MDCard:
                                                         elevation: 0
-                                                        line_color: 0.8, 0.8, 0.8, 0.3
+                                                        line_color: ftheme.card_line(app.theme_cls.theme_style)
                                                         id: metric_card_trend
                                                         orientation: "vertical"
                                                         padding: "16dp"
                                                         size_hint_y: None
                                                         height: "120dp"
-                                                        md_bg_color: 0.99, 0.95, 0.9, 1
+                                                        md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'amber')
                                                         opacity: 0
                                                         MDIcon:
                                                             icon: "chart-timeline-variant"
                                                             theme_text_color: "Custom"
-                                                            text_color: 0.95, 0.6, 0.1, 1
+                                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'amber')
                                                         MDLabel:
                                                             text: "Aylık Gelir Amacı"
                                                             font_style: "Caption"
@@ -1240,11 +1256,11 @@ MDScreen:
                                             # Nakit
                                             MDCard:
                                                 elevation: 0
-                                                line_color: 0.8, 0.8, 0.8, 0.3
+                                                line_color: ftheme.card_line(app.theme_cls.theme_style)
                                                 orientation: "vertical"
                                                 padding: ["12dp", "10dp", "12dp", "10dp"]
                                                 radius: [20, 20, 20, 20]
-                                                md_bg_color: 0.85, 0.95, 0.88, 1
+                                                md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'green')
                                                 MDLabel:
                                                     text: "Nakit"
                                                     font_style: "Caption"
@@ -1257,16 +1273,16 @@ MDScreen:
                                                     bold: True
                                                     halign: "center"
                                                     theme_text_color: "Custom"
-                                                    text_color: 0.06, 0.55, 0.18, 1
+                                                    text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
 
                                             # Kart Borcu
                                             MDCard:
                                                 elevation: 0
-                                                line_color: 0.8, 0.8, 0.8, 0.3
+                                                line_color: ftheme.card_line(app.theme_cls.theme_style)
                                                 orientation: "vertical"
                                                 padding: ["12dp", "10dp", "12dp", "10dp"]
                                                 radius: [20, 20, 20, 20]
-                                                md_bg_color: 0.98, 0.88, 0.88, 1
+                                                md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'red')
                                                 MDLabel:
                                                     text: "Kart Borcu"
                                                     font_style: "Caption"
@@ -1279,16 +1295,16 @@ MDScreen:
                                                     bold: True
                                                     halign: "center"
                                                     theme_text_color: "Custom"
-                                                    text_color: 0.78, 0.1, 0.1, 1
+                                                    text_color: ftheme.accent(app.theme_cls.theme_style, 'red')
 
                                             # Net Servet
                                             MDCard:
                                                 elevation: 0
-                                                line_color: 0.8, 0.8, 0.8, 0.3
+                                                line_color: ftheme.card_line(app.theme_cls.theme_style)
                                                 orientation: "vertical"
                                                 padding: ["12dp", "10dp", "12dp", "10dp"]
                                                 radius: [20, 20, 20, 20]
-                                                md_bg_color: 0.88, 0.94, 0.98, 1
+                                                md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'blue')
                                                 MDLabel:
                                                     text: "Net Servet"
                                                     font_style: "Caption"
@@ -1335,11 +1351,11 @@ MDScreen:
                                 
                                 MDCard:
                                     elevation: 0
-                                    line_color: 0.8, 0.8, 0.8, 0.3
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     size_hint_y: None
                                     height: "140dp"
                                     radius: [24]
-                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
                                     orientation: "vertical"
                                     padding: "20dp"
                                     spacing: "10dp"
@@ -1359,7 +1375,7 @@ MDScreen:
                                             icon: "calculator-variant"
                                             font_size: "24sp"
                                             theme_text_color: "Custom"
-                                            text_color: (0.18, 0.8, 0.25, 1)
+                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
                                             pos_hint: {"center_x": .5, "center_y": .5}
                                     Widget:
                                     MDLabel:
@@ -1369,11 +1385,11 @@ MDScreen:
                                 
                                 MDCard:
                                     elevation: 0
-                                    line_color: 0.8, 0.8, 0.8, 0.3
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     size_hint_y: None
                                     height: "140dp"
                                     radius: [24]
-                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
                                     orientation: "vertical"
                                     padding: "20dp"
                                     spacing: "10dp"
@@ -1393,7 +1409,7 @@ MDScreen:
                                             icon: "percent-outline"
                                             font_size: "24sp"
                                             theme_text_color: "Custom"
-                                            text_color: (0.13, 0.59, 0.95, 1)
+                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'blue')
                                             pos_hint: {"center_x": .5, "center_y": .5}
                                     Widget:
                                     MDLabel:
@@ -1403,11 +1419,11 @@ MDScreen:
 
                                 MDCard:
                                     elevation: 0
-                                    line_color: 0.8, 0.8, 0.8, 0.3
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     size_hint_y: None
                                     height: "140dp"
                                     radius: [24]
-                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
                                     orientation: "vertical"
                                     padding: "20dp"
                                     spacing: "10dp"
@@ -1427,7 +1443,7 @@ MDScreen:
                                             icon: "trending-up"
                                             font_size: "24sp"
                                             theme_text_color: "Custom"
-                                            text_color: (0.6, 0.2, 0.8, 1)
+                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'purple')
                                             pos_hint: {"center_x": .5, "center_y": .5}
                                     Widget:
                                     MDLabel:
@@ -1437,11 +1453,11 @@ MDScreen:
 
                                 MDCard:
                                     elevation: 0
-                                    line_color: 0.8, 0.8, 0.8, 0.3
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     size_hint_y: None
                                     height: "140dp"
                                     radius: [24]
-                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
                                     orientation: "vertical"
                                     padding: "20dp"
                                     spacing: "10dp"
@@ -1461,7 +1477,7 @@ MDScreen:
                                             icon: "bank"
                                             font_size: "24sp"
                                             theme_text_color: "Custom"
-                                            text_color: (0.9, 0.2, 0.3, 1)
+                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'red')
                                             pos_hint: {"center_x": .5, "center_y": .5}
                                     Widget:
                                     MDLabel:
@@ -1471,11 +1487,11 @@ MDScreen:
 
                                 MDCard:
                                     elevation: 0
-                                    line_color: 0.8, 0.8, 0.8, 0.3
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     size_hint_y: None
                                     height: "140dp"
                                     radius: [24]
-                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
                                     orientation: "vertical"
                                     padding: "20dp"
                                     spacing: "10dp"
@@ -1495,7 +1511,7 @@ MDScreen:
                                             icon: "bullseye-arrow"
                                             font_size: "24sp"
                                             theme_text_color: "Custom"
-                                            text_color: (0.95, 0.6, 0.1, 1)
+                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'amber')
                                             pos_hint: {"center_x": .5, "center_y": .5}
                                     Widget:
                                     MDLabel:
@@ -1505,11 +1521,11 @@ MDScreen:
 
                                 MDCard:
                                     elevation: 0
-                                    line_color: 0.8, 0.8, 0.8, 0.3
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     size_hint_y: None
                                     height: "140dp"
                                     radius: [24]
-                                    md_bg_color: (0.15, 0.15, 0.15, 1) if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
                                     orientation: "vertical"
                                     padding: "20dp"
                                     spacing: "10dp"
@@ -1529,7 +1545,7 @@ MDScreen:
                                             icon: "delete-alert-outline"
                                             font_size: "24sp"
                                             theme_text_color: "Custom"
-                                            text_color: (0.9, 0.2, 0.2, 1)
+                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'red')
                                             pos_hint: {"center_x": .5, "center_y": .5}
                                     Widget:
                                     MDLabel:

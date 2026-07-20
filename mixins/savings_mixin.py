@@ -11,7 +11,7 @@ import math
 from kivy.metrics import dp
 from kivymd.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDRaisedButton, MDIconButton
+from kivymd.uix.button import MDRaisedButton, MDIconButton, MDFlatButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.label import MDLabel
 from kivymd.uix.textfield import MDTextField
@@ -20,6 +20,7 @@ from ui.charts import LiquidWaveWidget
 
 
 from typing import Any
+import ui.theme as ftheme
 
 class SavingsMixin:
     savings_goals: list[dict[str, Any]]
@@ -182,8 +183,8 @@ class SavingsMixin:
             type="custom",
             content_cls=inner,
             buttons=[
-                MDRaisedButton(text="KAPAT", on_release=lambda x: fund_dlg.dismiss(), md_bg_color=(0.8, 0.2, 0.2, 1)),
-                MDRaisedButton(text="EKLE",  on_release=_do_add, md_bg_color=(0.18, 0.8, 0.25, 1)),
+                MDFlatButton(text="KAPAT", on_release=lambda x: fund_dlg.dismiss()),
+                MDRaisedButton(text="EKLE",  on_release=_do_add, md_bg_color=self.theme_cls.primary_color, elevation=0),
             ]
         )
         fund_dlg.open()
@@ -240,10 +241,9 @@ class SavingsMixin:
                 padding=dp(16),
                 spacing=dp(12),
                 style="outlined",
-                md_bg_color=getattr(self.theme_cls, 'bg_darkest', getattr(self.theme_cls, 'bg_normal', (1, 1, 1, 1))),
-                line_color=(0.5, 0.5, 0.5, 0.35),
                 radius=[dp(14), dp(14), dp(14), dp(14)],
             )
+            ftheme.apply_card_theme(card, self.theme_cls)
 
             # Header row: trophy icon + goal name
             hdr = MDBoxLayout(orientation="horizontal", size_hint_y=None, height=dp(36), spacing=dp(8))

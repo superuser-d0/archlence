@@ -215,5 +215,73 @@ olurdu.
 ### Açık kalan
 - Görev 3: işlem ekleme diyaloğu hâlâ `DEFAULT_ACCOUNT_ID` kullanıyor; kullanıcı
   arayüzden hangi hesaptan/karttan harcadığını seçemiyor.
-- KAYDET butonunun rengi `#5444E5` olarak koda gömülü; `41a11db` ile tema
-  seçilebilir yapıldığı için standart temada da indigo görünüyor.
+- ~~KAYDET butonunun rengi `#5444E5` olarak koda gömülü~~ → aşağıdaki karanlık
+  tema turunda giderildi (`self.theme_cls.primary_color`).
+
+---
+
+## Tur 4: Karanlık tema (Dark Mode) UI/UX düzeltmesi (2026-07-20)
+
+Dört başlık da tamamlandı. Ortak yaklaşım: renkler artık widget'ların yanına
+gömülmüyor, `ui/theme.py`'deki tek bir token/yardımcı katmanından geliyor.
+KV bu katmanı `#:import ftheme ui.theme` ile çağırır ve fonksiyonlara
+`app.theme_cls.theme_style` **string'i** geçirilir — `theme_cls` nesnesi
+geçilirse Kivy bağımlılığı kuramaz ve tema değişiminde renk donar.
+
+- [x] **1. Sidebar / navigasyon paneli beyaz kalıyor.** Ölçüldüğünde
+      `MDBottomNavigation.panel_color` zaten tema duyarlıydı; asıl "flaş bombası"
+      etkisi kartlardan ve pastel dolgulardan geliyordu (aşağıda). Buna ek olarak
+      iki gerçek kusur giderildi: `apply_premium_theme`/`apply_standard_theme`
+      artık `theme_style`'ı **"Light"e zorlamıyor**, yani karanlık moddayken
+      palet değiştirince ekran beyaza patlamıyor; ve `colors["Dark"]` token'ları
+      Finora yüzey merdiveniyle eziliyor (`apply_dark_surface_tokens`).
+- [x] **2. Diyaloglarda okunmayan hint/placeholder metinleri.**
+      `ui/dashboard.kv`'ye global `<MDTextField>` kuralı eklendi;
+      `hint_text_color_*`, `helper_text_color_*`, `text_color_*`,
+      `fill_color_*`, `line_color_normal` tek kaynaktan (`ftheme.field_color`)
+      besleniyor. Sınıf kuralı olduğu için Python'da imperatif kurulan diyalog
+      alanları da kapsanıyor; `account_mixin`'deki elle yazılmış kopya silindi.
+      `MDTextField` çizimde özel `_` alanlarını kullandığından tema geçişinde
+      `_resync_text_fields` bunları açıkça tazeliyor — aksi hâlde AÇIK bir
+      diyalogdaki hint eski temanın renginde kalıyordu.
+- [x] **3. Neon kenarlıklar.** 27 KV kartındaki + 5 Python kartındaki sabit
+      `line_color: 0.8, 0.8, 0.8, 0.3` kaldırıldı. Karanlıkta kenarlık
+      **tamamen şeffaf**; kart zeminden dolguyla ayrışıyor
+      (canvas `#121212` → kart `#1E1E1E` → iç içe `#262626`). `elevation` her
+      yerde 0. Açık temada ince hairline (`0,0,0,0.08`) korundu.
+      Pastel özet kartları (`0.85,0.95,0.88` vb.) karanlıkta koyu yüzeye
+      karıştırılmış tint'e dönüyor (`ftheme.tint_bg`), üzerlerindeki koyu yeşil/
+      kırmızı metinler de açık karşılıklarına (`ftheme.accent`).
+- [x] **4. Gömülü buton renkleri.** Parlak yeşil/mavi/teal onay dolguları
+      (`0.18,0.8,0.25`, `0.13,0.59,0.95`, `0.12,0.53,0.53`, `0.08,0.72,0.42`) ve
+      `account_mixin`'deki gömülü `#5444E5` → `theme_cls.primary_color`.
+      KAPAT/VAZGEÇ butonları kırmızı `MDRaisedButton` olmaktan çıkıp dolgusuz
+      `MDFlatButton` oldu. Hesap makinesi tuş takımı da temadan besleniyor.
+      **Yıkıcı** eylemler (Fabrika Sıfırlama, Borcu Tamamen Kapat, varlık silme)
+      kırmızı KALDI — orada renk marka değil anlam taşıyor — ama karanlıkta göz
+      almayan tona çekildi (`ftheme.accent(..., 'red')`).
+
+### Ölçüm (headless, tüm ekranlar + açık diyalog taranarak)
+
+`ScreenManager` yalnızca GÖRÜNEN ekranı `children` içinde tutuyor, diyaloglar da
+root'a değil Window'a bağlanıyor; bu yüzden `root.walk()` tek başına yetmiyor ve
+`FinoraApp._all_widgets()` eklendi (`_normalize_card_shadows` eskiden bu yüzden
+yalnızca aktif ekranı düzeltiyordu).
+
+| Karanlık temada | Önce | Sonra |
+|---|---|---|
+| Beyaz kalan MDCard | 10 | **0** |
+| Görünür kart kenarlığı | 41 | **0** |
+| `elevation > 0` kart | 0 | 0 |
+| Okunmaz hint'li MDTextField | 6 | **0** |
+
+Testler: `tests.test_account_service` 12/12 OK, `tests.test_savings_service`
+6/6 OK, `tests.test_startup_import` OK. `tests.test_ids` bu turdan **önce de**
+kırıktı (`app.active_category_type` binding hatası) ve aynı hatayla kırık
+kalmaya devam ediyor — dokunulmadı.
+
+### Açık kalan (Tur 4)
+- Karanlık mod tercihi **kalıcı değil**: `theme_name` (standart/premium)
+  `finora_config.json`'a yazılıyor ama `theme_style` yazılmıyor, uygulama her
+  açılışta açık temayla başlıyor.
+- `ui/charts.py` içindeki grafik renkleri bu turda incelenmedi.

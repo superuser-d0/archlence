@@ -15,6 +15,13 @@ FINORA_BG_HEX = "F9F9FF"         # Açık tema canvas: slate beyaz
 FINORA_SURFACE_HEX = "FFFFFF"    # Kart yüzeyleri: saf beyaz
 FINORA_TEXT_HEX = "151C27"       # Birincil metin: lacivert-siyah
 
+# ── Karanlık tema yüzey merdiveni ──────────────────────────────────────────
+# Material "dark surface elevation" mantığı: kartlar zeminden ÇİZGİYLE değil,
+# bir tık açık dolguyla ayrışır. Neon kenarlık yerine bu merdiven kullanılır.
+FINORA_DARK_BG_HEX = "121212"       # Canvas (en dip)
+FINORA_DARK_SURFACE_HEX = "1E1E1E"  # Kart / diyalog yüzeyi (+1 basamak)
+FINORA_DARK_ELEVATED_HEX = "262626" # İç içe kart / seçili durum (+2 basamak)
+
 # rgba karşılıkları (Python tarafında grafik/canvas çizimleri için)
 FINORA_PRIMARY = get_color_from_hex(FINORA_PRIMARY_HEX)
 FINORA_SECONDARY = get_color_from_hex(FINORA_SECONDARY_HEX)
@@ -33,6 +40,22 @@ def _ensure_captured():
         _STANDARD_LIGHT = dict(colors["Light"])
     if _STANDARD_INDIGO is None:
         _STANDARD_INDIGO = dict(colors["Indigo"])
+
+
+def apply_dark_surface_tokens():
+    """KivyMD'nin varsayılan Dark token'larını Finora yüzey merdiveniyle ezer.
+
+    Varsayılan Dark paleti Background ve CardsDialogs için birbirine çok yakın
+    griler verdiği için kartlar zeminden ayrışmıyordu; eski çözüm kartlara kalın
+    `line_color` koymaktı ve karanlıkta neon gibi parlıyordu. Token'ları
+    ayırınca ayrışma dolgudan gelir, çizgiye gerek kalmaz.
+
+    Her tema uygulamasında idempotent olarak çağrılır (sözlük mutasyonu).
+    """
+    from kivymd.color_definitions import colors
+    colors["Dark"]["Background"] = FINORA_DARK_BG_HEX
+    colors["Dark"]["CardsDialogs"] = FINORA_DARK_SURFACE_HEX
+    colors["Dark"]["AppBar"] = FINORA_DARK_SURFACE_HEX
 
 
 def _patch_text_color_once():
@@ -89,8 +112,10 @@ def apply_premium_theme(theme_cls):
     colors["Light"]["Background"] = FINORA_BG_HEX
     colors["Light"]["CardsDialogs"] = FINORA_SURFACE_HEX
     colors["Light"]["AppBar"] = FINORA_SURFACE_HEX
+    apply_dark_surface_tokens()
 
-    theme_cls.theme_style = "Light"
+    # theme_style'a DOKUNULMAZ: kullanıcı karanlık moddayken palet değiştirince
+    # ekranın beyaza patlamaması için aktif mod korunur.
     theme_cls.primary_palette = "Indigo"
     theme_cls.accent_palette = "Indigo"
     theme_cls.accent_hue = "700"
@@ -106,9 +131,253 @@ def apply_standard_theme(theme_cls):
     # Premium mutasyonlarını geri al — KivyMD'nin dokunulmamış token'ları.
     colors["Light"].update(_STANDARD_LIGHT)
     colors["Indigo"].update(_STANDARD_INDIGO)
+    # Karanlık yüzey merdiveni marka değil okunabilirlik meselesi; standart
+    # temada da geçerli kalır.
+    apply_dark_surface_tokens()
 
-    theme_cls.theme_style = "Light"
     theme_cls.primary_palette = "Teal"
     theme_cls.accent_palette = "Amber"  # KivyMD varsayılan accent
     theme_cls.accent_hue = "500"
     _refresh(theme_cls)
+
+
+# ── Paylaşılan bileşen stilleri ────────────────────────────────────────────
+# Aşağıdaki yardımcılar hem KV'den (`#:import ftheme ui.theme`) hem Python
+# mixin'lerinden çağrılır. KV tarafında bağlamanın tema değişiminde yeniden
+# hesaplanması için fonksiyonlara `app.theme_cls.theme_style` STRING'i geçilir —
+# `theme_cls` nesnesi geçilirse Kivy bağımlılığı theme_style üzerinde kuramaz ve
+# tema değişince renk güncellenmez.
+
+def _is_dark(style):
+    """`theme_style` string'ini ya da bir ThemeManager'ı kabul eder."""
+    if not isinstance(style, str):
+        style = getattr(style, "theme_style", "Light")
+    return style == "Dark"
+
+
+def card_bg(style):
+    """Kart/yüzey dolgusu — karanlıkta zeminden bir basamak açık (#1E1E1E)."""
+    if _is_dark(style):
+        return get_color_from_hex(FINORA_DARK_SURFACE_HEX)
+    return [1, 1, 1, 1]
+
+
+def elevated_bg(style):
+    """İç içe kart ya da seçili durum yüzeyi (+2 basamak)."""
+    if _is_dark(style):
+        return get_color_from_hex(FINORA_DARK_ELEVATED_HEX)
+    return get_color_from_hex("F1F1F6")
+
+
+def card_line(style):
+    """Kart kenarlığı. Karanlıkta TAMAMEN şeffaf: ayrışma dolgudan gelir.
+
+    Eski `0.8, 0.8, 0.8, 0.3` değeri koyu zeminde neon bir hat gibi parlıyordu.
+    Açık temada ise ince bir hairline hâlâ faydalı, orada korunur.
+    """
+    if _is_dark(style):
+        return [0, 0, 0, 0]
+    return [0, 0, 0, 0.08]
+
+
+def muted_bg(style):
+    """Segmented control / filtre çubuğu gibi pasif konteyner zeminleri."""
+    if _is_dark(style):
+        return get_color_from_hex(FINORA_DARK_ELEVATED_HEX)
+    return [0.93, 0.93, 0.95, 1]
+
+
+def field_style(style):
+    """`MDTextField(**field_style(...))` ile geçirilebilen kontrast kiti.
+
+    Karanlık temada hint/helper metinleri KivyMD varsayılanında siyaha yakın
+    kalıp okunmaz hâle geliyordu; her iki tema için de açıkça veriliyor.
+    """
+    if _is_dark(style):
+        hint = (0.78, 0.80, 0.86, 1)
+        text = (0.95, 0.96, 0.98, 1)
+        fill = (1, 1, 1, 0.08)
+        line = (1, 1, 1, 0.24)
+    else:
+        hint = (0.35, 0.36, 0.41, 1)
+        text = (0.11, 0.12, 0.15, 1)
+        fill = (0, 0, 0, 0.05)
+        line = (0, 0, 0, 0.20)
+    return {
+        "hint_text_color_normal": hint,
+        "hint_text_color_focus": hint,
+        "helper_text_color_normal": hint,
+        "helper_text_color_focus": hint,
+        "text_color_normal": text,
+        "text_color_focus": text,
+        "fill_color_normal": fill,
+        "fill_color_focus": fill,
+        "line_color_normal": line,
+    }
+
+
+def make_text_field(hint, theme_cls, filter=None, mode="fill", **kwargs):
+    """Tema duyarlı, yuvarlatılmış standart Finora giriş alanı."""
+    from kivy.metrics import dp
+    from kivymd.uix.textfield import MDTextField
+
+    opts = dict(field_style(theme_cls))
+    opts.update(
+        hint_text=hint,
+        mode=mode,
+        radius=[dp(12), dp(12), dp(12), dp(12)],
+    )
+    if filter is not None:
+        opts["input_filter"] = filter
+    opts.update(kwargs)
+    return MDTextField(**opts)
+
+
+def restyle_text_fields(root, theme_cls):
+    """Açık widget ağacındaki tüm MDTextField'ları aktif temaya göre tazeler.
+
+    Diyaloglar açıkken tema değiştirilebildiği için gerekli — alanlar
+    kurulduklarında geçerli olan renkleri saklar, kendiliğinden güncellenmez.
+    """
+    from kivymd.uix.textfield import MDTextField
+
+    opts = field_style(theme_cls)
+    for widget in root.walk():
+        if isinstance(widget, MDTextField):
+            for key, value in opts.items():
+                try:
+                    setattr(widget, key, value)
+                except Exception:
+                    pass
+
+
+def primary_button(text, theme_cls, **kwargs):
+    """Ana eylem butonu — dolgu daima aktif temanın primary rengi.
+
+    Marka rengi koda gömülmez; `theme_cls.primary_color` premium temada
+    #5444E5, standart temada Teal döner.
+    """
+    from kivymd.uix.button import MDRaisedButton
+
+    opts = dict(
+        text=text,
+        md_bg_color=theme_cls.primary_color,
+        elevation=0,
+        theme_text_color="Custom",
+        text_color=(1, 1, 1, 1),
+    )
+    opts.update(kwargs)
+    return MDRaisedButton(**opts)
+
+
+def secondary_button(text, theme_cls, **kwargs):
+    """İptal/kapat gibi ikincil eylemler — dolgusuz (flat), nötr metin."""
+    from kivymd.uix.button import MDFlatButton
+
+    opts = dict(
+        text=text,
+        theme_text_color="Custom",
+        text_color=(0.62, 0.64, 0.70, 1) if _is_dark(theme_cls) else (0.45, 0.46, 0.52, 1),
+    )
+    opts.update(kwargs)
+    return MDFlatButton(**opts)
+
+
+def danger_button(text, theme_cls, **kwargs):
+    """Yıkıcı eylemler (silme, sıfırlama) — kırmızı SEMANTİK olduğu için kalır,
+    ama karanlık temada göz almayacak tona çekilir."""
+    from kivymd.uix.button import MDRaisedButton
+
+    red = (0.85, 0.33, 0.33, 1) if _is_dark(theme_cls) else (0.83, 0.18, 0.18, 1)
+    opts = dict(
+        text=text,
+        md_bg_color=red,
+        elevation=0,
+        theme_text_color="Custom",
+        text_color=(1, 1, 1, 1),
+    )
+    opts.update(kwargs)
+    return MDRaisedButton(**opts)
+
+
+# Anlam taşıyan (gelir/gider/nötr) özet kartlarının pastel dolguları. Açık
+# temada pastel tonlar, karanlıkta aynı hue'nun koyu yüzey üzerine %10-12
+# opaklıkta uygulanmış hâli — kart hâlâ "yeşil/kırmızı" okunur ama parlamaz.
+_TINTS = {
+    "green": ((0.85, 0.95, 0.88, 1), (0.16, 0.62, 0.36, 0.18)),
+    "red":   ((0.98, 0.88, 0.88, 1), (0.80, 0.29, 0.29, 0.18)),
+    "blue":  ((0.88, 0.94, 0.98, 1), (0.28, 0.52, 0.85, 0.18)),
+    "amber": ((0.99, 0.95, 0.90, 1), (0.85, 0.62, 0.25, 0.18)),
+}
+
+
+def tint_bg(style, name):
+    """Anlamsal renkli özet kartı dolgusu (`green`/`red`/`blue`/`amber`)."""
+    light, dark = _TINTS.get(name, _TINTS["blue"])
+    if not _is_dark(style):
+        return list(light)
+    # Koyu yüzeyin üzerine tint'i alfa ile karıştır — düz, opak bir sonuç ver.
+    base = get_color_from_hex(FINORA_DARK_SURFACE_HEX)
+    a = dark[3]
+    return [base[i] * (1 - a) + dark[i] * a for i in range(3)] + [1]
+
+
+# Anlamsal METİN/ikon renkleri. Açık temada koyu-doygun tonlar okunur, aynı
+# tonlar koyu zeminde kontrastı çöküyor (özellikle koyu yeşil/kahve); karanlık
+# için her hue'nun açık, düşük doygunluklu karşılığı verilir.
+_ACCENTS = {
+    "green":  ((0.06, 0.55, 0.18, 1), (0.45, 0.87, 0.56, 1)),
+    "red":    ((0.78, 0.10, 0.10, 1), (0.98, 0.55, 0.55, 1)),
+    "blue":   ((0.05, 0.47, 0.70, 1), (0.52, 0.76, 1.00, 1)),
+    "amber":  ((0.72, 0.45, 0.06, 1), (1.00, 0.78, 0.35, 1)),
+    "purple": ((0.45, 0.15, 0.62, 1), (0.80, 0.62, 0.98, 1)),
+    "muted":  ((0.45, 0.46, 0.52, 1), (0.62, 0.64, 0.70, 1)),
+}
+
+
+def accent(style, name):
+    """Anlamsal metin/ikon rengi (`green`/`red`/`blue`/`amber`/`purple`/`muted`)."""
+    light, dark = _ACCENTS.get(name, _ACCENTS["muted"])
+    return list(dark if _is_dark(style) else light)
+
+
+_FIELD_ROLES = ("hint", "text", "fill", "line")
+
+
+def field_color(style, role):
+    """`MDTextField` renk rolü: `hint` | `text` | `fill` | `line`.
+
+    KV'deki global `<MDTextField>` kuralı bunu kullanır; böylece Python'da
+    imperatif kurulan diyalog alanları da (kural her örneğe uygulanır) karanlık
+    temada okunur hint/helper metnine sahip olur.
+    """
+    return list(field_style(style)[{
+        "hint": "hint_text_color_normal",
+        "text": "text_color_normal",
+        "fill": "fill_color_normal",
+        "line": "line_color_normal",
+    }[role]])
+
+
+def apply_card_theme(card, theme_cls, tint=None):
+    """Python'da imperatif kurulan bir MDCard'ı Finora yüzey diline bağlar.
+
+    KV'deki kartlar tema değişiminde bağlamalar sayesinde kendiliğinden
+    güncellenir; Python'da kurulanlar rengi bir kez hesaplar. Bu yüzden seçilen
+    `tint` kartın üzerinde işaretlenir ve tema değiştiğinde
+    `refresh_card_theme` ile yeniden uygulanır (kart başına bind kurup
+    yeniden çizimlerde sızıntı bırakmamak için işaret + tarama yöntemi).
+    """
+    card._finora_tint = tint
+    refresh_card_theme(card, theme_cls)
+    return card
+
+
+def refresh_card_theme(card, theme_cls):
+    """`apply_card_theme` ile işaretlenmiş bir kartın renklerini tazeler."""
+    card.elevation = 0
+    if hasattr(card, "shadow_softness"):
+        card.shadow_softness = 0
+    card.line_color = card_line(theme_cls)
+    tint = getattr(card, "_finora_tint", None)
+    card.md_bg_color = tint_bg(theme_cls, tint) if tint else card_bg(theme_cls)

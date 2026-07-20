@@ -10,6 +10,7 @@ from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.gridlayout import MDGridLayout
 from kivymd.uix.segmentedcontrol import MDSegmentedControl, MDSegmentedControlItem
 from kivymd.uix.label import MDLabel
+import ui.theme as ftheme
 
 
 class CalculatorMixin:
@@ -76,18 +77,20 @@ class CalculatorMixin:
                     self.calc_input.text = current_text + btn_text
 
             for btn_text in buttons:
+                # Tuş renkleri temadan gelir: '=' ana eylem (primary), 'C' temizle
+                # (nötr ama vurgulu), rakam/operatör tuşları pasif yüzey.
                 if btn_text == '=':
-                    bg_col = (0.13, 0.59, 0.95, 1)
+                    bg_col = self.theme_cls.primary_color
                     txt_col = (1, 1, 1, 1)
                 elif btn_text == 'C':
-                    bg_col = (0.9, 0.2, 0.2, 1)
+                    bg_col = ftheme.accent(self.theme_cls, 'red')
                     txt_col = (1, 1, 1, 1)
                 elif btn_text == '':
                     bg_col = (1, 1, 1, 0)
                     txt_col = (1, 1, 1, 0)
                 else:
-                    bg_col = (0.9, 0.9, 0.9, 1)
-                    txt_col = (0.1, 0.1, 0.1, 1)
+                    bg_col = ftheme.muted_bg(self.theme_cls)
+                    txt_col = self.theme_cls.text_color
                 
                 btn = MDRaisedButton(
                     text=btn_text, 
@@ -106,10 +109,11 @@ class CalculatorMixin:
                 type="custom",
                 content_cls=self.calc_layout,
                 buttons=[
-                    MDRaisedButton(
-                        text="KAPAT", 
-                        on_release=lambda x: self.calc_dialog.dismiss(), 
-                        md_bg_color=(0.8, 0.2, 0.2, 1)
+                    MDFlatButton(
+                        text="KAPAT",
+                        on_release=lambda x: self.calc_dialog.dismiss(),
+                        theme_text_color="Custom",
+                        text_color=ftheme.accent(self.theme_cls, 'muted'),
                     )
                 ]
             )
@@ -130,7 +134,7 @@ class CalculatorMixin:
             self.int_dialog = MDDialog(
                 title="Faiz Getirisi", type="custom", content_cls=self.int_layout,
                 buttons=[
-                    MDRaisedButton(text="KAPAT", on_release=lambda x: self.int_dialog.dismiss(), md_bg_color=(0.8, 0.2, 0.2, 1)),
+                    MDFlatButton(text="KAPAT", on_release=lambda x: self.int_dialog.dismiss()),
                     MDRaisedButton(text="HESAPLA", on_release=self.calculate_interest)
                 ]
             )
@@ -163,7 +167,7 @@ class CalculatorMixin:
             self.comp_dialog = MDDialog(
                 title="Bileşik Faiz", type="custom", content_cls=self.comp_layout,
                 buttons=[
-                    MDRaisedButton(text="KAPAT", on_release=lambda x: self.comp_dialog.dismiss(), md_bg_color=(0.8, 0.2, 0.2, 1)),
+                    MDFlatButton(text="KAPAT", on_release=lambda x: self.comp_dialog.dismiss()),
                     MDRaisedButton(text="HESAPLA", on_release=self.calculate_compound)
                 ]
             )
@@ -219,12 +223,12 @@ class CalculatorMixin:
             
             self.loan_scroll.add_widget(self.loan_layout)
             
-            self.loan_table_btn = MDRaisedButton(text="TABLO", on_release=self.show_payment_plan_table, opacity=0, disabled=True, md_bg_color=(0.13, 0.59, 0.95, 1))
-            self.add_debt_btn = MDRaisedButton(text="Borç Olarak Ekle", on_release=self.add_loan_to_debts, opacity=0, disabled=True, md_bg_color=(0.18, 0.8, 0.25, 1))
+            self.loan_table_btn = MDRaisedButton(text="TABLO", on_release=self.show_payment_plan_table, opacity=0, disabled=True, md_bg_color=self.theme_cls.primary_color, elevation=0)
+            self.add_debt_btn = MDRaisedButton(text="Borç Olarak Ekle", on_release=self.add_loan_to_debts, opacity=0, disabled=True, md_bg_color=self.theme_cls.primary_color, elevation=0)
             self.loan_dialog = MDDialog(
                 title="Kredi Hesaplama", type="custom", content_cls=self.loan_scroll,
                 buttons=[
-                    MDRaisedButton(text="KAPAT", on_release=lambda x: self.loan_dialog.dismiss(), md_bg_color=(0.8, 0.2, 0.2, 1)),
+                    MDFlatButton(text="KAPAT", on_release=lambda x: self.loan_dialog.dismiss()),
                     self.loan_table_btn,
                     self.add_debt_btn,
                     MDRaisedButton(text="HESAPLA", on_release=self.calculate_loan)
@@ -276,9 +280,9 @@ class CalculatorMixin:
             self.sg_dialog = MDDialog(
                 title="Birikim Hedefi", type="custom", content_cls=self.sg_layout,
                 buttons=[
-                    MDRaisedButton(text="KAPAT", on_release=lambda x: self.sg_dialog.dismiss(), md_bg_color=(0.8, 0.2, 0.2, 1)),
+                    MDFlatButton(text="KAPAT", on_release=lambda x: self.sg_dialog.dismiss()),
                     MDRaisedButton(text="HESAPLA", on_release=self.calculate_savings_goal),
-                    MDRaisedButton(text="HEDEFE EKLE", on_release=self.commit_savings_goal, md_bg_color=(0.18, 0.8, 0.25, 1)),
+                    MDRaisedButton(text="HEDEFE EKLE", on_release=self.commit_savings_goal, md_bg_color=self.theme_cls.primary_color, elevation=0),
                 ]
             )
             self.sg_dialog.open()
@@ -723,8 +727,8 @@ class CalculatorMixin:
             content_cls=table_layout,
             size_hint=(0.95, 0.95),
             buttons=[
-                MDRaisedButton(text="KAPAT", on_release=lambda x: self.table_dialog.dismiss(), md_bg_color=(0.8, 0.2, 0.2, 1)),
-                MDRaisedButton(text="PDF İNDİR", on_release=self.export_plan_to_pdf, md_bg_color=(0.13, 0.59, 0.95, 1))
+                MDFlatButton(text="KAPAT", on_release=lambda x: self.table_dialog.dismiss()),
+                MDRaisedButton(text="PDF İNDİR", on_release=self.export_plan_to_pdf, md_bg_color=self.theme_cls.primary_color, elevation=0)
             ]
         )
         self.table_dialog.open()

@@ -7,6 +7,7 @@ from kivymd.toast import toast
 from kivymd.app import MDApp
 from kivy.clock import Clock
 from kivy.metrics import dp
+import ui.theme as ftheme
 
 
 class AdminScreen(MDScreen):
@@ -80,7 +81,7 @@ class AdminScreen(MDScreen):
             text="Tüm veriler silinecek! Onaylıyor musunuz?",
             buttons=[
                 MDFlatButton(text="İPTAL", on_release=lambda x: self.reset_dialog.dismiss()),
-                MDRaisedButton(text="SIFIRLA", md_bg_color=(0.9, 0.2, 0.2, 1), on_release=self.factory_reset),
+                MDRaisedButton(text="SIFIRLA", md_bg_color=ftheme.accent(self.theme_cls, 'red'), on_release=self.factory_reset),
             ],
         )
         self.reset_dialog.open()

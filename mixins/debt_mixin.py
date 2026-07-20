@@ -9,6 +9,7 @@ import threading
 from kivymd.uix.card import MDCard
 from kivymd.uix.progressbar import MDProgressBar
 from kivymd.uix.slider import MDSlider
+import ui.theme as ftheme
 
 AUTO_PAY_ACTIVE_COLOR = (0.18, 0.6, 0.25, 1)
 AUTO_PAY_INACTIVE_COLOR = (0.6, 0.6, 0.6, 1)
@@ -72,7 +73,10 @@ class DebtMixin:
 
             for debt in debts:
 
-                card = MDCard(orientation="vertical", padding="12dp", spacing="8dp", size_hint_y=None, height="140dp", elevation=0, line_color=(0.8, 0.8, 0.8, 0.3), radius=[10])
+                card = ftheme.apply_card_theme(
+                    MDCard(orientation="vertical", padding="12dp", spacing="8dp",
+                           size_hint_y=None, height="140dp", radius=[10]),
+                    self.theme_cls)
                 
                 header = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="24dp")
                 name_lbl = MDLabel(text=f"{debt['debt_name']}", font_style="Subtitle2", bold=True)
@@ -100,7 +104,7 @@ class DebtMixin:
 
                 btn_layout = MDBoxLayout(orientation="horizontal", spacing="10dp", size_hint_y=None, height="36dp")
                 pay_btn = MDFlatButton(text="Taksit Öde", on_release=lambda x, d=debt: self.pay_debt_installments(d))
-                close_btn = MDRaisedButton(text="Tamamen Kapat", md_bg_color=(0.9, 0.2, 0.2, 1), on_release=lambda x, d=debt: self.close_debt_completely(d))
+                close_btn = MDRaisedButton(text="Tamamen Kapat", md_bg_color=ftheme.accent(self.theme_cls, 'red'), on_release=lambda x, d=debt: self.close_debt_completely(d))
                 btn_layout.add_widget(pay_btn)
                 btn_layout.add_widget(close_btn)
 

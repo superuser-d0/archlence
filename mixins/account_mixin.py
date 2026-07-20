@@ -20,6 +20,7 @@ from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
 
+import ui.theme as ftheme
 from services.account_service import (
     ACCOUNT_TYPE_LABELS,
     CHECKING,
@@ -63,9 +64,6 @@ class AccountMixin:
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivymd.uix.segmentedcontrol import MDSegmentedControl, MDSegmentedControlItem
         from kivy.metrics import dp
-        from kivy.utils import get_color_from_hex
-
-        premium_indigo = get_color_from_hex("#5444E5")
 
         # ── Yerleşim sabitleri ────────────────────────────────────────────────
         # TAŞMA DÜZELTMESİ: içerik kutusu eskiden adaptive_height=True idi, yani
@@ -94,22 +92,10 @@ class AccountMixin:
         type_control.add_widget(type_checking)
         type_control.add_widget(type_credit)
 
-        # ── Karanlık tema kontrastı ───────────────────────────────────────────
-        # mode="fill" alanların dolgusu karanlık temada koyu olduğundan hint ve
-        # metin varsayılan renkleriyle okunmuyordu; her iki temada da açıkça
-        # yüksek kontrastlı tonlar veriliyor.
-        is_dark = self.theme_cls.theme_style == "Dark"
-        if is_dark:
-            hint_color = (0.78, 0.80, 0.86, 1)
-            text_color = (0.95, 0.96, 0.98, 1)
-            fill_color = (1, 1, 1, 0.08)
-            line_color = (1, 1, 1, 0.24)
-        else:
-            hint_color = (0.35, 0.36, 0.41, 1)
-            text_color = (0.11, 0.12, 0.15, 1)
-            fill_color = (0, 0, 0, 0.05)
-            line_color = (0, 0, 0, 0.20)
-
+        # Karanlık tema kontrastı (hint/helper/metin/dolgu renkleri) artık
+        # ui/dashboard.kv'deki global `<MDTextField>` kuralından geliyor; burada
+        # tekrar edilmiyor ki tek kaynak kalsın ve tema değişiminde canlı
+        # güncellensin.
         def create_modern_tf(hint, filter=None):
             return MDTextField(
                 hint_text=hint,
@@ -117,14 +103,6 @@ class AccountMixin:
                 mode="fill",
                 radius=[dp(12), dp(12), dp(12), dp(12)],
                 size_hint_y=None,
-                hint_text_color_normal=hint_color,
-                hint_text_color_focus=hint_color,
-                helper_text_color_normal=hint_color,
-                text_color_normal=text_color,
-                text_color_focus=text_color,
-                fill_color_normal=fill_color,
-                fill_color_focus=fill_color,
-                line_color_normal=line_color,
             )
 
         self.acc_name_field = create_modern_tf("Hesap / Kart Adı")
@@ -207,13 +185,13 @@ class AccountMixin:
             text="VAZGEÇ",
             on_release=do_cancel,
             theme_text_color="Custom",
-            text_color=(0.5, 0.5, 0.5, 1)
+            text_color=ftheme.accent(self.theme_cls, 'muted'),
         )
         
         btn_save = MDRaisedButton(
             text="KAYDET",
             on_release=do_save,
-            md_bg_color=premium_indigo,
+            md_bg_color=self.theme_cls.primary_color,
             elevation=0,
             theme_text_color="Custom",
             text_color=(1, 1, 1, 1)
@@ -317,17 +295,18 @@ class AccountMixin:
         """
         is_card = acc["account_type"] == CREDIT_CARD
 
-        card = MDCard(
-            orientation="vertical",
-            size_hint_y=None,
-            height=dp(104) if is_card else dp(84),
-            padding=dp(16),
-            spacing=dp(4),
-            style="outlined",
-            elevation=0,
-            line_color=(0.8, 0.8, 0.8, 0.3),
-            radius=[dp(20)] * 4,
-            md_bg_color=(0.98, 0.92, 0.92, 1) if is_card else (0.90, 0.95, 0.92, 1),
+        card = ftheme.apply_card_theme(
+            MDCard(
+                orientation="vertical",
+                size_hint_y=None,
+                height=dp(104) if is_card else dp(84),
+                padding=dp(16),
+                spacing=dp(4),
+                style="outlined",
+                radius=[dp(20)] * 4,
+            ),
+            self.theme_cls,
+            tint="red" if is_card else "green",
         )
 
         title = MDLabel(

@@ -12,6 +12,7 @@ from kivymd.uix.label import MDLabel
 
 
 from data.bist100 import BIST100_STOCKS
+import ui.theme as ftheme
 
 # ─── Varlık / Hisse Simgeleri ─────────────────────────────────────────────────
 # Varlık türü → Material Design ikon adı
@@ -250,7 +251,7 @@ class AssetMixin:
         type_btn = MDRaisedButton(
             text=f"Tür Seç: {self._asset_selected_type}",
             size_hint_x=1,
-            md_bg_color=(0.08, 0.72, 0.42, 1),
+            md_bg_color=self.theme_cls.primary_color, elevation=0,
         )
 
         menu_items = [
@@ -283,7 +284,7 @@ class AssetMixin:
                 ),
                 MDRaisedButton(
                     text="DEVAM",
-                    md_bg_color=(0.08, 0.72, 0.42, 1),
+                    md_bg_color=self.theme_cls.primary_color, elevation=0,
                     on_release=lambda x: self._on_asset_type_confirmed(),
                 ),
             ],
@@ -519,7 +520,7 @@ class AssetMixin:
                 MDFlatButton(text="GERİ", on_release=_go_back),
                 MDRaisedButton(
                     text="PORTFÖYE EKLE",
-                    md_bg_color=(0.08, 0.72, 0.42, 1),
+                    md_bg_color=self.theme_cls.primary_color, elevation=0,
                     on_release=lambda x: self._save_stock_asset(),
                 ),
             ],
@@ -805,7 +806,7 @@ class AssetMixin:
                 MDFlatButton(text="GERİ", on_release=_go_back),
                 MDRaisedButton(
                     text="PORTFÖYE EKLE",
-                    md_bg_color=(0.08, 0.72, 0.42, 1),
+                    md_bg_color=self.theme_cls.primary_color, elevation=0,
                     on_release=lambda x: self._save_crypto_asset(),
                 ),
             ],
@@ -981,7 +982,7 @@ class AssetMixin:
                 ),
                 MDRaisedButton(
                     text="EKLE",
-                    md_bg_color=(0.08, 0.72, 0.42, 1),
+                    md_bg_color=self.theme_cls.primary_color, elevation=0,
                     on_release=lambda x: self._save_new_asset(),
                 ),
             ],
@@ -1270,9 +1271,9 @@ class AssetMixin:
                 text="İLK VARLIĞINI EKLE",
                 pos_hint={"center_x": .5},
                 on_release=lambda x: self.show_add_asset_dialog(),
-                text_color=(0.08, 0.72, 0.42, 1),
-                icon_color=(0.08, 0.72, 0.42, 1),
-                line_color=(0.08, 0.72, 0.42, 1)
+                text_color=self.theme_cls.primary_color,
+                icon_color=self.theme_cls.primary_color,
+                line_color=self.theme_cls.primary_color
             )
             
             empty_layout.add_widget(icon)
@@ -1295,16 +1296,14 @@ class AssetMixin:
             pnl_color = get_pnl_color(signal)
 
             # Kart
-            card = MDCard(
+            card = ftheme.apply_card_theme(MDCard(
                 orientation="vertical",
                 padding="10dp",
                 spacing="4dp",
                 size_hint_y=None,
                 height="100dp",
-                elevation=0,
-                line_color=(0.8, 0.8, 0.8, 0.3),
                 radius=[10],
-            )
+            ), self.theme_cls)
 
             # Üst satır: İsim + Sil butonu
             top_row = MDBoxLayout(
@@ -1486,7 +1485,7 @@ class AssetMixin:
                 ),
                 MDRaisedButton(
                     text="SAT",
-                    md_bg_color=(0.9, 0.2, 0.2, 1),
+                    md_bg_color=ftheme.accent(self.theme_cls, 'red'),
                     on_release=_confirm_sell,
                 ),
             ],

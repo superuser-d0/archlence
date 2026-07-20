@@ -209,7 +209,7 @@ class BudgetMixin:
                 text=month_name,
                 size_hint=(1, None),
                 height=dp(36),
-                md_bg_color=(0.12, 0.53, 0.53, 1),
+                md_bg_color=self.theme_cls.primary_color,
                 text_color=(1, 1, 1, 1),
                 elevation=0,
             )
@@ -433,10 +433,10 @@ class BudgetMixin:
         """Çoklu ay seçimi sırasında (kalem kopyalarken) ay butonlarının basılı/basılmamış durumunu değiştirir."""
         if not getattr(btn, 'is_selected', False):
             btn.is_selected = True
-            btn.md_bg_color = (0.07, 0.38, 0.38, 1)  # Darker teal when selected
+            btn.md_bg_color = self.theme_cls.primary_dark  # seçili: temanın koyu tonu
         else:
             btn.is_selected = False
-            btn.md_bg_color = (0.12, 0.53, 0.53, 1)  # Original teal when unselected
+            btn.md_bg_color = self.theme_cls.primary_color  # seçili değil
 
     def delete_budget_item(self, item_id):
         """Verilen ID'ye sahip bütçe kalemini siler ve listeyi/projeksiyonu günceller."""
