@@ -143,7 +143,14 @@ class AccountMixin:
                 dynamic_container.add_widget(self.acc_limit_field)
                 dynamic_container.add_widget(self.acc_statement_field)
             else:
+                # Vadesiz hesabın da fiziksel bir banka kartı olabilir. Kart
+                # numarası girilirse liste PremiumDebitCardWidget çizer, boş
+                # bırakılırsa düz BentoAccountWidget — alanlar OPSİYONEL.
+                # Bu dal eskiden yalnızca bakiye soruyordu; o yüzden banka
+                # kartı widget'ı hiçbir zaman çizilemiyordu (ölü kod).
                 dynamic_container.add_widget(self.acc_initial_balance_field)
+                dynamic_container.add_widget(self.acc_card_number_field)
+                dynamic_container.add_widget(self.acc_expiry_field)
                 dynamic_container.add_widget(Widget())
 
         fill_dynamic(self.selected_account_type)
@@ -158,19 +165,20 @@ class AccountMixin:
             is_credit = (self.selected_account_type == "Kredi Kartı")
             acc_type = "credit_card" if is_credit else "checking"
             
-            card_number_full = None
-            expiry_date = None
-            cvc_code = None
+            # Kart bilgileri her iki türde de opsiyonel; boş string yerine None
+            # geçiyoruz ki servis "kart yok" durumunu ayırt edebilsin.
+            card_number_full = self.acc_card_number_field.text.strip() or None
+            expiry_date = self.acc_expiry_field.text.strip() or None
 
             if is_credit:
                 initial_balance = float(self.acc_debt_field.text or 0)
                 credit_limit = float(self.acc_limit_field.text or 0)
-                card_number_full = self.acc_card_number_field.text.strip()
-                expiry_date = self.acc_expiry_field.text.strip()
-                cvc_code = self.acc_cvc_field.text.strip()
+                cvc_code = self.acc_cvc_field.text.strip() or None
             else:
                 initial_balance = float(self.acc_initial_balance_field.text or 0)
                 credit_limit = 0.0
+                # CVC yalnızca kredi kartı formunda soruluyor.
+                cvc_code = None
                 
             statement_date = self.acc_statement_field.text or None
             
@@ -289,7 +297,7 @@ class AccountMixin:
 
         for acc in accounts:
             is_credit_card = acc["account_type"] == CREDIT_CARD
-            has_card = acc.get("masked_number") and acc["masked_number"] != "**** **** **** 0000"
+            has_card = acc.get("has_card_number", False)
 
             if is_credit_card:
                 card = PremiumCreditCardWidget(

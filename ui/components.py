@@ -332,52 +332,72 @@ Builder.load_string('''
         size_hint_y: None
         height: "8dp"
 
-    # Araçlar (Toggles) - Sola Dayalı
+    MDLabel:
+        text: "Hızlı Kontrol"
+        font_style: "Overline"
+        theme_text_color: "Secondary"
+        size_hint_y: None
+        height: "16dp"
+
     MDBoxLayout:
         size_hint_y: None
-        height: "48dp"
+        height: "72dp"
         orientation: "vertical"
-        spacing: "8dp"
+        spacing: "4dp"
 
         MDBoxLayout:
             size_hint_y: None
-            height: "20dp"
+            height: "34dp"
             orientation: "horizontal"
+            spacing: "6dp"
             MDIcon:
                 icon: "web"
-                size_hint_x: None
-                width: "24dp"
-                font_size: "16sp"
+                size_hint: None, None
+                size: "18dp", "18dp"
+                font_size: "15sp"
+                pos_hint: {"center_y": 0.5}
                 theme_text_color: "Secondary"
             MDLabel:
                 text: "İnternet Alışverişi"
                 font_style: "Caption"
-                size_hint_x: 1
+                size_hint_x: None
+                width: "120dp"
+                halign: "left"
+                valign: "center"
+                pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: True
-                size_hint_x: None
-                width: "36dp"
+                size_hint: None, None
+                size: "26dp", "26dp"
                 pos_hint: {"center_y": 0.5}
+            Widget:
 
         MDBoxLayout:
             size_hint_y: None
-            height: "20dp"
+            height: "34dp"
             orientation: "horizontal"
+            spacing: "6dp"
             MDIcon:
                 icon: "snowflake"
-                size_hint_x: None
-                width: "24dp"
-                font_size: "16sp"
+                size_hint: None, None
+                size: "18dp", "18dp"
+                font_size: "15sp"
+                pos_hint: {"center_y": 0.5}
                 theme_text_color: "Secondary"
             MDLabel:
                 text: "Kartı Dondur"
                 font_style: "Caption"
-                size_hint_x: 1
+                size_hint_x: None
+                width: "120dp"
+                halign: "left"
+                valign: "center"
+                pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: False
-                size_hint_x: None
-                width: "36dp"
+                size_hint: None, None
+                size: "26dp", "26dp"
                 pos_hint: {"center_y": 0.5}
+            Widget:
 
     Widget:
         size_hint_y: 1
@@ -506,51 +526,72 @@ Builder.load_string('''
         size_hint_y: None
         height: "8dp"
 
+    MDLabel:
+        text: "Hızlı Kontrol"
+        font_style: "Overline"
+        theme_text_color: "Secondary"
+        size_hint_y: None
+        height: "16dp"
+
     MDBoxLayout:
         size_hint_y: None
-        height: "48dp"
+        height: "72dp"
         orientation: "vertical"
-        spacing: "8dp"
+        spacing: "4dp"
 
         MDBoxLayout:
             size_hint_y: None
-            height: "20dp"
+            height: "34dp"
             orientation: "horizontal"
+            spacing: "6dp"
             MDIcon:
                 icon: "web"
-                size_hint_x: None
-                width: "24dp"
-                font_size: "16sp"
+                size_hint: None, None
+                size: "18dp", "18dp"
+                font_size: "15sp"
+                pos_hint: {"center_y": 0.5}
                 theme_text_color: "Secondary"
             MDLabel:
                 text: "İnternet Alışverişi"
                 font_style: "Caption"
-                size_hint_x: 1
+                size_hint_x: None
+                width: "120dp"
+                halign: "left"
+                valign: "center"
+                pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: True
-                size_hint_x: None
-                width: "36dp"
+                size_hint: None, None
+                size: "26dp", "26dp"
                 pos_hint: {"center_y": 0.5}
+            Widget:
 
         MDBoxLayout:
             size_hint_y: None
-            height: "20dp"
+            height: "34dp"
             orientation: "horizontal"
+            spacing: "6dp"
             MDIcon:
                 icon: "snowflake"
-                size_hint_x: None
-                width: "24dp"
-                font_size: "16sp"
+                size_hint: None, None
+                size: "18dp", "18dp"
+                font_size: "15sp"
+                pos_hint: {"center_y": 0.5}
                 theme_text_color: "Secondary"
             MDLabel:
                 text: "Kartı Dondur"
                 font_style: "Caption"
-                size_hint_x: 1
+                size_hint_x: None
+                width: "120dp"
+                halign: "left"
+                valign: "center"
+                pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: False
-                size_hint_x: None
-                width: "36dp"
+                size_hint: None, None
+                size: "26dp", "26dp"
                 pos_hint: {"center_y": 0.5}
+            Widget:
 
     Widget:
         size_hint_y: 1

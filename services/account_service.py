@@ -106,11 +106,28 @@ class AccountService:
 
     @staticmethod
     def check_card_network(card_number):
-        if not card_number: return ""
-        num = str(card_number).replace(" ", "").replace("-", "")
-        if num.startswith("4"): return "assets/visa.png"
-        if num.startswith("5"): return "assets/mastercard.png"
-        if num.startswith("9792"): return "assets/troy.png"
+        """Kart numarasının ilk hanelerinden (IIN/BIN) ağı belirler.
+
+        Logo yolları database/db.py::NETWORK_LOGOS'ta tek noktada tutulur;
+        burada tekrar yazılmaz ki asset yolu değiştiğinde iki yer ayrışmasın.
+
+        Sıra ÖNEMLİ: Troy kartları 9792 ile başlar, Mastercard 5 ile — önek
+        kontrolü en uzun/en özel olandan başlamalı, yoksa 9792... numarası
+        hiçbir kurala takılmadan boş dönerdi.
+        """
+        from database.db import NETWORK_LOGOS
+
+        if not card_number:
+            return ""
+        num = "".join(ch for ch in str(card_number) if ch.isdigit())
+        if not num:
+            return ""
+        if num.startswith("9792"):
+            return NETWORK_LOGOS.get("Troy", "")
+        if num.startswith("4"):
+            return NETWORK_LOGOS.get("Visa", "")
+        if num[0] in ("5", "2"):   # Mastercard 51-55 ve 2221-2720 aralıkları
+            return NETWORK_LOGOS.get("Mastercard", "")
         return ""
 
     @staticmethod
@@ -156,7 +173,13 @@ class AccountService:
             "debt": round(debt, 2),
             "available_limit": round(available_limit, 2),
             "masked_number": masked_number,
-            "network_logo": network_logo
+            "network_logo": network_logo,
+            # Arayüz hangi kart widget'ını çizeceğine buna bakarak karar verir.
+            # Maskelenmiş metni ("**** **** **** 0000") karşılaştırmak kırılgandı:
+            # numarası gerçekten 0000 ile biten bir kart kartsız sanılırdı.
+            "has_card_number": bool(
+                "card_number_full" in row.keys() and row["card_number_full"]
+            ),
         }
 
     @staticmethod
