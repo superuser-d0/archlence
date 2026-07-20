@@ -11,7 +11,7 @@ isim AES ile şifreli tutuluyor ama accounts.name zaten uygulama açılışında
 düz metin olarak kullanılıyor; sonradan şifrelemek mevcut satırları okunamaz
 hale getirirdi.
 """
-from database.db import get_connection
+from database.db import ACCOUNT, get_connection, record_balance_event
 
 CHECKING = "checking"
 CREDIT_CARD = "credit_card"
@@ -89,8 +89,15 @@ class AccountService:
                 INSERT INTO accounts (name, type, balance, account_type, credit_limit, statement_date)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (name, legacy_type, balance, account_type, credit_limit, statement_date))
+            account_id = cursor.lastrowid
+            # [Faz 2 · defter 7/8] Hesap açılışı da bir bakiye hareketidir.
+            # UPDATE değil INSERT olduğu için ilk taramada gözden kaçmıştı:
+            # açılış bakiyesi deftere yazılmazsa replay toplamı hiçbir zaman
+            # gerçek SUM(balance) ile tutmaz (açılış kadar eksik kalır).
+            record_balance_event(cursor, ACCOUNT, account_id, balance, balance,
+                                 "account_opened")
             conn.commit()
-            return cursor.lastrowid
+            return account_id
         finally:
             conn.close()
 

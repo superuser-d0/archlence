@@ -220,10 +220,11 @@ from mixins.recurring_mixin import RecurringMixin
 from mixins.migration_mixin import MigrationMixin
 from mixins.account_mixin import AccountMixin
 from mixins.insights_mixin import InsightsMixin
+from mixins.history_mixin import HistoryMixin
 
 class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
                 TransactionMixin, BudgetMixin, SavingsMixin, RecurringMixin,
-                MigrationMixin, AccountMixin, InsightsMixin):
+                MigrationMixin, AccountMixin, InsightsMixin, HistoryMixin):
 
     # ──────────────────────────────────────────────────────────────────────────
     # ODE / RK4 Financial Projection Engine
@@ -709,7 +710,22 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
             cursor.execute("DELETE FROM monthly_budget_plan")
             # Hesaplar Kopuk düzeltmesi: tüm işlemler silindiğinde accounts.balance
             # de sıfırlanır, yoksa tablo eski (artık karşılığı olmayan) bir bakiyede kalır.
+            #
+            # [Faz 2 · defter 6/6] factory_reset'teki gerekçenin aynısı: toplu
+            # sıfırlama hesap başına ayrı olay olarak yazılır, yoksa replay bu
+            # düşüşü kaçırır.
+            #
+            # savings_goals'a BİLEREK olay yazılmıyor: bu akış hedefleri
+            # silmiyor (yukarıdaki DELETE listesinde yok), yalnızca hesap
+            # bakiyelerini sıfırlıyor. Hedefleri de sıfırlıyormuş gibi olay
+            # yazmak defteri gerçeğe aykırı hale getirirdi.
+            from database.db import ACCOUNT, record_balance_event
+            cursor.execute("SELECT id, balance FROM accounts")
+            previous = [(r["id"], r["balance"] or 0.0) for r in cursor.fetchall()]
             cursor.execute("UPDATE accounts SET balance = 0")
+            for account_id, old_balance in previous:
+                record_balance_event(cursor, ACCOUNT, account_id, -old_balance, 0.0,
+                                     "delete_all_data")
             conn.commit()
             conn.close()
             
@@ -739,6 +755,7 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
         logging.getLogger("peewee").setLevel(logging.CRITICAL)
         self.purge_logs()
         self.vacuum_database()
+        self.write_daily_balance_snapshot()
         self.setup_dynamic_months()
         self.safe_refresh_charts()
         self.load_recent_transactions("Günlük")
@@ -747,6 +764,23 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
         self.load_active_assets()
         self.load_asset_history()
         self.process_due_auto_deductions()
+
+    def write_daily_balance_snapshot(self):
+        """Günde bir kez bakiye anlık görüntüsü yazar (Faz 2 zaman makinesi).
+
+        `get_balance_at` geçmişe giderken defteri baştan oynatmak yerine en
+        yakın snapshot'tan başlar; bu çağrı o başlangıç noktalarını üretir.
+        Aynı gün tekrar açılışta yazmaz (snapshot_date UNIQUE + açık kontrol),
+        bu yüzden on_start'ta koşulsuz çağrılabilir.
+
+        purge_logs/vacuum_database gibi: açılışta bir kez, sessizce, hata
+        uygulamayı düşürmeden.
+        """
+        try:
+            from services.history_service import write_daily_snapshot
+            write_daily_snapshot()
+        except Exception as e:
+            print("Günlük bakiye snapshot'ı yazılamadı:", e)
 
     def purge_logs(self):
         import os, glob

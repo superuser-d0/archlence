@@ -190,7 +190,125 @@ def initialize_database():
     if "dismissed_at" not in existing_dismissal_cols:
         cursor.execute("ALTER TABLE recurring_candidate_dismissals ADD COLUMN dismissed_at TEXT")
 
+    # 11. Bakiye Olay Defteri (Faz 2 — değişmez hareket kaydı)
+    # accounts.balance ve savings_goals.current_amount'a dokunan HER nokta
+    # buraya bir satır yazar. Kayıt, değişikliği yapan UPDATE ile AYNI cursor
+    # ve AYNI commit içinde yazılır: işlem yarıda kalırsa defter de geri alınır,
+    # yani defter ile gerçek bakiye asla ayrışamaz.
+    #   delta           : bu olayın değeri ne kadar değiştirdiği (işaretli)
+    #   resulting_value : olaydan SONRAKİ değer (replay'i doğrulamak için)
+    #   source          : olayı üreten akış ('transaction', 'savings_deposit', ...)
+    #   ref_id          : varsa ilgili kaydın id'si (transactions.id gibi)
+    # Tutarlar burada DÜZ tutulur: defterin amacı zaman içinde toplam/fark
+    # hesaplamak, şifreli kolonla replay her satırı tek tek çözmek zorunda kalırdı.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS balance_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT NOT NULL,
+            entity_type TEXT NOT NULL,
+            entity_id INTEGER NOT NULL,
+            delta REAL NOT NULL,
+            resulting_value REAL,
+            source TEXT,
+            ref_id INTEGER
+        )
+    """)
+
+    # Migration guard: erken bir sürüm ref_id'siz kurmuş olabilir.
+    cursor.execute("PRAGMA table_info(balance_events)")
+    existing_event_cols = {row[1] for row in cursor.fetchall()}
+    if "ref_id" not in existing_event_cols:
+        cursor.execute("ALTER TABLE balance_events ADD COLUMN ref_id INTEGER")
+    if "resulting_value" not in existing_event_cols:
+        cursor.execute("ALTER TABLE balance_events ADD COLUMN resulting_value REAL")
+
+    # Replay her zaman "tarihe göre" tarandığı için ts indeksi şart.
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_balance_events_ts ON balance_events(ts)")
+
+    # 12. Günlük Bakiye Anlık Görüntüsü (Faz 2 — replay kısayolu)
+    # get_balance_at() sıfırdan replay etmek yerine tarihe en yakın snapshot'ı
+    # alıp yalnızca sonrasındaki olayları oynatır. snapshot_date UNIQUE: günde
+    # tek satır, on_start aynı gün ikinci kez çalışsa da tekrar yazmaz.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS daily_balance_snapshot (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            snapshot_date TEXT NOT NULL UNIQUE,
+            total_balance REAL NOT NULL,
+            breakdown_json TEXT
+        )
+    """)
+
+    cursor.execute("PRAGMA table_info(daily_balance_snapshot)")
+    existing_snap_cols = {row[1] for row in cursor.fetchall()}
+    if "breakdown_json" not in existing_snap_cols:
+        cursor.execute("ALTER TABLE daily_balance_snapshot ADD COLUMN breakdown_json TEXT")
+
     conn.commit()
+
+    # ── Defter başlangıç çizgisi (backfill) ───────────────────────────────────
+    # Defter boşsa ama hesaplar doluysa, mevcut bakiyeler için birer "açılış"
+    # olayı yazılır. İki durumu birden kapsar:
+    #   * yeni kurulum  — varsayılan hesaplar aşağıda eklendikten sonra,
+    #   * MEVCUT veritabanı — Faz 2 öncesinden gelen bakiyeler.
+    #
+    # Bu satır olmadan `get_balance_at` defteri baştan oynattığında sonucu tam
+    # olarak açılış toplamı kadar eksik çıkar: accounts.balance'a INSERT ile
+    # konan para hiçbir UPDATE üretmediği için defterde karşılığı olmaz.
+    #
+    # DÜRÜSTLÜK NOTU: bu olayın zaman damgası BUGÜNDÜR, çünkü paranın gerçekte
+    # ne zaman girdiği bilinmiyor — defter o tarihten önce yoktu. Bu yüzden
+    # history_service, defter başlangıcından ÖNCEKİ tarihler için "veri yok"
+    # der; sıfır bakiye varmış gibi göstermez.
+    def _backfill_ledger_baseline():
+        """Açılış çizgisi olmayan her varlık için birer baseline olayı yazar.
+
+        "Defter tamamen boş mu" diye bakmak yetmez: defter kısmen dolu da
+        olabilir (ör. bazı hareketler kaydedilmişken uygulama güncellenmiş).
+        O yüzden VARLIK BAZINDA bakılır ve baseline şöyle hesaplanır:
+
+            açılış = bugünkü değer − o varlık için defterdeki deltaların toplamı
+
+        Böylece defterin toplamı her zaman gerçek bakiyeye eşitlenir; zaten
+        açılış çizgisi olan varlıklar tekrar yazılmaz (idempotent).
+        """
+        from database.db import ACCOUNT, SAVINGS_GOAL, record_balance_event
+
+        def _baseline(entity_type, table, value_column, marker_source):
+            cursor.execute(
+                f"SELECT id, {value_column} AS value FROM {table}"
+            )
+            rows = [(r["id"], r["value"] or 0.0) for r in cursor.fetchall()]
+            for entity_id, current_value in rows:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM balance_events"
+                    " WHERE entity_type = ? AND entity_id = ? AND source = ?",
+                    (entity_type, entity_id, marker_source),
+                )
+                if cursor.fetchone()[0] > 0:
+                    continue  # açılış çizgisi zaten var
+
+                cursor.execute(
+                    "SELECT COALESCE(SUM(delta), 0) AS total, MIN(ts) AS first_ts"
+                    " FROM balance_events WHERE entity_type = ? AND entity_id = ?",
+                    (entity_type, entity_id),
+                )
+                agg = cursor.fetchone()
+                recorded = agg["total"] or 0.0
+                opening = current_value - recorded
+
+                record_balance_event(cursor, entity_type, entity_id, opening,
+                                     opening, marker_source)
+                # Baseline kronolojik olarak mevcut olayların ÖNÜNE geçmeli,
+                # yoksa "o tarihteki bakiye" sorgusu açılışı sonradan görür.
+                if agg["first_ts"]:
+                    cursor.execute(
+                        "UPDATE balance_events SET ts = ? WHERE id = ?",
+                        (f"{agg['first_ts'][:10]} 00:00:00", cursor.lastrowid),
+                    )
+
+        _baseline(ACCOUNT, "accounts", "balance", "account_opened")
+        _baseline(SAVINGS_GOAL, "savings_goals", "current_amount", "savings_goal_created")
+        conn.commit()
 
     # 4. Varsayılan Hesapları Ekle
     cursor.execute("SELECT COUNT(*) FROM accounts")
@@ -248,6 +366,10 @@ def initialize_database():
         cursor.execute("INSERT INTO categories(name, type, importance) VALUES(?,?,?)",
                        ("Varlık Satışı", "income", "extra"))
     conn.commit()
+
+    # Varsayılan hesaplar kurulduktan SONRA çalışmalı ki yeni kurulumda da
+    # açılış bakiyeleri deftere girsin.
+    _backfill_ledger_baseline()
     # ─────────────────────────────────────────────────────────────────────────
 
     conn.close()

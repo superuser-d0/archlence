@@ -1,5 +1,6 @@
 import sqlite3
 import os
+from datetime import datetime
 from utils.crypto import encrypt, decrypt
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -18,7 +19,55 @@ def get_connection():
     return conn
 
 
-def adjust_account_balance(cursor, account_id, transaction_type, amount):
+ACCOUNT = "account"
+SAVINGS_GOAL = "savings_goal"
+
+
+def record_balance_event(cursor, entity_type, entity_id, delta,
+                         resulting_value, source, ref_id=None):
+    """balance_events'e tek satır yazar — ÇAĞIRANIN cursor'ıyla, aynı commit'te.
+
+    Kendi bağlantısını AÇMAZ: defter, kaydettiği bakiye değişikliğiyle aynı
+    işlemde durmak zorunda. Ayrı bağlantı açsaydı UPDATE geri alındığında
+    defterde hayalet bir satır kalırdı ve replay gerçek bakiyeden sapardı.
+
+    delta 0 olan olaylar da yazılır (örn. hedef açılışı): toplamı etkilemezler
+    ama defterin varlık geçmişini eksiksiz tutarlar.
+    """
+    cursor.execute(
+        """
+        INSERT INTO balance_events
+            (ts, entity_type, entity_id, delta, resulting_value, source, ref_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            entity_type,
+            int(entity_id),
+            float(delta),
+            None if resulting_value is None else float(resulting_value),
+            source,
+            None if ref_id is None else int(ref_id),
+        ),
+    )
+
+
+def current_account_balance(cursor, account_id):
+    """Açık cursor üzerinden hesabın güncel bakiyesi (olay sonrası değer için)."""
+    cursor.execute("SELECT balance FROM accounts WHERE id = ?", (account_id,))
+    row = cursor.fetchone()
+    return (row["balance"] if row else 0.0) or 0.0
+
+
+def current_goal_amount(cursor, goal_id):
+    """Açık cursor üzerinden hedefin güncel birikimi."""
+    cursor.execute("SELECT current_amount FROM savings_goals WHERE id = ?", (goal_id,))
+    row = cursor.fetchone()
+    return (row["current_amount"] if row else 0.0) or 0.0
+
+
+def adjust_account_balance(cursor, account_id, transaction_type, amount,
+                           ref_id=None, source="transaction"):
     """accounts.balance'ı işlem tutarına göre senkron günceller (Hesaplar Kopuk
     düzeltmesi). Açık bir cursor alır ki çağıran INSERT ile aynı commit'te atomik
     olarak yazılsın — ayrı bir connection açılırsa iki yazım arasında tutarsız bir
@@ -45,6 +94,11 @@ def adjust_account_balance(cursor, account_id, transaction_type, amount):
     cursor.execute(
         "UPDATE accounts SET balance = balance + ? WHERE id = ?",
         (delta, account_id),
+    )
+    # [Faz 2 · defter 1/6] Aynı cursor, aynı commit.
+    record_balance_event(
+        cursor, ACCOUNT, account_id, delta,
+        current_account_balance(cursor, account_id), source, ref_id,
     )
 
 def insert_debt(debt_name, total_amount, monthly_payment, total_installments, is_auto_pay=0, auto_pay_day=1):

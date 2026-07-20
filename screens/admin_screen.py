@@ -99,7 +99,18 @@ class AdminScreen(MDScreen):
             cursor.execute("DELETE FROM monthly_budget_plan")
             # Hesaplar Kopuk düzeltmesi: işlemler silinince accounts.balance de
             # sıfırlanır, yoksa tablo artık karşılığı olmayan eski bir bakiyede kalır.
+            #
+            # [Faz 2 · defter 5/6] Toplu sıfırlama tek bir "delta" değil: her
+            # hesabın kendi bakiyesi kadar düşüş yaşıyor. Bu yüzden eski
+            # bakiyeler UPDATE'ten ÖNCE okunup hesap başına birer olay yazılır —
+            # aksi halde replay sıfırlamayı göremez ve tarihsel toplam sapardı.
+            from database.db import ACCOUNT, record_balance_event
+            cursor.execute("SELECT id, balance FROM accounts")
+            previous = [(r["id"], r["balance"] or 0.0) for r in cursor.fetchall()]
             cursor.execute("UPDATE accounts SET balance = 0")
+            for account_id, old_balance in previous:
+                record_balance_event(cursor, ACCOUNT, account_id, -old_balance, 0.0,
+                                     "admin_factory_reset")
             conn.commit()
         except Exception:
             pass

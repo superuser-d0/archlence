@@ -12,7 +12,16 @@ goal_name AES şifreli saklanır; tutarlar düz REAL'dir (bkz. init_db.py'deki
 altına inerse tekrar 'aktif'.
 """
 
-from database.db import get_connection, DEFAULT_ACCOUNT_ID, SECRET_KEY
+from database.db import (
+    ACCOUNT,
+    DEFAULT_ACCOUNT_ID,
+    SAVINGS_GOAL,
+    SECRET_KEY,
+    current_account_balance,
+    current_goal_amount,
+    get_connection,
+    record_balance_event,
+)
 from utils.crypto import encrypt, decrypt
 
 STATUS_ACTIVE = "aktif"
@@ -34,8 +43,13 @@ class SavingsService:
                 INSERT INTO savings_goals (goal_name, target_amount, current_amount, target_date, status)
                 VALUES (?, ?, 0, ?, ?)
             """, (encrypt(str(goal_name), SECRET_KEY), target_amount, target_date, STATUS_ACTIVE))
+            goal_id = cursor.lastrowid
+            # [Faz 2 · defter] Hedef 0 birikimle açılır: delta 0, toplamı
+            # etkilemez ama defterde hedefin doğuşu görünür.
+            record_balance_event(cursor, SAVINGS_GOAL, goal_id, 0.0, 0.0,
+                                 "savings_goal_created")
             conn.commit()
-            return cursor.lastrowid
+            return goal_id
         finally:
             conn.close()
 
@@ -110,6 +124,19 @@ class SavingsService:
                 (goal_id,),
             )
 
+            # [Faz 2 · defter 2/6] Para ana hesaptan çıkıp hedefe girdi:
+            # iki ayrı varlık değiştiği için iki olay, ikisi de bu commit'te.
+            record_balance_event(
+                cursor, ACCOUNT, account_id, -amount,
+                current_account_balance(cursor, account_id),
+                "savings_deposit", goal_id,
+            )
+            record_balance_event(
+                cursor, SAVINGS_GOAL, goal_id, amount,
+                current_goal_amount(cursor, goal_id),
+                "savings_deposit", account_id,
+            )
+
             conn.commit()
             return SavingsService._get_goal_row(cursor, goal_id)
         except Exception:
@@ -148,6 +175,18 @@ class SavingsService:
                 f"UPDATE savings_goals SET status = '{STATUS_ACTIVE}' "
                 f"WHERE id = ? AND current_amount < target_amount",
                 (goal_id,),
+            )
+
+            # [Faz 2 · defter 3/6] deposit'in tersi: hedeften çıktı, hesaba girdi.
+            record_balance_event(
+                cursor, SAVINGS_GOAL, goal_id, -amount,
+                current_goal_amount(cursor, goal_id),
+                "savings_withdraw", account_id,
+            )
+            record_balance_event(
+                cursor, ACCOUNT, account_id, amount,
+                current_account_balance(cursor, account_id),
+                "savings_withdraw", goal_id,
             )
 
             conn.commit()
@@ -195,6 +234,18 @@ class SavingsService:
                     "UPDATE accounts SET balance = balance + ? WHERE id = ?",
                     (refund, account_id),
                 )
+                # [Faz 2 · defter 4/6] İade hesaba girdi.
+                record_balance_event(
+                    cursor, ACCOUNT, account_id, refund,
+                    current_account_balance(cursor, account_id),
+                    "savings_goal_deleted", goal_id,
+                )
+            # Hedef siliniyor: birikimi 0'a düşen bir olayla kapat ki replay
+            # hedefin bakiyesini sonsuza kadar taşımasın.
+            record_balance_event(
+                cursor, SAVINGS_GOAL, goal_id, -refund, 0.0,
+                "savings_goal_deleted", account_id,
+            )
             cursor.execute("DELETE FROM savings_goals WHERE id = ?", (goal_id,))
             conn.commit()
             return True

@@ -1802,6 +1802,31 @@ MDScreen:
 
                                 MDSeparator:
 
+                                # --- BAKİYE GEÇMİŞİ (Faz 2 zaman makinesi) ---
+                                ClickableSettingsRow:
+                                    orientation: "horizontal"
+                                    size_hint_y: None
+                                    height: "64dp"
+                                    padding: ["20dp", 0, "20dp", 0]
+                                    spacing: "20dp"
+                                    on_release: app.show_balance_history_dialog()
+                                    MDIcon:
+                                        icon: "history"
+                                        size_hint_x: None
+                                        width: "36dp"
+                                        halign: "center"
+                                        pos_hint: {"center_y": .5}
+                                        theme_text_color: "Primary"
+                                    MDLabel:
+                                        text: "Bakiye Geçmişi"
+                                        theme_text_color: "Primary"
+                                    MDIcon:
+                                        icon: "chevron-right"
+                                        pos_hint: {"center_y": .5}
+                                        theme_text_color: "Hint"
+
+                                MDSeparator:
+
                                 MDBoxLayout:
                                     orientation: "horizontal"
                                     size_hint_y: None
