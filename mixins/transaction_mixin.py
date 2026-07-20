@@ -29,7 +29,8 @@ class TransactionMixin:
         self.selected_category = "Kategori Seç"
         self.selected_frequency = "monthly"
 
-        dialog_layout = MDBoxLayout(orientation="vertical", spacing="15dp", size_hint_y=None, height="430dp")
+        # 430 -> 484: ödeme yöntemi butonu (48dp) + spacing (15dp) eklendi.
+        dialog_layout = MDBoxLayout(orientation="vertical", spacing="15dp", size_hint_y=None, height="484dp")
         self.amount_input = MDTextField(hint_text="Miktar (₺)", input_filter="float", size_hint_y=None, height="48dp")
 
         self.type_segment = MDSegmentedControl(size_hint_x=1)
@@ -38,6 +39,17 @@ class TransactionMixin:
         self.type_segment.bind(on_active=self.on_segment_active)
 
         self.category_button = MDRaisedButton(text="Kategori Seç", size_hint_x=1, elevation=0, on_release=self.open_category_menu)
+
+        # Ödeme yöntemi: işlemin HANGİ hesaptan/karttan geçeceği.
+        # Buradan seçilen hesabın id'si add_transaction'a gider; kredi kartı
+        # seçilirse tutar aynı commit içinde karta borç olarak işlenir
+        # (database/db.py::adjust_account_balance işaret konvansiyonu).
+        self.selected_account_id = None
+        self.account_button = MDRaisedButton(
+            text="Ödeme Yöntemi", size_hint_x=1, elevation=0,
+            on_release=self.open_account_menu,
+        )
+        self._load_payment_methods()
 
         # Tekrarlanan ödeme mi? (Kira, Netflix, Spotify vb. her ay tekrar eden giderler)
         recurring_row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="44dp", spacing="12dp")
@@ -66,6 +78,7 @@ class TransactionMixin:
         dialog_layout.add_widget(self.amount_input)
         dialog_layout.add_widget(self.type_segment)
         dialog_layout.add_widget(self.category_button)
+        dialog_layout.add_widget(self.account_button)
         dialog_layout.add_widget(recurring_row)
         dialog_layout.add_widget(self.recurring_name_input)
         dialog_layout.add_widget(self.recurring_freq_segment)
@@ -89,6 +102,83 @@ class TransactionMixin:
         self.selected_type = "expense" if segmented_item.text == "Gider" else "income"
         self.selected_category = "Kategori Seç"
         self.category_button.text = "Kategori Seç"
+
+        # Gelire geçilirken seçili ödeme yöntemi kredi kartıysa vadesize düşür:
+        # kredi kartına gelir yazmak borç ödemesi demektir ve bu ekrandan
+        # istenmeden yapılmamalı (open_account_menu de o durumda kartları elemez).
+        if self.selected_type == "income":
+            current = next((a for a in getattr(self, "_payment_methods", [])
+                            if a["id"] == self.selected_account_id), None)
+            if current is not None and current["account_type"] == "credit_card":
+                fallback = next((a for a in self._payment_methods
+                                 if a["account_type"] != "credit_card"), None)
+                if fallback is not None:
+                    self._set_payment_method(fallback, close_menu=False)
+
+    # ─── Ödeme yöntemi (hesap / kart seçimi) ─────────────────────────────────
+
+    def _load_payment_methods(self):
+        """Kayıtlı hesapları/kartları okur ve varsayılan seçimi kurar.
+
+        Varsayılan olarak ilk vadesiz hesap seçilir; hiç yoksa listedeki ilk
+        kayıt. Böylece kullanıcı seçim yapmasa da işlem eskisi gibi çalışır —
+        fark, artık sabit DEFAULT_ACCOUNT_ID yerine gerçek bir hesap olması.
+        """
+        try:
+            from services.account_service import AccountService, CREDIT_CARD
+            self._payment_methods = AccountService.get_accounts()
+        except Exception as e:
+            print("Ödeme yöntemleri okunamadı:", e)
+            self._payment_methods = []
+
+        if not self._payment_methods:
+            self.selected_account_id = None
+            self.account_button.text = "Ödeme Yöntemi (hesap yok)"
+            self.account_button.disabled = True
+            return
+
+        default = next(
+            (a for a in self._payment_methods if a["account_type"] != "credit_card"),
+            self._payment_methods[0],
+        )
+        self._set_payment_method(default, close_menu=False)
+
+    def _payment_label(self, acc):
+        """Menüde ve butonda görünen etiket: ad + tür (+ kart varsa son 4 hane)."""
+        label = f"{acc['name']} · {acc['type_label']}"
+        if acc.get("has_card_number") and acc.get("masked_number"):
+            label += f" ({acc['masked_number'][-4:]})"
+        return label
+
+    def open_account_menu(self, *args):
+        """Ödeme yöntemi menüsünü açar.
+
+        Gider seçiliyken kredi kartları da listelenir (harcama karta borç
+        yazılabilsin); GELİR seçiliyken kredi kartları elenir — kredi kartına
+        "gelir" girmek borç ödemesi anlamına gelir ve bu akış ayrı bir işlem,
+        buradan yanlışlıkla yapılmamalı.
+        """
+        methods = self._payment_methods
+        if self.selected_type == "income":
+            methods = [a for a in methods if a["account_type"] != "credit_card"]
+
+        if not methods:
+            toast("Uygun bir hesap bulunamadı.")
+            return
+
+        items = [{
+            "text": self._payment_label(a),
+            "viewclass": "OneLineListItem",
+            "on_release": (lambda x=a: self._set_payment_method(x)),
+        } for a in methods]
+        self.account_menu = MDDropdownMenu(caller=self.account_button, items=items, width_mult=5)
+        self.account_menu.open()
+
+    def _set_payment_method(self, acc, close_menu=True):
+        self.selected_account_id = acc["id"]
+        self.account_button.text = self._payment_label(acc)
+        if close_menu and getattr(self, "account_menu", None):
+            self.account_menu.dismiss()
 
     def open_category_menu(self, *args):
         categories = CategoryService.get_categories(self.selected_type)
@@ -145,6 +235,13 @@ class TransactionMixin:
             self.generate_financial_advice()
             if is_recurring and hasattr(self, "load_upcoming_recurring"):
                 self.load_upcoming_recurring()
+            # Kartlarım listesini tazele: seçilen karta yazılan borç ve o kartın
+            # "Son Hareketler" listesi anında güncellensin.
+            if hasattr(self, "render_accounts"):
+                try:
+                    self.render_accounts()
+                except Exception as e:
+                    print("Kart listesi tazelenemedi:", e)
             toast("İşlem başarıyla eklendi!")
 
         # Kredi kartı limit aşımı gibi kullanıcıya anlamlı gelen hatalarda genel
@@ -157,8 +254,10 @@ class TransactionMixin:
         def background_task():
             try:
                 from database.db import DEFAULT_ACCOUNT_ID
+                # Kullanıcının seçtiği hesap/kart; seçim yoksa eski davranış.
+                account_id = self.selected_account_id or DEFAULT_ACCOUNT_ID
                 TransactionService.add_transaction(
-                    account_id=DEFAULT_ACCOUNT_ID,
+                    account_id=account_id,
                     amount=user_amount,
                     transaction_type=self.selected_type,
                     category=self.selected_category,

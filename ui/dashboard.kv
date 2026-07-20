@@ -1471,7 +1471,12 @@ MDScreen:
 
                                         ScrollView:
                                             size_hint_y: None
-                                            height: "500dp"
+                                            # Kart yüksekliği ölçüldü: 3 hareket
+                                            # satırlı kredi kartı 567dp'ye çıkıyor
+                                            # ("Kart Kullanım Özeti" + Son Hareketler
+                                            # eklendikten sonra). 500dp'de kartın
+                                            # alt kısmı kırpılıyordu.
+                                            height: "620dp"
                                             do_scroll_y: False
                                             do_scroll_x: True
                                             bar_width: 0

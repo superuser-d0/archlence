@@ -221,6 +221,65 @@ class AccountMixin:
         )
         self.account_dialog.open()
 
+    def _fill_card_recent(self, card, account_id):
+        """Kartın "Kart Kullanım Özeti" panelindeki son hareket listesini doldurur.
+
+        Kart widget'ı KV'de boş bir `recent_container` ile geliyor; satırlar
+        burada üretiliyor çünkü tutar/açıklama şifreli ve çözüm Python tarafında
+        (bkz. TransactionService.get_recent_for_account).
+        """
+        try:
+            container = card.ids.recent_container
+        except Exception:
+            return
+        container.clear_widgets()
+
+        try:
+            from services.transaction_service import TransactionService
+            items = TransactionService.get_recent_for_account(account_id, limit=3)
+        except Exception as e:
+            print("Kart hareketleri okunamadı:", e)
+            return
+
+        if not items:
+            empty = MDLabel(
+                text="Bu kartta henüz hareket yok.",
+                font_style="Caption",
+                theme_text_color="Secondary",
+                size_hint_y=None,
+                height=dp(18),
+            )
+            empty.bind(size=empty.setter("text_size"))
+            container.add_widget(empty)
+            return
+
+        style = self.theme_cls.theme_style
+        for it in items:
+            row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                              height=dp(18), spacing=dp(6))
+            left = MDLabel(
+                text=f"{it['date'][5:]}  {it['description']}",
+                font_style="Caption",
+                theme_text_color="Secondary",
+                shorten=True,
+                shorten_from="right",
+            )
+            # Gider kırmızı, gelir yeşil — işaret de tutarın önünde.
+            is_income = it["type"] in ("income", "Gelir")
+            right = MDLabel(
+                text=("+" if is_income else "−") + _fmt(abs(it["amount"])),
+                font_style="Caption",
+                bold=True,
+                halign="right",
+                size_hint_x=None,
+                width=dp(86),
+                theme_text_color="Custom",
+                text_color=ftheme.accent(style, "green" if is_income else "red"),
+            )
+            row.add_widget(left)
+            row.add_widget(right)
+            container.add_widget(row)
+
     # ─── İş mantığı (tamamlandı — değiştirmeyin) ──────────────────────────────
     def commit_new_account(self, name, account_type, initial_balance=0.0,
                            credit_limit=0.0, statement_date=None,
@@ -308,6 +367,7 @@ class AccountMixin:
                     current_debt=_fmt(acc["debt"])
                 )
                 container_cards.add_widget(card)
+                self._fill_card_recent(card, acc["id"])
             elif has_card:
                 card = PremiumDebitCardWidget(
                     card_name=acc["name"],
@@ -316,6 +376,7 @@ class AccountMixin:
                     balance=_fmt(acc["balance"])
                 )
                 container_cards.add_widget(card)
+                self._fill_card_recent(card, acc["id"])
             else:
                 card = BentoAccountWidget(
                     account_name=acc["name"],

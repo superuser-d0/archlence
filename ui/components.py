@@ -339,7 +339,7 @@ Builder.load_string('''
         height: "8dp"
 
     MDLabel:
-        text: "Hızlı Kontrol"
+        text: "Kart Kullanım Özeti"
         font_style: "Overline"
         theme_text_color: "Secondary"
         size_hint_y: None
@@ -410,6 +410,24 @@ Builder.load_string('''
                 size: "26dp", "26dp"
                 pos_hint: {"center_y": 0.5}
             Widget:
+
+    MDSeparator:
+        size_hint_y: None
+        height: "1dp"
+
+    MDLabel:
+        text: "Son Hareketler"
+        font_style: "Overline"
+        theme_text_color: "Secondary"
+        size_hint_y: None
+        height: "16dp"
+
+    # AccountMixin._fill_card_recent dolduruyor (tarih · açıklama · tutar).
+    MDBoxLayout:
+        id: recent_container
+        orientation: "vertical"
+        adaptive_height: True
+        spacing: "2dp"
 
     Widget:
         size_hint_y: 1
@@ -545,7 +563,7 @@ Builder.load_string('''
         height: "8dp"
 
     MDLabel:
-        text: "Hızlı Kontrol"
+        text: "Kart Kullanım Özeti"
         font_style: "Overline"
         theme_text_color: "Secondary"
         size_hint_y: None
@@ -616,6 +634,24 @@ Builder.load_string('''
                 size: "26dp", "26dp"
                 pos_hint: {"center_y": 0.5}
             Widget:
+
+    MDSeparator:
+        size_hint_y: None
+        height: "1dp"
+
+    MDLabel:
+        text: "Son Hareketler"
+        font_style: "Overline"
+        theme_text_color: "Secondary"
+        size_hint_y: None
+        height: "16dp"
+
+    # AccountMixin._fill_card_recent dolduruyor (tarih · açıklama · tutar).
+    MDBoxLayout:
+        id: recent_container
+        orientation: "vertical"
+        adaptive_height: True
+        spacing: "2dp"
 
     Widget:
         size_hint_y: 1

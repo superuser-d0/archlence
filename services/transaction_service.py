@@ -94,3 +94,48 @@ class TransactionService:
                 'importance': r[4] if r[4] else 'extra'
             })
         return data
+
+    @staticmethod
+    def get_recent_for_account(account_id, limit=3):
+        """Bir hesaba/karta ait son işlemleri (tarih, açıklama, tutar) döndürür.
+
+        "Kart Kullanım Özeti" panelinin veri kaynağı. amount ve description
+        şifreli TEXT olduğu için SQL'de toplanamaz/aranamaz; satırlar çekilip
+        Python'da çözülür (main.py::update_metrics_and_goals ile aynı desen).
+        Sıralama ve LIMIT düz sütunlar üzerinden yapıldığı için SQL'de kalır.
+        """
+        from database.db import get_connection, SECRET_KEY
+        from utils.crypto import decrypt
+
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT amount, type, category, description, transaction_date"
+                " FROM transactions WHERE account_id = ?"
+                " ORDER BY transaction_date DESC, id DESC LIMIT ?",
+                (int(account_id), int(limit)),
+            )
+            rows = cursor.fetchall()
+        finally:
+            conn.close()
+
+        items = []
+        for r in rows:
+            try:
+                amount = float(decrypt(str(r["amount"]), SECRET_KEY))
+            except Exception:
+                amount = 0.0
+            try:
+                desc = decrypt(str(r["description"]), SECRET_KEY) or ""
+            except Exception:
+                desc = ""
+            items.append({
+                "amount": amount,
+                "type": r["type"],
+                "category": r["category"] or "",
+                # Açıklama boşsa kategori daha anlamlı bir etiket.
+                "description": desc.strip() or (r["category"] or "İşlem"),
+                "date": (r["transaction_date"] or "")[:10],
+            })
+        return items
