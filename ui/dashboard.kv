@@ -563,6 +563,143 @@ MDScreen:
                                             font_style: "Caption"
                                             theme_text_color: "Secondary"
 
+                                # FAZ 1: FİNANSAL SAĞLIK SKORU KARTI
+                                # Skor rengi/etiketi InsightsMixin.render_health_score
+                                # tarafından ftheme.accent ile atanır; burada yalnızca
+                                # yerleşim ve tema-duyarlı zemin var.
+                                MDCard:
+                                    elevation: 0
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
+                                    size_hint_y: None
+                                    height: "150dp"
+                                    padding: "16dp"
+                                    spacing: "10dp"
+                                    radius: [24]
+                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+                                    orientation: "vertical"
+
+                                    MDBoxLayout:
+                                        size_hint_y: None
+                                        height: "30dp"
+                                        spacing: "10dp"
+                                        MDIcon:
+                                            icon: "heart-pulse"
+                                            theme_text_color: "Custom"
+                                            text_color: app.theme_cls.primary_color
+                                            size_hint_x: None
+                                            width: "24dp"
+                                        MDLabel:
+                                            text: "Finansal Sağlık Skoru"
+                                            font_style: "Subtitle1"
+                                            bold: True
+                                            theme_text_color: "Primary"
+
+                                    MDBoxLayout:
+                                        size_hint_y: None
+                                        height: "44dp"
+                                        spacing: "12dp"
+                                        MDLabel:
+                                            id: health_score_value
+                                            text: "--"
+                                            font_style: "H4"
+                                            bold: True
+                                            size_hint_x: None
+                                            width: "88dp"
+                                            halign: "left"
+                                            theme_text_color: "Custom"
+                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
+                                        MDLabel:
+                                            id: health_score_label
+                                            text: "Hesaplanıyor..."
+                                            font_style: "Subtitle2"
+                                            bold: True
+                                            theme_text_color: "Secondary"
+                                            pos_hint: {"center_y": .5}
+
+                                    MDProgressBar:
+                                        id: health_score_bar
+                                        value: 0
+                                        max: 100
+                                        size_hint_y: None
+                                        height: "6dp"
+                                        color: app.theme_cls.primary_color
+
+                                    MDLabel:
+                                        id: health_breakdown_text
+                                        text: "Tasarruf oranı, borç/gelir ve gider oynaklığı birlikte değerlendirilir."
+                                        font_style: "Caption"
+                                        theme_text_color: "Secondary"
+
+                                # FAZ 1: ABONELİK RADARI ("sessiz sızıntı")
+                                MDCard:
+                                    elevation: 0
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
+                                    orientation: "vertical"
+                                    padding: "16dp"
+                                    spacing: "10dp"
+                                    size_hint_y: None
+                                    adaptive_height: True
+                                    radius: [24]
+                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+
+                                    MDBoxLayout:
+                                        size_hint_y: None
+                                        height: "30dp"
+                                        spacing: "10dp"
+                                        MDIcon:
+                                            icon: "radar"
+                                            theme_text_color: "Custom"
+                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'amber')
+                                            size_hint_x: None
+                                            width: "24dp"
+                                        MDLabel:
+                                            text: "Abonelik Radarı"
+                                            font_style: "Subtitle1"
+                                            bold: True
+                                            theme_text_color: "Primary"
+
+                                    # Kartları InsightsMixin.render_recurring_candidates çizer
+                                    MDBoxLayout:
+                                        id: recurring_candidates_container
+                                        orientation: "vertical"
+                                        adaptive_height: True
+                                        spacing: "10dp"
+
+                                # FAZ 1: OLAĞANDIŞI HARCAMA UYARILARI
+                                MDCard:
+                                    elevation: 0
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
+                                    orientation: "vertical"
+                                    padding: "16dp"
+                                    spacing: "10dp"
+                                    size_hint_y: None
+                                    adaptive_height: True
+                                    radius: [24]
+                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+
+                                    MDBoxLayout:
+                                        size_hint_y: None
+                                        height: "30dp"
+                                        spacing: "10dp"
+                                        MDIcon:
+                                            icon: "alert-decagram-outline"
+                                            theme_text_color: "Custom"
+                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'red')
+                                            size_hint_x: None
+                                            width: "24dp"
+                                        MDLabel:
+                                            text: "Olağandışı Harcamalar"
+                                            font_style: "Subtitle1"
+                                            bold: True
+                                            theme_text_color: "Primary"
+
+                                    # Kartları InsightsMixin.render_anomalies çizer
+                                    MDBoxLayout:
+                                        id: anomalies_container
+                                        orientation: "vertical"
+                                        adaptive_height: True
+                                        spacing: "10dp"
+
 
 
                                 # YENİ: AYLIK BÜTÇE PLANI KARTI

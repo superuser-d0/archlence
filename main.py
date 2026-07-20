@@ -219,10 +219,11 @@ from mixins.savings_mixin import SavingsMixin
 from mixins.recurring_mixin import RecurringMixin
 from mixins.migration_mixin import MigrationMixin
 from mixins.account_mixin import AccountMixin
+from mixins.insights_mixin import InsightsMixin
 
 class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
                 TransactionMixin, BudgetMixin, SavingsMixin, RecurringMixin,
-                MigrationMixin, AccountMixin):
+                MigrationMixin, AccountMixin, InsightsMixin):
 
     # ──────────────────────────────────────────────────────────────────────────
     # ODE / RK4 Financial Projection Engine
@@ -881,6 +882,13 @@ class FinoraApp(MDApp, AssetMixin, DebtMixin, CalculatorMixin, # type: ignore
                 self.root.ids.chart_master_box.refresh_dashboard(getattr(self, 'home_filter', 'Bugün'))
         except Exception as e:
             print("Error updating UI metrics:", e)
+
+        # Faz 1 içgörüleri (sağlık skoru / abonelik radarı / anomaliler).
+        # Kendi thread'ini açar; buradaki senkron blok uzamasın diye ayrı durur.
+        try:
+            self.refresh_insights()
+        except Exception as e:
+            print("Error refreshing insights:", e)
                 
         if not list_filter:
             list_filter = getattr(self, "home_filter", "Günlük")

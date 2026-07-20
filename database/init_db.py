@@ -150,6 +150,46 @@ def initialize_database():
         )
     """)
 
+    # 9. Finansal Sağlık Skoru Geçmişi (Faz 1 — içgörü motoru)
+    # Skorun kendisi ve bileşenleri düz tutulur: kişisel tutar/açıklama değil,
+    # 0-100 arası türetilmiş bir metrik ve onun ağırlık dökümü. Şifrelenseydi
+    # trend grafiği için her satır tek tek çözülmek zorunda kalırdı.
+    # breakdown_json: {"savings_rate": .., "debt_ratio": .., "volatility": ..}
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS financial_health_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            score REAL NOT NULL,
+            breakdown_json TEXT
+        )
+    """)
+
+    # Migration guard: tabloyu breakdown_json'suz oluşturmuş bir ara sürüm
+    # varsa sütun sonradan eklenir (mevcut satırlarda NULL kalır, okuyucu
+    # tarafı boş döküm olarak tolere eder).
+    cursor.execute("PRAGMA table_info(financial_health_history)")
+    existing_health_cols = {row[1] for row in cursor.fetchall()}
+    if "breakdown_json" not in existing_health_cols:
+        cursor.execute("ALTER TABLE financial_health_history ADD COLUMN breakdown_json TEXT")
+
+    # 10. Reddedilen Abonelik Adayları (Faz 1 — "sessiz sızıntı" radarı)
+    # candidate_key: kategori + normalize edilmiş ad üzerinden üretilen kararlı
+    # anahtar (bkz. services/insights_service.py::candidate_key). Kullanıcı bir
+    # adayı "bu abonelik değil" diye kapattığında burada işaretlenir ve radar
+    # onu bir daha önermez.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS recurring_candidate_dismissals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            candidate_key TEXT NOT NULL,
+            dismissed_at TEXT NOT NULL
+        )
+    """)
+
+    cursor.execute("PRAGMA table_info(recurring_candidate_dismissals)")
+    existing_dismissal_cols = {row[1] for row in cursor.fetchall()}
+    if "dismissed_at" not in existing_dismissal_cols:
+        cursor.execute("ALTER TABLE recurring_candidate_dismissals ADD COLUMN dismissed_at TEXT")
+
     conn.commit()
 
     # 4. Varsayılan Hesapları Ekle
