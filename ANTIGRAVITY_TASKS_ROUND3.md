@@ -1,10 +1,9 @@
 # Antigravity IDE Görev Listesi — Tur 3: "Hesaplarım / Kartlarım" Arayüzü
 
-> **DURUM: TAMAMLANDI (2026-07-20).** Görev 1 ve 2 uygulandı ve uçtan uca
+> DURUM: TAMAMLANDI. Görev 1 ve 2 uygulandı ve uçtan uca
 > doğrulandı (`76d3cc7`, `b872730`). Ardından diyalog yerleşimi yeniden yazıldı:
 > sekme geçişlerinde içeriğin başlığın üzerine taşması giderildi ve karanlık
-> tema kontrastı düzeltildi. Görev 3 (işlem diyaloğuna hesap seçici) YAPILMADI,
-> bir sonraki tura kaldı.
+> tema kontrastı düzeltildi. Görev 3 (işlem diyaloğuna hesap seçici) de tamamlandı.
 
 Bu turda YALNIZCA arayüz (widget + layout) işi var. Backend (veritabanı şeması,
 bakiye matematiği, doğrulama, net servet hesabı) tamamlanmış ve testleri geçmiş
@@ -149,7 +148,7 @@ doğrulama hatasında diyaloğun açık kalması gerekiyor ki kullanıcı düzel
 
 ---
 
-## ⬜ Görev 3 — İşlem diyaloğuna hesap seçici *(YAPILMADI — sonraki tur)*
+## ✅ Görev 3 — İşlem diyaloğuna hesap seçici *(tamamlandı)*
 
 Şu an işlem ekleme `DEFAULT_ACCOUNT_ID` (=1) sabitini kullanıyor
 (`mixins/transaction_mixin.py:157`). Kullanıcının karttan harcama yapabilmesi
@@ -213,8 +212,6 @@ KV'ye taşınmadı; bu, davranışı değiştirmeyen büyük bir yeniden yapıla
 olurdu.
 
 ### Açık kalan
-- Görev 3: işlem ekleme diyaloğu hâlâ `DEFAULT_ACCOUNT_ID` kullanıyor; kullanıcı
-  arayüzden hangi hesaptan/karttan harcadığını seçemiyor.
 - ~~KAYDET butonunun rengi `#5444E5` olarak koda gömülü~~ → aşağıdaki karanlık
   tema turunda giderildi (`self.theme_cls.primary_color`).
 
