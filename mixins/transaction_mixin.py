@@ -98,22 +98,14 @@ class TransactionMixin:
 
     def on_segment_active(self, segmented_control, segmented_item):
         """Gelir/Gider seçimi değişince türü günceller ve kategori seçimini sıfırlar
-        (kategoriler türe bağlı olduğu için eski seçim geçersiz kalır)."""
+        (kategoriler türe bağlı olduğu için eski seçim geçersiz kalır).
+
+        Ödeme yöntemi seçimine DOKUNULMAZ: kredi kartları artık her iki türde de
+        seçilebilir (bkz. open_account_menu), o yüzden türe göre kart düşürme
+        mantığı kaldırıldı — kullanıcının seçtiği kart olduğu gibi korunur."""
         self.selected_type = "expense" if segmented_item.text == "Gider" else "income"
         self.selected_category = "Kategori Seç"
         self.category_button.text = "Kategori Seç"
-
-        # Gelire geçilirken seçili ödeme yöntemi kredi kartıysa vadesize düşür:
-        # kredi kartına gelir yazmak borç ödemesi demektir ve bu ekrandan
-        # istenmeden yapılmamalı (open_account_menu de o durumda kartları elemez).
-        if self.selected_type == "income":
-            current = next((a for a in getattr(self, "_payment_methods", [])
-                            if a["id"] == self.selected_account_id), None)
-            if current is not None and current["account_type"] == "credit_card":
-                fallback = next((a for a in self._payment_methods
-                                 if a["account_type"] != "credit_card"), None)
-                if fallback is not None:
-                    self._set_payment_method(fallback, close_menu=False)
 
     # ─── Ödeme yöntemi (hesap / kart seçimi) ─────────────────────────────────
 
@@ -151,17 +143,18 @@ class TransactionMixin:
         return label
 
     def open_account_menu(self, *args):
-        """Ödeme yöntemi menüsünü açar.
+        """Ödeme yöntemini seçtiren menüyü açar.
 
-        Gider seçiliyken kredi kartları da listelenir (harcama karta borç
-        yazılabilsin); GELİR seçiliyken kredi kartları elenir — kredi kartına
-        "gelir" girmek borç ödemesi anlamına gelir ve bu akış ayrı bir işlem,
-        buradan yanlışlıkla yapılmamalı.
+        TÜM hesaplar VE kredi kartları her zaman listelenir. Önceden kredi
+        kartları "gelir" seçiliyken eleniyordu; bu, kartların görünürlüğünü
+        MDSegmentedControl'ün o anki durumuna bağlıyordu ve kullanıcı gider
+        eklerken kartını bulamıyordu. İşaret konvansiyonu (bkz.
+        adjust_account_balance) her iki yönü de doğru işliyor:
+          * gider  -> kart bakiyesi daha negatife gider (borç ARTAR),
+          * gelir  -> kart bakiyesi 0'a yaklaşır (borç ÖDENİR).
+        İkisi de geçerli işlemler; kartı kullanıcı bilinçli seçiyor.
         """
         methods = self._payment_methods
-        if self.selected_type == "income":
-            methods = [a for a in methods if a["account_type"] != "credit_card"]
-
         if not methods:
             toast("Uygun bir hesap bulunamadı.")
             return
