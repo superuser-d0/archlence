@@ -327,7 +327,7 @@ class AccountMixin:
         """Hesap/kart kartlarını `accounts_container`'a çizer ve özet etiketlerini
         günceller. Konteyner henüz kv'de yoksa sessizce çıkar — böylece arayüz
         parçası eklenmeden önce de backend testleri çağırabilir."""
-        if not (self.root and "accounts_container" in self.root.ids and "cards_container" in self.root.ids):
+        if not (self.root and "accounts_container" in self.root.ids and "cards_container" in self.root.ids):  # type: ignore
             return
 
         summary = AccountService.get_net_worth()
@@ -360,8 +360,8 @@ class AccountMixin:
 
             if is_credit_card:
                 # Matematiksel Borç Hesaplama ve Type Casting
-                limit_val = float(acc.get("credit_limit") or 0.0)
-                debt_val = float(acc.get("debt") or 0.0)
+                limit_val = acc.get("credit_limit") or 0.0
+                debt_val = acc.get("debt") or 0.0
                 
                 # Eksi bakiye veya 0'a bölme hatalarını kontrol altına alma
                 if limit_val > 0.0 and debt_val > 0.0:
