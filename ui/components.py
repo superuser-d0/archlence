@@ -368,14 +368,11 @@ Builder.load_string('''
                 text: "İnternet Alışverişi"
                 font_style: "Caption"
                 size_hint_x: 1
-                text_size: self.width, None
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: True
-                size_hint: None, None
-                size: "36dp", "20dp"
                 pos_hint: {"center_y": 0.5}
 
         MDBoxLayout:
@@ -395,14 +392,11 @@ Builder.load_string('''
                 text: "Kartı Dondur"
                 font_style: "Caption"
                 size_hint_x: 1
-                text_size: self.width, None
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: False
-                size_hint: None, None
-                size: "36dp", "20dp"
                 pos_hint: {"center_y": 0.5}
 
     MDSeparator:
@@ -586,14 +580,11 @@ Builder.load_string('''
                 text: "İnternet Alışverişi"
                 font_style: "Caption"
                 size_hint_x: 1
-                text_size: self.width, None
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: True
-                size_hint: None, None
-                size: "36dp", "20dp"
                 pos_hint: {"center_y": 0.5}
 
         MDBoxLayout:
@@ -613,14 +604,11 @@ Builder.load_string('''
                 text: "Kartı Dondur"
                 font_style: "Caption"
                 size_hint_x: 1
-                text_size: self.width, None
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: False
-                size_hint: None, None
-                size: "36dp", "20dp"
                 pos_hint: {"center_y": 0.5}
 
     MDSeparator:
