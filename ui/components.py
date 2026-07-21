@@ -347,13 +347,13 @@ Builder.load_string('''
 
     MDBoxLayout:
         size_hint_y: None
-        height: "72dp"
+        height: "100dp"
         orientation: "vertical"
         spacing: "4dp"
 
         MDBoxLayout:
             size_hint_y: None
-            height: "34dp"
+            height: "48dp"
             orientation: "horizontal"
             spacing: "6dp"
             MDIcon:
@@ -366,24 +366,22 @@ Builder.load_string('''
             MDLabel:
                 text: "İnternet Alışverişi"
                 font_style: "Caption"
-                size_hint_x: None
-                # 100dp: en uzun etiket ("İnternet Alışverişi") Caption boyunda
-                # 91dp ölçüldü; kutu switch'i gereksiz sağa itmeyecek kadar dar,
-                # metni kırpmayacak kadar geniş.
-                width: "100dp"
+                # size_hint_x: 1 -> etiket satırı doldurur ve MDSwitch'i sağ
+                # kenara iter (araya spacer koymaya gerek yok). text_size ile
+                # metin sola yaslı sarılır, taşmaz.
+                size_hint_x: 1
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: True
-                size_hint: None, None
-                size: "26dp", "26dp"
+                size_hint_x: None
+                width: "52dp"
                 pos_hint: {"center_y": 0.5}
-            Widget:
 
         MDBoxLayout:
             size_hint_y: None
-            height: "34dp"
+            height: "48dp"
             orientation: "horizontal"
             spacing: "6dp"
             MDIcon:
@@ -396,20 +394,18 @@ Builder.load_string('''
             MDLabel:
                 text: "Kartı Dondur"
                 font_style: "Caption"
-                size_hint_x: None
-                # 100dp: en uzun etiket ("İnternet Alışverişi") Caption boyunda
-                # 91dp ölçüldü; kutu switch'i gereksiz sağa itmeyecek kadar dar,
-                # metni kırpmayacak kadar geniş.
-                width: "100dp"
+                # size_hint_x: 1 -> etiket satırı doldurur ve MDSwitch'i sağ
+                # kenara iter (araya spacer koymaya gerek yok). text_size ile
+                # metin sola yaslı sarılır, taşmaz.
+                size_hint_x: 1
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: False
-                size_hint: None, None
-                size: "26dp", "26dp"
+                size_hint_x: None
+                width: "52dp"
                 pos_hint: {"center_y": 0.5}
-            Widget:
 
     MDSeparator:
         size_hint_y: None
@@ -571,13 +567,13 @@ Builder.load_string('''
 
     MDBoxLayout:
         size_hint_y: None
-        height: "72dp"
+        height: "100dp"
         orientation: "vertical"
         spacing: "4dp"
 
         MDBoxLayout:
             size_hint_y: None
-            height: "34dp"
+            height: "48dp"
             orientation: "horizontal"
             spacing: "6dp"
             MDIcon:
@@ -590,24 +586,22 @@ Builder.load_string('''
             MDLabel:
                 text: "İnternet Alışverişi"
                 font_style: "Caption"
-                size_hint_x: None
-                # 100dp: en uzun etiket ("İnternet Alışverişi") Caption boyunda
-                # 91dp ölçüldü; kutu switch'i gereksiz sağa itmeyecek kadar dar,
-                # metni kırpmayacak kadar geniş.
-                width: "100dp"
+                # size_hint_x: 1 -> etiket satırı doldurur ve MDSwitch'i sağ
+                # kenara iter (araya spacer koymaya gerek yok). text_size ile
+                # metin sola yaslı sarılır, taşmaz.
+                size_hint_x: 1
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: True
-                size_hint: None, None
-                size: "26dp", "26dp"
+                size_hint_x: None
+                width: "52dp"
                 pos_hint: {"center_y": 0.5}
-            Widget:
 
         MDBoxLayout:
             size_hint_y: None
-            height: "34dp"
+            height: "48dp"
             orientation: "horizontal"
             spacing: "6dp"
             MDIcon:
@@ -620,20 +614,18 @@ Builder.load_string('''
             MDLabel:
                 text: "Kartı Dondur"
                 font_style: "Caption"
-                size_hint_x: None
-                # 100dp: en uzun etiket ("İnternet Alışverişi") Caption boyunda
-                # 91dp ölçüldü; kutu switch'i gereksiz sağa itmeyecek kadar dar,
-                # metni kırpmayacak kadar geniş.
-                width: "100dp"
+                # size_hint_x: 1 -> etiket satırı doldurur ve MDSwitch'i sağ
+                # kenara iter (araya spacer koymaya gerek yok). text_size ile
+                # metin sola yaslı sarılır, taşmaz.
+                size_hint_x: 1
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: False
-                size_hint: None, None
-                size: "26dp", "26dp"
+                size_hint_x: None
+                width: "52dp"
                 pos_hint: {"center_y": 0.5}
-            Widget:
 
     MDSeparator:
         size_hint_y: None
