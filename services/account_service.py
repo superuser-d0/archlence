@@ -156,8 +156,12 @@ class AccountService:
                 pass
 
         if account_type == CREDIT_CARD:
-            debt = max(0.0, -balance)
-            available_limit = max(0.0, credit_limit - debt)
+            if balance > 0:
+                debt = 0.0
+                available_limit = credit_limit + balance
+            else:
+                debt = max(0.0, -balance)
+                available_limit = max(0.0, credit_limit - debt)
         else:
             debt = 0.0
             available_limit = 0.0
@@ -240,6 +244,12 @@ class AccountService:
         if not acc:
             return False, "Hesap bulunamadı."
         if acc["account_type"] != CREDIT_CARD:
+            try:
+                amount_f = float(amount)
+            except (TypeError, ValueError):
+                return False, "Geçersiz tutar."
+            if amount_f > float(acc["balance"]):
+                return False, "Yetersiz Bakiye! Bu hesap eksiye düşemez."
             return True, ""
         # Limit 0 = "belirlenmemiş", yasak değil. Migration'dan gelen eski kartlar
         # credit_limit=0 ile geliyor; bunları limitsiz saymazsak kullanıcının
@@ -274,6 +284,9 @@ class AccountService:
         source = AccountService.get_account(source_account_id)
         if not source or source["account_type"] != CHECKING:
             raise ValueError("Ödeme yapılacak hesap vadesiz hesap olmalıdır.")
+            
+        if float(source["balance"]) < amount:
+            raise ValueError("Yetersiz Bakiye! Bu hesap eksiye düşemez.")
 
         conn = get_connection()
         try:
