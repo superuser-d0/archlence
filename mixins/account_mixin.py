@@ -360,12 +360,16 @@ class AccountMixin:
 
             if is_credit_card:
                 # Matematiksel Borç Hesaplama ve Type Casting
-                limit_val = acc.get("credit_limit") or 0.0
-                debt_val = acc.get("debt") or 0.0
+                limit_val = float(acc.get("credit_limit") or 0.0)
+                debt_val = float(acc.get("debt") or 0.0)
                 
-                # Eksi bakiye veya 0'a bölme hatalarını kontrol altına alma
-                if limit_val > 0.0 and debt_val > 0.0:
-                    ratio = (debt_val / limit_val) * 100.0
+                # Progress bar'ın 'Kullanılabilir Limit' oranını göstermesini sağla.
+                # Formül: yuzde = ((limit - guncel_borc) / limit) * 100
+                if limit_val > 0.0:
+                    if debt_val == 0.0:
+                        ratio = 100.0
+                    else:
+                        ratio = ((limit_val - debt_val) / limit_val) * 100.0
                 else:
                     ratio = 0.0
                 

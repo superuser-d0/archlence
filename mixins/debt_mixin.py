@@ -310,17 +310,8 @@ class DebtMixin:
         )
         content.add_widget(account_btn)
 
-        menu_items = []
-        for acc in checking_accounts:
-            menu_items.append({
-                "text": f"{acc['name']} (Bakiye: {acc['balance']:,.2f} ₺)",
-                "viewclass": "OneLineListItem",
-                "on_release": lambda x=acc: set_selected_account(x),
-            })
-
         self.pay_debt_menu = MDDropdownMenu(
             caller=account_btn,
-            items=menu_items,
             width_mult=4,
         )
 
@@ -330,7 +321,20 @@ class DebtMixin:
             account_btn.text = f"{acc['name']} (Bakiye: {acc['balance']:,.2f} ₺)"
             self.pay_debt_menu.dismiss()
 
-        account_btn.on_release = self.pay_debt_menu.open
+        def open_menu(*args):
+            accounts_now = AccountService.get_accounts()
+            checking_now = [a for a in accounts_now if a["account_type"] == CHECKING]
+            menu_items = []
+            for acc in checking_now:
+                menu_items.append({
+                    "text": f"{acc['name']} (Bakiye: {acc['balance']:,.2f} ₺)",
+                    "viewclass": "OneLineListItem",
+                    "on_release": lambda x=acc: set_selected_account(x),
+                })
+            self.pay_debt_menu.items = menu_items
+            self.pay_debt_menu.open()
+
+        account_btn.on_release = open_menu
 
         def confirm(*args):
             amount_text = amount_input.text.strip()
@@ -353,9 +357,34 @@ class DebtMixin:
                     Clock.schedule_once(lambda dt: toast("Borç başarıyla ödendi!"), 0)
                     Clock.schedule_once(lambda dt: self.pay_debt_dialog.dismiss(), 0)
                     
-                    # refresh UI
-                    if hasattr(self, 'render_accounts'):
-                        Clock.schedule_once(lambda dt: self.render_accounts(), 0)
+                    # refresh UI (kart bilgilerini anında güncelle)
+                    def refresh_card(dt):
+                        if hasattr(self, 'render_accounts'):
+                            self.render_accounts()
+                        
+                        if hasattr(self, 'root') and self.root and "cards_container" in self.root.ids:
+                            from ui.components import PremiumCreditCardWidget
+                            from services.account_service import AccountService, _fmt_try
+                            fresh_card = AccountService.get_account(credit_card_id)
+                            if not fresh_card: return
+                            
+                            limit_val = float(fresh_card.get("credit_limit") or 0.0)
+                            debt_val = float(fresh_card.get("debt") or 0.0)
+                            if limit_val > 0.0:
+                                ratio = 100.0 if debt_val == 0.0 else ((limit_val - debt_val) / limit_val) * 100.0
+                            else:
+                                ratio = 0.0
+                            ratio = max(0.0, min(100.0, ratio))
+                            
+                            for child in self.root.ids.cards_container.children:
+                                if isinstance(child, PremiumCreditCardWidget) and getattr(child, 'account_id', None) == credit_card_id:
+                                    child.debt_ratio = ratio
+                                    child.available_limit = _fmt_try(fresh_card["available_limit"])
+                                    child.current_debt = _fmt_try(fresh_card["debt"])
+                                    if hasattr(self, '_fill_card_recent'):
+                                        self._fill_card_recent(child, credit_card_id)
+
+                    Clock.schedule_once(refresh_card, 0)
                 except Exception as e:
                     print("Error paying credit card debt:", e)
                     Clock.schedule_once(lambda dt: toast(f"Hata: {str(e)}"), 0)
