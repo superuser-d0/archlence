@@ -359,8 +359,22 @@ class AccountMixin:
             has_card = acc.get("has_card_number", False)
 
             if is_credit_card:
+                # Matematiksel Borç Hesaplama ve Type Casting
+                limit_val = float(acc.get("credit_limit") or 0.0)
+                debt_val = float(acc.get("debt") or 0.0)
+                
+                # Eksi bakiye veya 0'a bölme hatalarını kontrol altına alma
+                if limit_val > 0.0 and debt_val > 0.0:
+                    ratio = (debt_val / limit_val) * 100.0
+                else:
+                    ratio = 0.0
+                
+                # Değeri 0 ile 100 arasında sınırla
+                ratio = max(0.0, min(100.0, ratio))
+
                 card = PremiumCreditCardWidget(
                     account_id=acc["id"],
+                    debt_ratio=ratio,
                     card_name=acc["name"],
                     masked_number=acc.get("masked_number", "**** **** **** 0000"),
                     network_logo=acc.get("network_logo", ""),

@@ -327,9 +327,9 @@ Builder.load_string('''
                 theme_text_color: "Error"
                 halign: "right"
 
-    # Progress bar (mock)
+    # Progress bar bound to actual debt ratio
     MDProgressBar:
-        value: 40
+        value: root.debt_ratio
         color: app.theme_cls.primary_color
         size_hint_y: None
         height: "4dp"
@@ -682,6 +682,7 @@ Builder.load_string('''
 
 class PremiumCreditCardWidget(MDCard):
     account_id = NumericProperty(0)
+    debt_ratio = NumericProperty(0.0)
     card_name = StringProperty("")
     masked_number = StringProperty("**** **** **** 0000")
     network_logo = StringProperty("")
