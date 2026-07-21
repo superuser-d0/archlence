@@ -29,16 +29,25 @@ class TransactionMixin:
         self.selected_category = "Kategori Seç"
         self.selected_frequency = "monthly"
 
-        # 430 -> 484: ödeme yöntemi butonu (48dp) + spacing (15dp) eklendi.
-        dialog_layout = MDBoxLayout(orientation="vertical", spacing="15dp", size_hint_y=None, height="484dp")
+        # AŞAMALI GÖSTERİM: içerik artık sabit yükseklikli değil, adaptive.
+        # Abonelik alanları gizlenince kutu küçülür, açılınca büyür; diyalog
+        # kendini _toggle_recurring_fields içindeki update_height ile yeniden
+        # ölçer. spacing 15 -> 18: temel alanların çevresi biraz daha ferah.
+        dialog_layout = MDBoxLayout(
+            orientation="vertical", spacing=dp(18),
+            size_hint_y=None, adaptive_height=True,
+            padding=[0, dp(4), 0, dp(4)],
+        )
         self.amount_input = MDTextField(hint_text="Miktar (₺)", input_filter="float", size_hint_y=None, height="48dp")
 
-        self.type_segment = MDSegmentedControl(size_hint_x=1)
+        # Segment ve butonlara açık yükseklik: adaptive konteynerde her çocuğun
+        # size_hint_y=None + net height olmalı, yoksa kutu doğru ölçülmez.
+        self.type_segment = MDSegmentedControl(size_hint_x=1, size_hint_y=None, height="48dp")
         self.type_segment.add_widget(MDSegmentedControlItem(text="Gelir"))
         self.type_segment.add_widget(MDSegmentedControlItem(text="Gider"))
         self.type_segment.bind(on_active=self.on_segment_active)
 
-        self.category_button = MDRaisedButton(text="Kategori Seç", size_hint_x=1, elevation=0, on_release=self.open_category_menu)
+        self.category_button = MDRaisedButton(text="Kategori Seç", size_hint_x=1, size_hint_y=None, height="44dp", elevation=0, on_release=self.open_category_menu)
 
         # Ödeme yöntemi: işlemin HANGİ hesaptan/karttan geçeceği.
         # Buradan seçilen hesabın id'si add_transaction'a gider; kredi kartı
@@ -46,24 +55,27 @@ class TransactionMixin:
         # (database/db.py::adjust_account_balance işaret konvansiyonu).
         self.selected_account_id = None
         self.account_button = MDRaisedButton(
-            text="Ödeme Yöntemi", size_hint_x=1, elevation=0,
+            text="Ödeme Yöntemi", size_hint_x=1, size_hint_y=None, height="44dp", elevation=0,
             on_release=self.open_account_menu,
         )
         self._load_payment_methods()
 
         # Tekrarlanan ödeme mi? (Kira, Netflix, Spotify vb. her ay tekrar eden giderler)
+        # Switch açılınca aşağıdaki abonelik alanları belirir.
         recurring_row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="44dp", spacing="12dp")
         recurring_lbl = MDLabel(text="Tekrarlanan Ödeme mi?", valign="center")
         recurring_lbl.bind(size=recurring_lbl.setter('text_size'))
         self.recurring_switch = MDSwitch(size_hint_x=None, width=dp(65))
+        self.recurring_switch.bind(active=self._toggle_recurring_fields)
         recurring_row.add_widget(recurring_lbl)
         recurring_row.add_widget(self.recurring_switch)
 
+        # ── Aşamalı olarak açılan (varsayılan GİZLİ) abonelik alanları ──────────
         self.recurring_name_input = MDTextField(
             hint_text="Ödeme Adı (örn: Netflix)", size_hint_y=None, height="48dp"
         )
 
-        self.recurring_freq_segment = MDSegmentedControl(size_hint_x=1)
+        self.recurring_freq_segment = MDSegmentedControl(size_hint_x=1, size_hint_y=None, height="48dp")
         self.recurring_freq_segment.add_widget(MDSegmentedControlItem(text="Aylık"))
         self.recurring_freq_segment.add_widget(MDSegmentedControlItem(text="Yıllık"))
         self.recurring_freq_segment.bind(on_active=self.on_recurring_freq_active)
@@ -75,14 +87,26 @@ class TransactionMixin:
         auto_deduct_row.add_widget(auto_deduct_lbl)
         auto_deduct_row.add_widget(self.auto_deduct_switch)
 
+        # Abonelik alanları TEK bir wrapper'da toplanır. Gizleme = wrapper'ı
+        # ağaçtan çıkarmak. Neden height=0 DEĞİL: MDTextField ve
+        # MDSegmentedControl kendi yüksekliklerini içeriden hesaplayıp dışarıdan
+        # verilen height=0'ı EZİYOR (account_mixin'de de belgelenen davranış),
+        # o yüzden gizli kalmıyorlardı. Ağaçtan çıkarınca kesin gizlenir ve
+        # adaptive_height konteyner kendini küçültür.
+        self._recurring_box = MDBoxLayout(
+            orientation="vertical", size_hint_y=None, adaptive_height=True, spacing=dp(18),
+        )
+        self._recurring_box.add_widget(self.recurring_name_input)
+        self._recurring_box.add_widget(self.recurring_freq_segment)
+        self._recurring_box.add_widget(auto_deduct_row)
+        self._recurring_visible = False
+
         dialog_layout.add_widget(self.amount_input)
         dialog_layout.add_widget(self.type_segment)
         dialog_layout.add_widget(self.category_button)
         dialog_layout.add_widget(self.account_button)
         dialog_layout.add_widget(recurring_row)
-        dialog_layout.add_widget(self.recurring_name_input)
-        dialog_layout.add_widget(self.recurring_freq_segment)
-        dialog_layout.add_widget(auto_deduct_row)
+        # _recurring_box başta EKLENMEZ: ilk görünüm sade kalsın.
 
         self.dialog = MDDialog(
             title="Yeni Bir İşlem Ekle",
@@ -91,6 +115,34 @@ class TransactionMixin:
             buttons=[MDRaisedButton(text="KAYDET", on_release=self.save_transaction)]
         )
         self.dialog.open()
+
+    # ─── Aşamalı gösterim (progressive disclosure) ───────────────────────────
+
+    def _toggle_recurring_fields(self, switch, active):
+        """"Tekrarlanan Ödeme mi?" switch'iyle abonelik alanlarını aç/kapat.
+
+        Açınca wrapper temel alanların (recurring_row) hemen ardına eklenir,
+        kapanınca çıkarılır. adaptive_height konteyner büyüyüp küçülür; diyalog
+        bir sonraki karede (layout oturunca) update_height ile yeniden ölçülür.
+        """
+        if active == self._recurring_visible:
+            return
+        layout = self.dialog.content_cls
+        if active:
+            # recurring_row'dan (en alttaki temel alan) hemen sonraya ekle.
+            layout.add_widget(self._recurring_box)
+        else:
+            if self._recurring_box.parent is not None:
+                layout.remove_widget(self._recurring_box)
+        self._recurring_visible = active
+
+        def _reflow(dt):
+            try:
+                self.dialog.update_height()
+                self.dialog.height = self.dialog.ids.container.height
+            except Exception:
+                pass
+        Clock.schedule_once(_reflow, 0)
 
     def on_recurring_freq_active(self, segmented_control, segmented_item):
         """Tekrarlanan ödeme sıklığı seçimini (Aylık/Yıllık) günceller."""
