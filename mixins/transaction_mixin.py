@@ -149,15 +149,17 @@ class TransactionMixin:
         self.selected_frequency = "yearly" if segmented_item.text == "Yıllık" else "monthly"
 
     def on_segment_active(self, segmented_control, segmented_item):
-        """Gelir/Gider seçimi değişince türü günceller ve kategori seçimini sıfırlar
-        (kategoriler türe bağlı olduğu için eski seçim geçersiz kalır).
+        """Gelir/Gider seçimi değişince türü günceller, kategori seçimini sıfırlar
+        ve ödeme yöntemini yeniden doğrular.
 
-        Ödeme yöntemi seçimine DOKUNULMAZ: kredi kartları artık her iki türde de
-        seçilebilir (bkz. open_account_menu), o yüzden türe göre kart düşürme
-        mantığı kaldırıldı — kullanıcının seçtiği kart olduğu gibi korunur."""
+        Kategoriler türe bağlı olduğu için eski seçim geçersiz kalır. Ödeme
+        yöntemi de türe bağlı: gelir yalnızca vadesiz hesaba yatar (bkz.
+        _valid_payment_methods), o yüzden gelire geçilince seçili kredi kartı
+        varsa ilk geçerli hesaba düşürülür."""
         self.selected_type = "expense" if segmented_item.text == "Gider" else "income"
         self.selected_category = "Kategori Seç"
         self.category_button.text = "Kategori Seç"
+        self._revalidate_payment_method()
 
     # ─── Ödeme yöntemi (hesap / kart seçimi) ─────────────────────────────────
 
@@ -194,21 +196,49 @@ class TransactionMixin:
             label += f" ({acc['masked_number'][-4:]})"
         return label
 
+    def _valid_payment_methods(self):
+        """Aktif işlem türüne göre seçilebilir ödeme yöntemleri.
+
+        * Gelir  -> yalnızca vadesiz/banka hesapları (gelir kredi kartına
+                    yatmaz; kredi kartına para girişi = borç ödemesi, bu ekranın
+                    işi değil).
+        * Gider  -> tüm vadesiz hesaplar + kayıtlı kredi kartları (karttan
+                    harcama, tutarı karta borç olarak yazar).
+        """
+        if self.selected_type == "income":
+            return [a for a in self._payment_methods if a["account_type"] != "credit_card"]
+        return list(self._payment_methods)
+
+    def _revalidate_payment_method(self, *args):
+        """Tür değiştikten sonra seçili ödeme yöntemi hâlâ geçerli mi bakar.
+
+        Geçersizse (ör. Gelir'e geçilmiş ama seçili kredi kartı kalmış) ilk
+        geçerli hesaba düşürür ve butonu günceller. Açık bir menü varsa,
+        içeriği artık eskidiği için kapatılır; kullanıcı yeniden açınca güncel
+        liste gelir.
+        """
+        valid = self._valid_payment_methods()
+        if not valid:
+            return
+        if self.selected_account_id not in [a["id"] for a in valid]:
+            self._set_payment_method(valid[0], close_menu=False)
+        menu = getattr(self, "account_menu", None)
+        if menu is not None:
+            try:
+                menu.dismiss()
+            except Exception:
+                pass
+
     def open_account_menu(self, *args):
         """Ödeme yöntemini seçtiren menüyü açar.
 
-        TÜM hesaplar VE kredi kartları her zaman listelenir. Önceden kredi
-        kartları "gelir" seçiliyken eleniyordu; bu, kartların görünürlüğünü
-        MDSegmentedControl'ün o anki durumuna bağlıyordu ve kullanıcı gider
-        eklerken kartını bulamıyordu. İşaret konvansiyonu (bkz.
-        adjust_account_balance) her iki yönü de doğru işliyor:
-          * gider  -> kart bakiyesi daha negatife gider (borç ARTAR),
-          * gelir  -> kart bakiyesi 0'a yaklaşır (borç ÖDENİR).
-        İkisi de geçerli işlemler; kartı kullanıcı bilinçli seçiyor.
+        Liste, aktif işlem türüne göre filtrelenir (bkz. _valid_payment_methods):
+        Gelir'de yalnızca vadesiz hesaplar, Gider'de hesaplar + kredi kartları.
+        Gelir↔Gider geçişinde liste on_segment_active üzerinden yeniden doğrulanır.
         """
-        methods = self._payment_methods
+        methods = self._valid_payment_methods()
         if not methods:
-            toast("Uygun bir hesap bulunamadı.")
+            toast("Bu işlem türü için uygun bir hesap bulunamadı.")
             return
 
         items = [{
@@ -226,15 +256,69 @@ class TransactionMixin:
             self.account_menu.dismiss()
 
     def open_category_menu(self, *args):
-        categories = CategoryService.get_categories(self.selected_type)
-        menu_items = [{"text": str(cat[1]), "viewclass": "OneLineListItem", "on_release": lambda x=str(cat[1]): self.set_category(x)} for cat in categories]
-        self.category_menu = MDDropdownMenu(caller=self.category_button, items=menu_items, width_mult=4)
-        self.category_menu.open()
+        """Kategori seçimini ARANABİLİR bir diyalogla açar.
+
+        Kategori listesi çok uzun olduğu için düz MDDropdownMenu yerine, üstte
+        bir arama alanı + altta filtrelenebilir kaydırılır liste kuruluyor.
+        Arama alanına yazıldıkça (`on_text`) liste gerçek zamanlı filtrelenir;
+        bir kategori seçilince diyalog kapanır ve ana formdaki buton güncellenir.
+        """
+        from kivy.uix.scrollview import ScrollView
+        from kivymd.uix.list import MDList, OneLineListItem
+        from kivymd.uix.button import MDFlatButton
+
+        # Kategoriler türe bağlı (gelir/gider); her açılışta güncel çekilir.
+        self._all_categories = [str(c[1]) for c in CategoryService.get_categories(self.selected_type)]
+
+        search_field = MDTextField(
+            hint_text="Kategori ara...", size_hint_y=None, height="48dp",
+        )
+        self._category_list = MDList()
+        scroll = ScrollView()
+        scroll.add_widget(self._category_list)
+
+        content = MDBoxLayout(
+            orientation="vertical", spacing="8dp",
+            size_hint_y=None, height="380dp",
+        )
+        content.add_widget(search_field)
+        content.add_widget(scroll)
+
+        def populate(query=""):
+            """Listeyi arama sorgusuna göre (harf duyarsız) yeniden doldurur."""
+            self._category_list.clear_widgets()
+            q = query.strip().lower()
+            matches = [n for n in self._all_categories if q in n.lower()]
+            if not matches:
+                self._category_list.add_widget(
+                    OneLineListItem(text="Sonuç yok", disabled=True))
+                return
+            for name in matches:
+                item = OneLineListItem(text=name)
+                item.bind(on_release=lambda inst, n=name: self.set_category(n))
+                self._category_list.add_widget(item)
+
+        search_field.bind(text=lambda inst, val: populate(val))
+        populate()
+
+        self.category_dialog = MDDialog(
+            title="Kategori Seç",
+            type="custom",
+            content_cls=content,
+            buttons=[MDFlatButton(text="KAPAT", on_release=lambda x: self.category_dialog.dismiss())],
+        )
+        self.category_dialog.open()
 
     def set_category(self, text_item):
         self.category_button.text = text_item
         self.selected_category = text_item
-        self.category_menu.dismiss()
+        # Aranabilir kategori diyaloğunu kapat (eski dropdown ile de uyumlu).
+        dlg = getattr(self, "category_dialog", None) or getattr(self, "category_menu", None)
+        if dlg is not None:
+            try:
+                dlg.dismiss()
+            except Exception:
+                pass
 
     def save_transaction(self, *args):
         """Girilen işlemi doğrular ve arka planda şifreleyip veritabanına yazar.
