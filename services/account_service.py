@@ -259,3 +259,56 @@ class AccountService:
                 f"{_fmt_try(avail)}, harcama {_fmt_try(amount)}."
             )
         return True, ""
+
+    @staticmethod
+    def pay_credit_card_debt(credit_card_id, source_account_id, amount):
+        """Kredi kartı borcunu vadesiz hesaptan öder."""
+        amount = float(amount)
+        if amount <= 0:
+            raise ValueError("Ödenecek tutar sıfırdan büyük olmalıdır.")
+
+        card = AccountService.get_account(credit_card_id)
+        if not card or card["account_type"] != CREDIT_CARD:
+            raise ValueError("Geçersiz kredi kartı.")
+
+        source = AccountService.get_account(source_account_id)
+        if not source or source["account_type"] != CHECKING:
+            raise ValueError("Ödeme yapılacak hesap vadesiz hesap olmalıdır.")
+
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+
+            # Vadesiz hesaptan düş
+            cursor.execute("UPDATE accounts SET balance = balance - ? WHERE id = ?", (amount, source_account_id))
+            
+            # Kredi kartı borcundan düş (borç negatif bakiyedir, dolayısıyla eklenir)
+            cursor.execute("UPDATE accounts SET balance = balance + ? WHERE id = ?", (amount, credit_card_id))
+            
+            # balance_events için history tetikle
+            from database.db import record_balance_event, ACCOUNT
+            cursor.execute("SELECT balance FROM accounts WHERE id = ?", (source_account_id,))
+            new_source_balance = cursor.fetchone()["balance"]
+            record_balance_event(cursor, ACCOUNT, source_account_id, new_source_balance, new_source_balance, "expense")
+            
+            cursor.execute("SELECT balance FROM accounts WHERE id = ?", (credit_card_id,))
+            new_card_balance = cursor.fetchone()["balance"]
+            record_balance_event(cursor, ACCOUNT, credit_card_id, new_card_balance, new_card_balance, "income")
+
+            # İşlemi transactions tablosuna yaz
+            from services.transaction_service import TransactionService, SECRET_KEY
+            from utils.crypto import encrypt
+            import datetime
+            date_now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            enc_amount = encrypt(str(amount), SECRET_KEY)
+            desc = f"{card['name']} Borç Ödemesi"
+            enc_desc = encrypt(desc, SECRET_KEY)
+            
+            cursor.execute("""
+                INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (source_account_id, enc_amount, "expense", "Borç Ödeme", enc_desc, date_now))
+
+            conn.commit()
+        finally:
+            conn.close()

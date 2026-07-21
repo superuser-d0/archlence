@@ -360,6 +360,7 @@ class AccountMixin:
 
             if is_credit_card:
                 card = PremiumCreditCardWidget(
+                    account_id=acc["id"],
                     card_name=acc["name"],
                     masked_number=acc.get("masked_number", "**** **** **** 0000"),
                     network_logo=acc.get("network_logo", ""),

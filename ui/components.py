@@ -444,6 +444,7 @@ Builder.load_string('''
             line_color: app.theme_cls.primary_color
             theme_text_color: "Custom"
             text_color: app.theme_cls.primary_color
+            on_release: app.open_pay_debt_dialog(root.account_id)
 <PremiumDebitCardWidget>:
     size_hint: None, None
     width: "300dp"
@@ -680,6 +681,7 @@ Builder.load_string('''
 ''')
 
 class PremiumCreditCardWidget(MDCard):
+    account_id = NumericProperty(0)
     card_name = StringProperty("")
     masked_number = StringProperty("**** **** **** 0000")
     network_logo = StringProperty("")

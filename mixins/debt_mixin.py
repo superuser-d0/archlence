@@ -275,3 +275,100 @@ class DebtMixin:
             ],
         )
         self.auto_pay_dialog.open()
+
+    def open_pay_debt_dialog(self, credit_card_id):
+        from services.account_service import AccountService, CHECKING
+        import threading
+        from kivymd.uix.textfield import MDTextField
+        from kivymd.uix.menu import MDDropdownMenu
+
+        card = AccountService.get_account(credit_card_id)
+        if not card:
+            toast("Kredi kartı bulunamadı.")
+            return
+
+        accounts = AccountService.get_accounts()
+        checking_accounts = [acc for acc in accounts if acc["account_type"] == CHECKING]
+
+        if not checking_accounts:
+            toast("Ödeme yapabileceğiniz vadesiz/nakit hesabınız bulunmamaktadır.")
+            return
+
+        content = MDBoxLayout(orientation="vertical", spacing="14dp", size_hint_y=None, height="120dp")
+
+        amount_input = MDTextField(
+            hint_text="Ödenecek Tutar (₺)",
+            input_filter="float",
+            text=str(card["debt"]) if card["debt"] > 0 else ""
+        )
+        content.add_widget(amount_input)
+
+        selected_account_id = checking_accounts[0]["id"]
+        account_btn = MDRaisedButton(
+            text=f"{checking_accounts[0]['name']} (Bakiye: {checking_accounts[0]['balance']:,.2f} ₺)",
+            size_hint_x=1
+        )
+        content.add_widget(account_btn)
+
+        menu_items = []
+        for acc in checking_accounts:
+            menu_items.append({
+                "text": f"{acc['name']} (Bakiye: {acc['balance']:,.2f} ₺)",
+                "viewclass": "OneLineListItem",
+                "on_release": lambda x=acc: set_selected_account(x),
+            })
+
+        self.pay_debt_menu = MDDropdownMenu(
+            caller=account_btn,
+            items=menu_items,
+            width_mult=4,
+        )
+
+        def set_selected_account(acc):
+            nonlocal selected_account_id
+            selected_account_id = acc["id"]
+            account_btn.text = f"{acc['name']} (Bakiye: {acc['balance']:,.2f} ₺)"
+            self.pay_debt_menu.dismiss()
+
+        account_btn.on_release = self.pay_debt_menu.open
+
+        def confirm(*args):
+            amount_text = amount_input.text.strip()
+            if not amount_text:
+                toast("Lütfen tutar giriniz.")
+                return
+            try:
+                amount = float(amount_text)
+            except ValueError:
+                toast("Geçersiz tutar.")
+                return
+
+            if amount <= 0:
+                toast("Tutar 0'dan büyük olmalıdır.")
+                return
+
+            def process():
+                try:
+                    AccountService.pay_credit_card_debt(credit_card_id, selected_account_id, amount)
+                    Clock.schedule_once(lambda dt: toast("Borç başarıyla ödendi!"), 0)
+                    Clock.schedule_once(lambda dt: self.pay_debt_dialog.dismiss(), 0)
+                    
+                    # refresh UI
+                    if hasattr(self, 'render_accounts'):
+                        Clock.schedule_once(lambda dt: self.render_accounts(), 0)
+                except Exception as e:
+                    print("Error paying credit card debt:", e)
+                    Clock.schedule_once(lambda dt: toast(f"Hata: {str(e)}"), 0)
+
+            threading.Thread(target=process, daemon=True).start()
+
+        self.pay_debt_dialog = MDDialog(
+            title=f"{card['name']} Borç Ödeme",
+            type="custom",
+            content_cls=content,
+            buttons=[
+                MDFlatButton(text="İPTAL", on_release=lambda x: self.pay_debt_dialog.dismiss()),
+                MDFlatButton(text="ÖDE", on_release=confirm)
+            ]
+        )
+        self.pay_debt_dialog.open()
