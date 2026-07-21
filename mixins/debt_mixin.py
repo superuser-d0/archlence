@@ -394,7 +394,8 @@ class DebtMixin:
                     Clock.schedule_once(refresh_card, 0)
                 except Exception as e:
                     print("Error paying credit card debt:", e)
-                    Clock.schedule_once(lambda dt: toast(f"Hata: {str(e)}"), 0)
+                    error_msg = str(e)
+                    Clock.schedule_once(lambda dt: toast(f"Hata: {error_msg}"), 0)
 
             threading.Thread(target=process, daemon=True).start()
 
