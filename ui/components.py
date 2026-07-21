@@ -356,7 +356,7 @@ Builder.load_string('''
             height: "40dp"
             orientation: "horizontal"
             spacing: "8dp"
-            padding: 0, 0, "4dp", 0
+            padding: 0, 0, "14dp", 0
             MDIcon:
                 icon: "web"
                 size_hint: None, None
@@ -373,6 +373,9 @@ Builder.load_string('''
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: True
+                widget_style: "ios"
+                size_hint: None, None
+                size: "40dp", "24dp"
                 pos_hint: {"center_y": 0.5}
 
         MDBoxLayout:
@@ -380,7 +383,7 @@ Builder.load_string('''
             height: "40dp"
             orientation: "horizontal"
             spacing: "8dp"
-            padding: 0, 0, "4dp", 0
+            padding: 0, 0, "14dp", 0
             MDIcon:
                 icon: "snowflake"
                 size_hint: None, None
@@ -397,6 +400,9 @@ Builder.load_string('''
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: False
+                widget_style: "ios"
+                size_hint: None, None
+                size: "40dp", "24dp"
                 pos_hint: {"center_y": 0.5}
 
     MDSeparator:
@@ -568,7 +574,7 @@ Builder.load_string('''
             height: "40dp"
             orientation: "horizontal"
             spacing: "8dp"
-            padding: 0, 0, "4dp", 0
+            padding: 0, 0, "14dp", 0
             MDIcon:
                 icon: "web"
                 size_hint: None, None
@@ -585,6 +591,9 @@ Builder.load_string('''
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: True
+                widget_style: "ios"
+                size_hint: None, None
+                size: "40dp", "24dp"
                 pos_hint: {"center_y": 0.5}
 
         MDBoxLayout:
@@ -592,7 +601,7 @@ Builder.load_string('''
             height: "40dp"
             orientation: "horizontal"
             spacing: "8dp"
-            padding: 0, 0, "4dp", 0
+            padding: 0, 0, "14dp", 0
             MDIcon:
                 icon: "snowflake"
                 size_hint: None, None
@@ -609,6 +618,9 @@ Builder.load_string('''
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: False
+                widget_style: "ios"
+                size_hint: None, None
+                size: "40dp", "24dp"
                 pos_hint: {"center_y": 0.5}
 
     MDSeparator:
