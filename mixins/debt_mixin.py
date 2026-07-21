@@ -324,6 +324,13 @@ class DebtMixin:
         def open_menu(*args):
             accounts_now = AccountService.get_accounts()
             checking_now = [a for a in accounts_now if a["account_type"] == CHECKING]
+            
+            # Ana buton metnini güncel veriyle zorla güncelle (stale state koruması)
+            for acc in checking_now:
+                if acc["id"] == selected_account_id:
+                    account_btn.text = f"{acc['name']} (Bakiye: {acc['balance']:,.2f} ₺)"
+                    break
+            
             menu_items = []
             for acc in checking_now:
                 menu_items.append({
