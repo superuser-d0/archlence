@@ -130,8 +130,10 @@ def apply_standard_theme(theme_cls):
     _patch_text_color_once()
 
     # Premium mutasyonlarını geri al — KivyMD'nin dokunulmamış token'ları.
-    colors["Light"].update(_STANDARD_LIGHT)
-    colors["Indigo"].update(_STANDARD_INDIGO)
+    if _STANDARD_LIGHT is not None:
+        colors["Light"].update(_STANDARD_LIGHT)
+    if _STANDARD_INDIGO is not None:
+        colors["Indigo"].update(_STANDARD_INDIGO)
     # Karanlık yüzey merdiveni marka değil okunabilirlik meselesi; standart
     # temada da geçerli kalır.
     apply_dark_surface_tokens()
@@ -221,8 +223,9 @@ def make_text_field(hint, theme_cls, filter=None, mode="fill", **kwargs):
     """Tema duyarlı, yuvarlatılmış standart Finora giriş alanı."""
     from kivy.metrics import dp
     from kivymd.uix.textfield import MDTextField
+    from typing import Any
 
-    opts = dict(field_style(theme_cls))
+    opts: dict[str, Any] = dict(field_style(theme_cls))
     opts.update(
         hint_text=hint,
         mode=mode,
