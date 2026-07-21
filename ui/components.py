@@ -347,15 +347,16 @@ Builder.load_string('''
 
     MDBoxLayout:
         size_hint_y: None
-        height: "100dp"
+        height: "84dp"
         orientation: "vertical"
         spacing: "4dp"
 
         MDBoxLayout:
             size_hint_y: None
-            height: "48dp"
+            height: "40dp"
             orientation: "horizontal"
-            spacing: "6dp"
+            spacing: "8dp"
+            padding: 0, 0, "4dp", 0
             MDIcon:
                 icon: "web"
                 size_hint: None, None
@@ -366,24 +367,23 @@ Builder.load_string('''
             MDLabel:
                 text: "İnternet Alışverişi"
                 font_style: "Caption"
-                # size_hint_x: 1 -> etiket satırı doldurur ve MDSwitch'i sağ
-                # kenara iter (araya spacer koymaya gerek yok). text_size ile
-                # metin sola yaslı sarılır, taşmaz.
                 size_hint_x: 1
+                text_size: self.width, None
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: True
-                size_hint_x: None
-                width: "52dp"
+                size_hint: None, None
+                size: "36dp", "20dp"
                 pos_hint: {"center_y": 0.5}
 
         MDBoxLayout:
             size_hint_y: None
-            height: "48dp"
+            height: "40dp"
             orientation: "horizontal"
-            spacing: "6dp"
+            spacing: "8dp"
+            padding: 0, 0, "4dp", 0
             MDIcon:
                 icon: "snowflake"
                 size_hint: None, None
@@ -394,17 +394,15 @@ Builder.load_string('''
             MDLabel:
                 text: "Kartı Dondur"
                 font_style: "Caption"
-                # size_hint_x: 1 -> etiket satırı doldurur ve MDSwitch'i sağ
-                # kenara iter (araya spacer koymaya gerek yok). text_size ile
-                # metin sola yaslı sarılır, taşmaz.
                 size_hint_x: 1
+                text_size: self.width, None
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: False
-                size_hint_x: None
-                width: "52dp"
+                size_hint: None, None
+                size: "36dp", "20dp"
                 pos_hint: {"center_y": 0.5}
 
     MDSeparator:
@@ -567,15 +565,16 @@ Builder.load_string('''
 
     MDBoxLayout:
         size_hint_y: None
-        height: "100dp"
+        height: "84dp"
         orientation: "vertical"
         spacing: "4dp"
 
         MDBoxLayout:
             size_hint_y: None
-            height: "48dp"
+            height: "40dp"
             orientation: "horizontal"
-            spacing: "6dp"
+            spacing: "8dp"
+            padding: 0, 0, "4dp", 0
             MDIcon:
                 icon: "web"
                 size_hint: None, None
@@ -586,24 +585,23 @@ Builder.load_string('''
             MDLabel:
                 text: "İnternet Alışverişi"
                 font_style: "Caption"
-                # size_hint_x: 1 -> etiket satırı doldurur ve MDSwitch'i sağ
-                # kenara iter (araya spacer koymaya gerek yok). text_size ile
-                # metin sola yaslı sarılır, taşmaz.
                 size_hint_x: 1
+                text_size: self.width, None
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: True
-                size_hint_x: None
-                width: "52dp"
+                size_hint: None, None
+                size: "36dp", "20dp"
                 pos_hint: {"center_y": 0.5}
 
         MDBoxLayout:
             size_hint_y: None
-            height: "48dp"
+            height: "40dp"
             orientation: "horizontal"
-            spacing: "6dp"
+            spacing: "8dp"
+            padding: 0, 0, "4dp", 0
             MDIcon:
                 icon: "snowflake"
                 size_hint: None, None
@@ -614,17 +612,15 @@ Builder.load_string('''
             MDLabel:
                 text: "Kartı Dondur"
                 font_style: "Caption"
-                # size_hint_x: 1 -> etiket satırı doldurur ve MDSwitch'i sağ
-                # kenara iter (araya spacer koymaya gerek yok). text_size ile
-                # metin sola yaslı sarılır, taşmaz.
                 size_hint_x: 1
+                text_size: self.width, None
                 halign: "left"
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
                 active: False
-                size_hint_x: None
-                width: "52dp"
+                size_hint: None, None
+                size: "36dp", "20dp"
                 pos_hint: {"center_y": 0.5}
 
     MDSeparator:
