@@ -280,6 +280,76 @@ class AccountMixin:
             row.add_widget(right)
             container.add_widget(row)
 
+    def open_card_statement(self, account_id):
+        """Kartın tüm hareket geçmişini ('Ekstre') gösteren kaydırılabilir liste
+        diyaloğu açar. Gider kırmızı, gelir/iade yeşil renkte listelenir —
+        `_fill_card_recent` ile aynı renk kuralı, sadece 3 ile sınırlı değil.
+        """
+        from kivy.uix.scrollview import ScrollView
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.button import MDFlatButton
+        from kivymd.uix.list import MDList
+        from services.transaction_service import TransactionService
+
+        try:
+            items = TransactionService.get_recent_for_account(account_id, limit=500)
+        except Exception as e:
+            toast(f"Ekstre okunamadı: {e}")
+            return
+
+        body = MDList()
+        if not items:
+            empty = MDLabel(
+                text="Bu kartta henüz hareket yok.",
+                font_style="Caption",
+                theme_text_color="Secondary",
+                halign="center",
+                size_hint_y=None,
+                height=dp(40),
+            )
+            empty.bind(size=empty.setter("text_size"))
+            body.add_widget(empty)
+        else:
+            style = self.theme_cls.theme_style
+            for it in items:
+                row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                                   height=dp(28), spacing=dp(6),
+                                   padding=(dp(8), 0, dp(8), 0))
+                left = MDLabel(
+                    text=f"{it['date'][:10]}  {it['description']}",
+                    font_style="Caption",
+                    shorten=True,
+                    shorten_from="right",
+                )
+                is_income = it["type"] in ("income", "Gelir")
+                right = MDLabel(
+                    text=("+" if is_income else "−") + _fmt(abs(it["amount"])),
+                    font_style="Caption",
+                    bold=True,
+                    halign="right",
+                    size_hint_x=None,
+                    width=dp(100),
+                    theme_text_color="Custom",
+                    text_color=ftheme.accent(style, "green" if is_income else "red"),
+                )
+                row.add_widget(left)
+                row.add_widget(right)
+                body.add_widget(row)
+
+        scroll = ScrollView(size_hint=(1, 1))
+        scroll.add_widget(body)
+
+        content = MDBoxLayout(orientation="vertical", size_hint_y=None, height=dp(380))
+        content.add_widget(scroll)
+
+        self.statement_dialog = MDDialog(
+            title="Kart Ekstresi",
+            type="custom",
+            content_cls=content,
+            buttons=[MDFlatButton(text="KAPAT", on_release=lambda x: self.statement_dialog.dismiss())],
+        )
+        self.statement_dialog.open()
+
     # ─── İş mantığı (tamamlandı — değiştirmeyin) ──────────────────────────────
     def commit_new_account(self, name, account_type, initial_balance=0.0,
                            credit_limit=0.0, statement_date=None,

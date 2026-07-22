@@ -438,6 +438,7 @@ Builder.load_string('''
             line_color: app.theme_cls.primary_color
             theme_text_color: "Custom"
             text_color: app.theme_cls.primary_color
+            on_release: app.open_card_statement(root.account_id)
         MDFlatButton:
             text: "Borç Öde"
             size_hint_x: 0.5
