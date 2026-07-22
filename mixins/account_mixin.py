@@ -821,7 +821,9 @@ class AccountMixin:
 
         def _on_result(result):
             def _apply(dt):
-                self._active_assets_refresh_busy = False
+                complete = bool(result.get("complete", True))
+                if complete:
+                    self._active_assets_refresh_busy = False
                 current = self._active_assets_bento
                 if current is None:
                     return
@@ -832,8 +834,12 @@ class AccountMixin:
                 if total is None:
                     current.status_text = "Canlı fiyatlara ulaşılamadı"
                     return
-                if asset_count and not priced_count:
+                if asset_count and not priced_count and not complete:
                     current.status_text = f"{asset_count} varlık • Fiyat bekleniyor"
+                    return
+                if asset_count and not priced_count:
+                    current.balance = _fmt(0)
+                    current.status_text = "Canlı fiyat bulunamadı • 0 TL"
                     return
                 current.balance = _fmt(total)
                 if cached_count:
@@ -846,7 +852,7 @@ class AccountMixin:
             Clock.schedule_once(_apply, 0)
 
         try:
-            fetch_active_non_try_total(_on_result)
+            fetch_active_non_try_total(_on_result, progress_callback=_on_result)
         except Exception:
             self._active_assets_refresh_busy = False
             if widget is not None:

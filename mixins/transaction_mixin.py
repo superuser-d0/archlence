@@ -748,6 +748,10 @@ class TransactionMixin:
                 self.load_recent_transactions()
             except Exception as e:
                 print("Son işlemler yüklenemedi:", e)
+            try:
+                self.load_active_assets()
+            except Exception as e:
+                print("Aktif varlıklar yüklenemedi:", e)
 
         self._assets_tab_load_ev = Clock.schedule_once(_load, 0.1)
 

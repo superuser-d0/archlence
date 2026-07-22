@@ -1201,29 +1201,82 @@ class AssetMixin:
         from database.db import get_all_assets
         from services.asset_service import fetch_portfolio_with_prices
 
+        self._asset_load_generation = getattr(self, "_asset_load_generation", 0) + 1
+        generation = self._asset_load_generation
+        try:
+            container = self.root.ids.active_assets_container
+            container.clear_widgets()
+            from kivymd.uix.spinner import MDSpinner
+            from kivymd.uix.label import MDLabel
+            spinner = MDSpinner(
+                size_hint=(None, None), size=("32dp", "32dp"),
+                pos_hint={"center_x": .5}, active=True,
+            )
+            container.add_widget(spinner)
+            container.add_widget(MDLabel(
+                text="Varlıklar hazırlanıyor…", theme_text_color="Secondary",
+                halign="center", size_hint_y=None, height="28dp",
+            ))
+        except Exception:
+            return
+
         def _fetch_and_enrich():
             try:
                 assets = get_all_assets()
                 if not assets:
-                    Clock.schedule_once(lambda dt: self.render_active_assets([]), 0)
+                    Clock.schedule_once(
+                        lambda dt: self.render_active_assets([])
+                        if generation == self._asset_load_generation else None, 0
+                    )
                     return
-                
-                # Anında güncel olmayan veriyi bas (UI otomatik dolsun)
-                Clock.schedule_once(lambda dt: self.render_active_assets(assets), 0)
-                
-                # Canlı fiyat çekme + K/Z hesaplama (kendi içinde thread açar)
-                fetch_portfolio_with_prices(
-                    assets,
-                    callback=lambda enriched: Clock.schedule_once(
-                        lambda dt: self.render_active_assets(enriched), 0
-                    ),
+                Clock.schedule_once(
+                    lambda dt: self._stream_pending_assets(
+                        assets, generation, fetch_portfolio_with_prices
+                    ), 0
                 )
             except Exception as e:
                 print("Asset load error:", e)
+                Clock.schedule_once(
+                    lambda dt: self.render_active_assets([])
+                    if generation == self._asset_load_generation else None, 0
+                )
 
         threading.Thread(target=_fetch_and_enrich, daemon=True).start()
 
-    def render_active_assets(self, assets):
+    def _stream_pending_assets(self, assets, generation, fetcher, index=0):
+        """Ham varlıkları frame başına bir kart çizip sonra fiyat akışını başlatır."""
+        if generation != getattr(self, "_asset_load_generation", 0):
+            return
+        if index == 0:
+            self.root.ids.active_assets_container.clear_widgets()
+            self._assets_cache = []
+        if index < len(assets):
+            self.render_active_assets([assets[index]], incremental=True)
+            Clock.schedule_once(
+                lambda dt: self._stream_pending_assets(
+                    assets, generation, fetcher, index + 1
+                ), 0
+            )
+            return
+
+        def on_item(entry):
+            Clock.schedule_once(
+                lambda dt: self.render_active_assets([entry], incremental=True)
+                if generation == self._asset_load_generation else None, 0
+            )
+
+        def on_complete(enriched):
+            # Item callback'leri kartları tek tek günceller. Final callback boş
+            # portföy/fatal fallback için loading'in mutlaka sonlanmasını sağlar.
+            if not enriched:
+                Clock.schedule_once(
+                    lambda dt: self.render_active_assets([])
+                    if generation == self._asset_load_generation else None, 0
+                )
+
+        fetcher(assets, callback=on_complete, item_callback=on_item)
+
+    def render_active_assets(self, assets, incremental=False):
         """Varlık kartlarını renk kodlu K/Z (Kâr/Zarar) bilgisiyle dashboard'a basar.
         Kâr/Zarar (K/Z) hesaplaması: (Güncel Fiyat - Alım Fiyatı) * Miktar. Para birimi ₺'dir.
         """
@@ -1233,9 +1286,10 @@ class AssetMixin:
             print("render_active_assets: container bulunamadı:", e)
             return
 
-        container.clear_widgets()
+        if not incremental:
+            container.clear_widgets()
 
-        if not assets:
+        if not assets and not incremental:
             from kivymd.uix.boxlayout import MDBoxLayout
             from kivymd.uix.label import MDLabel, MDIcon
             from kivymd.uix.button import MDRoundFlatIconButton
@@ -1304,6 +1358,7 @@ class AssetMixin:
                 height="100dp",
                 radius=[10],
             ), self.theme_cls)
+            card._finora_asset_id = asset.get("id")
 
             # Üst satır: İsim + Sil butonu
             top_row = MDBoxLayout(
@@ -1407,11 +1462,22 @@ class AssetMixin:
             card.add_widget(top_row)
             card.add_widget(mid_row)
             card.add_widget(pnl_lbl)
+            if incremental:
+                old_card = next(
+                    (child for child in container.children
+                     if getattr(child, "_finora_asset_id", None) == asset.get("id")),
+                    None,
+                )
+                if old_card is not None:
+                    container.remove_widget(old_card)
             container.add_widget(card)
 
         # Kart yüksekliğini dinamik güncelle
         try:
-            card_count = len(assets)
+            card_count = len([
+                child for child in container.children
+                if getattr(child, "_finora_asset_id", None) is not None
+            ])
             parent_card = container.parent.parent  # ScrollView → MDCard
             new_height = max(280, 60 + card_count * 108)
             from kivy.metrics import dp as _dp
@@ -1420,8 +1486,13 @@ class AssetMixin:
             pass
 
         # Zenginleştirilmiş listeyi önbellek olarak kaydet ve Toplam Varlık kartını güncelle
-        self._assets_cache = assets
-        self.update_wealth_card(assets)
+        if incremental:
+            merged = {asset.get("id"): asset for asset in self._assets_cache}
+            merged.update({asset.get("id"): asset for asset in assets})
+            self._assets_cache = list(merged.values())
+        else:
+            self._assets_cache = assets
+        self.update_wealth_card(self._assets_cache)
 
     def _sell_asset(self, asset_id):
         """Sat diyaloğu açar — kullanıcı satış fiyatını girer,
@@ -1649,4 +1720,3 @@ class AssetMixin:
                 Clock.schedule_once(lambda dt: self.render_asset_history(history), 0)
 
         threading.Thread(target=_worker, daemon=True).start()
-

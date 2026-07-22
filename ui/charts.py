@@ -298,16 +298,18 @@ class DashboardChartManager(MDBoxLayout):
         # opacity=0 (ham 'mavi halka' görünmez), spinner döner; veri gelince
         # spinner kalkar ve grafik fade-in ile pürüzsüzce belirir.
         if pie_box:
-            pie_holder = self._make_chart_holder(self.pie_widget)
+            pie_holder = self._make_chart_holder(self.pie_widget, "₺0\nVeri Yok")
             self._pie_spinner = pie_holder._chart_spinner
+            self._pie_empty_label = pie_holder._chart_empty_label
             pie_box.add_widget(pie_holder)
             pie_box.add_widget(self.legend_widget)
         if comp_box:
-            comp_holder = self._make_chart_holder(self.trend_chart)
+            comp_holder = self._make_chart_holder(self.trend_chart, "Veri Yok")
             self._trend_spinner = comp_holder._chart_spinner
+            self._trend_empty_label = comp_holder._chart_empty_label
             comp_box.add_widget(comp_holder)
 
-    def _make_chart_holder(self, chart_widget):
+    def _make_chart_holder(self, chart_widget, empty_text):
         """Grafiği + ortalanmış bir MDSpinner'ı taşıyan FloatLayout döndürür."""
         from kivy.uix.floatlayout import FloatLayout
         from kivymd.uix.spinner import MDSpinner
@@ -315,6 +317,14 @@ class DashboardChartManager(MDBoxLayout):
         holder = FloatLayout(size_hint=(1, 1))
         chart_widget.size_hint = (1, 1)
         holder.add_widget(chart_widget)
+        from kivymd.uix.label import MDLabel
+        empty_label = MDLabel(
+            text=empty_text, halign="center", valign="center",
+            theme_text_color="Secondary", font_style="H6",
+            opacity=1,
+        )
+        empty_label.bind(size=empty_label.setter("text_size"))
+        holder.add_widget(empty_label)
         spinner = MDSpinner(
             size_hint=(None, None), size=(dp(36), dp(36)),
             pos_hint={"center_x": 0.5, "center_y": 0.5},
@@ -322,7 +332,15 @@ class DashboardChartManager(MDBoxLayout):
         )
         holder.add_widget(spinner)
         holder._chart_spinner = spinner
+        holder._chart_empty_label = empty_label
         return holder
+
+    def _set_chart_empty_state(self, empty):
+        opacity = 1 if empty else 0
+        for label in (getattr(self, "_pie_empty_label", None),
+                      getattr(self, "_trend_empty_label", None)):
+            if label is not None:
+                label.opacity = opacity
 
     def _set_charts_loading(self, loading):
         """Yükleme durumunu uygular: grafikleri gizle + spinnerları döndür,
@@ -333,9 +351,11 @@ class DashboardChartManager(MDBoxLayout):
         spinners = [s for s in (getattr(self, "_pie_spinner", None),
                                 getattr(self, "_trend_spinner", None)) if s is not None]
         if loading:
+            # Veri gelmese bile boş grafik şablonu görünür kalsın. Önceki
+            # opacity=0 yaklaşımı worker hata verdiğinde büyük boş alan bırakıyordu.
             for w in charts:
                 Animation.cancel_all(w, "opacity")
-                w.opacity = 0
+                w.opacity = 1
             for s in spinners:
                 s.active = True
                 s.opacity = 1
@@ -356,12 +376,29 @@ class DashboardChartManager(MDBoxLayout):
         """Fetch data in a background thread, then update all charts on the main thread."""
         import threading
 
-        # Ana thread'de: veri gelene kadar grafikleri gizle + spinner göster.
+        # İlk karede güvenli 0 şablonunu çiz; spinner bunun üzerinde döner.
+        empty_totals = {
+            'Ana Gelir': 0, 'Ek Gelir': 0,
+            'Temel Gider': 0, 'Ekstra Gider': 0,
+        }
+        self.pie_widget.data = empty_totals
+        self.pie_widget.request_redraw()
+        self.legend_widget.update_percentages(empty_totals)
+        self.trend_chart.chart_data = []
+        self.trend_chart.request_redraw()
+        self._set_chart_empty_state(True)
         self._set_charts_loading(True)
 
         def _load():
-            raw_data = TransactionService.get_transactions_by_period(period)
-            Clock.schedule_once(lambda dt: self._apply_data(raw_data, period), 0)
+            try:
+                raw_data = TransactionService.get_transactions_by_period(period)
+            except Exception as exc:
+                print("Dashboard grafik verisi okunamadı:", exc)
+                raw_data = []
+            # Başarılı veya hatalı her yol ana thread'de loading'i sonlandırır.
+            Clock.schedule_once(
+                lambda dt: self._apply_data_safely(raw_data, period), 0
+            )
 
         threading.Thread(target=_load, daemon=True).start()
 
@@ -371,15 +408,26 @@ class DashboardChartManager(MDBoxLayout):
 
     # ── Internal update (always runs on the main thread) ─────────────────────
 
+    def _apply_data_safely(self, raw_data, period):
+        try:
+            self._apply_data(raw_data, period)
+        except Exception as exc:
+            print("Dashboard grafikleri çizilemedi:", exc)
+            # Canvas/veri biçimi hatası dahi spinner ve opacity'yi kilitlemez.
+            self._set_charts_loading(False)
+
     def _apply_data(self, raw_data, period):
         # 1. Aggregate 4-category totals for PieChart + Legend
         cat_totals = {
             'Ana Gelir': 0, 'Ek Gelir': 0,
             'Temel Gider': 0, 'Ekstra Gider': 0,
         }
-        for tx in raw_data:
-            t_type     = tx.get('type')
-            amount     = tx.get('amount', 0)
+        for tx in raw_data or []:
+            t_type = tx.get('type')
+            try:
+                amount = float(tx.get('amount') or 0)
+            except (TypeError, ValueError):
+                amount = 0
             importance = tx.get('importance', 'extra')
             if t_type == 'income':
                 if importance == 'main': cat_totals['Ana Gelir']   += amount
@@ -396,9 +444,17 @@ class DashboardChartManager(MDBoxLayout):
         self.legend_widget.update_percentages(cat_totals)
 
         # 2. Build time-bucketed data for CurvedTrendChart
-        buckets = self._build_time_buckets(raw_data, period)
+        try:
+            buckets = self._build_time_buckets(raw_data or [], period)
+        except Exception as exc:
+            print("Dashboard zaman grafiği hazırlanamadı:", exc)
+            buckets = []
         self.trend_chart.chart_data = buckets
         self.trend_chart.request_redraw()
+        has_chart_data = any(cat_totals.values()) or any(
+            row.get("income", 0) or row.get("expense", 0) for row in buckets
+        )
+        self._set_chart_empty_state(not has_chart_data)
 
         # Çizim işlemi tamamlandı: bir sonraki karede (gerçek veri opacity=0
         # iken çizildikten sonra) spinnerları kaldır ve grafiği fade-in ile
@@ -876,5 +932,3 @@ class PieChart(Widget):
         self.anim_progress = 0
         from kivy.animation import Animation
         Animation(anim_progress=1, duration=1.2, t='out_cubic').start(self)
-
-

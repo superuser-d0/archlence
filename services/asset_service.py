@@ -287,7 +287,7 @@ def get_pnl_color(signal: str) -> list:
 
 # ─── Tüm portföy için toplu fiyat çekme (threading destekli) ─────────────────
 
-def fetch_portfolio_with_prices(assets: list, callback) -> None:
+def fetch_portfolio_with_prices(assets: list, callback, item_callback=None) -> None:
     """
     Arka plan thread'inde tüm varlıkların canlı fiyatlarını TEK bir toplu
     yfinance isteğiyle çeker (bkz. fetch_bist100_prices'daki aynı toplu indirme
@@ -304,7 +304,18 @@ def fetch_portfolio_with_prices(assets: list, callback) -> None:
     içerir (orijinal asset dict + ekstra alanlar):
         current_price, pnl_amount, pnl_pct, total_value, total_cost, signal
     """
-    def _worker():
+    def _error_entries():
+        result = []
+        for asset in assets:
+            entry = dict(asset)
+            entry.update({
+                "current_price": None, "pnl_amount": None, "pnl_pct": None,
+                "total_value": None, "total_cost": None, "signal": "error",
+            })
+            result.append(entry)
+        return result
+
+    def _worker_impl():
         import math
         import logging
         import yfinance as yf
@@ -406,7 +417,31 @@ def fetch_portfolio_with_prices(assets: list, callback) -> None:
                 entry["total_cost"]    = None
                 entry["signal"]        = "error"
             enriched.append(entry)
+            if item_callback is not None:
+                try:
+                    item_callback(entry)
+                except Exception as exc:
+                    print("Portföy parça callback hatası:", exc)
         callback(enriched)
+
+    def _worker():
+        try:
+            _worker_impl()
+        except Exception as exc:
+            # Import, bozuk satır veya beklenmeyen matematik hatası dahil her
+            # durumda UI'ın loading durumunu kapatacak final callback gönderilir.
+            print("Portföy fiyatlandırma tamamlanamadı:", exc)
+            fallback = _error_entries()
+            if item_callback is not None:
+                for entry in fallback:
+                    try:
+                        item_callback(entry)
+                    except Exception:
+                        pass
+            try:
+                callback(fallback)
+            except Exception as callback_exc:
+                print("Portföy final callback hatası:", callback_exc)
 
     threading.Thread(target=_worker, daemon=True).start()
 
@@ -481,6 +516,15 @@ def get_active_non_try_assets() -> list:
 
     conn = get_connection()
     try:
+        # Fonksiyonlu filtre normal asset_code indeksini kullanamaz. Aynı WHERE
+        # ifadesine sahip partial index, TL dışı aktif portföy taramasını id
+        # sırasından doğrudan karşılar.
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_active_assets_non_try
+                ON active_assets(id DESC)
+             WHERE UPPER(TRIM(asset_code)) NOT IN ('TRY', 'TL', 'TRY=X')
+        """)
+        conn.commit()
         rows = conn.execute("""
             SELECT id, asset_name, asset_code, asset_type, purchase_price, quantity
               FROM active_assets
@@ -614,7 +658,7 @@ def _fetch_live_try_prices(assets: list[dict]) -> dict[str, float]:
     return prices
 
 
-def fetch_active_non_try_total(callback) -> None:
+def fetch_active_non_try_total(callback, progress_callback=None) -> None:
     """TL dışı aktif portföyün canlı toplamını tamamen arka planda hesaplar.
 
     Callback ``total``, ``asset_count`` ve ``priced_count`` anahtarlarını içeren
@@ -625,12 +669,21 @@ def fetch_active_non_try_total(callback) -> None:
         try:
             assets = get_active_non_try_assets()
         except Exception as exc:
-            callback({"total": None, "asset_count": 0, "priced_count": 0, "error": str(exc)})
+            callback({"total": 0.0, "asset_count": 0, "priced_count": 0,
+                      "cached_count": 0, "complete": True, "error": str(exc)})
             return
 
         if not assets:
-            callback({"total": 0.0, "asset_count": 0, "priced_count": 0})
+            callback({"total": 0.0, "asset_count": 0, "priced_count": 0,
+                      "cached_count": 0, "complete": True})
             return
+
+        # UI hiçbir ağ isteğini beklemeden 0 TL şablonunu gösterebilir.
+        if progress_callback is not None:
+            progress_callback({
+                "total": 0.0, "asset_count": len(assets), "priced_count": 0,
+                "cached_count": 0, "complete": False,
+            })
 
         symbols = {(a["asset_code"] or "").strip().upper() for a in assets}
         live_prices, error = {}, None
@@ -652,19 +705,33 @@ def fetch_active_non_try_total(callback) -> None:
         except Exception:
             cached_prices = {}
         prices = {**cached_prices, **live_prices}
-        priced_assets = [a for a in assets if (a["asset_code"] or "").strip().upper() in prices]
-        total = sum(
-            float(a["quantity"]) * prices[(a["asset_code"] or "").strip().upper()]
-            for a in priced_assets
-        )
-        callback({
-            "total": total if priced_assets else None,
-            "asset_count": len(assets), "priced_count": len(priced_assets),
-            "cached_count": sum(
-                1 for a in priced_assets
-                if (a["asset_code"] or "").strip().upper() not in live_prices
-            ),
-            "error": error,
-        })
+        try:
+            priced_assets = [
+                a for a in assets
+                if (a["asset_code"] or "").strip().upper() in prices
+            ]
+            total = 0.0
+            cached_count = 0
+            for index, asset in enumerate(priced_assets, 1):
+                symbol = (asset["asset_code"] or "").strip().upper()
+                total += float(asset["quantity"]) * prices[symbol]
+                if symbol not in live_prices:
+                    cached_count += 1
+                if progress_callback is not None:
+                    progress_callback({
+                        "total": total, "asset_count": len(assets),
+                        "priced_count": index, "cached_count": cached_count,
+                        "complete": False, "asset": asset, "error": error,
+                    })
+            callback({
+                "total": total, "asset_count": len(assets),
+                "priced_count": len(priced_assets),
+                "cached_count": cached_count, "complete": True,
+                "error": error,
+            })
+        except Exception as exc:
+            callback({"total": 0.0, "asset_count": len(assets),
+                      "priced_count": 0, "cached_count": 0,
+                      "complete": True, "error": str(exc)})
 
     threading.Thread(target=_load_assets, daemon=True).start()
