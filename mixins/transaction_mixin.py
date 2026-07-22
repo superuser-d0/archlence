@@ -185,10 +185,14 @@ class TransactionMixin:
 
     def _reflow_dialog(self):
         """Adaptive içerik büyüyüp küçülünce diyaloğu bir sonraki karede yeniden ölçer."""
+        dialog = getattr(self, "dialog", None)
+
         def _reflow(dt):
+            if dialog is None or getattr(self, "dialog", None) is not dialog:
+                return
             try:
-                self.dialog.update_height()
-                self.dialog.height = self.dialog.ids.container.height
+                dialog.update_height()
+                dialog.height = dialog.ids.container.height
             except Exception:
                 pass
         Clock.schedule_once(_reflow, 0)
@@ -514,6 +518,14 @@ class TransactionMixin:
                 and int(getattr(self, "selected_installments", 1)) >= 2):
             use_installments = int(self.selected_installments)
 
+        # Worker başladıktan sonra form yeniden açılır/değişirse self üzerindeki
+        # alanlar başka dialoga ait olabilir. DB işi ve başarı callback'i bu
+        # gönderime ait değişmez değerleri ve dialog örneğini kullanmalı.
+        submitted_dialog = self.dialog
+        submitted_account_id = self.selected_account_id
+        submitted_type = self.selected_type
+        submitted_category = self.selected_category
+
         if is_recurring and self.selected_type == "expense":
             # Abonelik Duplikasyonu koruması: aynı isimle (harf duyarsız)
             # ikinci kez aktif bir abonelik eklenmesin.
@@ -529,7 +541,10 @@ class TransactionMixin:
         from kivy.clock import Clock
 
         def success_callback(dt):
-            self.dialog.dismiss()
+            try:
+                submitted_dialog.dismiss()
+            except Exception:
+                pass
             self.refresh_dashboard_data()
             self.generate_financial_advice()
             if is_recurring and hasattr(self, "load_upcoming_recurring"):
@@ -555,7 +570,7 @@ class TransactionMixin:
                 from database.db import DEFAULT_ACCOUNT_ID
                 from services.account_service import AccountService
                 # Kullanıcının seçtiği hesap/kart; seçim yoksa eski davranış.
-                account_id = self.selected_account_id or DEFAULT_ACCOUNT_ID
+                account_id = submitted_account_id or DEFAULT_ACCOUNT_ID
                 selected_account = next(
                     (account for account in AccountService.get_accounts()
                      if account["id"] == account_id),
@@ -565,22 +580,22 @@ class TransactionMixin:
                     raise ValueError(
                         "Aktif Varlık hesabı salt okunurdur ve harcama kaynağı olamaz."
                     )
-                description = self.selected_category
+                description = submitted_category
                 if use_installments:
-                    description = f"{self.selected_category} ({use_installments} Taksit)"
+                    description = f"{submitted_category} ({use_installments} Taksit)"
                 TransactionService.add_transaction(
                     account_id=account_id,
                     amount=user_amount,
-                    transaction_type=self.selected_type,
-                    category=self.selected_category,
+                    transaction_type=submitted_type,
+                    category=submitted_category,
                     description=description,
                     installments=use_installments,
                 )
-                if is_recurring and self.selected_type == "expense":
+                if is_recurring and submitted_type == "expense":
                     from database.db import insert_recurring_payment, _advance_due_date
                     next_due = _advance_due_date(datetime.date.today().isoformat(), recurring_frequency)
                     insert_recurring_payment(
-                        recurring_name, user_amount, self.selected_category,
+                        recurring_name, user_amount, submitted_category,
                         recurring_frequency, next_due, recurring_auto_deduct
                     )
                 Clock.schedule_once(success_callback, 0)

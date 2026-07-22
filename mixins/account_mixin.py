@@ -409,8 +409,13 @@ class AccountMixin:
             except Exception:
                 pass
 
+        # Callback'ler self.card_settings_menu üzerinden gitmemeli: kullanıcı
+        # kapanış animasyonu sürerken başka bir kartın menüsünü açarsa bu alan
+        # artık YENİ menüyü gösterir. Her callback kendi menü örneğini kapatır.
+        menu_ref = {}
+
         def delete_card(*args):
-            self.card_settings_menu.dismiss()
+            menu_ref["menu"].dismiss()
             # Menü kapanış animasyonu ile onay diyaloğunun üst üste binmesini
             # önlemek için diyaloğu bir sonraki frame'de aç.
             from kivy.clock import Clock
@@ -419,13 +424,13 @@ class AccountMixin:
             )
 
         def upcoming_payments(*args):
-            self.card_settings_menu.dismiss()
+            menu_ref["menu"].dismiss()
             from kivy.clock import Clock
             Clock.schedule_once(
                 lambda dt: self.open_upcoming_installments(account_id), 0
             )
 
-        self.card_settings_menu = MDDropdownMenu(
+        menu = MDDropdownMenu(
             caller=caller,
             width_mult=3,
             items=[{
@@ -438,7 +443,15 @@ class AccountMixin:
                 "on_release": delete_card,
             }],
         )
-        self.card_settings_menu.open()
+        menu_ref["menu"] = menu
+        self.card_settings_menu = menu
+
+        def clear_menu_reference(*args):
+            if getattr(self, "card_settings_menu", None) is menu:
+                self.card_settings_menu = None
+
+        menu.bind(on_dismiss=clear_menu_reference)
+        menu.open()
 
     def open_upcoming_installments(self, account_id):
         """Kartın devam eden taksit planlarını ('Gelecek Ödemeler') listeler.
@@ -527,16 +540,30 @@ class AccountMixin:
         content = MDBoxLayout(orientation="vertical", size_hint_y=None, height=dp(320))
         content.add_widget(scroll)
 
-        self.installments_dialog = MDDialog(
+        old_dialog = getattr(self, "installments_dialog", None)
+        if old_dialog is not None:
+            try:
+                old_dialog.dismiss()
+            except Exception:
+                pass
+
+        dialog = MDDialog(
             title="Gelecek Ödemeler",
             type="custom",
             content_cls=content,
             buttons=[MDFlatButton(
                 text="KAPAT",
-                on_release=lambda x: self.installments_dialog.dismiss(),
+                on_release=lambda x: dialog.dismiss(),
             )],
         )
-        self.installments_dialog.open()
+        self.installments_dialog = dialog
+
+        def clear_dialog_reference(*args):
+            if getattr(self, "installments_dialog", None) is dialog:
+                self.installments_dialog = None
+
+        dialog.bind(on_dismiss=clear_dialog_reference)
+        dialog.open()
 
     # ─── İş mantığı (tamamlandı — değiştirmeyin) ──────────────────────────────
     def commit_new_account(self, name, account_type, initial_balance=0.0,
