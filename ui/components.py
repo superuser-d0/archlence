@@ -740,13 +740,21 @@ Builder.load_string('''
         elevation: 0
         md_bg_color: ftheme.elevated_bg(app.theme_cls.theme_style)
 
-        MDIcon:
-            icon: "wallet-outline"
-            halign: "center"
-            valign: "center"
-            theme_text_color: "Custom"
-            text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
-            font_size: "27sp"
+        # MDIcon kendi boyutunu texture'a (~27dp) sabitler ve dikey MDCard
+        # (BoxLayout) içinde tek çocuk olarak sol-alta düşer — simge tepside
+        # 'yamuk' görünürdü. AnchorLayout tepsiyi doldurup glyph'i her iki
+        # eksende kusursuz merkezler.
+        AnchorLayout:
+            anchor_x: "center"
+            anchor_y: "center"
+
+            MDIcon:
+                icon: "wallet-outline"
+                size_hint: None, None
+                size: self.texture_size
+                theme_text_color: "Custom"
+                text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
+                font_size: "27sp"
 
     # Metin bloğu da tam olarak simge ile AYNI eksende (center_y: 0.5)
     # ortalanır; böylece cüzdan simgesi metin bloğunun dikey merkeziyle
