@@ -123,8 +123,9 @@ class SavingsMixin:
     # ─── One-time deposit into a goal ────────────────────────────────────────
     def _ensure_goal_db_id(self, goal):
         """Eski JsonStore hedefini bir kez SQL servisine taşır."""
-        if goal.get("id"):
-            return int(goal["id"])
+        goal_id = goal.get("id")
+        if goal_id is not None:
+            return int(goal_id)
         goal["id"] = SavingsService.create_goal(
             goal.get("name", "Birikim Hedefim"),
             float(goal.get("target", 0)),
@@ -244,7 +245,8 @@ class SavingsMixin:
                 old_pct = max(0.0, min(100.0, (g.get("current", 0.0) / target) * 100))
                 goal_id = self._ensure_goal_db_id(g)
                 updated = SavingsService.deposit_to_goal(goal_id, amount, selected_account_id)
-                g["current"] = float(updated["current_amount"])
+                if updated is not None:
+                    g["current"] = float(updated["current_amount"])
                 new_pct = max(0.0, min(100.0, (g["current"] / target) * 100))
                 self.store.put('goals', data=self.savings_goals)
                 toast(f"\u20ba{amount:,.2f} eklendi!")

@@ -177,7 +177,7 @@ ADMIN_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
 # =========================================================================
 # 6. MAIN APPLICATION CLASS
 # =========================================================================
-class FinoraApp(
+class FinoraApp( # type: ignore
     MDApp, AssetMixin, DebtMixin, CalculatorMixin, TransactionMixin, 
     BudgetMixin, SavingsMixin, RecurringMixin, MigrationMixin, AccountMixin, 
     InsightsMixin, HistoryMixin
@@ -1051,7 +1051,7 @@ class FinoraApp(
             cat_sums[cat] = cat_sums.get(cat, 0.0) + val
             this_month_exp += val
             
-        highest_cat_name = max(cat_sums, key=cat_sums.get) if cat_sums else "Yok"
+        highest_cat_name = max(cat_sums, key=lambda k: cat_sums[k]) if cat_sums else "Yok"
         
         cursor.execute("SELECT amount FROM transactions WHERE type='expense' AND strftime('%m', transaction_date) = strftime('%m', 'now', '-1 month', 'localtime')")
         last_month_exp = sum(float(decrypt(str(amt[0]), SECRET_KEY)) for amt in cursor.fetchall() if amt[0])
