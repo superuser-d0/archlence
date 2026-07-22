@@ -9,15 +9,18 @@ import datetime
 import math
 
 from kivy.metrics import dp
+from kivy.clock import Clock
 from kivymd.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDRaisedButton, MDFlatButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.label import MDLabel
 from kivymd.uix.textfield import MDTextField
+from kivymd.uix.menu import MDDropdownMenu
 
 from typing import Any
 import ui.theme as ftheme
+from services.account_service import AccountService, CHECKING
 
 
 class SavingsMixin:
@@ -126,11 +129,96 @@ class SavingsMixin:
         if goal_idx >= len(self.savings_goals):
             return
         g = self.savings_goals[goal_idx]
+        checking_accounts = [
+            account for account in AccountService.get_accounts()
+            if account["account_type"] == CHECKING
+        ]
+        if not checking_accounts:
+            toast("Para yatırabileceğiniz vadesiz/nakit hesabı bulunamadı.")
+            return
+
+        selected_account_id = checking_accounts[0]["id"]
         amount_field = ftheme.make_text_field(
-            "Eklenecek Tutar (\u20ba)", self.theme_cls, filter="float"
+            "Yatırılacak Tutar (\u20ba)", self.theme_cls, filter="float"
         )
-        inner = MDBoxLayout(orientation="vertical", size_hint_y=None, height="80dp")
+        account_btn = MDRaisedButton(
+            size_hint_x=1,
+            elevation=0 if self.theme_cls.theme_style == "Light" else 1,
+            md_bg_color=ftheme.elevated_bg(self.theme_cls),
+            theme_text_color="Custom",
+            text_color=self.theme_cls.text_color,
+        )
+        # MDRaisedButton KivyMD KV kuralı constructor'daki elevation değerini
+        # on_kv_post sırasında varsayılan 2 ile ezebiliyor. Layout kurulduktan
+        # sonraki frame'de tema değerini kesin olarak uygula.
+        desired_elevation = 0 if self.theme_cls.theme_style == "Light" else 1
+        Clock.schedule_once(
+            lambda dt: setattr(account_btn, "elevation", desired_elevation), 0
+        )
+
+        inner = MDBoxLayout(
+            orientation="vertical", spacing=dp(14),
+            size_hint_y=None, height=dp(140),
+        )
         inner.add_widget(amount_field)
+        inner.add_widget(account_btn)
+
+        def _account_text(account):
+            return (
+                f"{account['name']} "
+                f"(Bakiye: {account['balance']:,.2f} \u20ba)"
+            )
+
+        def _select_account(account):
+            nonlocal selected_account_id
+            selected_account_id = account["id"]
+            account_btn.text = _account_text(account)
+            self.savings_account_menu.dismiss()
+
+        def _fresh_accounts():
+            """Her çağrıda DB'den güncel bakiye ve hesap listesini döndürür."""
+            return [
+                account for account in AccountService.get_accounts()
+                if account["account_type"] == CHECKING
+            ]
+
+        def _sync_account_button(accounts):
+            nonlocal selected_account_id
+            selected = next(
+                (a for a in accounts if a["id"] == selected_account_id),
+                accounts[0] if accounts else None,
+            )
+            if selected is None:
+                account_btn.text = "Kullanılabilir hesap yok"
+                account_btn.disabled = True
+                return
+            selected_account_id = selected["id"]
+            account_btn.disabled = False
+            account_btn.text = _account_text(selected)
+
+        def _open_account_menu(*args):
+            # Borç ödeme diyaloğundaki stale-state koruması: menü her açılışta
+            # yeniden kurulur, ana buton da aynı güncel satırla eşitlenir.
+            accounts_now = _fresh_accounts()
+            _sync_account_button(accounts_now)
+            self.savings_account_menu.items = [
+                {
+                    "text": _account_text(account),
+                    "viewclass": "OneLineListItem",
+                    "on_release": lambda account=account: _select_account(account),
+                }
+                for account in accounts_now
+            ]
+            if accounts_now:
+                self.savings_account_menu.open()
+
+        self.savings_account_menu = MDDropdownMenu(
+            caller=account_btn,
+            width_mult=4,
+        )
+        self.savings_account_button = account_btn
+        account_btn.on_release = _open_account_menu
+        _sync_account_button(checking_accounts)
 
         def _do_add(instance):
             try:
@@ -162,12 +250,12 @@ class SavingsMixin:
                 toast("Ge\u00e7erli bir say\u0131 girin!")
 
         fund_dlg = MDDialog(
-            title=f"{g['name']} \u2014 Miktar Ekle",
+            title=f"{g['name']} \u2014 Para Yatır",
             type="custom",
             content_cls=inner,
             buttons=[
-                ftheme.secondary_button("KAPAT", self.theme_cls, on_release=lambda x: fund_dlg.dismiss()),
-                ftheme.primary_button("EKLE", self.theme_cls, on_release=_do_add),
+                ftheme.secondary_button("İPTAL", self.theme_cls, on_release=lambda x: fund_dlg.dismiss()),
+                ftheme.primary_button("YATIR", self.theme_cls, on_release=_do_add),
             ]
         )
         fund_dlg.open()
