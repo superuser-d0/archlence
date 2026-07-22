@@ -596,6 +596,7 @@ class AccountMixin:
                 total = result.get("total")
                 asset_count = int(result.get("asset_count") or 0)
                 priced_count = int(result.get("priced_count") or 0)
+                cached_count = int(result.get("cached_count") or 0)
                 if total is None:
                     current.status_text = "Canlı fiyatlara ulaşılamadı"
                     return
@@ -603,7 +604,9 @@ class AccountMixin:
                     current.status_text = f"{asset_count} varlık • Fiyat bekleniyor"
                     return
                 current.balance = _fmt(total)
-                if priced_count < asset_count:
+                if cached_count:
+                    current.status_text = f"{priced_count}/{asset_count} varlık • Son bilinen fiyat"
+                elif priced_count < asset_count:
                     current.status_text = f"{priced_count}/{asset_count} varlık fiyatlandı"
                 else:
                     current.status_text = f"{asset_count} TL dışı varlık • Canlı değer"

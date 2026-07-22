@@ -413,6 +413,58 @@ def fetch_portfolio_with_prices(assets: list, callback) -> None:
 
 # ─── Hesaplarım Bento özeti ──────────────────────────────────────────────────
 
+# Bare kripto sembolü → CoinGecko coin id. Depoda kod çoğu zaman yfinance
+# biçiminde ('BTC-USD') tutulduğu için eşleştirmeden ÖNCE alıntı eki
+# (-USD/-USDT/-TRY …) soyulur; bkz. _coingecko_id_for.
+COINGECKO_IDS = {
+    "BTC": "bitcoin", "ETH": "ethereum", "ETC": "ethereum-classic",
+    "USDT": "tether", "USDC": "usd-coin", "BNB": "binancecoin",
+    "XRP": "ripple", "ADA": "cardano", "SOL": "solana", "DOGE": "dogecoin",
+    "DOT": "polkadot", "TRX": "tron", "AVAX": "avalanche-2",
+    "SHIB": "shiba-inu", "LTC": "litecoin", "LINK": "chainlink",
+    "MATIC": "matic-network", "XLM": "stellar", "ATOM": "cosmos",
+    "UNI": "uniswap", "XMR": "monero", "BCH": "bitcoin-cash",
+    "FIL": "filecoin", "APT": "aptos", "ARB": "arbitrum", "OP": "optimism",
+}
+_PRICE_TIMEOUT = (3.05, 8.0)
+_PRICE_CACHE_TABLE = "asset_price_cache"
+
+# Kripto kodundan CoinGecko id çözerken soyulacak alıntı/karşı-para ekleri.
+_CRYPTO_QUOTE_SUFFIXES = ("-USDTRY", "-USDT", "-USDC", "-BUSD", "-USD", "-TRY", "-EUR")
+
+
+def _coingecko_id_for(asset_code) -> str | None:
+    """'BTC-USD' → 'bitcoin'. Alıntı eki soyulup bare sembol map'te aranır.
+
+    Kod zaten bare ('BTC') ise doğrudan eşleşir; kripto olmayan kodlar için
+    None döner (çağıran yfinance/döviz yoluna düşer)."""
+    base = (asset_code or "").strip().upper()
+    if not base:
+        return None
+    for suffix in _CRYPTO_QUOTE_SUFFIXES:
+        if base.endswith(suffix):
+            base = base[: -len(suffix)]
+            break
+    return COINGECKO_IDS.get(base)
+
+
+def _frankfurter_base_for(asset_code) -> str | None:
+    """TL cinsinden değeri Frankfurter ile bulunabilecek dövizin 3 harfli
+    kodunu döndürür: 'USDTRY=X' → 'USD', 'EUR' → 'EUR'. Aksi halde None.
+
+    Yalnızca TRY karşılığı olan çiftler (…TRY=X) veya çıplak 3 harfli kodlar
+    kabul edilir; 'GBPUSD=X' gibi TRY dışı çiftler yanlış fiyatlanmasın diye
+    dışarıda bırakılır."""
+    code = (asset_code or "").strip().upper()
+    if len(code) == 3 and code.isalpha():
+        return code
+    if code.endswith("TRY=X"):
+        base = code[: -len("TRY=X")]
+        if len(base) == 3 and base.isalpha():
+            return base
+    return None
+
+
 def _is_direct_try_asset(asset: dict) -> bool:
     """Doğrudan Türk lirası kaydını ayıklar; USDTRY gibi dövizleri korur."""
     code = str(asset.get("asset_code") or "").strip().upper()
@@ -423,13 +475,143 @@ def _is_direct_try_asset(asset: dict) -> bool:
 
 
 def get_active_non_try_assets() -> list:
-    """Miktarı pozitif olan, doğrudan TL olmayan güncel portföy kayıtları."""
-    from database.db import get_all_assets
+    """SQLite'tan miktarı pozitif, doğrudan TL olmayan varlıkları getirir."""
+    from database.db import SECRET_KEY, get_connection
+    from utils.crypto import decrypt
 
-    return [
-        asset for asset in get_all_assets()
-        if float(asset.get("quantity") or 0) > 0 and not _is_direct_try_asset(asset)
-    ]
+    conn = get_connection()
+    try:
+        rows = conn.execute("""
+            SELECT id, asset_name, asset_code, asset_type, purchase_price, quantity
+              FROM active_assets
+             WHERE UPPER(TRIM(asset_code)) NOT IN ('TRY', 'TL', 'TRY=X')
+             ORDER BY id DESC
+        """).fetchall()
+    finally:
+        conn.close()
+    assets = []
+    for row in rows:
+        try:
+            quantity = float(decrypt(row["quantity"], SECRET_KEY))
+            purchase_price = float(decrypt(row["purchase_price"], SECRET_KEY))
+        except Exception:
+            continue
+        if quantity > 0:
+            assets.append({
+                "id": row["id"], "asset_name": row["asset_name"],
+                "asset_code": row["asset_code"], "asset_type": row["asset_type"],
+                "purchase_price": purchase_price, "quantity": quantity,
+            })
+    return assets
+
+
+def _ensure_price_cache(conn) -> None:
+    conn.execute(f"""CREATE TABLE IF NOT EXISTS {_PRICE_CACHE_TABLE} (
+        symbol TEXT PRIMARY KEY, price_try REAL NOT NULL, updated_at INTEGER NOT NULL
+    )""")
+    conn.commit()
+
+
+def _read_cached_prices(symbols: set[str]) -> dict[str, float]:
+    if not symbols:
+        return {}
+    from database.db import get_connection
+    conn = get_connection()
+    try:
+        _ensure_price_cache(conn)
+        placeholders = ",".join("?" for _ in symbols)
+        rows = conn.execute(
+            f"SELECT symbol, price_try FROM {_PRICE_CACHE_TABLE} WHERE symbol IN ({placeholders})",
+            tuple(symbols),
+        ).fetchall()
+        return {row["symbol"]: float(row["price_try"]) for row in rows}
+    finally:
+        conn.close()
+
+
+def _store_prices(prices: dict[str, float]) -> None:
+    if not prices:
+        return
+    from database.db import get_connection
+    conn = get_connection()
+    try:
+        _ensure_price_cache(conn)
+        now = int(time.time())
+        conn.executemany(
+            f"""INSERT INTO {_PRICE_CACHE_TABLE} (symbol, price_try, updated_at)
+                VALUES (?, ?, ?) ON CONFLICT(symbol) DO UPDATE SET
+                price_try=excluded.price_try, updated_at=excluded.updated_at""",
+            [(symbol, price, now) for symbol, price in prices.items()],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _fetch_live_try_prices(assets: list[dict]) -> dict[str, float]:
+    """CoinGecko (kripto) ve Frankfurter (döviz) üzerinden TL fiyatlarını getirir.
+
+    Dönen sözlük, varlığın DEPODAKİ tam kodu (örn. 'BTC-USD', 'USDTRY=X') ile
+    anahtarlanır; böylece çağıran `fetch_active_non_try_total` her varlığı kendi
+    koduyla eşleştirip miktarla çarpabilir. Her iki servis de API anahtarı
+    gerektirmez. İkisi de erişilemez ve hiç fiyat toplanamazsa RuntimeError
+    fırlatılır (çağıran önbelleğe/yfinance yedeğine düşer)."""
+    import requests
+    prices: dict[str, float] = {}
+    errors = []
+
+    # ── Kripto: tam kod → CoinGecko coin id (alıntı eki soyularak) ──
+    crypto_ids = {}
+    for asset in assets:
+        code = (asset.get("asset_code") or "").strip().upper()
+        coin_id = _coingecko_id_for(code)
+        if coin_id:
+            crypto_ids[code] = coin_id
+    if crypto_ids:
+        try:
+            response = requests.get(
+                "https://api.coingecko.com/api/v3/simple/price",
+                params={"ids": ",".join(sorted(set(crypto_ids.values()))), "vs_currencies": "try"},
+                timeout=_PRICE_TIMEOUT,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            for full_code, coin_id in crypto_ids.items():
+                value = payload.get(coin_id, {}).get("try")
+                if value is not None and float(value) > 0:
+                    prices[full_code] = float(value)
+        except (requests.RequestException, ValueError, TypeError) as exc:
+            errors.append(exc)
+
+    # ── Döviz: tam kod → 3 harfli baz (USDTRY=X → USD). Frankfurter TRY→baz
+    #    kurunu verir; 1 birim dövizin TL değeri = 1 / (TRY başına baz). ──
+    fiat_bases = {}
+    for asset in assets:
+        if asset.get("asset_type") not in ("Döviz", "Forex"):
+            continue
+        code = (asset.get("asset_code") or "").strip().upper()
+        base = _frankfurter_base_for(code)
+        if base and base != "TRY":
+            fiat_bases[code] = base
+    if fiat_bases:
+        try:
+            response = requests.get(
+                "https://api.frankfurter.app/latest",
+                params={"from": "TRY", "to": ",".join(sorted(set(fiat_bases.values())))},
+                timeout=_PRICE_TIMEOUT,
+            )
+            response.raise_for_status()
+            rates = response.json().get("rates", {})
+            for full_code, base in fiat_bases.items():
+                rate = rates.get(base)
+                if rate is not None and float(rate) > 0:
+                    prices[full_code] = 1.0 / float(rate)
+        except (requests.RequestException, ValueError, TypeError) as exc:
+            errors.append(exc)
+
+    if errors and not prices:
+        raise RuntimeError("Canlı fiyat servislerine ulaşılamadı") from errors[0]
+    return prices
 
 
 def fetch_active_non_try_total(callback) -> None:
@@ -450,14 +632,39 @@ def fetch_active_non_try_total(callback) -> None:
             callback({"total": 0.0, "asset_count": 0, "priced_count": 0})
             return
 
-        def _aggregate(enriched):
-            priced = [item for item in enriched if item.get("total_value") is not None]
-            callback({
-                "total": sum(float(item["total_value"]) for item in priced),
-                "asset_count": len(assets),
-                "priced_count": len(priced),
-            })
-
-        fetch_portfolio_with_prices(assets, _aggregate)
+        symbols = {(a["asset_code"] or "").strip().upper() for a in assets}
+        live_prices, error = {}, None
+        try:
+            live_prices = _fetch_live_try_prices(assets)
+            # CoinGecko/döviz dışındaki mevcut varlık türleri (BIST, altın,
+            # tahvil) için projenin yfinance normalizasyonunu yedek olarak koru.
+            for asset in assets:
+                symbol = (asset["asset_code"] or "").strip().upper()
+                if symbol not in live_prices:
+                    price = fetch_current_price(symbol, asset["asset_type"])
+                    if price is not None and price > 0:
+                        live_prices[symbol] = price
+            _store_prices(live_prices)
+        except Exception as exc:
+            error = str(exc)
+        try:
+            cached_prices = _read_cached_prices(symbols - set(live_prices))
+        except Exception:
+            cached_prices = {}
+        prices = {**cached_prices, **live_prices}
+        priced_assets = [a for a in assets if (a["asset_code"] or "").strip().upper() in prices]
+        total = sum(
+            float(a["quantity"]) * prices[(a["asset_code"] or "").strip().upper()]
+            for a in priced_assets
+        )
+        callback({
+            "total": total if priced_assets else None,
+            "asset_count": len(assets), "priced_count": len(priced_assets),
+            "cached_count": sum(
+                1 for a in priced_assets
+                if (a["asset_code"] or "").strip().upper() not in live_prices
+            ),
+            "error": error,
+        })
 
     threading.Thread(target=_load_assets, daemon=True).start()
