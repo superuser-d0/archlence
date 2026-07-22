@@ -11,10 +11,6 @@ from kivymd.uix.progressbar import MDProgressBar
 from kivymd.uix.slider import MDSlider
 import ui.theme as ftheme
 
-AUTO_PAY_ACTIVE_COLOR = (0.18, 0.6, 0.25, 1)
-AUTO_PAY_INACTIVE_COLOR = (0.6, 0.6, 0.6, 1)
-
-
 class DebtMixin:
     """Borç/kredi takibi: hesaplanan krediyi borç olarak kaydetme, aktif borç
     kartlarını listeleme, taksit ödeme ve borcu tamamen kapatma akışları.
@@ -84,7 +80,9 @@ class DebtMixin:
                 auto_pay_btn = MDIconButton(
                     icon="calendar-sync" if debt.get("is_auto_pay") else "calendar-sync-outline",
                     theme_text_color="Custom",
-                    text_color=AUTO_PAY_ACTIVE_COLOR if debt.get("is_auto_pay") else AUTO_PAY_INACTIVE_COLOR,
+                    text_color=ftheme.accent(
+                        self.theme_cls, "green" if debt.get("is_auto_pay") else "muted"
+                    ),
                     icon_size="18dp",
                     size_hint_x=None,
                     width="24dp",
@@ -99,12 +97,24 @@ class DebtMixin:
 
                 status_text = f"Kalan: {debt['total_installments'] - debt['paid_installments']}/{debt['total_installments']} Taksit"
                 if debt.get("is_auto_pay"):
-                    status_text += f"   [color=#2E7D32]•  Ayın {debt.get('auto_pay_day', 1)}. günü otomatik ödenecek[/color]"
-                status_lbl = MDLabel(text=status_text, font_style="Caption", theme_text_color="Primary", markup=True)
+                    status_text += f"   •  Ayın {debt.get('auto_pay_day', 1)}. günü otomatik ödenecek"
+                status_lbl = MDLabel(
+                    text=status_text, font_style="Caption",
+                    theme_text_color="Custom",
+                    text_color=ftheme.accent(
+                        self.theme_cls, "green" if debt.get("is_auto_pay") else "muted"
+                    ),
+                )
 
                 btn_layout = MDBoxLayout(orientation="horizontal", spacing="10dp", size_hint_y=None, height="36dp")
-                pay_btn = MDFlatButton(text="Taksit Öde", on_release=lambda x, d=debt: self.pay_debt_installments(d))
-                close_btn = MDRaisedButton(text="Tamamen Kapat", md_bg_color=ftheme.accent(self.theme_cls, 'red'), on_release=lambda x, d=debt: self.close_debt_completely(d))
+                pay_btn = ftheme.secondary_button(
+                    "Taksit Öde", self.theme_cls,
+                    on_release=lambda x, d=debt: self.pay_debt_installments(d),
+                )
+                close_btn = ftheme.danger_button(
+                    "Tamamen Kapat", self.theme_cls,
+                    on_release=lambda x, d=debt: self.close_debt_completely(d),
+                )
                 btn_layout.add_widget(pay_btn)
                 btn_layout.add_widget(close_btn)
 
@@ -153,8 +163,8 @@ class DebtMixin:
             title="Borcu Kapat",
             text=f"Kalan {remaining_balance:,.2f} ₺ bakiyeyi kapatmak istediğinize emin misiniz?",
             buttons=[
-                MDFlatButton(text="İPTAL", on_release=lambda x: self.dialog.dismiss()),
-                MDFlatButton(text="EVET, KAPAT", on_release=confirm)
+                ftheme.secondary_button("İPTAL", self.theme_cls, on_release=lambda x: self.dialog.dismiss()),
+                ftheme.danger_button("EVET, KAPAT", self.theme_cls, on_release=confirm),
             ]
         )
         self.dialog.open()
@@ -216,8 +226,8 @@ class DebtMixin:
             type="custom",
             content_cls=content,
             buttons=[
-                MDFlatButton(text="İPTAL", on_release=lambda x: self.dialog.dismiss()),
-                MDFlatButton(text="ÖDE", on_release=confirm)
+                ftheme.secondary_button("İPTAL", self.theme_cls, on_release=lambda x: self.dialog.dismiss()),
+                ftheme.primary_button("ÖDE", self.theme_cls, on_release=confirm),
             ]
         )
         self.dialog.open()
@@ -227,7 +237,6 @@ class DebtMixin:
         açıp/kapatma ve ödeme gününü (1-31) belirleme diyaloğu. Kaydedilince
         active_debts.is_auto_pay / auto_pay_day sütunlarını günceller."""
         from kivymd.uix.selectioncontrol import MDSwitch
-        from kivymd.uix.textfield import MDTextField
 
         content = MDBoxLayout(orientation="vertical", spacing="14dp", size_hint_y=None, height="110dp")
 
@@ -237,9 +246,9 @@ class DebtMixin:
         switch_row.add_widget(switch_lbl)
         switch_row.add_widget(auto_switch)
 
-        day_input = MDTextField(
-            hint_text="Ödeme Günü (1-31)",
-            input_filter="int",
+        day_input = ftheme.make_text_field(
+            "Ödeme Günü (1-31)", self.theme_cls,
+            filter="int",
             text=str(debt.get("auto_pay_day", 1)),
         )
 
@@ -270,8 +279,8 @@ class DebtMixin:
             type="custom",
             content_cls=content,
             buttons=[
-                MDFlatButton(text="İPTAL", on_release=lambda x: self.auto_pay_dialog.dismiss()),
-                MDFlatButton(text="KAYDET", on_release=confirm),
+                ftheme.secondary_button("İPTAL", self.theme_cls, on_release=lambda x: self.auto_pay_dialog.dismiss()),
+                ftheme.primary_button("KAYDET", self.theme_cls, on_release=confirm),
             ],
         )
         self.auto_pay_dialog.open()
@@ -279,7 +288,6 @@ class DebtMixin:
     def open_pay_debt_dialog(self, credit_card_id):
         from services.account_service import AccountService, CHECKING
         import threading
-        from kivymd.uix.textfield import MDTextField
         from kivymd.uix.menu import MDDropdownMenu
 
         card = AccountService.get_account(credit_card_id)
@@ -296,16 +304,17 @@ class DebtMixin:
 
         content = MDBoxLayout(orientation="vertical", spacing="14dp", size_hint_y=None, height="120dp")
 
-        amount_input = MDTextField(
-            hint_text="Ödenecek Tutar (₺)",
-            input_filter="float",
+        amount_input = ftheme.make_text_field(
+            "Ödenecek Tutar (₺)", self.theme_cls,
+            filter="float",
             text=str(card["debt"]) if card["debt"] > 0 else ""
         )
         content.add_widget(amount_input)
 
         selected_account_id = checking_accounts[0]["id"]
-        account_btn = MDRaisedButton(
-            text=f"{checking_accounts[0]['name']} (Bakiye: {checking_accounts[0]['balance']:,.2f} ₺)",
+        account_btn = ftheme.primary_button(
+            f"{checking_accounts[0]['name']} (Bakiye: {checking_accounts[0]['balance']:,.2f} ₺)",
+            self.theme_cls,
             size_hint_x=1
         )
         content.add_widget(account_btn)
@@ -406,8 +415,11 @@ class DebtMixin:
             type="custom",
             content_cls=content,
             buttons=[
-                MDFlatButton(text="İPTAL", on_release=lambda x: self.pay_debt_dialog.dismiss()),
-                MDFlatButton(text="ÖDE", on_release=confirm)
+                ftheme.secondary_button(
+                    "İPTAL", self.theme_cls,
+                    on_release=lambda x: self.pay_debt_dialog.dismiss(),
+                ),
+                ftheme.primary_button("ÖDE", self.theme_cls, on_release=confirm),
             ]
         )
         self.pay_debt_dialog.open()

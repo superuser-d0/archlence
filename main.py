@@ -150,6 +150,7 @@ from ui.theme import (
     apply_premium_theme, apply_standard_theme, refresh_card_theme,
     apply_dark_surface_tokens, restyle_text_fields, _refresh,
 )
+import ui.theme as ftheme
 from screens.admin_screen import AdminScreen
 
 from mixins.asset_mixin import AssetMixin
@@ -523,9 +524,9 @@ class FinoraApp(
                 
                 net_lbl = self.root.ids.period_net_label
                 net_lbl.text = ("+ " if period_net >= 0 else "- ") + _fmt(abs(period_net))
-                if period_net > 0: net_lbl.text_color = (0.06, 0.55, 0.18, 1)
-                elif period_net < 0: net_lbl.text_color = (0.78, 0.1, 0.1, 1)
-                else: net_lbl.text_color = (0.5, 0.5, 0.5, 1)
+                if period_net > 0: net_lbl.text_color = ftheme.accent(self.theme_cls, "green")
+                elif period_net < 0: net_lbl.text_color = ftheme.accent(self.theme_cls, "red")
+                else: net_lbl.text_color = ftheme.accent(self.theme_cls, "muted")
 
                 formatted_balance = f"{total_balance:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
                 self.root.ids.home_total_balance.text = formatted_balance
@@ -616,15 +617,15 @@ class FinoraApp(
 
                     if projected_wealth < 0:
                         pred_icon.icon  = "alert-circle-outline"
-                        pred_icon.text_color = (0.9, 0.2, 0.2, 1)
+                        pred_icon.text_color = ftheme.accent(self.theme_cls, "red")
                         pred_text.text = f"{ode_label}\nDikkat: ODE modeli varlığınızın eksiye düşeceğini gösteriyor. Harcamalarınızı acilen gözden geçirin!"
                     elif net_change < 0:
                         pred_icon.icon  = "trending-down"
-                        pred_icon.text_color = (0.95, 0.75, 0.1, 1)
+                        pred_icon.text_color = ftheme.accent(self.theme_cls, "amber")
                         pred_text.text = f"{ode_label}\nGider ivmeniz gelirinizi aşıyor; varlığınız {_fmt(abs(net_change))} azalabilir."
                     else:
                         pred_icon.icon  = "trending-up"
-                        pred_icon.text_color = (0.18, 0.8, 0.25, 1)
+                        pred_icon.text_color = ftheme.accent(self.theme_cls, "green")
                         pred_text.text = f"{ode_label}\nMevcut gelir-gider dengesiyle varlığınız {_fmt(net_change)} artış gösterebilir."
 
             except Exception:
@@ -679,16 +680,16 @@ class FinoraApp(
 
             if today_pnl is None:
                 pnl.text       = "Varlık fiyatları hesaplanıyor..."
-                pnl.text_color = (0.5, 0.5, 0.5, 1)
+                pnl.text_color = ftheme.accent(self.theme_cls, "muted")
             else:
                 pct = (today_pnl / (total_wealth - today_pnl) * 100) if (total_wealth - today_pnl) != 0 else 0.0
                 sign = "+" if today_pnl >= 0 else "-"
                 c_sign = "+" if pct >= 0 else "-"
                 pnl.text = f"{sign}{self._fmt_tr(abs(today_pnl))} ({c_sign}{abs(pct):.2f}%) Bugün"
                 
-                if today_pnl > 0: pnl.text_color = (0.06, 0.86, 0.29, 1)
-                elif today_pnl < 0: pnl.text_color = (0.95, 0.22, 0.22, 1)
-                else: pnl.text_color = (0.5, 0.5, 0.5, 1)
+                if today_pnl > 0: pnl.text_color = ftheme.accent(self.theme_cls, "green")
+                elif today_pnl < 0: pnl.text_color = ftheme.accent(self.theme_cls, "red")
+                else: pnl.text_color = ftheme.accent(self.theme_cls, "muted")
         except Exception:
             pass
 
@@ -788,13 +789,13 @@ class FinoraApp(
                 label = self.root.ids.change_rate_label
                 if rate > 0:
                     label.text = f"+%{rate:.1f}"
-                    label.text_color = (0.18, 0.8, 0.25, 1)
+                    label.text_color = ftheme.accent(self.theme_cls, "green")
                 elif rate < 0:
                     label.text = f"-%{abs(rate):.1f}"
-                    label.text_color = (0.9, 0.2, 0.2, 1)
+                    label.text_color = ftheme.accent(self.theme_cls, "red")
                 else:
                     label.text = "%0.0"
-                    label.text_color = (0.5, 0.5, 0.5, 1)
+                    label.text_color = ftheme.accent(self.theme_cls, "muted")
         except Exception as e:
             print("Error updating change rate UI:", e)
 
@@ -816,15 +817,15 @@ class FinoraApp(
                 "1 Yıl": self.root.ids.btn_filter_year,
                 "Hayat Boyu": self.root.ids.btn_filter_lifetime,
             }
-            bg_inactive = (0.9, 0.9, 0.9, 1) if self.theme_cls.theme_style == "Light" else (0.3, 0.3, 0.3, 1)
+            bg_inactive = ftheme.inactive_control_bg(self.theme_cls)
             
             for name, btn in buttons.items():
                 if name == getattr(self, "home_filter", "Bugün"):
                     btn.md_bg_color = self.theme_cls.primary_color
-                    btn.text_color  = (1, 1, 1, 1)
+                    btn.text_color  = ftheme.on_primary(self.theme_cls)
                 else:
                     btn.md_bg_color = bg_inactive
-                    btn.text_color  = (0.5, 0.5, 0.5, 1)
+                    btn.text_color  = ftheme.inactive_control_text(self.theme_cls)
         except Exception:
             pass
 
@@ -1078,14 +1079,14 @@ class FinoraApp(
             if app and app.root and 'prediction_text' in app.root.ids:
                 app.root.ids.prediction_text.text = advice_text
                 app.root.ids.prediction_icon.icon = "robot-outline"
-                app.root.ids.prediction_icon.text_color = (0.13, 0.59, 0.95, 1)
+                app.root.ids.prediction_icon.text_color = ftheme.accent(app.theme_cls, "blue")
         except Exception:
             pass
         
         if 'advice_label' in self.root.ids:
             self.root.ids.advice_label.text = advice_text
             self.root.ids.advice_icon.icon = "robot-outline"
-            self.root.ids.advice_icon.text_color = (0.13, 0.59, 0.95, 1)
+            self.root.ids.advice_icon.text_color = ftheme.accent(self.theme_cls, "blue")
 
     # -------------------------------------------------------------------------
     # Dialogs & Reset Functionality
@@ -1102,8 +1103,8 @@ class FinoraApp(
             title="Bize Ulaşın",
             text="Her türlü soru, öneri ve destek için bize aşağıdaki e-posta adresinden ulaşabilirsiniz:\n\n[b]support@finora.com[/b]",
             buttons=[
-                MDFlatButton(text="KAPAT", on_release=lambda x: self.contact_dialog.dismiss()),
-                MDRaisedButton(text="E-POSTA GÖNDER", md_bg_color=self.theme_cls.primary_color, on_release=send_email),
+                ftheme.secondary_button("KAPAT", self.theme_cls, on_release=lambda x: self.contact_dialog.dismiss()),
+                ftheme.primary_button("E-POSTA GÖNDER", self.theme_cls, on_release=send_email),
             ],
         )
         if hasattr(self.contact_dialog, 'ids') and 'text' in self.contact_dialog.ids:
@@ -1121,8 +1122,8 @@ class FinoraApp(
             type="custom",
             content_cls=content,
             buttons=[
-                MDFlatButton(text="İPTAL", on_release=lambda x: self.reset_dialog.dismiss()),
-                MDRaisedButton(text="SİL", md_bg_color=(1, 0.2, 0.2, 1), on_release=self.delete_all_data),
+                ftheme.secondary_button("İPTAL", self.theme_cls, on_release=lambda x: self.reset_dialog.dismiss()),
+                ftheme.danger_button("SİL", self.theme_cls, on_release=self.delete_all_data),
             ],
         )
         self.reset_dialog.open()

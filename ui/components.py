@@ -207,10 +207,11 @@ Builder.load_string('''
     orientation: "vertical"
     padding: "12dp"
     spacing: "12dp"
-    elevation: 1
+    elevation: 0 if app.theme_cls.theme_style == "Dark" else 1
     radius: [dp(20)]
     style: "outlined"
-    md_bg_color: app.theme_cls.bg_dark if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+    line_color: ftheme.card_line(app.theme_cls.theme_style)
 
     # Üst Kısım: Siyah Grafik Kart
     MDFloatLayout:
@@ -219,7 +220,7 @@ Builder.load_string('''
         
         canvas.before:
             Color:
-                rgba: 0.1, 0.11, 0.13, 1
+                rgba: ftheme.bank_card_bg(app.theme_cls.theme_style)
             RoundedRectangle:
                 size: self.size
                 pos: self.pos
@@ -228,7 +229,7 @@ Builder.load_string('''
         MDLabel:
             text: "Finora"
             theme_text_color: "Custom"
-            text_color: 1, 1, 1, 1
+            text_color: ftheme.bank_card_text(app.theme_cls.theme_style)
             font_style: "H6"
             bold: True
             pos_hint: {"x": 0.08, "top": 0.90}
@@ -239,7 +240,7 @@ Builder.load_string('''
         MDIcon:
             icon: "contactless-payment"
             theme_text_color: "Custom"
-            text_color: 0.8, 0.8, 0.8, 1
+            text_color: ftheme.bank_card_text(app.theme_cls.theme_style, True)
             font_size: "24sp"
             pos_hint: {"right": 0.92, "top": 0.90}
             size_hint: None, None
@@ -248,7 +249,7 @@ Builder.load_string('''
         MDLabel:
             text: root.masked_number
             theme_text_color: "Custom"
-            text_color: 0.7, 0.7, 0.7, 1
+            text_color: ftheme.bank_card_text(app.theme_cls.theme_style, True)
             font_style: "Subtitle2"
             pos_hint: {"x": 0.08, "center_y": 0.45}
             size_hint_x: 0.84
@@ -258,7 +259,7 @@ Builder.load_string('''
         MDLabel:
             text: root.card_name.upper()
             theme_text_color: "Custom"
-            text_color: 0.8, 0.8, 0.8, 1
+            text_color: ftheme.bank_card_text(app.theme_cls.theme_style, True)
             font_style: "Caption"
             pos_hint: {"x": 0.08, "y": 0.15}
             size_hint_x: 0.84
@@ -460,10 +461,11 @@ Builder.load_string('''
     orientation: "vertical"
     padding: "12dp"
     spacing: "12dp"
-    elevation: 1
+    elevation: 0 if app.theme_cls.theme_style == "Dark" else 1
     radius: [dp(20)]
     style: "outlined"
-    md_bg_color: app.theme_cls.bg_dark if app.theme_cls.theme_style == "Dark" else (1, 1, 1, 1)
+    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+    line_color: ftheme.card_line(app.theme_cls.theme_style)
 
     MDFloatLayout:
         size_hint_y: None
@@ -471,7 +473,7 @@ Builder.load_string('''
         
         canvas.before:
             Color:
-                rgba: 0.1, 0.11, 0.13, 1
+                rgba: ftheme.bank_card_bg(app.theme_cls.theme_style)
             RoundedRectangle:
                 size: self.size
                 pos: self.pos
@@ -480,7 +482,7 @@ Builder.load_string('''
         MDLabel:
             text: "Finora"
             theme_text_color: "Custom"
-            text_color: 1, 1, 1, 1
+            text_color: ftheme.bank_card_text(app.theme_cls.theme_style)
             font_style: "H6"
             bold: True
             pos_hint: {"x": 0.08, "top": 0.90}
@@ -491,7 +493,7 @@ Builder.load_string('''
         MDIcon:
             icon: "contactless-payment"
             theme_text_color: "Custom"
-            text_color: 0.8, 0.8, 0.8, 1
+            text_color: ftheme.bank_card_text(app.theme_cls.theme_style, True)
             font_size: "24sp"
             pos_hint: {"right": 0.92, "top": 0.90}
             size_hint: None, None
@@ -500,7 +502,7 @@ Builder.load_string('''
         MDLabel:
             text: root.masked_number
             theme_text_color: "Custom"
-            text_color: 0.7, 0.7, 0.7, 1
+            text_color: ftheme.bank_card_text(app.theme_cls.theme_style, True)
             font_style: "Subtitle2"
             pos_hint: {"x": 0.08, "center_y": 0.45}
             size_hint_x: 0.84
@@ -510,7 +512,7 @@ Builder.load_string('''
         MDLabel:
             text: "BANKA KARTI"
             theme_text_color: "Custom"
-            text_color: 0.8, 0.8, 0.8, 1
+            text_color: ftheme.bank_card_text(app.theme_cls.theme_style, True)
             font_style: "Caption"
             pos_hint: {"x": 0.08, "y": 0.15}
             size_hint_x: 0.84
@@ -661,8 +663,8 @@ Builder.load_string('''
     orientation: "vertical"
     style: "outlined"
     radius: [dp(20)]
-    md_bg_color: app.theme_cls.bg_dark if app.theme_cls.theme_style == "Dark" else (0.96, 0.97, 1.0, 1.0)
-    line_color: (0.8, 0.85, 0.95, 1) if app.theme_cls.theme_style == "Light" else (0.3, 0.3, 0.4, 1)
+    md_bg_color: ftheme.elevated_bg(app.theme_cls.theme_style)
+    line_color: ftheme.card_line(app.theme_cls.theme_style)
 
     MDBoxLayout:
         orientation: "horizontal"

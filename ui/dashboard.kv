@@ -65,7 +65,7 @@
     IconLeftWidget:
         icon: "cash-plus" if "Gelir" in root.secondary_text else "cash-minus"
         theme_text_color: "Custom"
-        text_color: ftheme.accent(app.theme_cls.theme_style, 'green') if "Gelir" in root.secondary_text else (0.9, 0.2, 0.2, 1)
+        text_color: ftheme.accent(app.theme_cls.theme_style, 'green' if "Gelir" in root.secondary_text else 'red')
 
 <AdminScreen@MDScreen>:
     MDBoxLayout:
@@ -113,7 +113,9 @@
                     text: "Sistemi Sıfırla (Factory Reset)"
                     icon: "delete-forever"
                     size_hint_x: 1
-                    md_bg_color: (0.85, 0.33, 0.33, 1) if app.theme_cls.theme_style == 'Dark' else (0.83, 0.18, 0.18, 1)
+                    md_bg_color: ftheme.danger_bg(app.theme_cls.theme_style)
+                    theme_text_color: "Custom"
+                    text_color: ftheme.on_primary(app.theme_cls.theme_style)
                     on_release: root.confirm_factory_reset()
 
         Widget:
@@ -1006,7 +1008,7 @@ MDScreen:
                                                     text: "Bugün"
                                                     size_hint_x: 0.2
                                                     md_bg_color: app.theme_cls.primary_color
-                                                    text_color: 1, 1, 1, 1
+                                                    text_color: ftheme.on_primary(app.theme_cls.theme_style)
                                                     on_release: app.change_home_filter("Bugün")
                                                 
                                                 MDFillRoundFlatButton:
@@ -1506,7 +1508,7 @@ MDScreen:
                                             
                         MDFloatingActionButton:
                             icon: "credit-card-plus"
-                            md_bg_color: (0.33, 0.27, 0.90, 1) # #5444E5
+                            md_bg_color: app.theme_cls.primary_color
                             pos_hint: {"right": 0.95, "y": 0.05}
                             on_release: app.open_add_account_dialog()
 
@@ -1963,14 +1965,14 @@ MDScreen:
                     MDFillRoundFlatButton:
                         text: "Gelir"
                         size_hint_x: 1
-                        md_bg_color: app.theme_cls.primary_color if app.active_category_type == 'income' else app.theme_cls.bg_darkest
-                        text_color: (1, 1, 1, 1) if app.active_category_type == 'income' else app.theme_cls.text_color
+                        md_bg_color: app.theme_cls.primary_color if app.active_category_type == 'income' else ftheme.inactive_control_bg(app.theme_cls.theme_style)
+                        text_color: ftheme.on_primary(app.theme_cls.theme_style) if app.active_category_type == 'income' else ftheme.inactive_control_text(app.theme_cls.theme_style)
                         on_release: app.load_categories('income')
                     MDFillRoundFlatButton:
                         text: "Gider"
                         size_hint_x: 1
-                        md_bg_color: app.theme_cls.primary_color if app.active_category_type == 'expense' else app.theme_cls.bg_darkest
-                        text_color: (1, 1, 1, 1) if app.active_category_type == 'expense' else app.theme_cls.text_color
+                        md_bg_color: app.theme_cls.primary_color if app.active_category_type == 'expense' else ftheme.inactive_control_bg(app.theme_cls.theme_style)
+                        text_color: ftheme.on_primary(app.theme_cls.theme_style) if app.active_category_type == 'expense' else ftheme.inactive_control_text(app.theme_cls.theme_style)
                         on_release: app.load_categories('expense')
                 MDBoxLayout:
                     orientation: "horizontal"

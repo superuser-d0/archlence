@@ -1,15 +1,14 @@
 from kivy.clock import Clock
 from kivy.metrics import dp
 from kivymd.toast import toast
-from kivymd.uix.button import MDRaisedButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.label import MDLabel
-from kivymd.uix.textfield import MDTextField
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.menu import MDDropdownMenu
 from kivymd.uix.segmentedcontrol import MDSegmentedControl, MDSegmentedControlItem
 from services.transaction_service import TransactionService
 from services.queries import CategoryService
+import ui.theme as ftheme
 
 
 class TransactionMixin:
@@ -38,7 +37,10 @@ class TransactionMixin:
             size_hint_y=None, adaptive_height=True,
             padding=[0, dp(4), 0, dp(4)],
         )
-        self.amount_input = MDTextField(hint_text="Miktar (₺)", input_filter="float", size_hint_y=None, height="48dp")
+        self.amount_input = ftheme.make_text_field(
+            "Miktar (₺)", self.theme_cls, filter="float",
+            size_hint_y=None, height=dp(48),
+        )
 
         # Segment ve butonlara açık yükseklik: adaptive konteynerde her çocuğun
         # size_hint_y=None + net height olmalı, yoksa kutu doğru ölçülmez.
@@ -47,15 +49,19 @@ class TransactionMixin:
         self.type_segment.add_widget(MDSegmentedControlItem(text="Gider"))
         self.type_segment.bind(on_active=self.on_segment_active)
 
-        self.category_button = MDRaisedButton(text="Kategori Seç", size_hint_x=1, size_hint_y=None, height="44dp", elevation=0, on_release=self.open_category_menu)
+        self.category_button = ftheme.primary_button(
+            "Kategori Seç", self.theme_cls, size_hint_x=1,
+            size_hint_y=None, height=dp(44), on_release=self.open_category_menu,
+        )
 
         # Ödeme yöntemi: işlemin HANGİ hesaptan/karttan geçeceği.
         # Buradan seçilen hesabın id'si add_transaction'a gider; kredi kartı
         # seçilirse tutar aynı commit içinde karta borç olarak işlenir
         # (database/db.py::adjust_account_balance işaret konvansiyonu).
         self.selected_account_id = None
-        self.account_button = MDRaisedButton(
-            text="Ödeme Yöntemi", size_hint_x=1, size_hint_y=None, height="44dp", elevation=0,
+        self.account_button = ftheme.primary_button(
+            "Ödeme Yöntemi", self.theme_cls,
+            size_hint_x=1, size_hint_y=None, height=dp(44),
             on_release=self.open_account_menu,
         )
         self._load_payment_methods()
@@ -71,8 +77,9 @@ class TransactionMixin:
         recurring_row.add_widget(self.recurring_switch)
 
         # ── Aşamalı olarak açılan (varsayılan GİZLİ) abonelik alanları ──────────
-        self.recurring_name_input = MDTextField(
-            hint_text="Ödeme Adı (örn: Netflix)", size_hint_y=None, height="48dp"
+        self.recurring_name_input = ftheme.make_text_field(
+            "Ödeme Adı (örn: Netflix)", self.theme_cls,
+            size_hint_y=None, height=dp(48),
         )
 
         self.recurring_freq_segment = MDSegmentedControl(size_hint_x=1, size_hint_y=None, height="48dp")
@@ -112,7 +119,9 @@ class TransactionMixin:
             title="Yeni Bir İşlem Ekle",
             type="custom",
             content_cls=dialog_layout,
-            buttons=[MDRaisedButton(text="KAYDET", on_release=self.save_transaction)]
+            buttons=[ftheme.primary_button(
+                "KAYDET", self.theme_cls, on_release=self.save_transaction
+            )]
         )
         self.dialog.open()
 
@@ -265,13 +274,13 @@ class TransactionMixin:
         """
         from kivy.uix.scrollview import ScrollView
         from kivymd.uix.list import MDList, OneLineListItem
-        from kivymd.uix.button import MDFlatButton
 
         # Kategoriler türe bağlı (gelir/gider); her açılışta güncel çekilir.
         self._all_categories = [str(c[1]) for c in CategoryService.get_categories(self.selected_type)]
 
-        search_field = MDTextField(
-            hint_text="Kategori ara...", size_hint_y=None, height="48dp",
+        search_field = ftheme.make_text_field(
+            "Kategori ara...", self.theme_cls,
+            size_hint_y=None, height=dp(48),
         )
         self._category_list = MDList()
         scroll = ScrollView()
@@ -305,7 +314,10 @@ class TransactionMixin:
             title="Kategori Seç",
             type="custom",
             content_cls=content,
-            buttons=[MDFlatButton(text="KAPAT", on_release=lambda x: self.category_dialog.dismiss())],
+            buttons=[ftheme.secondary_button(
+                "KAPAT", self.theme_cls,
+                on_release=lambda x: self.category_dialog.dismiss(),
+            )],
         )
         self.category_dialog.open()
 
@@ -413,4 +425,3 @@ class TransactionMixin:
 
     def load_recent_transactions(self, list_filter=None):
         self.refresh_dashboard_data(list_filter)
-

@@ -17,6 +17,7 @@ from kivymd.uix.label import MDLabel
 from kivymd.uix.textfield import MDTextField
 
 from typing import Any
+import ui.theme as ftheme
 
 
 class SavingsMixin:
@@ -48,7 +49,7 @@ class SavingsMixin:
                 self.sg_result_label.text = f"'{name}' için gereken süre:\n{periods} Ay\n(~{time_str})"
                 
             self.sg_result_label.theme_text_color = "Custom"
-            self.sg_result_label.text_color = (0.13, 0.59, 0.95, 1)
+            self.sg_result_label.text_color = ftheme.accent(self.theme_cls, "blue")
 
         except ValueError:
             toast("L\u00fctfen ge\u00e7erli say\u0131lar girin!")
@@ -125,7 +126,9 @@ class SavingsMixin:
         if goal_idx >= len(self.savings_goals):
             return
         g = self.savings_goals[goal_idx]
-        amount_field = MDTextField(hint_text="Eklenecek Tutar (\u20ba)", input_filter="float")
+        amount_field = ftheme.make_text_field(
+            "Eklenecek Tutar (\u20ba)", self.theme_cls, filter="float"
+        )
         inner = MDBoxLayout(orientation="vertical", size_hint_y=None, height="80dp")
         inner.add_widget(amount_field)
 
@@ -163,8 +166,8 @@ class SavingsMixin:
             type="custom",
             content_cls=inner,
             buttons=[
-                MDFlatButton(text="KAPAT", on_release=lambda x: fund_dlg.dismiss()),
-                MDRaisedButton(text="EKLE",  on_release=_do_add, md_bg_color=self.theme_cls.primary_color, elevation=0),
+                ftheme.secondary_button("KAPAT", self.theme_cls, on_release=lambda x: fund_dlg.dismiss()),
+                ftheme.primary_button("EKLE", self.theme_cls, on_release=_do_add),
             ]
         )
         fund_dlg.open()

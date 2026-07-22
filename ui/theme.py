@@ -27,6 +27,12 @@ FINORA_PRIMARY = get_color_from_hex(FINORA_PRIMARY_HEX)
 FINORA_SECONDARY = get_color_from_hex(FINORA_SECONDARY_HEX)
 FINORA_TEXT = get_color_from_hex(FINORA_TEXT_HEX)
 
+# Tema rol token'ları. Koyu kart yüzeyi Light Mode'da da bilinçli olarak kalır;
+# gerçek bankacılık uygulamalarındaki fiziksel kart metaforunu korur.
+FINORA_BANK_CARD_HEX = "171C25"
+FINORA_BANK_CARD_TEXT_HEX = "F7F9FC"
+FINORA_BANK_CARD_MUTED_HEX = "AEB7C6"
+
 # KivyMD'nin dokunulmamış Light/Indigo token'ları; ilk apply çağrısında
 # yakalanır, standarda dönüşte geri yüklenir (premium mutasyonu kalıcı olmasın).
 _STANDARD_LIGHT = None
@@ -188,6 +194,35 @@ def muted_bg(style):
     if _is_dark(style):
         return get_color_from_hex(FINORA_DARK_ELEVATED_HEX)
     return [0.93, 0.93, 0.95, 1]
+
+
+def bank_card_bg(style):
+    """Premium kartın temadan bağımsız gece mavisi fiziksel kart yüzeyi."""
+    return get_color_from_hex(FINORA_BANK_CARD_HEX)
+
+
+def bank_card_text(style, muted=False):
+    """Gece mavisi kart üzerinde WCAG dostu ana/ikincil metin."""
+    return get_color_from_hex(
+        FINORA_BANK_CARD_MUTED_HEX if muted else FINORA_BANK_CARD_TEXT_HEX
+    )
+
+
+def on_primary(style):
+    """Primary/danger gibi koyu eylem yüzeylerinin üzerindeki metin."""
+    return [1, 1, 1, 1]
+
+
+def danger_bg(style):
+    return list(accent(style, "red"))
+
+
+def inactive_control_bg(style):
+    return elevated_bg(style) if _is_dark(style) else get_color_from_hex("E9EAF0")
+
+
+def inactive_control_text(style):
+    return accent(style, "muted")
 
 
 def field_style(style):

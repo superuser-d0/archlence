@@ -94,13 +94,10 @@ class AccountMixin:
         type_control.add_widget(type_credit)
 
         def create_modern_tf(hint, filter=None, password=False):
-            return MDTextField(
-                hint_text=hint,
-                input_filter=filter,
-                mode="fill",
-                radius=[dp(12), dp(12), dp(12), dp(12)],
+            return ftheme.make_text_field(
+                hint, self.theme_cls, filter=filter,
                 size_hint_y=None,
-                password=password
+                password=password,
             )
 
         self.acc_name_field = create_modern_tf("Hesap / Kart Adı")
@@ -210,7 +207,7 @@ class AccountMixin:
             md_bg_color=self.theme_cls.primary_color,
             elevation=0,
             theme_text_color="Custom",
-            text_color=(1, 1, 1, 1)
+            text_color=ftheme.on_primary(self.theme_cls)
         )
 
         self.account_dialog = MDDialog(
@@ -347,7 +344,10 @@ class AccountMixin:
             title="Kart Ekstresi",
             type="custom",
             content_cls=content,
-            buttons=[MDFlatButton(text="KAPAT", on_release=lambda x: self.statement_dialog.dismiss())],
+            buttons=[ftheme.secondary_button(
+                "KAPAT", self.theme_cls,
+                on_release=lambda x: self.statement_dialog.dismiss(),
+            )],
         )
         self.statement_dialog.open()
 
@@ -380,14 +380,12 @@ class AccountMixin:
                 "otomatik ödeme bağlantıları silinecek. Bu işlem geri alınamaz."
             ),
             buttons=[
-                MDFlatButton(
-                    text="VAZGEÇ",
+                ftheme.secondary_button(
+                    "VAZGEÇ", self.theme_cls,
                     on_release=lambda x: self.delete_card_dialog.dismiss(),
                 ),
-                MDFlatButton(
-                    text="SİL",
-                    theme_text_color="Custom",
-                    text_color=ftheme.accent(self.theme_cls.theme_style, "red"),
+                ftheme.danger_button(
+                    "SİL", self.theme_cls,
                     on_release=confirm,
                 ),
             ],
