@@ -11,16 +11,13 @@ import math
 from kivy.metrics import dp
 from kivymd.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.button import MDRaisedButton, MDIconButton, MDFlatButton
+from kivymd.uix.button import MDRaisedButton, MDFlatButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.label import MDLabel
 from kivymd.uix.textfield import MDTextField
 
-from ui.charts import LiquidWaveWidget
-
-
 from typing import Any
-import ui.theme as ftheme
+
 
 class SavingsMixin:
     savings_goals: list[dict[str, Any]]
@@ -89,28 +86,6 @@ class SavingsMixin:
         except ValueError:
             toast("L\u00fctfen ge\u00e7erli bir hedef tutar girin!")
 
-    # ─── Color cycling ────────────────────────────────────────────────────────
-    COLOR_CYCLE = ["green", "blue", "red"]
-    COLOR_MAP = {
-        "green": (0.1,  0.8,  0.2,  0.85),
-        "blue":  (0.1,  0.5,  0.95, 0.85),
-        "red":   (0.9,  0.15, 0.15, 0.85),
-    }
-
-    def cycle_goal_color(self, goal_idx, wave_widget, *args):
-        """Belirtilen hedefin tema rengini (yeşil, mavi, kırmızı) döngüsel olarak değiştirir
-        ve dalga (wave) animasyon widget'ını canlı günceller."""
-        if goal_idx >= len(self.savings_goals):
-            return
-        g = self.savings_goals[goal_idx]
-        cur = g.get("color", "green")
-        nxt = self.COLOR_CYCLE[(self.COLOR_CYCLE.index(cur) + 1) % len(self.COLOR_CYCLE)]
-        g["color"] = nxt
-        wave_widget.wave_color = self.COLOR_MAP[nxt]
-        self.store.put('goals', data=self.savings_goals)
-        color_names = {"green": "Yeşil", "blue": "Mavi", "red": "Kırmızı"}
-        toast(f"Renk değiştirildi: {color_names[nxt]}")
-
     def _estimate_goal_eta(self, goal):
         """Mevcut birikim hızına göre kalan ay tahminini metin olarak döndürür.
         created_at eksikse (eski hedef) veya hız hesaplanamıyorsa 'yeterli veri
@@ -140,8 +115,13 @@ class SavingsMixin:
         return f"Şu anki hızla ~{remaining_months} ay kaldı"
 
     # ─── One-time deposit into a goal ────────────────────────────────────────
-    def add_funds_to_goal(self, goal_idx, wave_widget, pct_label, *args):
-        """Belirtilen hedefe tek seferlik fon/para eklemek için bir diyalog penceresi açar."""
+    def add_funds_to_goal(self, goal_idx, *args):
+        """Belirtilen hedefe tek seferlik fon/para eklemek için bir diyalog penceresi açar.
+
+        Kart üzerindeki tek 'Biriktir' butonundan `app.add_funds_to_goal(idx)`
+        olarak çağrılır; ekleme sonrası tüm kartlar yeniden çizilir (bar/tutarlar
+        kendiliğinden güncellenir), o yüzden ekstra widget referansı gerekmez.
+        """
         if goal_idx >= len(self.savings_goals):
             return
         g = self.savings_goals[goal_idx]
@@ -189,11 +169,22 @@ class SavingsMixin:
         )
         fund_dlg.open()
 
-    # ─── Main goal card renderer ──────────────────────────────────────────────
+    # ─── Renk → hedef simgesi eşlemesi ─────────────────────────────
+    # Kart artık tek, sabit teal vurgu kullanıyor; hedefin depolanmış rengi
+    # (yeşil/mavi/kırmızı) keskin bir Kivy ikonuna dönüşür.
+    ICON_BY_COLOR = {"green": "piggy-bank", "blue": "bullseye-arrow", "red": "flag-checkered"}
+    ACCENT_TEAL = (0.10, 0.80, 0.72, 1)
+
+    # ─── Main goal card renderer ──────────────────────────────────────────
     def render_savings_goals(self, total_balance, *args):
-        """Aktif birikim hedefleri için dashboard üzerinde her bir hedefe özel dinamik
-        çerçeveli kartlar (MDCard) oluşturur ve çizer."""
-        from kivymd.uix.card import MDCard as _MDCard
+        """Aktif birikim hedeflerini premium 'SavingsGoalCard' bileşenleriyle çizer.
+
+        Her kart: sola yaslı keskin başlık + simge, hedef oranını gösteren
+        MDProgressBar (value = biriken/hedef * 100), Toplanan/Hedef tutarları ve
+        tek 'Biriktir' butonu. Yatay yamulma bileşendeki sabit
+        size_hint/width/halign değerleriyle önlenir.
+        """
+        from ui.components import SavingsGoalCard
         if not (self.root and 'goals_container' in self.root.ids):
             return
         container = self.root.ids.goals_container
@@ -201,7 +192,7 @@ class SavingsMixin:
 
         if not self.savings_goals:
             lbl = MDLabel(
-                text="Birikim hedefi belirlenmedi \u2014 Ara\u00e7lar sekmesinden hedef ekleyebilirsin!",
+                text="Birikim hedefi belirlenmedi — Araçlar sekmesinden hedef ekleyebilirsin!",
                 font_style="Caption",
                 italic=True,
                 theme_text_color="Secondary",
@@ -214,118 +205,23 @@ class SavingsMixin:
             return
 
         for idx, goal in enumerate(self.savings_goals):
-            target    = float(goal.get("target", 1))
+            target    = float(goal.get("target", 1)) or 1.0
             current   = float(goal.get("current", 0.0))
             pct       = max(0.0, min(100.0, (current / target) * 100))
             color_key = goal.get("color", "green")
-            wave_clr  = self.COLOR_MAP.get(color_key, self.COLOR_MAP["green"])
 
-            if pct >= 100:
-                quote = "Tebrikler! B\u00fct\u00e7e tamamland\u0131, hedeflenen donan\u0131mlar\u0131 almaya haz\u0131rs\u0131n!"
-            elif current < 0:
-                quote = "B\u00fct\u00e7en alarm veriyor \u2014 harcamalar\u0131n\u0131 optimize et!"
-            elif pct < 25:
-                quote = "Her b\u00fcy\u00fck ba\u015far\u0131 k\u00fc\u00e7\u00fck bir ad\u0131mla ba\u015flar. Devam!"
-            elif pct < 75:
-                quote = "Harika! Yar\u0131 yola geldin. Sab\u0131r en b\u00fcy\u00fck sermaye!"
-            else:
-                quote = "Hedefe ramak kald\u0131! Son hamleyi yap!"
+            formatted_target  = f"₺{target:,.2f}".replace(",","X").replace(".",",").replace("X",".")
+            formatted_current = f"₺{current:,.2f}".replace(",","X").replace(".",",").replace("X",".")
 
-            formatted_target  = f"\u20ba{target:,.2f}".replace(",","X").replace(".",",").replace("X",".")
-            formatted_current = f"\u20ba{current:,.2f}".replace(",","X").replace(".",",").replace("X",".")
-
-            card = _MDCard(
-                orientation="vertical",
-                size_hint_y=None,
-                height=dp(198),
-                padding=dp(16),
-                spacing=dp(12),
-                style="outlined",
-                radius=[dp(14), dp(14), dp(14), dp(14)],
-            )
-            ftheme.apply_card_theme(card, self.theme_cls)
-
-            # Header row: trophy icon + goal name
-            hdr = MDBoxLayout(orientation="horizontal", size_hint_y=None, height=dp(36), spacing=dp(8))
-            ico = MDIconButton(
-                icon="trophy",
-                theme_text_color="Custom",
-                icon_color=(0.95, 0.75, 0.1, 1),
-                size_hint_x=None,
-                width=dp(36),
-                pos_hint={"center_y": .5}
-            )
-            name_lbl = MDLabel(
-                text=f"{goal['name']}  \u2014  Hedef: {formatted_target}  |  Biriken: {formatted_current}",
-                bold=True,
-                theme_text_color="Primary",
-                font_style="Subtitle2",
-                pos_hint={"center_y": .5}
-            )
-            hdr.add_widget(ico)
-            hdr.add_widget(name_lbl)
-            card.add_widget(hdr)
-
-            # Daha kibar ve ince dalga barı (Height dp(20))
-            wave = LiquidWaveWidget(
-                size_hint_x=1,
-                size_hint_y=None,
-                height=dp(20),
+            card = SavingsGoalCard(
+                goal_index=idx,
+                goal_name=str(goal.get("name", "Birikim Hedefim")),
+                goal_icon=self.ICON_BY_COLOR.get(color_key, "piggy-bank"),
                 progress=pct,
-                wave_color=wave_clr,
+                pct_text=f"%{pct:.0f}",
+                status_text=self._estimate_goal_eta(goal),
+                saved_text=formatted_current,
+                target_text=formatted_target,
+                accent_color=self.ACCENT_TEAL,
             )
-            card.add_widget(wave)
-
-            # Motivation Label: theme_text_color="Secondary", italicized.
-            pct_lbl = MDLabel(
-                text=f"%{pct:.1f} Tamamland\u0131 \u2014 {quote}".replace(".", ","),
-                bold=False,
-                font_size=dp(13),
-                italic=True,
-                theme_text_color="Secondary",
-                size_hint_y=None,
-                height=dp(20),
-            )
-            pct_lbl.bind(size=pct_lbl.setter('text_size'))
-            card.add_widget(pct_lbl)
-
-            # Tahmini süre: mevcut birikim hızına göre "~N ay kaldı"
-            eta_lbl = MDLabel(
-                text=self._estimate_goal_eta(goal),
-                font_style="Caption",
-                theme_text_color="Secondary",
-                size_hint_y=None,
-                height=dp(18),
-            )
-            card.add_widget(eta_lbl)
-
-            # Footer: MDBoxLayout with icon_size="28sp" buttons (Palette, Plus).
-            act_row = MDBoxLayout(
-                orientation="horizontal",
-                size_hint_y=None,
-                height=dp(40),
-                spacing=dp(16),
-            )
-            btn_color = MDIconButton(
-                icon="palette",
-                theme_text_color="Custom",
-                icon_color=wave_clr[:3] + (1,),
-                icon_size="28sp",
-                pos_hint={"center_y": .5}
-            )
-            btn_color.bind(on_release=lambda inst, i=idx, w=wave: self.cycle_goal_color(i, w))
-
-            btn_funds = MDIconButton(
-                icon="cash-plus",
-                theme_text_color="Custom",
-                icon_color=(0.1, 0.8, 0.2, 1),
-                icon_size="28sp",
-                pos_hint={"center_y": .5}
-            )
-            btn_funds.bind(on_release=lambda inst, i=idx, w=wave, p=pct_lbl: self.add_funds_to_goal(i, w, p))
-
-            act_row.add_widget(btn_color)
-            act_row.add_widget(btn_funds)
-            card.add_widget(act_row)
-
             container.add_widget(card)

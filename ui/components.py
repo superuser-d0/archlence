@@ -686,7 +686,157 @@ Builder.load_string('''
         font_style: "H6"
         bold: True
         theme_text_color: "Primary"
+
+# ── Premium Birikim Hedefi Kartı ────────────────────────────────────────────
+# Kartlarım estetiğine sadık, her iki temada da koyu (siyah) minimalist panel.
+# Bütün metin/ikon/buton boyutları sabit veya adaptive — yatay yamulma yok.
+<SavingsGoalCard>:
+    size_hint_x: 1
+    adaptive_height: True
+    padding: 0
+    elevation: 0
+    radius: [dp(20)]
+    md_bg_color: 0, 0, 0, 0
+    line_color: 0, 0, 0, 0
+
+    MDBoxLayout:
+        orientation: "vertical"
+        adaptive_height: True
+        padding: "18dp"
+        spacing: "14dp"
+        radius: [dp(20)]
+        md_bg_color: 0.09, 0.10, 0.12, 1
+
+        # ── Başlık: ikon + hedef adı (sola yaslı, keskin) + yüzde ──
+        MDBoxLayout:
+            orientation: "horizontal"
+            size_hint_y: None
+            height: "34dp"
+            spacing: "10dp"
+
+            MDIcon:
+                icon: root.goal_icon
+                theme_text_color: "Custom"
+                text_color: root.accent_color
+                font_size: "26sp"
+                halign: "center"
+                valign: "middle"
+                size_hint: None, None
+                size: "30dp", "30dp"
+                pos_hint: {"center_y": 0.5}
+
+            MDLabel:
+                text: root.goal_name
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+                font_style: "H6"
+                bold: True
+                halign: "left"
+                valign: "middle"
+                shorten: True
+                shorten_from: "right"
+                pos_hint: {"center_y": 0.5}
+
+            MDLabel:
+                text: root.pct_text
+                theme_text_color: "Custom"
+                text_color: root.accent_color
+                font_style: "Subtitle1"
+                bold: True
+                halign: "right"
+                valign: "middle"
+                size_hint_x: None
+                width: "78dp"
+                pos_hint: {"center_y": 0.5}
+
+        # ── İlerleme çubuğu: value = biriken/hedef * 100 ──
+        MDProgressBar:
+            value: root.progress
+            max: 100
+            color: root.accent_color
+            size_hint_y: None
+            height: "6dp"
+
+        # ── Durum / tahmini süre (sönük, tek satır) ──
+        MDLabel:
+            text: root.status_text
+            font_style: "Caption"
+            theme_text_color: "Custom"
+            text_color: 0.72, 0.74, 0.80, 1
+            halign: "left"
+            valign: "middle"
+            shorten: True
+            shorten_from: "right"
+            size_hint_y: None
+            height: "18dp"
+
+        # ── Tutarlar: Toplanan (sol) | Hedef (sağ) ──
+        MDBoxLayout:
+            orientation: "horizontal"
+            size_hint_y: None
+            height: "42dp"
+
+            MDBoxLayout:
+                orientation: "vertical"
+                MDLabel:
+                    text: "Toplanan"
+                    font_style: "Caption"
+                    theme_text_color: "Custom"
+                    text_color: 0.62, 0.64, 0.70, 1
+                    halign: "left"
+                MDLabel:
+                    text: root.saved_text
+                    theme_text_color: "Custom"
+                    text_color: 1, 1, 1, 1
+                    font_style: "Subtitle1"
+                    bold: True
+                    halign: "left"
+
+            MDBoxLayout:
+                orientation: "vertical"
+                MDLabel:
+                    text: "Hedef"
+                    font_style: "Caption"
+                    theme_text_color: "Custom"
+                    text_color: 0.62, 0.64, 0.70, 1
+                    halign: "right"
+                MDLabel:
+                    text: root.target_text
+                    theme_text_color: "Custom"
+                    text_color: 0.86, 0.88, 0.92, 1
+                    font_style: "Subtitle1"
+                    bold: True
+                    halign: "right"
+
+        # ── Tek, sağa yaslı, neon teal 'Biriktir' butonu ──
+        AnchorLayout:
+            anchor_x: "right"
+            anchor_y: "center"
+            size_hint_y: None
+            height: "40dp"
+            MDRaisedButton:
+                text: "Biriktir"
+                icon: "plus"
+                size_hint: None, None
+                height: "40dp"
+                elevation: 0
+                md_bg_color: root.accent_color
+                theme_text_color: "Custom"
+                text_color: 0.05, 0.09, 0.10, 1
+                on_release: app.add_funds_to_goal(root.goal_index)
 ''')
+
+class SavingsGoalCard(MDCard):
+    goal_index = NumericProperty(0)
+    goal_name = StringProperty("")
+    goal_icon = StringProperty("piggy-bank")
+    pct_text = StringProperty("%0")
+    progress = NumericProperty(0.0)
+    status_text = StringProperty("")
+    saved_text = StringProperty("₺0,00")
+    target_text = StringProperty("₺0,00")
+    # Neon teal / zümrüt vurgu — bar, yüzde ve buton bu tonu paylaşır.
+    accent_color = ColorProperty((0.10, 0.80, 0.72, 1))
 
 class PremiumCreditCardWidget(MDCard):
     account_id = NumericProperty(0)
