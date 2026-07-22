@@ -31,22 +31,27 @@ STATUS_COMPLETED = "tamamlandi"
 class SavingsService:
 
     @staticmethod
-    def create_goal(goal_name, target_amount, target_date=None):
+    def create_goal(goal_name, target_amount, target_date=None, current_amount=0.0):
         """Yeni birikim hedefi açar; hedefin id'sini döndürür."""
         target_amount = float(target_amount)
+        current_amount = float(current_amount)
         if target_amount <= 0:
             raise ValueError("Hedef tutar 0'dan büyük olmalıdır")
+        if current_amount < 0:
+            raise ValueError("Birikim tutarı negatif olamaz")
         conn = get_connection()
         try:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO savings_goals (goal_name, target_amount, current_amount, target_date, status)
-                VALUES (?, ?, 0, ?, ?)
-            """, (encrypt(str(goal_name), SECRET_KEY), target_amount, target_date, STATUS_ACTIVE))
+                VALUES (?, ?, ?, ?, ?)
+            """, (encrypt(str(goal_name), SECRET_KEY), target_amount,
+                  current_amount, target_date,
+                  STATUS_COMPLETED if current_amount >= target_amount else STATUS_ACTIVE))
             goal_id = cursor.lastrowid
             # [Faz 2 · defter] Hedef 0 birikimle açılır: delta 0, toplamı
             # etkilemez ama defterde hedefin doğuşu görünür.
-            record_balance_event(cursor, SAVINGS_GOAL, goal_id, 0.0, 0.0,
+            record_balance_event(cursor, SAVINGS_GOAL, goal_id, current_amount, current_amount,
                                  "savings_goal_created")
             conn.commit()
             return goal_id
@@ -218,33 +223,39 @@ class SavingsService:
         }
 
     @staticmethod
-    def delete_goal(goal_id, account_id=DEFAULT_ACCOUNT_ID):
-        """Hedefi siler; içinde birikim varsa tamamı ana hesaba iade edilir
-        (silme para buharlaştırmamalı). Aynı atomik desenle tek commit."""
+    def delete_goal(goal_id, account_id=DEFAULT_ACCOUNT_ID, refund=True):
+        """Hedefi atomik olarak siler; istenirse bakiyeyi vadesiz hesaba aktarır."""
         conn = get_connection()
         try:
             cursor = conn.cursor()
+            cursor.execute("BEGIN IMMEDIATE")
             cursor.execute("SELECT current_amount FROM savings_goals WHERE id = ?", (goal_id,))
             row = cursor.fetchone()
             if not row:
                 return False
-            refund = row["current_amount"] or 0.0
-            if refund > 0:
+            refund_amount = float(row["current_amount"] or 0.0)
+            if refund and refund_amount > 0:
+                if account_id is None:
+                    raise ValueError("Bakiyenin aktarılacağı hesap seçilmelidir")
                 cursor.execute(
-                    "UPDATE accounts SET balance = balance + ? WHERE id = ?",
-                    (refund, account_id),
+                    """UPDATE accounts SET balance = balance + ?
+                       WHERE id = ? AND account_type = 'checking'""",
+                    (refund_amount, account_id),
                 )
+                if cursor.rowcount != 1:
+                    raise ValueError("Seçilen vadesiz hesap bulunamadı")
                 # [Faz 2 · defter 4/6] İade hesaba girdi.
                 record_balance_event(
-                    cursor, ACCOUNT, account_id, refund,
+                    cursor, ACCOUNT, account_id, refund_amount,
                     current_account_balance(cursor, account_id),
                     "savings_goal_deleted", goal_id,
                 )
             # Hedef siliniyor: birikimi 0'a düşen bir olayla kapat ki replay
             # hedefin bakiyesini sonsuza kadar taşımasın.
             record_balance_event(
-                cursor, SAVINGS_GOAL, goal_id, -refund, 0.0,
-                "savings_goal_deleted", account_id,
+                cursor, SAVINGS_GOAL, goal_id, -refund_amount, 0.0,
+                "savings_goal_deleted" if refund else "savings_goal_discarded",
+                account_id,
             )
             cursor.execute("DELETE FROM savings_goals WHERE id = ?", (goal_id,))
             conn.commit()

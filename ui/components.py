@@ -938,6 +938,16 @@ Builder.load_string('''
                 width: "78dp"
                 pos_hint: {"center_y": 0.5}
 
+            MDIconButton:
+                icon: "trash-can-outline"
+                tooltip_text: "Hedefi sil"
+                theme_text_color: "Custom"
+                text_color: ftheme.accent(app.theme_cls.theme_style, "muted")
+                size_hint: None, None
+                size: "36dp", "36dp"
+                pos_hint: {"center_y": 0.5}
+                on_release: app.open_delete_savings_goal_dialog(root.goal_index, root)
+
         # ── İlerleme çubuğu: value = biriken/hedef * 100 ──
         MDProgressBar:
             value: root.progress

@@ -21,6 +21,7 @@ from kivymd.uix.menu import MDDropdownMenu
 from typing import Any
 import ui.theme as ftheme
 from services.account_service import AccountService, CHECKING
+from services.savings_service import SavingsService
 
 
 class SavingsMixin:
@@ -76,6 +77,7 @@ class SavingsMixin:
                 "auto_deposit": getattr(self, "sg_auto_deposit", False),
                 "created_at":   datetime.date.today().isoformat(),
             }
+            goal["id"] = SavingsService.create_goal(name, target)
             self.savings_goals.append(goal)
             self.store.put('goals', data=self.savings_goals)
             toast(f"\u2714 '{name}' hedefi eklendi!")
@@ -119,6 +121,18 @@ class SavingsMixin:
         return f"Şu anki hızla ~{remaining_months} ay kaldı"
 
     # ─── One-time deposit into a goal ────────────────────────────────────────
+    def _ensure_goal_db_id(self, goal):
+        """Eski JsonStore hedefini bir kez SQL servisine taşır."""
+        if goal.get("id"):
+            return int(goal["id"])
+        goal["id"] = SavingsService.create_goal(
+            goal.get("name", "Birikim Hedefim"),
+            float(goal.get("target", 0)),
+            current_amount=float(goal.get("current", 0)),
+        )
+        self.store.put("goals", data=self.savings_goals)
+        return int(goal["id"])
+
     def add_funds_to_goal(self, goal_idx, *args):
         """Belirtilen hedefe tek seferlik fon/para eklemek için bir diyalog penceresi açar.
 
@@ -228,7 +242,9 @@ class SavingsMixin:
                     return
                 target = float(g.get("target", 1)) or 1.0
                 old_pct = max(0.0, min(100.0, (g.get("current", 0.0) / target) * 100))
-                g["current"] = g.get("current", 0.0) + amount
+                goal_id = self._ensure_goal_db_id(g)
+                updated = SavingsService.deposit_to_goal(goal_id, amount, selected_account_id)
+                g["current"] = float(updated["current_amount"])
                 new_pct = max(0.0, min(100.0, (g["current"] / target) * 100))
                 self.store.put('goals', data=self.savings_goals)
                 toast(f"\u20ba{amount:,.2f} eklendi!")
@@ -259,6 +275,103 @@ class SavingsMixin:
             ]
         )
         fund_dlg.open()
+
+    def open_delete_savings_goal_dialog(self, goal_idx, card=None, *args):
+        """Hedef bakiyesini yok sayma veya hesaba iade etme kararını sorar."""
+        if goal_idx < 0 or goal_idx >= len(self.savings_goals):
+            return
+        goal = self.savings_goals[goal_idx]
+        name = str(goal.get("name", "Birikim Hedefim"))
+        current = float(goal.get("current", 0) or 0)
+        formatted = f"{current:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        message = (f"Bu hedef için şu ana kadar biriktirdiğiniz {formatted} ₺ ne yapılsın?"
+                   if current > 0 else
+                   "Bu hedefte birikmiş bakiye yok. Hedef kalıcı olarak silinsin mi?")
+        content = MDLabel(text=message, theme_text_color="Secondary",
+                          size_hint_y=None, height=dp(64), valign="middle")
+        content.bind(size=content.setter("text_size"))
+
+        def _finish(refund=False, account_id=None):
+            try:
+                goal_id = self._ensure_goal_db_id(goal)
+                if not SavingsService.delete_goal(goal_id, account_id, refund=refund):
+                    raise ValueError("Hedef bulunamadı")
+            except (ValueError, TypeError) as exc:
+                toast(str(exc))
+                return False
+            self.savings_goals.pop(goal_idx)
+            self.store.put("goals", data=self.savings_goals)
+            if card is not None and card.parent is not None:
+                card.parent.remove_widget(card)
+            Clock.schedule_once(lambda dt: self.render_savings_goals(0), 0)
+            try:
+                self.safe_refresh_charts()
+                self.render_accounts()
+            except Exception:
+                pass
+            toast("Bakiye hesaba aktarıldı ve hedef silindi." if refund else "Hedef silindi.")
+            return True
+
+        def _discard(*_):
+            if _finish():
+                decision.dismiss()
+
+        def _open_refund(*_):
+            decision.dismiss()
+            self._open_savings_refund_account_dialog(_finish)
+
+        buttons = [
+            ftheme.secondary_button("İPTAL", self.theme_cls, on_release=lambda x: decision.dismiss()),
+            MDFlatButton(text="SADECE SİL", theme_text_color="Error", on_release=_discard),
+        ]
+        if current > 0:
+            buttons.append(ftheme.primary_button("HESABA AKTAR VE SİL", self.theme_cls,
+                                                  on_release=_open_refund))
+        decision = MDDialog(title=f"Hedefi Sil: {name}", type="custom",
+                            content_cls=content, buttons=buttons)
+        decision.open()
+
+    def _open_savings_refund_account_dialog(self, on_confirm):
+        accounts = [a for a in AccountService.get_accounts() if a["account_type"] == CHECKING]
+        if not accounts:
+            toast("Bakiyenin aktarılabileceği vadesiz hesap bulunamadı.")
+            return
+        selected_id = accounts[0]["id"]
+        account_btn = MDRaisedButton(size_hint_x=1, elevation=0,
+                                     md_bg_color=ftheme.elevated_bg(self.theme_cls),
+                                     theme_text_color="Custom", text_color=self.theme_cls.text_color)
+
+        def _text(account):
+            return f"{account['name']} (Bakiye: {account['balance']:,.2f} ₺)"
+
+        def _select(account):
+            nonlocal selected_id
+            selected_id = account["id"]
+            account_btn.text = _text(account)
+            menu.dismiss()
+
+        menu = MDDropdownMenu(caller=account_btn, width_mult=4, items=[{
+            "text": _text(account), "viewclass": "OneLineListItem",
+            "on_release": lambda account=account: _select(account),
+        } for account in accounts])
+        account_btn.text = _text(accounts[0])
+        account_btn.on_release = lambda: menu.open()
+        content = MDBoxLayout(size_hint_y=None, height=dp(56))
+        content.add_widget(account_btn)
+
+        def _confirm(*_):
+            if on_confirm(True, selected_id):
+                refund_dialog.dismiss()
+
+        refund_dialog = MDDialog(
+            title="Bakiyenin Aktarılacağı Hesap", type="custom", content_cls=content,
+            buttons=[
+                ftheme.secondary_button("İPTAL", self.theme_cls,
+                                        on_release=lambda x: refund_dialog.dismiss()),
+                ftheme.primary_button("AKTAR VE SİL", self.theme_cls, on_release=_confirm),
+            ],
+        )
+        refund_dialog.open()
 
     # ─── Renk → hedef simgesi eşlemesi ─────────────────────────────
     # Hedefin depolanmış rengi simgeye dönüşür; gerçek vurgu tonu KV tarafında
