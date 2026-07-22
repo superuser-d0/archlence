@@ -690,16 +690,16 @@ Builder.load_string('''
         theme_text_color: "Primary"
 
 # ── Premium Birikim Hedefi Kartı ────────────────────────────────────────────
-# Kartlarım estetiğine sadık, her iki temada da koyu (siyah) minimalist panel.
+# Aktif temaya uyumlu premium yüzey; Light'ta beyaz, Dark'ta gece yüzeyi.
 # Bütün metin/ikon/buton boyutları sabit veya adaptive — yatay yamulma yok.
 <SavingsGoalCard>:
     size_hint_x: 1
     adaptive_height: True
     padding: 0
-    elevation: 0
+    elevation: 1 if app.theme_cls.theme_style == "Light" else 0
     radius: [dp(20)]
-    md_bg_color: 0, 0, 0, 0
-    line_color: 0, 0, 0, 0
+    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+    line_color: ftheme.card_line(app.theme_cls.theme_style)
 
     MDBoxLayout:
         orientation: "vertical"
@@ -707,7 +707,7 @@ Builder.load_string('''
         padding: "18dp"
         spacing: "14dp"
         radius: [dp(20)]
-        md_bg_color: 0.09, 0.10, 0.12, 1
+        md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
 
         # ── Başlık: ikon + hedef adı (sola yaslı, keskin) + yüzde ──
         MDBoxLayout:
@@ -719,7 +719,7 @@ Builder.load_string('''
             MDIcon:
                 icon: root.goal_icon
                 theme_text_color: "Custom"
-                text_color: root.accent_color
+                text_color: ftheme.accent(app.theme_cls.theme_style, "green")
                 font_size: "26sp"
                 halign: "center"
                 valign: "middle"
@@ -729,8 +729,7 @@ Builder.load_string('''
 
             MDLabel:
                 text: root.goal_name
-                theme_text_color: "Custom"
-                text_color: 1, 1, 1, 1
+                theme_text_color: "Primary"
                 font_style: "H6"
                 bold: True
                 halign: "left"
@@ -742,7 +741,7 @@ Builder.load_string('''
             MDLabel:
                 text: root.pct_text
                 theme_text_color: "Custom"
-                text_color: root.accent_color
+                text_color: ftheme.accent(app.theme_cls.theme_style, "green")
                 font_style: "Subtitle1"
                 bold: True
                 halign: "right"
@@ -755,7 +754,7 @@ Builder.load_string('''
         MDProgressBar:
             value: root.progress
             max: 100
-            color: root.accent_color
+            color: ftheme.accent(app.theme_cls.theme_style, "green")
             size_hint_y: None
             height: "6dp"
 
@@ -763,8 +762,7 @@ Builder.load_string('''
         MDLabel:
             text: root.status_text
             font_style: "Caption"
-            theme_text_color: "Custom"
-            text_color: 0.72, 0.74, 0.80, 1
+            theme_text_color: "Secondary"
             halign: "left"
             valign: "middle"
             shorten: True
@@ -783,13 +781,11 @@ Builder.load_string('''
                 MDLabel:
                     text: "Toplanan"
                     font_style: "Caption"
-                    theme_text_color: "Custom"
-                    text_color: 0.62, 0.64, 0.70, 1
+                    theme_text_color: "Secondary"
                     halign: "left"
                 MDLabel:
                     text: root.saved_text
-                    theme_text_color: "Custom"
-                    text_color: 1, 1, 1, 1
+                    theme_text_color: "Primary"
                     font_style: "Subtitle1"
                     bold: True
                     halign: "left"
@@ -799,18 +795,16 @@ Builder.load_string('''
                 MDLabel:
                     text: "Hedef"
                     font_style: "Caption"
-                    theme_text_color: "Custom"
-                    text_color: 0.62, 0.64, 0.70, 1
+                    theme_text_color: "Secondary"
                     halign: "right"
                 MDLabel:
                     text: root.target_text
-                    theme_text_color: "Custom"
-                    text_color: 0.86, 0.88, 0.92, 1
+                    theme_text_color: "Primary"
                     font_style: "Subtitle1"
                     bold: True
                     halign: "right"
 
-        # ── Tek, sağa yaslı, neon teal 'Biriktir' butonu ──
+        # ── Tek, sağa yaslı, tema-primary 'Biriktir' butonu ──
         AnchorLayout:
             anchor_x: "right"
             anchor_y: "center"
@@ -822,9 +816,9 @@ Builder.load_string('''
                 size_hint: None, None
                 height: "40dp"
                 elevation: 0
-                md_bg_color: root.accent_color
+                md_bg_color: app.theme_cls.primary_color
                 theme_text_color: "Custom"
-                text_color: 0.05, 0.09, 0.10, 1
+                text_color: ftheme.on_primary(app.theme_cls.theme_style)
                 on_release: app.add_funds_to_goal(root.goal_index)
 ''')
 
@@ -837,8 +831,6 @@ class SavingsGoalCard(MDCard):
     status_text = StringProperty("")
     saved_text = StringProperty("₺0,00")
     target_text = StringProperty("₺0,00")
-    # Neon teal / zümrüt vurgu — bar, yüzde ve buton bu tonu paylaşır.
-    accent_color = ColorProperty((0.10, 0.80, 0.72, 1))
 
 class PremiumCreditCardWidget(MDCard):
     account_id = NumericProperty(0)

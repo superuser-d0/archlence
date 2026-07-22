@@ -173,10 +173,9 @@ class SavingsMixin:
         fund_dlg.open()
 
     # ─── Renk → hedef simgesi eşlemesi ─────────────────────────────
-    # Kart artık tek, sabit teal vurgu kullanıyor; hedefin depolanmış rengi
-    # (yeşil/mavi/kırmızı) keskin bir Kivy ikonuna dönüşür.
+    # Hedefin depolanmış rengi simgeye dönüşür; gerçek vurgu tonu KV tarafında
+    # aktif Light/Dark tema token'ından alınır.
     ICON_BY_COLOR = {"green": "piggy-bank", "blue": "bullseye-arrow", "red": "flag-checkered"}
-    ACCENT_TEAL = (0.10, 0.80, 0.72, 1)
 
     # ─── Main goal card renderer ──────────────────────────────────────────
     def render_savings_goals(self, total_balance, *args):
@@ -225,6 +224,5 @@ class SavingsMixin:
                 status_text=self._estimate_goal_eta(goal),
                 saved_text=formatted_current,
                 target_text=formatted_target,
-                accent_color=self.ACCENT_TEAL,
             )
             container.add_widget(card)
