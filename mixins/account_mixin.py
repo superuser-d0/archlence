@@ -390,7 +390,8 @@ class AccountMixin:
             if active_plan_count:
                 message = (
                     "Dikkat: Bu karta ait devam eden "
-                    f"{active_plan_count} adet taksit planı bulunmaktadır. "
+                    f"[b]{active_plan_count} adet aktif taksit planı[/b] "
+                    "bulunmaktadır. "
                     "Kartı sildiğinizde bu taksit planları ve tüm geçmiş "
                     "işlemler de kalıcı olarak silinecektir. Onaylıyor musunuz?"
                 )
@@ -409,15 +410,47 @@ class AccountMixin:
                 except Exception as exc:
                     toast(f"Kart silinemedi: {exc}")
                     return
-                dialog_ref["dialog"].dismiss()
-                owner.render_accounts()
-                if hasattr(owner, "refresh_dashboard_data"):
-                    owner.refresh_dashboard_data()
+                # Kartın ekrandan kalkmasını diyalog kapanış animasyonunun
+                # sonuna bağlama; silme onayında state değişimi anlıktır.
+                dialog_ref["dialog"].dismiss(animation=False)
+                import services.asset_service as asset_service
+                deleted_debt = float(card.get("debt") or 0)
+                asset_service.invalidate_asset_data_cache(
+                    deleted_account_id=account_id,
+                    deleted_card_debt=deleted_debt,
+                )
+
+                # Confirm callback Kivy thread'indedir; state'i callback
+                # dönmeden değiştir, ardından Clock ile lifecycle-sonrası aynı
+                # idempotent güncellemeyi garanti et.
+                owner.render_accounts(removed_account_id=account_id)
+
+                def verify_immediate_state(dt):
+                    current = owner_ref()
+                    if current is not None:
+                        current.render_accounts(removed_account_id=account_id)
+
+                Clock.schedule_once(verify_immediate_state, 0)
                 toast("Kredi kartı silindi.")
+
+            body = MDLabel(
+                text=message,
+                markup=True,
+                font_style="Body1",
+                theme_text_color="Primary",
+                size_hint_y=None,
+                height=dp(112),
+            )
+            body.bind(
+                width=lambda label, width: setattr(
+                    label, "text_size", (width, None)
+                )
+            )
 
             dialog = MDDialog(
                 title="Kredi Kartını Sil",
-                text=message,
+                type="custom",
+                content_cls=body,
                 buttons=[
                     ftheme.secondary_button(
                         "VAZGEÇ", owner.theme_cls,
@@ -673,7 +706,7 @@ class AccountMixin:
         """
         self.render_accounts()
 
-    def render_accounts(self, *args):
+    def render_accounts(self, *args, removed_account_id=None):
         """Hesap verisini arka planda okumak yerine RAM'den çizer (Instant Render)."""
         from services.asset_service import _asset_data_cache
 
@@ -683,7 +716,40 @@ class AccountMixin:
         container_cards = self.root.ids.cards_container
         container_accounts = self.root.ids.accounts_container
 
+        if (removed_account_id is not None and _asset_data_cache
+                and _asset_data_cache.get("ready")):
+            removed_account_id = int(removed_account_id)
+            for container in (container_cards, container_accounts):
+                for child in list(container.children):
+                    if getattr(child, "_finora_account_id", None) == removed_account_id:
+                        # Premium kartın canvas teardown'u pahalıdır. Görsel ve
+                        # etkileşimsel state'i hemen kapat, fiziksel sökümü
+                        # diyalog kapandıktan sonraki sakin frame'e ertele.
+                        child.opacity = 0
+                        child.disabled = True
+
+                        def detach_deleted_widget(dt, widget=child,
+                                                  parent=container):
+                            if widget in parent.children:
+                                parent.remove_widget(widget)
+                            widget._finora_detach_event = None
+
+                        from kivy.clock import Clock
+                        if getattr(child, "_finora_detach_event", None) is None:
+                            child._finora_detach_event = Clock.schedule_once(
+                                detach_deleted_widget, 0.35
+                            )
+            self._update_account_summary(_asset_data_cache["summary"])
+            return
+
         if not _asset_data_cache or not _asset_data_cache.get("ready"):
+            # Cache invalidation sonrasında silinmiş kart eski widget ağacında
+            # bir frame daha kalmasın. İlk açılışta bu döngüler zaten boştur.
+            for container in (container_cards, container_accounts):
+                for child in list(container.children):
+                    if getattr(child, "_finora_account_id", None) is not None:
+                        container.remove_widget(child)
+
             from kivymd.uix.boxlayout import MDBoxLayout
             from kivymd.uix.label import MDLabel
             from kivymd.uix.spinner import MDSpinner

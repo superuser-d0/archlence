@@ -41,6 +41,49 @@ _asset_data_cache = {
     "active_assets_result": None,
     "ready": False
 }
+_warmup_lock = threading.Lock()
+_warmup_generation = 0
+
+
+def invalidate_asset_data_cache(deleted_account_id=None, deleted_card_debt=0.0):
+    """Eski worker'ı iptal edip snapshot'tan silinen kartı atomik çıkarır."""
+    global _asset_data_cache, _warmup_generation
+    with _warmup_lock:
+        _warmup_generation += 1
+        previous = _asset_data_cache or {}
+        if deleted_account_id is not None:
+            account_id = int(deleted_account_id)
+            old_summary = previous.get("summary") or {}
+            debt = max(0.0, float(deleted_card_debt or 0))
+            old_card_debt = float(old_summary.get("card_debt") or 0)
+            summary = {
+                "cash": float(old_summary.get("cash") or 0),
+                "card_debt": max(0.0, old_card_debt - debt),
+                "net": float(old_summary.get("net") or 0) + debt,
+            }
+            accounts = [
+                account for account in (previous.get("accounts") or [])
+                if int(account["id"]) != account_id
+            ]
+            recent = dict(previous.get("recent") or {})
+            recent.pop(account_id, None)
+            recent.pop(str(account_id), None)
+            _asset_data_cache = {
+                "summary": summary,
+                "accounts": accounts,
+                "recent": recent,
+                "active_assets_result": previous.get("active_assets_result"),
+                "ready": True,
+            }
+            return
+
+        _asset_data_cache = {
+            "summary": {"cash": 0, "card_debt": 0, "net": 0},
+            "accounts": [],
+            "recent": {},
+            "active_assets_result": None,
+            "ready": False,
+        }
 
 def start_data_warmup(callback=None):
     """
@@ -48,8 +91,27 @@ def start_data_warmup(callback=None):
     Uygulama açılışında çağrılır, veriler _asset_data_cache içine yazılır.
     'Veri Hazır' flag'ini kaldırır.
     """
-    def worker():
+    global _warmup_generation
+    with _warmup_lock:
+        _warmup_generation += 1
+        generation = _warmup_generation
+
+    def publish(summary, accounts, recent, result):
         global _asset_data_cache
+        with _warmup_lock:
+            if generation != _warmup_generation:
+                return
+            _asset_data_cache["summary"] = summary
+            _asset_data_cache["accounts"] = accounts
+            _asset_data_cache["recent"] = recent
+            _asset_data_cache["active_assets_result"] = result
+            # Son alan olarak yazılır; UI yalnız eksiksiz snapshot görür.
+            _asset_data_cache["ready"] = True
+        if callback:
+            from kivy.clock import Clock
+            Clock.schedule_once(lambda dt: callback(), 0)
+
+    def worker():
         from services.account_service import AccountService
         from services.transaction_service import TransactionService
         try:
@@ -61,20 +123,18 @@ def start_data_warmup(callback=None):
                     recent[account["id"]] = TransactionService.get_recent_for_account(account["id"], limit=3)
             
             def on_non_try(res):
-                global _asset_data_cache
-                _asset_data_cache["summary"] = summary
-                _asset_data_cache["accounts"] = accounts
-                _asset_data_cache["recent"] = recent
-                _asset_data_cache["active_assets_result"] = res
-                _asset_data_cache["ready"] = True
-                
-                if callback:
-                    from kivy.clock import Clock
-                    Clock.schedule_once(lambda dt: callback(), 0)
+                publish(summary, accounts, recent, res)
 
             fetch_active_non_try_total(on_non_try)
         except Exception as e:
             print(f"Data warm-up failed: {e}")
+            # Hata durumunda da terminal snapshot yayımlanır; UI spinner/polling
+            # döngüsünde sonsuza dek kalmaz.
+            publish(
+                {"cash": 0, "card_debt": 0, "net": 0}, [], {},
+                {"total": 0.0, "asset_count": 0, "priced_count": 0,
+                 "cached_count": 0, "complete": True, "error": str(e)},
+            )
             
     threading.Thread(target=worker, daemon=True).start()
 
