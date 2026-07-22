@@ -737,17 +737,14 @@ class TransactionMixin:
 
         def _load(dt):
             self._assets_tab_load_ev = None
+            # refresh_dashboard_data zaten grafikleri, metrikleri ve son işlem
+            # listesini TEK yoldan tazeler. Eskiden burada chart_master_box
+            # ayrıca doğrudan çağrılıyordu; her sekme girişinde grafikler iki
+            # kez kurulup animasyon/yerleşim spam'i yaratıyordu.
             try:
-                if self.root and "chart_master_box" in self.root.ids:
-                    self.root.ids.chart_master_box.refresh_dashboard(
-                        getattr(self, "home_filter", "Bugün")
-                    )
+                self.refresh_dashboard_data()
             except Exception as e:
-                print("Varlıklarım grafiği yüklenemedi:", e)
-            try:
-                self.load_recent_transactions()
-            except Exception as e:
-                print("Son işlemler yüklenemedi:", e)
+                print("Varlıklarım paneli yüklenemedi:", e)
             try:
                 self.load_active_assets()
             except Exception as e:

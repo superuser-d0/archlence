@@ -4,7 +4,10 @@ from kivy.metrics import dp
 from kivy.clock import Clock
 from kivy.properties import NumericProperty, ColorProperty
 from kivy.uix.widget import Widget
-from kivy.graphics import Color, Line, RoundedRectangle, Ellipse, Mesh, Rectangle
+from kivy.graphics import (
+    Color, Line, RoundedRectangle, Ellipse, Mesh, Rectangle,
+    PushMatrix, PopMatrix, Translate,
+)
 from kivy.core.text import Label as CoreLabel  # type: ignore
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.app import MDApp
@@ -12,6 +15,28 @@ from services.transaction_service import TransactionService
 
 # Forward import
 from ui.components import LegendWidget
+
+
+# Metin dokuları çizim animasyonu boyunca her karede yeniden üretilmesin diye
+# önbelleklenir. Renk dokuya (texture) pişirilir; kaybolma/belirme efektleri
+# dokuyu değil, önüne konan Color komutunun alfasını değiştirir — böylece aynı
+# metin animasyon boyunca tek doku kullanır.
+_LABEL_TEXTURE_CACHE = {}
+
+
+def _label_texture(text, font_size, color, bold=False):
+    key = (text, round(float(font_size), 1),
+           tuple(round(float(c), 3) for c in color), bold)
+    tex = _LABEL_TEXTURE_CACHE.get(key)
+    if tex is None:
+        if len(_LABEL_TEXTURE_CACHE) > 512:
+            _LABEL_TEXTURE_CACHE.clear()
+        lbl = CoreLabel(text=text, font_size=font_size, color=color, bold=bold)  # type: ignore
+        lbl.refresh()
+        tex = lbl.texture
+        _LABEL_TEXTURE_CACHE[key] = tex
+    return tex
+
 
 class CurvedTrendChart(Widget):
     """Zaman içindeki gelir ve gider trendlerini gösteren eğimli alan (area) grafiği çizer.
@@ -33,12 +58,30 @@ class CurvedTrendChart(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.chart_data = []
-        self.bind(pos=self._redraw, size=self._redraw, anim_progress=self._redraw)
+        self._translate = None
+        # pos değişimi (kaydırma, sekme geçiş animasyonu) canvas'ı YENİDEN
+        # KURMAZ; yalnızca Translate güncellenir. Tam yeniden çizim sadece
+        # boyut/animasyon değişiminde ve aynı kare içinde tek sefer yapılır.
+        self._redraw_trigger = Clock.create_trigger(self._redraw, 0)
+        self.bind(size=self._redraw_trigger, anim_progress=self._redraw_trigger)
+        self.bind(pos=self._sync_translate)
+
+    def _sync_translate(self, *args):
+        if self._translate is not None:
+            self._translate.x = self.x
+            self._translate.y = self.y
 
     def request_redraw(self):
         self.anim_progress = 0.0
         from kivy.animation import Animation
         Animation(anim_progress=1.0, duration=1.1, t="out_cubic").start(self)
+
+    def draw_immediate(self):
+        """Animasyonsuz tek karelik çizim (iskelet/boş şablon için)."""
+        from kivy.animation import Animation
+        Animation.cancel_all(self, "anim_progress")
+        self.anim_progress = 1.0
+        self._redraw_trigger()
 
 
     # ── Catmull-Rom smooth interpolation ──────────────────────────────────
@@ -94,29 +137,28 @@ class CurvedTrendChart(Widget):
         PAD_TOP   = dp(14)
         PAD_BOT   = dp(28)   # X-axis label gutter
 
-        cx0 = self.x     + PAD_LEFT
-        cx1 = self.right - PAD_RIGHT
-        cy0 = self.y     + PAD_BOT
-        cy1 = self.top   - PAD_TOP
+        # Çizim (0,0) tabanlıdır; widget konumu Translate ile uygulanır. Böylece
+        # kaydırma/sekme geçişi gibi yalnız pos'un değiştiği karelerde canvas
+        # yeniden kurulmaz (layout thrashing'in ana kaynağıydı).
+        cx0 = PAD_LEFT
+        cx1 = self.width - PAD_RIGHT
+        cy0 = PAD_BOT
+        cy1 = self.height - PAD_TOP
         cw  = max(1, cx1 - cx0)
         ch  = max(1, cy1 - cy0)
 
         with self.canvas:
+            PushMatrix()
+            self._translate = Translate(self.x, self.y)
 
             # ── No-data state ─────────────────────────────────────────────
+            # Yalnız eksen iskeleti çizilir; "Veri Yok" metnini tutucudaki
+            # empty_label gösterir (ikisi birden çizilince üst üste biniyordu).
             if not data:
                 Color(*self.COLOR_AXIS)
                 Line(points=[cx0, cy0, cx1, cy0], width=dp(1))
                 Line(points=[cx0, cy0, cx0, cy1], width=dp(1))
-                msg = CoreLabel(text="Bu dönemde veri yok",  # type: ignore
-                                font_size=dp(13), color=(0.6, 0.6, 0.6, 1))
-                msg.refresh()
-                mt = msg.texture
-                Color(1, 1, 1, 0.75)
-                Rectangle(texture=mt,
-                          pos=(self.center_x - mt.width / 2,
-                               self.center_y - mt.height / 2),
-                          size=mt.size)
+                PopMatrix()
                 return
 
             n = len(data)
@@ -143,10 +185,8 @@ class CurvedTrendChart(Widget):
                 Color(*self.COLOR_GRID)
                 Line(points=[cx0, gy, cx1, gy], width=dp(0.5))
                 # Y label
-                lbl = CoreLabel(text=self._fmt_k(val), font_size=dp(11),  # type: ignore
-                                color=(*self.COLOR_LABEL[:3], 0.9))
-                lbl.refresh()
-                lt = lbl.texture
+                lt = _label_texture(self._fmt_k(val), dp(11),
+                                    (*self.COLOR_LABEL[:3], 0.9))
                 Color(1, 1, 1, 0.9)
                 Rectangle(texture=lt,
                           pos=(cx0 - lt.width - dp(4), gy - lt.height / 2),
@@ -158,10 +198,8 @@ class CurvedTrendChart(Widget):
                 if i % x_step != 0 and i != n - 1:
                     continue
                 lx = px(i)
-                xl = CoreLabel(text=d['label'], font_size=dp(11),  # type: ignore
-                               color=(*self.COLOR_LABEL[:3], 0.9))
-                xl.refresh()
-                xt = xl.texture
+                xt = _label_texture(d['label'], dp(11),
+                                    (*self.COLOR_LABEL[:3], 0.9))
                 Color(1, 1, 1, 0.9)
                 Rectangle(texture=xt,
                           pos=(max(cx0, min(lx - xt.width / 2, cx1 - xt.width)),
@@ -228,10 +266,8 @@ class CurvedTrendChart(Widget):
                     last_idx = min(len(visible) - 1, len(data) - 1)
                     last_val = data[last_idx][key]
                     if last_val > 0:
-                        vl = CoreLabel(text=self._fmt_k(last_val), font_size=dp(11),  # type: ignore
-                                       color=(*line_col[:3], la), bold=True)
-                        vl.refresh()
-                        vt = vl.texture
+                        vt = _label_texture(self._fmt_k(last_val), dp(11),
+                                            (*line_col[:3], 1.0), bold=True)
                         Color(1, 1, 1, la)
                         vx2 = min(cx1 - vt.width, visible[-1][0] + dp(4))
                         Rectangle(texture=vt,
@@ -249,10 +285,7 @@ class CurvedTrendChart(Widget):
                 leg_x     = cx1
                 for ltext, lcol in [('Gider', self.COLOR_EXPENSE_LINE),
                                      ('Gelir', self.COLOR_INCOME_LINE)]:
-                    ll = CoreLabel(text=ltext, font_size=dp(11),  # type: ignore
-                                   color=(*lcol[:3], leg_alpha), bold=True)
-                    ll.refresh()
-                    lt2 = ll.texture
+                    lt2 = _label_texture(ltext, dp(11), (*lcol[:3], 1.0), bold=True)
                     sw_w, sw_h = dp(16), dp(3)
                     # text
                     Color(1, 1, 1, leg_alpha)
@@ -266,6 +299,8 @@ class CurvedTrendChart(Widget):
                                      size=(sw_w, sw_h),
                                      radius=[sw_h / 2])
                     leg_x = tx2 - sw_w - dp(16)
+
+            PopMatrix()
 
 
 
@@ -315,13 +350,19 @@ class DashboardChartManager(MDBoxLayout):
         from kivymd.uix.spinner import MDSpinner
 
         holder = FloatLayout(size_hint=(1, 1))
+        # DİKKAT: FloatLayout, pos_hint VERİLMEYEN çocuğun konumuna dokunmaz —
+        # grafik pencerenin (0,0) köşesinde kalıp öteki kartların arkasında
+        # çizilir (Varlıklarım'daki kayma/overlap hatasının kök nedeni buydu).
+        # pos_hint ile grafik tutucusuna sabitlenir.
         chart_widget.size_hint = (1, 1)
+        chart_widget.pos_hint = {"x": 0, "y": 0}
         holder.add_widget(chart_widget)
         from kivymd.uix.label import MDLabel
         empty_label = MDLabel(
             text=empty_text, halign="center", valign="center",
             theme_text_color="Secondary", font_style="H6",
             opacity=1,
+            pos_hint={"x": 0, "y": 0},
         )
         empty_label.bind(size=empty_label.setter("text_size"))
         holder.add_widget(empty_label)
@@ -376,16 +417,23 @@ class DashboardChartManager(MDBoxLayout):
         """Fetch data in a background thread, then update all charts on the main thread."""
         import threading
 
-        # İlk karede güvenli 0 şablonunu çiz; spinner bunun üzerinde döner.
+        # Üst üste binen tazelemelerde yalnız en son istek arayüze yazar; eski
+        # thread'lerin geciken sonuçları grafikleri geri saramaz.
+        self._refresh_generation = getattr(self, "_refresh_generation", 0) + 1
+        generation = self._refresh_generation
+
+        # İlk karede güvenli 0 şablonunu ANİMASYONSUZ çiz; spinner bunun
+        # üzerinde döner. (Eski request_redraw çağrıları iskelet için bile
+        # ~1 sn'lik kare-başına yeniden çizim animasyonu başlatıyordu.)
         empty_totals = {
             'Ana Gelir': 0, 'Ek Gelir': 0,
             'Temel Gider': 0, 'Ekstra Gider': 0,
         }
         self.pie_widget.data = empty_totals
-        self.pie_widget.request_redraw()
+        self.pie_widget.draw_immediate()
         self.legend_widget.update_percentages(empty_totals)
         self.trend_chart.chart_data = []
-        self.trend_chart.request_redraw()
+        self.trend_chart.draw_immediate()
         self._set_chart_empty_state(True)
         self._set_charts_loading(True)
 
@@ -397,7 +445,7 @@ class DashboardChartManager(MDBoxLayout):
                 raw_data = []
             # Başarılı veya hatalı her yol ana thread'de loading'i sonlandırır.
             Clock.schedule_once(
-                lambda dt: self._apply_data_safely(raw_data, period), 0
+                lambda dt: self._apply_data_safely(raw_data, period, generation), 0
             )
 
         threading.Thread(target=_load, daemon=True).start()
@@ -408,7 +456,9 @@ class DashboardChartManager(MDBoxLayout):
 
     # ── Internal update (always runs on the main thread) ─────────────────────
 
-    def _apply_data_safely(self, raw_data, period):
+    def _apply_data_safely(self, raw_data, period, generation=None):
+        if generation is not None and generation != getattr(self, "_refresh_generation", 0):
+            return  # bayat sonuç — daha yeni bir tazeleme başladı
         try:
             self._apply_data(raw_data, period)
         except Exception as exc:
@@ -821,9 +871,14 @@ class PieChart(Widget):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.bind(pos=self.update_chart, size=self.update_chart, anim_progress=self.update_chart)
+        self._translate = None
+        # pos değişimi Translate ile uygulanır; tam yeniden çizim yalnızca
+        # boyut/animasyon değişiminde ve kare başına tek sefer olur.
+        self._redraw_trigger = Clock.create_trigger(self.update_chart, 0)
+        self.bind(size=self._redraw_trigger, anim_progress=self._redraw_trigger)
+        self.bind(pos=self._sync_translate)
         self.data = {"Veri Bekleniyor": 1}
-        self.colors = [(0.8, 0.8, 0.8, 1)] 
+        self.colors = [(0.8, 0.8, 0.8, 1)]
 
     def fetch_real_data(self):
         # Deprecated: The logic was moved to FinoraApp.update_metrics_and_goals()
@@ -846,13 +901,20 @@ class PieChart(Widget):
         # Calculate total
         total = sum(self.data.get(k, 0) for k in self.category_colors.keys()) if isinstance(self.data, dict) else 0
 
+        # Çizim (0,0) tabanlı; widget konumu Translate ile uygulanır (bkz.
+        # CurvedTrendChart._redraw'daki açıklama).
+        local_cx = self.width / 2
+        local_cy = self.height / 2
+
         with self.canvas:
+            PushMatrix()
+            self._translate = Translate(self.x, self.y)
             angle_start = 0
             d = min(self.width, self.height) * 0.8
             r = d / 2
-            x = self.center_x - r
-            y = self.center_y - r
-            
+            x = local_cx - r
+            y = local_cy - r
+
             texts = []
             
             if total > 0:
@@ -891,20 +953,19 @@ class PieChart(Widget):
             
             inner_d = d * 0.65
             inner_r = inner_d / 2
-            Ellipse(pos=(self.center_x - inner_r, self.center_y - inner_r), size=(inner_d, inner_d))
-            
+            Ellipse(pos=(local_cx - inner_r, local_cy - inner_r), size=(inner_d, inner_d))
+
             # 3. Yüzdelik Metinler
             if total > 0:
                 for value, mid_angle in texts:
                     percentage = (value / total) * 100
                     if percentage >= 5 and total > 1 and self.anim_progress > 0.9:
                         alpha = min(1.0, max(0.0, (self.anim_progress - 0.9) * 10))
-                        text_label = CoreLabel(text=f"%{percentage:.1f}", font_size=14, color=(1, 1, 1, alpha), bold=True)  # type: ignore
-                        text_label.refresh()
-                        texture = text_label.texture
-                        
-                        label_x = self.center_x + (r * 0.85) * cos(radians(mid_angle))
-                        label_y = self.center_y + (r * 0.85) * sin(radians(mid_angle))
+                        texture = _label_texture(f"%{percentage:.1f}", 14,
+                                                 (1, 1, 1, 1), bold=True)
+
+                        label_x = local_cx + (r * 0.85) * cos(radians(mid_angle))
+                        label_y = local_cy + (r * 0.85) * sin(radians(mid_angle))
                         
                         tw, th = texture.size
                         pad_x, pad_y = 6, 4
@@ -918,17 +979,26 @@ class PieChart(Widget):
                         
                         Color(1, 1, 1, alpha)
                         Rectangle(texture=texture, pos=(label_x - tw/2, label_y - th/2), size=texture.size)
-            else:
-                if self.anim_progress > 0.9:
-                    alpha = min(1.0, max(0.0, (self.anim_progress - 0.9) * 10))
-                    text_label = CoreLabel(text="%0", font_size=16, color=(0.5, 0.5, 0.5, alpha), bold=True)  # type: ignore
-                    text_label.refresh()
-                    texture = text_label.texture
-                    Rectangle(texture=texture, pos=(self.center_x - texture.size[0]/2, self.center_y - texture.size[1]/2), size=texture.size)
-                        
+            # total == 0 durumunda gri halka yeterli; "₺0 / Veri Yok" metnini
+            # tutucudaki empty_label gösterir (çift metin üst üste biniyordu).
+
             # 4. Legend rendering is now handled in set_data to avoid animating widgets 60fps
-            
+
+            PopMatrix()
+
+    def _sync_translate(self, *args):
+        if self._translate is not None:
+            self._translate.x = self.x
+            self._translate.y = self.y
+
     def request_redraw(self):
         self.anim_progress = 0
         from kivy.animation import Animation
         Animation(anim_progress=1, duration=1.2, t='out_cubic').start(self)
+
+    def draw_immediate(self):
+        """Animasyonsuz tek karelik çizim (iskelet/boş şablon için)."""
+        from kivy.animation import Animation
+        Animation.cancel_all(self, "anim_progress")
+        self.anim_progress = 1
+        self._redraw_trigger()

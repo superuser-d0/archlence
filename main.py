@@ -451,6 +451,33 @@ class FinoraApp( # type: ignore
     # Metrics & Dashboard Updates
     # -------------------------------------------------------------------------
     def update_metrics_and_goals(self):
+        """Tüm SQL taramalarını ve şifre çözmeyi arka plan thread'inde bitirir;
+        sonuç hazır olunca arayüze TEK Clock çağrısıyla property güncellemesi
+        yapar. (Eski sürüm bu taramaları ana thread'de koşturuyordu — sekme
+        geçişindeki donmanın ana kaynağı buydu.)"""
+        import threading
+
+        self._metrics_generation = getattr(self, "_metrics_generation", 0) + 1
+        generation = self._metrics_generation
+
+        def _work():
+            try:
+                payload = self._compute_dashboard_metrics()
+            except Exception as e:
+                print("Metrik hesaplama hatası:", e)
+                return
+
+            def _apply(dt):
+                if generation != self._metrics_generation:
+                    return  # bayat sonuç — daha yeni bir tazeleme başladı
+                self._apply_dashboard_metrics(payload)
+
+            Clock.schedule_once(_apply, 0)
+
+        threading.Thread(target=_work, daemon=True).start()
+
+    def _compute_dashboard_metrics(self):
+        """Yalnızca veri üretir, hiçbir widget'a dokunmaz (thread güvenli)."""
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
@@ -515,123 +542,157 @@ class FinoraApp( # type: ignore
         except Exception:
             pass
 
-        if self.root:
-            try:
-                def _fmt(v): return f"₺{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        # ── 30 günlük ODE projeksiyonu girdileri ─────────────────────────────
+        inc_30 = exp_30 = 0.0
+        try:
+            conn_pred = get_connection()
+            cursor_pred = conn_pred.cursor()
+            cursor_pred.execute("""
+                SELECT type, amount
+                FROM transactions
+                WHERE date(transaction_date) >= date('now', '-30 days', 'localtime')
+            """)
+            rows = cursor_pred.fetchall()
+            conn_pred.close()
 
-                self.root.ids.period_income_label.text  = _fmt(period_income)
-                self.root.ids.period_expense_label.text = _fmt(period_expense)
-                
-                net_lbl = self.root.ids.period_net_label
-                net_lbl.text = ("+ " if period_net >= 0 else "- ") + _fmt(abs(period_net))
-                if period_net > 0: net_lbl.text_color = ftheme.accent(self.theme_cls, "green")
-                elif period_net < 0: net_lbl.text_color = ftheme.accent(self.theme_cls, "red")
-                else: net_lbl.text_color = ftheme.accent(self.theme_cls, "muted")
-
-                formatted_balance = f"{total_balance:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
-                self.root.ids.home_total_balance.text = formatted_balance
-                self.root.ids.total_card_amount.text  = formatted_balance
-
+            for t_type, amount in rows:
                 try:
-                    warning_row = self.root.ids.negative_balance_warning
-                    if total_balance < 0:
-                        warning_row.height = "22dp"
-                        warning_row.opacity = 1
-                    else:
-                        warning_row.height = 0
-                        warning_row.opacity = 0
+                    val = float(decrypt(str(amount), SECRET_KEY))
                 except Exception:
-                    pass
+                    val = 0.0
+                if t_type in ('income', 'Gelir'): inc_30 += val
+                elif t_type in ('expense', 'Gider'): exp_30 += val
+        except Exception:
+            pass
 
-                self.root.ids.home_change_title.text = f"Değişim ({filter_text})"
-                self.root.ids.today_card_title.text  = filter_text
+        projected_wealth = self._rk4_wealth_projection(
+            W0=total_balance,
+            daily_income=inc_30 / 30.0,
+            daily_expense=exp_30 / 30.0,
+            days=30,
+            r=0.0001,
+        )
 
-                prefix = "+" if period_net > 0 else ""
-                formatted_period = f"{period_net:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
-                self.root.ids.today_card_amount.text = f"{prefix}{formatted_period}"
+        try:
+            change_rate = self.calculate_monthly_change_rate()
+        except Exception as e:
+            print("Değişim oranı hesaplanamadı:", e)
+            change_rate = None
 
-                if total_balance > 0:   self.home_circle_color = (0.18, 0.8, 0.25, 1)
-                elif total_balance < 0: self.home_circle_color = (0.9,  0.2,  0.2,  1)
-                else:                   self.home_circle_color = (0.5,  0.5,  0.5,  0.2)
+        return {
+            "filter_text": filter_text,
+            "total_income": total_income,
+            "total_expense": total_expense,
+            "total_balance": total_balance,
+            "period_income": period_income,
+            "period_expense": period_expense,
+            "period_net": period_net,
+            "projected_wealth": projected_wealth,
+            "change_rate": change_rate,
+        }
 
-                if hasattr(self.root.ids, 'balance_circle'):
-                    self.root.ids.balance_circle.canvas.ask_update()
+    def _apply_dashboard_metrics(self, m):
+        """Hazır metrik paketini arayüze TEK seferde, yalnızca property
+        güncelleyerek yazar. Widget silinmez/taşınmaz ve konum animasyonu
+        yoktur: eski y-kaydırmalı kart animasyonu, kartları layout kontrolünden
+        çıkarıp grafiklerin üzerine bindiriyordu (overlap/Z-index hatası)."""
+        if not self.root:
+            return
 
-                try:
-                    self._liquid_balance_cache = total_balance
-                    if not hasattr(self, '_assets_cache') or not self._assets_cache:
-                        self._update_wealth_label(total_balance, None)
-                except Exception:
-                    pass
+        filter_text   = m["filter_text"]
+        total_balance = m["total_balance"]
+        period_net    = m["period_net"]
 
-                self.render_savings_goals(total_balance)
+        try:
+            def _fmt(v): return f"₺{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-            except Exception:
-                pass
-                
+            self.root.ids.period_income_label.text  = _fmt(m["period_income"])
+            self.root.ids.period_expense_label.text = _fmt(m["period_expense"])
+
+            net_lbl = self.root.ids.period_net_label
+            net_lbl.text = ("+ " if period_net >= 0 else "- ") + _fmt(abs(period_net))
+            if period_net > 0: net_lbl.text_color = ftheme.accent(self.theme_cls, "green")
+            elif period_net < 0: net_lbl.text_color = ftheme.accent(self.theme_cls, "red")
+            else: net_lbl.text_color = ftheme.accent(self.theme_cls, "muted")
+
+            formatted_balance = f"{total_balance:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
+            self.root.ids.home_total_balance.text = formatted_balance
+            self.root.ids.total_card_amount.text  = formatted_balance
+
             try:
-                conn_pred = get_connection()
-                cursor_pred = conn_pred.cursor()
-                cursor_pred.execute("""
-                    SELECT type, amount 
-                    FROM transactions
-                    WHERE date(transaction_date) >= date('now', '-30 days', 'localtime')
-                """)
-                rows = cursor_pred.fetchall()
-                conn_pred.close()
-
-                inc_30 = exp_30 = 0.0
-                for t_type, amount in rows:
-                    try:
-                        val = float(decrypt(str(amount), SECRET_KEY))
-                    except Exception:
-                        val = 0.0
-                    if t_type in ('income', 'Gelir'): inc_30 += val
-                    elif t_type in ('expense', 'Gider'): exp_30 += val
-
-                daily_income  = inc_30 / 30.0
-                daily_expense = exp_30 / 30.0
-                W0 = total_balance
-
-                projected_wealth = self._rk4_wealth_projection(
-                    W0=W0,
-                    daily_income=daily_income,
-                    daily_expense=daily_expense,
-                    days=30,
-                    r=0.0001,
-                )
-
-                def _fmt(val):
-                    return f"{val:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
-
-                net_change = projected_wealth - W0
-
-                ode_label = (
-                    f"ODE Simülasyonu: Mevcut ivme ve %3,65 yıllık parametre ile "
-                    f"30 gün sonraki beklenen varlık: {_fmt(projected_wealth)}"
-                )
-
-                if self.root:
-                    pred_icon = self.root.ids.prediction_icon
-                    pred_text = self.root.ids.prediction_text
-
-                    if projected_wealth < 0:
-                        pred_icon.icon  = "alert-circle-outline"
-                        pred_icon.text_color = ftheme.accent(self.theme_cls, "red")
-                        pred_text.text = f"{ode_label}\nDikkat: ODE modeli varlığınızın eksiye düşeceğini gösteriyor. Harcamalarınızı acilen gözden geçirin!"
-                    elif net_change < 0:
-                        pred_icon.icon  = "trending-down"
-                        pred_icon.text_color = ftheme.accent(self.theme_cls, "amber")
-                        pred_text.text = f"{ode_label}\nGider ivmeniz gelirinizi aşıyor; varlığınız {_fmt(abs(net_change))} azalabilir."
-                    else:
-                        pred_icon.icon  = "trending-up"
-                        pred_icon.text_color = ftheme.accent(self.theme_cls, "green")
-                        pred_text.text = f"{ode_label}\nMevcut gelir-gider dengesiyle varlığınız {_fmt(net_change)} artış gösterebilir."
-
+                warning_row = self.root.ids.negative_balance_warning
+                if total_balance < 0:
+                    warning_row.height = "22dp"
+                    warning_row.opacity = 1
+                else:
+                    warning_row.height = 0
+                    warning_row.opacity = 0
             except Exception:
                 pass
 
-        if self.root and 'metric_val_income' in self.root.ids:
+            self.root.ids.home_change_title.text = f"Değişim ({filter_text})"
+            self.root.ids.today_card_title.text  = filter_text
+
+            prefix = "+" if period_net > 0 else ""
+            formatted_period = f"{period_net:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
+            self.root.ids.today_card_amount.text = f"{prefix}{formatted_period}"
+
+            if total_balance > 0:   self.home_circle_color = (0.18, 0.8, 0.25, 1)
+            elif total_balance < 0: self.home_circle_color = (0.9,  0.2,  0.2,  1)
+            else:                   self.home_circle_color = (0.5,  0.5,  0.5,  0.2)
+
+            if hasattr(self.root.ids, 'balance_circle'):
+                self.root.ids.balance_circle.canvas.ask_update()
+
+            try:
+                self._liquid_balance_cache = total_balance
+                if not hasattr(self, '_assets_cache') or not self._assets_cache:
+                    self._update_wealth_label(total_balance, None)
+            except Exception:
+                pass
+
+            self.render_savings_goals(total_balance)
+
+        except Exception:
+            pass
+
+        # ── ODE projeksiyon kartı ────────────────────────────────────────────
+        try:
+            def _fmt(val):
+                return f"{val:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
+
+            projected_wealth = m["projected_wealth"]
+            net_change = projected_wealth - total_balance
+
+            ode_label = (
+                f"ODE Simülasyonu: Mevcut ivme ve %3,65 yıllık parametre ile "
+                f"30 gün sonraki beklenen varlık: {_fmt(projected_wealth)}"
+            )
+
+            pred_icon = self.root.ids.prediction_icon
+            pred_text = self.root.ids.prediction_text
+
+            if projected_wealth < 0:
+                pred_icon.icon  = "alert-circle-outline"
+                pred_icon.text_color = ftheme.accent(self.theme_cls, "red")
+                pred_text.text = f"{ode_label}\nDikkat: ODE modeli varlığınızın eksiye düşeceğini gösteriyor. Harcamalarınızı acilen gözden geçirin!"
+            elif net_change < 0:
+                pred_icon.icon  = "trending-down"
+                pred_icon.text_color = ftheme.accent(self.theme_cls, "amber")
+                pred_text.text = f"{ode_label}\nGider ivmeniz gelirinizi aşıyor; varlığınız {_fmt(abs(net_change))} azalabilir."
+            else:
+                pred_icon.icon  = "trending-up"
+                pred_icon.text_color = ftheme.accent(self.theme_cls, "green")
+                pred_text.text = f"{ode_label}\nMevcut gelir-gider dengesiyle varlığınız {_fmt(net_change)} artış gösterebilir."
+
+        except Exception:
+            pass
+
+        # ── Alt metrik kartları: KV'de sabit yerlerinde, tek seferde dolar ───
+        if 'metric_val_income' in self.root.ids:
+            total_income  = m["total_income"]
+            total_expense = m["total_expense"]
+
             self.root.ids.metric_val_income.text = f"{total_income:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             self.root.ids.metric_val_expense.text = f"{total_expense:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
 
@@ -645,20 +706,14 @@ class FinoraApp( # type: ignore
                 aim_text = f"{total_income:,.0f} ₺".replace(",", ".") if total_income > 0 else "Veri Yok"
                 self.root.ids.metric_val_trend.text = aim_text
 
-            cards = [
-                self.root.ids.metric_card_income,
-                self.root.ids.metric_card_expense,
-                self.root.ids.metric_card_savings,
-                self.root.ids.metric_card_trend
-            ]
+            for card_id in ("metric_card_income", "metric_card_expense",
+                            "metric_card_savings", "metric_card_trend"):
+                card = self.root.ids.get(card_id)
+                if card is not None:
+                    card.opacity = 1
 
-            for i, card in enumerate(cards):
-                card.opacity = 0
-                def animate_card(dt, c=card):
-                    orig_y = c.y
-                    c.y = orig_y - dp(40)
-                    Animation(opacity=1, y=orig_y, d=0.6, t='out_cubic').start(c)
-                Clock.schedule_once(animate_card, 0.1 + (i * 0.15))
+        if m.get("change_rate") is not None:
+            self._apply_change_rate(m["change_rate"])
 
     def _fmt_tr(self, value: float) -> str:
         return f"₺{abs(value):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -697,32 +752,44 @@ class FinoraApp( # type: ignore
         self._wealth_visible = not self._wealth_visible
         self.update_wealth_card(self._assets_cache)
 
-    def update_wealth_card(self, enriched_assets):
+    def _compute_today_liquid_delta(self):
+        """Bugünkü nakit hareket toplamı (gelir − gider). Yalnızca veri üretir;
+        arka plan thread'inden çağrılabilir."""
+        today_liquid_delta = 0.0
+        conn_t = get_connection()
+        cur_t  = conn_t.cursor()
+        cur_t.execute(
+            "SELECT amount, type FROM transactions "
+            "WHERE date(transaction_date) = date('now', 'localtime')"
+        )
+        for t_amt, t_typ in cur_t.fetchall():
+            try:
+                val = float(decrypt(str(t_amt), SECRET_KEY))
+            except Exception:
+                val = 0.0
+            if t_typ in ("income", "Gelir"): today_liquid_delta += val
+            elif t_typ in ("expense", "Gider"): today_liquid_delta -= val
+        conn_t.close()
+        return today_liquid_delta
+
+    def update_wealth_card(self, enriched_assets, today_liquid_delta=None):
+        """Toplam Varlık kartını günceller. `today_liquid_delta` arka planda
+        hesaplanıp verilmişse DB'ye hiç dokunulmaz; verilmemişse (eski senkron
+        çağıranlar için) yalnızca gerektiğinde yerinde hesaplanır."""
         liquid_cash = getattr(self, '_liquid_balance_cache', 0.0)
 
         portfolio_live = sum(a['total_value'] for a in enriched_assets if a.get('total_value') is not None)
         total_wealth = liquid_cash + portfolio_live
 
         asset_pnl = sum(a['pnl_amount'] for a in enriched_assets if a.get('pnl_amount') is not None)
-        today_liquid_delta = 0.0
-        
-        try:
-            conn_t = get_connection()
-            cur_t  = conn_t.cursor()
-            cur_t.execute(
-                "SELECT amount, type FROM transactions "
-                "WHERE date(transaction_date) = date('now', 'localtime')"
-            )
-            for t_amt, t_typ in cur_t.fetchall():
-                try:
-                    val = float(decrypt(str(t_amt), SECRET_KEY))
-                except Exception:
-                    val = 0.0
-                if t_typ in ("income", "Gelir"): today_liquid_delta += val
-                elif t_typ in ("expense", "Gider"): today_liquid_delta -= val
-            conn_t.close()
-        except Exception:
-            pass
+
+        if today_liquid_delta is None and enriched_assets:
+            try:
+                today_liquid_delta = self._compute_today_liquid_delta()
+            except Exception:
+                today_liquid_delta = 0.0
+        if today_liquid_delta is None:
+            today_liquid_delta = 0.0
 
         today_pnl = asset_pnl + today_liquid_delta
         self._update_wealth_label(total_wealth, today_pnl if enriched_assets else None)
@@ -783,8 +850,15 @@ class FinoraApp( # type: ignore
         return change_rate
 
     def update_change_rate_ui(self):
+        """Eski senkron giriş noktası — hesap ana thread'de yapılır. Dashboard
+        tazelemesi artık oranı arka planda hesaplayıp _apply_change_rate çağırır."""
         try:
-            rate = self.calculate_monthly_change_rate()
+            self._apply_change_rate(self.calculate_monthly_change_rate())
+        except Exception as e:
+            print("Error updating change rate UI:", e)
+
+    def _apply_change_rate(self, rate):
+        try:
             if self.root and 'change_rate_label' in self.root.ids:
                 label = self.root.ids.change_rate_label
                 if rate > 0:
@@ -836,8 +910,10 @@ class FinoraApp( # type: ignore
         import threading
         
         try:
+            # update_metrics_and_goals artık arka planda hesaplar ve değişim
+            # oranını da aynı pakette getirir — burada ayrıca ana thread'de
+            # update_change_rate_ui koşturmak hem donduruyor hem işi ikiliyordu.
             self.update_metrics_and_goals()
-            self.update_change_rate_ui()
             if self.root and 'chart_master_box' in self.root.ids:
                 self.root.ids.chart_master_box.refresh_dashboard(getattr(self, 'home_filter', 'Bugün'))
         except Exception as e:

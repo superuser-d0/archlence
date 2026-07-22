@@ -47,7 +47,6 @@ class AccountMixin:
     _active_assets_refresh_busy = False
     _active_assets_bento = None
     _accounts_load_event = None
-    _accounts_render_event = None
     _accounts_load_generation = 0
 
     # ─── Diyalog (UI katmanı burada tamamlanacak) ─────────────────────────────
@@ -618,13 +617,13 @@ class AccountMixin:
 
         `on_tab_press` animasyon başlarken tetiklenip kare atlatıyordu; `on_enter`
         geçiş bitince gelir. render_accounts zaten kendi içinde iskelet spinner +
-        Clock ertelemesi + arka plan fetch + parça parça çizim yapar, o yüzden
-        burada ek gecikme katmanı yok — sadece animasyon-sonrası tetikleyicidir.
+        Clock ertelemesi + arka plan fetch + tek karelik toplu çizim yapar, o
+        yüzden burada ek gecikme katmanı yok — sadece animasyon-sonrası tetikleyicidir.
         """
         self.render_accounts()
 
     def render_accounts(self, *args):
-        """Hesapları geçiş animasyonundan sonra okuyup aşamalı olarak çizer."""
+        """Hesap verisini arka planda okuyup listeyi tek karede çizer."""
         if not (self.root and "accounts_container" in self.root.ids and "cards_container" in self.root.ids):  # type: ignore
             return
 
@@ -652,9 +651,6 @@ class AccountMixin:
         generation = self._accounts_load_generation
         if self._accounts_load_event is not None:
             self._accounts_load_event.cancel()
-        if self._accounts_render_event is not None:
-            self._accounts_render_event.cancel()
-            self._accounts_render_event = None
 
         def start_fetch(dt):
             self._accounts_load_event = None
@@ -692,7 +688,7 @@ class AccountMixin:
         self._accounts_load_event = Clock.schedule_once(start_fetch, 0.1)
 
     def _begin_accounts_render(self, generation, loading, payload):
-        """Background fetch sonucunu ana thread'de küçük partilerle çizer."""
+        """Background fetch sonucunu ana thread'de tek karede topluca çizer."""
         if generation != self._accounts_load_generation or not self.root:
             return
         summary, accounts, recent, error = payload
@@ -727,29 +723,16 @@ class AccountMixin:
             container_accounts.add_widget(lbl)
             return
 
-        pending = iter(accounts)
-
-        def render_chunk(dt):
-            if generation != self._accounts_load_generation:
-                self._accounts_render_event = None
-                return False
-            for _ in range(5):
-                try:
-                    acc = next(pending)
-                except StopIteration:
-                    self._accounts_render_event = None
-                    self._finish_accounts_render(generation, loading)
-                    return False
-                self._render_account_widget(
-                    acc, container_cards, container_accounts,
-                    recent.get(acc["id"], []),
-                )
-            return True
-
-        from kivy.clock import Clock
-        # İlk küçük parti hemen, devamı frame başına bir parti olarak çizilir.
-        if render_chunk(0):
-            self._accounts_render_event = Clock.schedule_interval(render_chunk, 0)
+        # Tüm kartlar TEK karede basılır: parça parça (chunk) çizim her karede
+        # yeni bir do_layout tetikleyip listeyi saniyelerce "büyütüyordu".
+        # Veri zaten arka planda hazırlandığı için burada yalnız widget kurulumu
+        # kalır; tek layout geçişiyle ekrana oturur.
+        for acc in accounts:
+            self._render_account_widget(
+                acc, container_cards, container_accounts,
+                recent.get(acc["id"], []),
+            )
+        self._finish_accounts_render(generation, loading)
 
     def _finish_accounts_render(self, generation, loading):
         if generation != self._accounts_load_generation:
