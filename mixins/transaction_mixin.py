@@ -9,6 +9,7 @@ from kivymd.uix.segmentedcontrol import MDSegmentedControl, MDSegmentedControlIt
 from services.transaction_service import TransactionService
 from services.queries import CategoryService
 import ui.theme as ftheme
+from ui.components import is_read_only_asset_account
 
 
 class TransactionMixin:
@@ -181,7 +182,10 @@ class TransactionMixin:
         """
         try:
             from services.account_service import AccountService, CREDIT_CARD
-            self._payment_methods = AccountService.get_accounts()
+            self._payment_methods = [
+                account for account in AccountService.get_accounts()
+                if not is_read_only_asset_account(account)
+            ]
         except Exception as e:
             print("Ödeme yöntemleri okunamadı:", e)
             self._payment_methods = []
@@ -214,9 +218,13 @@ class TransactionMixin:
         * Gider  -> tüm vadesiz hesaplar + kayıtlı kredi kartları (karttan
                     harcama, tutarı karta borç olarak yazar).
         """
+        spendable = [
+            account for account in self._payment_methods
+            if not is_read_only_asset_account(account)
+        ]
         if self.selected_type == "income":
-            return [a for a in self._payment_methods if a["account_type"] != "credit_card"]
-        return list(self._payment_methods)
+            return [a for a in spendable if a["account_type"] != "credit_card"]
+        return spendable
 
     def _revalidate_payment_method(self, *args):
         """Tür değiştikten sonra seçili ödeme yöntemi hâlâ geçerli mi bakar.
@@ -245,10 +253,26 @@ class TransactionMixin:
         Gelir'de yalnızca vadesiz hesaplar, Gider'de hesaplar + kredi kartları.
         Gelir↔Gider geçişinde liste on_segment_active üzerinden yeniden doğrulanır.
         """
+        # Hesap ekleme/silme veya dışarıdan bakiye güncellemesi sonrasında
+        # bayat bir liste kullanılmasın. Mevcut seçim hâlâ geçerliyse koru.
+        previous_account_id = self.selected_account_id
+        try:
+            from services.account_service import AccountService
+            self._payment_methods = [
+                account for account in AccountService.get_accounts()
+                if not is_read_only_asset_account(account)
+            ]
+        except Exception as exc:
+            print("Ödeme yöntemleri yenilenemedi:", exc)
         methods = self._valid_payment_methods()
         if not methods:
             toast("Bu işlem türü için uygun bir hesap bulunamadı.")
             return
+        current = next(
+            (account for account in methods if account["id"] == previous_account_id),
+            methods[0],
+        )
+        self._set_payment_method(current, close_menu=False)
 
         items = [{
             "text": self._payment_label(a),
@@ -259,6 +283,9 @@ class TransactionMixin:
         self.account_menu.open()
 
     def _set_payment_method(self, acc, close_menu=True):
+        if is_read_only_asset_account(acc):
+            toast("Aktif Varlık hesabı salt okunurdur ve ödeme yöntemi olamaz.")
+            return
         self.selected_account_id = acc["id"]
         self.account_button.text = self._payment_label(acc)
         if close_menu and getattr(self, "account_menu", None):
@@ -395,8 +422,18 @@ class TransactionMixin:
         def background_task():
             try:
                 from database.db import DEFAULT_ACCOUNT_ID
+                from services.account_service import AccountService
                 # Kullanıcının seçtiği hesap/kart; seçim yoksa eski davranış.
                 account_id = self.selected_account_id or DEFAULT_ACCOUNT_ID
+                selected_account = next(
+                    (account for account in AccountService.get_accounts()
+                     if account["id"] == account_id),
+                    None,
+                )
+                if selected_account and is_read_only_asset_account(selected_account):
+                    raise ValueError(
+                        "Aktif Varlık hesabı salt okunurdur ve harcama kaynağı olamaz."
+                    )
                 TransactionService.add_transaction(
                     account_id=account_id,
                     amount=user_amount,

@@ -27,7 +27,10 @@ from services.account_service import (
     CREDIT_CARD,
     AccountService
 )
-from ui.components import PremiumCreditCardWidget, PremiumDebitCardWidget, BentoAccountWidget
+from ui.components import (
+    PremiumCreditCardWidget, PremiumDebitCardWidget, PremiumAssetMirrorWidget,
+    BentoAccountWidget, is_read_only_asset_account,
+)
 
 
 def _fmt(value):
@@ -500,6 +503,20 @@ class AccountMixin:
         for acc in accounts:
             is_credit_card = acc["account_type"] == CREDIT_CARD
             has_card = acc.get("has_card_number", False)
+
+            if is_read_only_asset_account(acc):
+                # Mirror kart yalnızca gösterge; buton/işlem davranışı içermez.
+                container_cards.add_widget(PremiumAssetMirrorWidget(
+                    account_name=acc["name"],
+                    balance=_fmt(acc["balance"]),
+                ))
+                # Aynı hesap alttaki Hesaplarım Bento listesinde kalmaya devam eder.
+                container_accounts.add_widget(BentoAccountWidget(
+                    account_name=acc["name"],
+                    account_type_label="Salt Okunur Varlık",
+                    balance=_fmt(acc["balance"]),
+                ))
+                continue
 
             if is_credit_card:
                 # Matematiksel Borç Hesaplama ve Type Casting

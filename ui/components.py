@@ -9,6 +9,34 @@ from kivy.clock import Clock
 from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivymd.app import MDApp
 from kivymd.uix.label import MDLabel
+import unicodedata
+
+
+def is_read_only_asset_account(account):
+    """Ana aktif-varlık/vadesiz-varlık hesabını tek noktadan tanır.
+
+    Gelecekte servis açık bir `is_read_only_asset` alanı döndürürse ad
+    karşılaştırmasına gerek kalmadan çalışır; mevcut veriler için Türkçe adlar
+    aksan/büyük-küçük harf duyarsız normalize edilir.
+    """
+    if bool(account.get("is_read_only_asset", False)):
+        return True
+    if str(account.get("account_type", "")).strip().casefold() in {
+        "asset", "active_asset", "read_only_asset",
+    }:
+        return True
+    raw_name = str(account.get("name", "")).strip().casefold()
+    normalized = "".join(
+        char for char in unicodedata.normalize("NFKD", raw_name)
+        if not unicodedata.combining(char)
+    ).replace("ı", "i")
+    normalized = " ".join(normalized.split())
+    return normalized in {
+        "aktif varliklarim",
+        "aktif varlik",
+        "vadesiz varlik",
+        "asset",
+    }
 
 class RecycleListRow(RecycleDataViewBehavior, TwoLineIconListItem):
     """Varlık Geçmişi ve Son İşlemler listelerinin RecycleView satırı.
@@ -689,6 +717,84 @@ Builder.load_string('''
         bold: True
         theme_text_color: "Primary"
 
+<PremiumAssetMirrorWidget>:
+    size_hint: None, None
+    width: "300dp"
+    height: "230dp"
+    padding: "18dp"
+    spacing: "12dp"
+    orientation: "vertical"
+    elevation: 0
+    radius: [dp(20)]
+    md_bg_color: 0.025, 0.27, 0.20, 1
+    line_color: 0.15, 0.62, 0.45, 0.55
+
+    MDBoxLayout:
+        orientation: "horizontal"
+        size_hint_y: None
+        height: "38dp"
+
+        MDIcon:
+            icon: "chart-areaspline"
+            theme_text_color: "Custom"
+            text_color: 0.65, 1.0, 0.83, 1
+            font_size: "28sp"
+            size_hint_x: None
+            width: "38dp"
+
+        Widget:
+
+        MDLabel:
+            text: "SALT OKUNUR"
+            font_style: "Overline"
+            bold: True
+            halign: "right"
+            theme_text_color: "Custom"
+            text_color: 0.65, 1.0, 0.83, 1
+
+    MDLabel:
+        text: root.account_name
+        font_style: "H6"
+        bold: True
+        shorten: True
+        shorten_from: "right"
+        theme_text_color: "Custom"
+        text_color: 0.96, 1.0, 0.98, 1
+        size_hint_y: None
+        height: "30dp"
+
+    MDLabel:
+        text: "Güncel Bakiye"
+        font_style: "Caption"
+        theme_text_color: "Custom"
+        text_color: 0.70, 0.86, 0.79, 1
+        size_hint_y: None
+        height: "20dp"
+
+    MDLabel:
+        text: root.balance
+        font_style: "H5"
+        bold: True
+        theme_text_color: "Custom"
+        text_color: 1, 1, 1, 1
+        size_hint_y: None
+        height: "42dp"
+
+    Widget:
+
+    MDSeparator:
+        color: 0.65, 1.0, 0.83, 0.22
+        size_hint_y: None
+        height: "1dp"
+
+    MDLabel:
+        text: "Gösterge hesabı • Harcama kaynağı değildir"
+        font_style: "Caption"
+        theme_text_color: "Custom"
+        text_color: 0.70, 0.86, 0.79, 1
+        size_hint_y: None
+        height: "22dp"
+
 # ── Premium Birikim Hedefi Kartı ────────────────────────────────────────────
 # Aktif temaya uyumlu premium yüzey; Light'ta beyaz, Dark'ta gece yüzeyi.
 # Bütün metin/ikon/buton boyutları sabit veya adaptive — yatay yamulma yok.
@@ -847,6 +953,10 @@ class PremiumDebitCardWidget(MDCard):
     card_name = StringProperty("")
     masked_number = StringProperty("**** **** **** 0000")
     network_logo = StringProperty("")
+    balance = StringProperty("₺0,00")
+
+class PremiumAssetMirrorWidget(MDCard):
+    account_name = StringProperty("Aktif Varlıklarım")
     balance = StringProperty("₺0,00")
 
 class BentoAccountWidget(MDCard):
