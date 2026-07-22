@@ -292,7 +292,8 @@ class AccountMixin:
         from services.transaction_service import TransactionService
 
         try:
-            items = TransactionService.get_recent_for_account(account_id, limit=500)
+            # Ekstre, son hareket özetinin aksine yapay bir kayıt sınırı taşımaz.
+            items = TransactionService.get_recent_for_account(account_id, limit=None)
         except Exception as e:
             toast(f"Ekstre okunamadı: {e}")
             return

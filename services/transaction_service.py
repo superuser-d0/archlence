@@ -110,12 +110,19 @@ class TransactionService:
         conn = get_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute(
+            sql = (
                 "SELECT amount, type, category, description, transaction_date"
                 " FROM transactions WHERE account_id = ?"
-                " ORDER BY transaction_date DESC, id DESC LIMIT ?",
-                (int(account_id), int(limit)),
+                " ORDER BY transaction_date DESC, id DESC"
             )
+            params = [int(account_id)]
+            if limit is not None:
+                parsed_limit = int(limit)
+                if parsed_limit < 0:
+                    raise ValueError("limit negatif olamaz")
+                sql += " LIMIT ?"
+                params.append(parsed_limit)
+            cursor.execute(sql, params)
             rows = cursor.fetchall()
         finally:
             conn.close()

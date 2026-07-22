@@ -4,14 +4,23 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _ROOT)
 os.chdir(_ROOT)
 
-from kivy.lang import Builder
-from kivymd.app import MDApp
-from kivy.properties import ColorProperty
-class TestApp(MDApp):
-    home_circle_color = ColorProperty((0,0,0,0))
-    def build(self):
-        return Builder.load_file("ui/dashboard.kv")
-    def on_start(self):
-        print("IDS:", list(self.root.ids.keys()))
-        self.stop()
-TestApp().run()
+def main():
+    from kivy.lang import Builder
+    from kivymd.app import MDApp
+    from kivy.properties import ColorProperty
+
+    class IdsApp(MDApp):
+        home_circle_color = ColorProperty((0, 0, 0, 0))
+
+        def build(self):
+            return Builder.load_file("ui/dashboard.kv")
+
+        def on_start(self):
+            print("IDS:", list(self.root.ids.keys()))
+            self.stop()
+
+    IdsApp().run()
+
+
+if __name__ == "__main__":
+    main()
