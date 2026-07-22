@@ -696,7 +696,9 @@ Builder.load_string('''
     size_hint_x: 1
     adaptive_height: True
     padding: 0
-    elevation: 1 if app.theme_cls.theme_style == "Light" else 0
+    # Flat banking UI: açık temada kirli halo oluşturan KivyMD gölgesi yok.
+    # Ayrım Light Mode'da aşağıdaki ince card_line ile sağlanır.
+    elevation: 0
     radius: [dp(20)]
     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
     line_color: ftheme.card_line(app.theme_cls.theme_style)
