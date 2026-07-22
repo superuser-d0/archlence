@@ -187,6 +187,103 @@ class AccountServiceTestCase(unittest.TestCase):
         self.assertEqual(AccountService.get_account(card_id)["debt"], 1200.0)
         self.assertEqual(AccountService.get_net_worth()["net"], round(net_before + 800.0, 2))
 
+    def test_debt_payment_moves_cash_and_card_atomically(self):
+        from services.account_service import AccountService
+        from services.transaction_service import TransactionService
+
+        source_id = AccountService.create_account("Maaş", "checking", initial_balance=5000)
+        card_id = AccountService.create_account(
+            "Kart", "credit_card", initial_balance=2400, credit_limit=3000
+        )
+
+        AccountService.pay_credit_card_debt(card_id, source_id, 900)
+
+        self.assertEqual(AccountService.get_account(source_id)["balance"], 4100.0)
+        card = AccountService.get_account(card_id)
+        self.assertEqual(card["debt"], 1500.0)
+        self.assertEqual(card["available_limit"], 1500.0)
+
+        statement = TransactionService.get_recent_for_account(card_id, limit=None)
+        self.assertEqual(len(statement), 1)
+        self.assertEqual(statement[0]["type"], "payment")
+        self.assertEqual(statement[0]["amount"], 900.0)
+
+    def test_debt_payment_cannot_exceed_debt(self):
+        from services.account_service import AccountService
+
+        source_id = AccountService.create_account("Maaş", "checking", initial_balance=5000)
+        card_id = AccountService.create_account(
+            "Kart", "credit_card", initial_balance=500, credit_limit=3000
+        )
+
+        with self.assertRaisesRegex(ValueError, "mevcut borcu aşamaz"):
+            AccountService.pay_credit_card_debt(card_id, source_id, 501)
+
+        self.assertEqual(AccountService.get_account(source_id)["balance"], 5000.0)
+        self.assertEqual(AccountService.get_account(card_id)["debt"], 500.0)
+
+    def test_debt_payment_rejects_card_without_debt(self):
+        from services.account_service import AccountService
+
+        source_id = AccountService.create_account("Maaş", "checking", initial_balance=5000)
+        card_id = AccountService.create_account("Kart", "credit_card", credit_limit=3000)
+
+        with self.assertRaisesRegex(ValueError, "ödenecek borç bulunmuyor"):
+            AccountService.pay_credit_card_debt(card_id, source_id, 100)
+
+        self.assertEqual(AccountService.get_account(source_id)["balance"], 5000.0)
+        self.assertEqual(AccountService.get_account(card_id)["balance"], 0.0)
+
+    def test_delete_credit_card_removes_only_its_data(self):
+        from database.db import get_connection
+        from services.account_service import AccountService
+        from services.transaction_service import TransactionService
+        from utils.crypto import encrypt
+        from database.db import SECRET_KEY
+
+        deleted_id = AccountService.create_account(
+            "Silinecek", "credit_card", initial_balance=200, credit_limit=3000
+        )
+        kept_id = AccountService.create_account(
+            "Kalacak", "credit_card", initial_balance=100, credit_limit=3000
+        )
+        TransactionService.add_transaction(
+            deleted_id, 50, "expense", "Test", "Silinecek hareket"
+        )
+        TransactionService.add_transaction(
+            kept_id, 25, "expense", "Test", "Kalacak hareket"
+        )
+
+        conn = get_connection()
+        conn.execute(
+            "INSERT INTO recurring_payments"
+            " (name, amount, category, frequency, next_due_date, auto_deduct, is_active, account_id)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (encrypt("Abonelik", SECRET_KEY), encrypt("10", SECRET_KEY), "Test",
+             "monthly", "2026-08-01", 1, 1, deleted_id),
+        )
+        conn.commit()
+        conn.close()
+
+        AccountService.delete_credit_card(deleted_id)
+
+        self.assertIsNone(AccountService.get_account(deleted_id))
+        self.assertIsNotNone(AccountService.get_account(kept_id))
+        self.assertEqual(len(TransactionService.get_recent_for_account(deleted_id, None)), 0)
+        self.assertEqual(len(TransactionService.get_recent_for_account(kept_id, None)), 1)
+
+        conn = get_connection()
+        recurring = conn.execute(
+            "SELECT is_active FROM recurring_payments WHERE account_id = ?", (deleted_id,)
+        ).fetchone()
+        events = conn.execute(
+            "SELECT COUNT(*) FROM balance_events WHERE entity_type = 'account' AND entity_id = ?",
+            (deleted_id,),
+        ).fetchone()[0]
+        conn.close()
+        self.assertEqual(recurring["is_active"], 0)
+        self.assertEqual(events, 0)
+
     # ─── Limit kontrolü ──────────────────────────────────────────────────────
 
     def test_expense_over_limit_is_rejected(self):

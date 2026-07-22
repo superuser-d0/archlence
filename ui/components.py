@@ -297,6 +297,13 @@ Builder.load_string('''
                 text_color: (0.3, 0.3, 0.8, 1) if app.theme_cls.theme_style == "Light" else (0.6, 0.6, 1, 1)
                 halign: "center"
                 valign: "center"
+        MDIconButton:
+            icon: "dots-vertical"
+            size_hint: None, None
+            size: "36dp", "36dp"
+            pos_hint: {"center_y": 0.5}
+            theme_text_color: "Secondary"
+            on_release: app.open_card_settings(self, root.account_id)
 
     # Limit / Borç Bilgileri
     MDBoxLayout:
@@ -700,4 +707,3 @@ class BentoAccountWidget(MDCard):
     account_name = StringProperty("")
     account_type_label = StringProperty("")
     balance = StringProperty("₺0,00")
-

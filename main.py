@@ -146,7 +146,10 @@ from services.queries import CategoryService
 
 from ui.charts import CurvedTrendChart, HorizontalBarChart, LiquidWaveWidget, PieChart, DashboardChartManager, ConfettiWidget
 from ui.components import CategorySettingItem, RightButtonsContainer, BudgetListItem, LegendItem, LegendWidget
-from ui.theme import apply_premium_theme, apply_standard_theme, refresh_card_theme, apply_dark_surface_tokens, _refresh
+from ui.theme import (
+    apply_premium_theme, apply_standard_theme, refresh_card_theme,
+    apply_dark_surface_tokens, restyle_text_fields, _refresh,
+)
 from screens.admin_screen import AdminScreen
 
 from mixins.asset_mixin import AssetMixin
@@ -204,6 +207,10 @@ class FinoraApp(
         if self.store.exists('goals'):
             self.savings_goals = self.store.get('goals')['data']
             
+        # KivyMD 1.2'nin tema renk animasyonları hızlı geçişlerde üst üste
+        # binerek bazı label'ları eski zemin rengine/şeffaflığa bırakabiliyor.
+        # Uygulamanın kendi geçişi yeterli; metin renkleri atomik güncellenir.
+        self.theme_cls.theme_style_switch_animation = False
         self.theme_cls.theme_style = "Light"
         self.config_store = JsonStore('finora_config.json')
         
@@ -257,11 +264,34 @@ class FinoraApp(
                 print("Tema tercihi kaydedilemedi:", e)
 
     def toggle_theme(self, is_active):
+        # KV'de giriş ve uygulama ayarlarında aynı theme_style'a bağlı birden
+        # fazla switch var. theme_style değişince bu switch'lerin on_active
+        # olayları da çalışır; bunlar kullanıcıdan gelen yeni bir istek değildir.
+        if getattr(self, "_applying_theme_style", False):
+            return
+
+        desired_style = "Dark" if is_active else "Light"
+        pending = getattr(self, "_pending_theme_switch", None)
+        if pending is not None:
+            pending.cancel()
+            self._pending_theme_switch = None
+        if self.theme_cls.theme_style == desired_style:
+            return
+
         def _switch_theme(dt):
+            self._pending_theme_switch = None
+            if self.theme_cls.theme_style == desired_style:
+                return
             apply_dark_surface_tokens()
-            self.theme_cls.theme_style = "Dark" if is_active else "Light"
-            Clock.schedule_once(self._after_theme_switch, 0)
-        Clock.schedule_once(_switch_theme, 0.2)
+            self._applying_theme_style = True
+            try:
+                self.theme_cls.theme_style = desired_style
+                Clock.schedule_once(self._after_theme_switch, 0)
+            finally:
+                self._applying_theme_style = False
+        # Switch'in kendi kısa animasyonu bitsin; yeni bir kullanıcı seçimi
+        # gelirse yukarıdaki iptal sayesinde eski seçim sonradan uygulanmaz.
+        self._pending_theme_switch = Clock.schedule_once(_switch_theme, 0.12)
 
     def _after_theme_switch(self, *args):
         try:
@@ -270,6 +300,49 @@ class FinoraApp(
             pass
         self._normalize_card_shadows()
         self._resync_text_fields()
+        # Premium kartlar çok katmanlı canvas + adaptive label içeriyor.
+        # KivyMD 1.2 bunları Dark -> Light dönüşünde eski stencil/canvas
+        # durumuyla bırakabiliyor; sonuç metin dokusu tam olsa bile yalnız ilk
+        # karakterin görünmesi. Kart ağacını güncel veriden yeniden kurmak hem
+        # güvenli hem deterministik (veritabanında yazma yapmaz).
+        # Dinamik oluşturulmuş MDLabel/MDIcon örnekleri KV bağlaması taşımayabilir.
+        # Aktif theme_text_color rolünü yeniden uygulatmak görünmez metinleri
+        # önler; Custom renkler olduğu gibi korunur.
+        for widget in self._all_widgets():
+            if isinstance(widget, MDLabel):
+                try:
+                    widget.on_theme_text_color(widget, widget.theme_text_color)
+                except Exception:
+                    pass
+        # Kivy 2.3 / KivyMD 1.2'de özellikle Custom renkli, adaptive boyutlu
+        # label'ların font texture'ı Dark -> Light dönüşünde bazen tek karakter
+        # genişliğinde kalıyor. Renk geçişi tamamlandıktan sonraki frame'de
+        # texture'ları yeniden üretmek metnin kırpılmasını/kaybolmasını önler.
+        Clock.schedule_once(self._rebuild_after_theme_layout, 0.2)
+
+    def _rebuild_after_theme_layout(self, *args):
+        """Tema ve navigation yerleşimi oturduktan sonra dinamik kartları kur."""
+        if hasattr(self, "render_accounts"):
+            try:
+                self.render_accounts()
+            except Exception as exc:
+                print("Tema sonrası kartlar yenilenemedi:", exc)
+        self._normalize_card_shadows()
+        Clock.schedule_once(self._refresh_text_textures, 0.05)
+
+    def _refresh_text_textures(self, *args):
+        for widget in self._all_widgets():
+            if isinstance(widget, MDLabel):
+                try:
+                    # Bu metot tema değişiminden 150 ms sonra çağrılır; o anda
+                    # FloatLayout/ScrollView ölçüleri sabittir. Senkron yenileme
+                    # hem font dokusunu hem ona bağlı canvas Rectangle'ını aynı
+                    # ölçüye getirir (yalnız _trigger_texture Rectangle'ı eski
+                    # genişlikte bırakabiliyor).
+                    widget.texture_update()
+                    widget.canvas.ask_update()
+                except Exception:
+                    pass
 
     def _normalize_card_shadows(self, *args):
         if not self.root:
@@ -292,12 +365,13 @@ class FinoraApp(
     def _resync_text_fields(self):
         if not self.root:
             return
-        for widget in self._all_widgets():
-            if isinstance(widget, MDTextField):
-                try:
-                    widget.set_default_colors(0)
-                except Exception:
-                    pass
+        # set_default_colors(), Finora'nın kontrast renklerini KivyMD
+        # varsayılanlarıyla ezebiliyordu. Ortak tema kiti açık diyaloglar dahil
+        # tüm alanlara doğru açık/koyu renkleri uygular.
+        restyle_text_fields(self.root, self.theme_cls)
+        for window_child in list(Window.children):
+            if window_child is not self.root:
+                restyle_text_fields(window_child, self.theme_cls)
 
     def _all_widgets(self):
         from kivy.uix.screenmanager import ScreenManager

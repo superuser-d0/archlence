@@ -265,7 +265,7 @@ class AccountMixin:
                 shorten_from="right",
             )
             # Gider kırmızı, gelir yeşil — işaret de tutarın önünde.
-            is_income = it["type"] in ("income", "Gelir")
+            is_income = it["type"] in ("income", "Gelir", "payment")
             right = MDLabel(
                 text=("+" if is_income else "−") + _fmt(abs(it["amount"])),
                 font_style="Caption",
@@ -322,7 +322,7 @@ class AccountMixin:
                     shorten=True,
                     shorten_from="right",
                 )
-                is_income = it["type"] in ("income", "Gelir")
+                is_income = it["type"] in ("income", "Gelir", "payment")
                 right = MDLabel(
                     text=("+" if is_income else "−") + _fmt(abs(it["amount"])),
                     font_style="Caption",
@@ -350,6 +350,80 @@ class AccountMixin:
             buttons=[MDFlatButton(text="KAPAT", on_release=lambda x: self.statement_dialog.dismiss())],
         )
         self.statement_dialog.open()
+
+    def open_delete_card_dialog(self, account_id):
+        """Kartı ve karta bağlı hareketleri silmeden önce açık onay ister."""
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.button import MDFlatButton
+
+        card = AccountService.get_account(account_id)
+        if not card or card["account_type"] != CREDIT_CARD:
+            toast("Kredi kartı bulunamadı.")
+            return
+
+        def confirm(*args):
+            try:
+                AccountService.delete_credit_card(account_id)
+            except Exception as exc:
+                toast(f"Kart silinemedi: {exc}")
+                return
+            self.delete_card_dialog.dismiss()
+            self.render_accounts()
+            if hasattr(self, "refresh_dashboard_data"):
+                self.refresh_dashboard_data()
+            toast("Kredi kartı silindi.")
+
+        self.delete_card_dialog = MDDialog(
+            title="Kredi Kartını Sil",
+            text=(
+                f"{card['name']} kartı, karta bağlı ekstre hareketleri ve "
+                "otomatik ödeme bağlantıları silinecek. Bu işlem geri alınamaz."
+            ),
+            buttons=[
+                MDFlatButton(
+                    text="VAZGEÇ",
+                    on_release=lambda x: self.delete_card_dialog.dismiss(),
+                ),
+                MDFlatButton(
+                    text="SİL",
+                    theme_text_color="Custom",
+                    text_color=ftheme.accent(self.theme_cls.theme_style, "red"),
+                    on_release=confirm,
+                ),
+            ],
+        )
+        self.delete_card_dialog.open()
+
+    def open_card_settings(self, caller, account_id):
+        """Karta özgü, nadir kullanılan işlemleri üç nokta menüsünde gösterir."""
+        from kivymd.uix.menu import MDDropdownMenu
+
+        old_menu = getattr(self, "card_settings_menu", None)
+        if old_menu is not None:
+            try:
+                old_menu.dismiss()
+            except Exception:
+                pass
+
+        def delete_card(*args):
+            self.card_settings_menu.dismiss()
+            # Menü kapanış animasyonu ile onay diyaloğunun üst üste binmesini
+            # önlemek için diyaloğu bir sonraki frame'de aç.
+            from kivy.clock import Clock
+            Clock.schedule_once(
+                lambda dt: self.open_delete_card_dialog(account_id), 0
+            )
+
+        self.card_settings_menu = MDDropdownMenu(
+            caller=caller,
+            width_mult=3,
+            items=[{
+                "text": "Kartı Sil",
+                "viewclass": "OneLineListItem",
+                "on_release": delete_card,
+            }],
+        )
+        self.card_settings_menu.open()
 
     # ─── İş mantığı (tamamlandı — değiştirmeyin) ──────────────────────────────
     def commit_new_account(self, name, account_type, initial_balance=0.0,
@@ -436,11 +510,12 @@ class AccountMixin:
                 
                 # Progress bar'ın 'Kullanılabilir Limit' oranını göstermesini sağla.
                 # Formül: yuzde = ((limit - guncel_borc) / limit) * 100
-                if limit_val > 0.0:
-                    if debt_val == 0.0:
-                        ratio = 100.0
-                    else:
-                        ratio = ((limit_val - debt_val) / limit_val) * 100.0
+                if debt_val == 0.0:
+                    # Eski migration kartlarında limit 0 kalmış olabilir. Borç
+                    # tamamen kapanmışsa bar yine de dolu görünmelidir.
+                    ratio = 100.0
+                elif limit_val > 0.0:
+                    ratio = ((limit_val - debt_val) / limit_val) * 100.0
                 else:
                     ratio = 0.0
                 

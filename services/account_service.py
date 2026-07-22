@@ -281,6 +281,14 @@ class AccountService:
         if not card or card["account_type"] != CREDIT_CARD:
             raise ValueError("Geçersiz kredi kartı.")
 
+        debt = float(card["debt"])
+        if debt <= 0:
+            raise ValueError("Bu kredi kartında ödenecek borç bulunmuyor.")
+        if amount > debt:
+            raise ValueError(
+                f"Ödeme mevcut borcu aşamaz. Güncel borç: {_fmt_try(debt)}."
+            )
+
         source = AccountService.get_account(source_account_id)
         if not source or source["account_type"] != CHECKING:
             raise ValueError("Ödeme yapılacak hesap vadesiz hesap olmalıdır.")
@@ -292,21 +300,34 @@ class AccountService:
         try:
             cursor = conn.cursor()
 
-            # Vadesiz hesaptan düş
-            cursor.execute("UPDATE accounts SET balance = balance - ? WHERE id = ?", (amount, source_account_id))
-            
-            # Kredi kartı borcundan düş (borç negatif bakiyedir, dolayısıyla eklenir)
-            cursor.execute("UPDATE accounts SET balance = balance + ? WHERE id = ?", (amount, credit_card_id))
+            # Bakiyeler doğrulamadan sonra değişmiş olabilir. UPDATE koşulları
+            # işlemi atomik tutar ve kartı pozitif bakiyeye geçiren fazla ödemeyi
+            # engeller.
+            cursor.execute(
+                "UPDATE accounts SET balance = balance - ?"
+                " WHERE id = ? AND account_type = ? AND balance >= ?",
+                (amount, source_account_id, CHECKING, amount),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("Yetersiz Bakiye! Bu hesap eksiye düşemez.")
+
+            cursor.execute(
+                "UPDATE accounts SET balance = balance + ?"
+                " WHERE id = ? AND account_type = ? AND balance <= ?",
+                (amount, credit_card_id, CREDIT_CARD, -amount),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("Ödeme mevcut kart borcunu aşamaz.")
             
             # balance_events için history tetikle
             from database.db import record_balance_event, ACCOUNT
             cursor.execute("SELECT balance FROM accounts WHERE id = ?", (source_account_id,))
             new_source_balance = cursor.fetchone()["balance"]
-            record_balance_event(cursor, ACCOUNT, source_account_id, new_source_balance, new_source_balance, "expense")
+            record_balance_event(cursor, ACCOUNT, source_account_id, -amount, new_source_balance, "card_payment")
             
             cursor.execute("SELECT balance FROM accounts WHERE id = ?", (credit_card_id,))
             new_card_balance = cursor.fetchone()["balance"]
-            record_balance_event(cursor, ACCOUNT, credit_card_id, new_card_balance, new_card_balance, "income")
+            record_balance_event(cursor, ACCOUNT, credit_card_id, amount, new_card_balance, "card_payment")
 
             # İşlemi transactions tablosuna yaz
             from services.transaction_service import TransactionService, SECRET_KEY
@@ -322,6 +343,48 @@ class AccountService:
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (source_account_id, enc_amount, "expense", "Borç Ödeme", enc_desc, date_now))
 
+            # Kartın kendi ekstresinde ödeme görünsün. "payment" tipi genel
+            # gelir metriklerine katılmaz; yalnızca kart hareketinde yeşil artı
+            # olarak sunulur.
+            cursor.execute("""
+                INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (credit_card_id, enc_amount, "payment", "Borç Ödeme", enc_desc, date_now))
+
+            conn.commit()
+        finally:
+            conn.close()
+
+    @staticmethod
+    def delete_credit_card(credit_card_id):
+        """Kredi kartını ve yalnızca ona bağlı geçmiş kayıtlarını atomik siler.
+
+        Karta bağlı otomatik ödemeler önce pasifleştirilir; böylece silinen hesap
+        kimliğiyle ileride tahsilat denenmez. Diğer hesapların hareketlerine
+        dokunulmaz.
+        """
+        card = AccountService.get_account(credit_card_id)
+        if not card or card["account_type"] != CREDIT_CARD:
+            raise ValueError("Kredi kartı bulunamadı.")
+
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE recurring_payments SET is_active = 0 WHERE account_id = ?",
+                (int(credit_card_id),),
+            )
+            cursor.execute("DELETE FROM transactions WHERE account_id = ?", (int(credit_card_id),))
+            cursor.execute(
+                "DELETE FROM balance_events WHERE entity_type = ? AND entity_id = ?",
+                (ACCOUNT, int(credit_card_id)),
+            )
+            cursor.execute(
+                "DELETE FROM accounts WHERE id = ? AND account_type = ?",
+                (int(credit_card_id), CREDIT_CARD),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("Kredi kartı bulunamadı.")
             conn.commit()
         finally:
             conn.close()

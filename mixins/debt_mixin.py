@@ -377,8 +377,10 @@ class DebtMixin:
                             
                             limit_val = float(fresh_card.get("credit_limit") or 0.0)
                             debt_val = float(fresh_card.get("debt") or 0.0)
-                            if limit_val > 0.0:
-                                ratio = 100.0 if debt_val == 0.0 else ((limit_val - debt_val) / limit_val) * 100.0
+                            if debt_val == 0.0:
+                                ratio = 100.0
+                            elif limit_val > 0.0:
+                                ratio = ((limit_val - debt_val) / limit_val) * 100.0
                             else:
                                 ratio = 0.0
                             ratio = max(0.0, min(100.0, ratio))
