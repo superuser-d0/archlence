@@ -885,9 +885,11 @@ MDScreen:
                     name: "assets_tab"
                     text: "Varlıklarım"
                     icon: "finance"
-                    on_tab_press:
-                        chart_master_box.refresh_dashboard(app.home_filter)
-                        app.load_recent_transactions()
+                    # on_tab_press DEĞİL: o event animasyon başlarken tetiklenir ve
+                    # ağır grafik/liste kurulumu kare atlatır. on_enter geçiş
+                    # animasyonu bittikten sonra gelir; handler ayrıca Clock ile
+                    # 0.1s nefes payı bırakır (bkz. TransactionMixin.on_assets_tab_enter).
+                    on_enter: app.on_assets_tab_enter()
                     
                     MDFloatLayout:
                         MDBoxLayout:
@@ -1363,7 +1365,9 @@ MDScreen:
                     name: "accounts_tab"
                     text: "Kartlarım"
                     icon: "credit-card-multiple-outline"
-                    on_tab_press: app.render_accounts()
+                    # Animasyon bittikten sonra + 0.1s Clock gecikmesiyle yüklenir
+                    # (bkz. AccountMixin.on_accounts_tab_enter) — geçiş takılmasın.
+                    on_enter: app.on_accounts_tab_enter()
                     
                     MDFloatLayout:
                         MDBoxLayout:

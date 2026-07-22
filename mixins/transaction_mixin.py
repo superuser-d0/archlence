@@ -722,5 +722,34 @@ class TransactionMixin:
 
         threading.Thread(target=background_task, daemon=True).start()
 
+    def on_assets_tab_enter(self, *args):
+        """KV'deki Varlıklarım sekmesinin `on_enter` hedefi.
+
+        Eski `on_tab_press` grafiği ve son işlem listesini animasyon başlarken
+        senkron kuruyordu — mikro takılmanın kaynağı. `on_enter` animasyon
+        bitince gelir; ağır işler yine de 0.1s'lik Clock ertelemesiyle çağrılır
+        ki ekran önce yerine otursun. Peş peşe sekme geçişlerinde bekleyen
+        yükleme iptal edilir (bayat sekmenin işi yenisini takoslamasın).
+        """
+        pending = getattr(self, "_assets_tab_load_ev", None)
+        if pending is not None:
+            pending.cancel()
+
+        def _load(dt):
+            self._assets_tab_load_ev = None
+            try:
+                if self.root and "chart_master_box" in self.root.ids:
+                    self.root.ids.chart_master_box.refresh_dashboard(
+                        getattr(self, "home_filter", "Bugün")
+                    )
+            except Exception as e:
+                print("Varlıklarım grafiği yüklenemedi:", e)
+            try:
+                self.load_recent_transactions()
+            except Exception as e:
+                print("Son işlemler yüklenemedi:", e)
+
+        self._assets_tab_load_ev = Clock.schedule_once(_load, 0.1)
+
     def load_recent_transactions(self, list_filter=None):
         self.refresh_dashboard_data(list_filter)

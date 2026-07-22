@@ -613,6 +613,16 @@ class AccountMixin:
             pass
         return True
 
+    def on_accounts_tab_enter(self, *args):
+        """KV'deki Kartlarım sekmesinin `on_enter` hedefi.
+
+        `on_tab_press` animasyon başlarken tetiklenip kare atlatıyordu; `on_enter`
+        geçiş bitince gelir. render_accounts zaten kendi içinde iskelet spinner +
+        Clock ertelemesi + arka plan fetch + parça parça çizim yapar, o yüzden
+        burada ek gecikme katmanı yok — sadece animasyon-sonrası tetikleyicidir.
+        """
+        self.render_accounts()
+
     def render_accounts(self, *args):
         """Hesapları geçiş animasyonundan sonra okuyup aşamalı olarak çizer."""
         if not (self.root and "accounts_container" in self.root.ids and "cards_container" in self.root.ids):  # type: ignore
@@ -675,9 +685,11 @@ class AccountMixin:
             import threading
             threading.Thread(target=fetch, daemon=True).start()
 
-        # ScreenManager geçiş süresi boyunca SQL ve widget üretimi başlamaz.
+        # Sekme tetikleyicisi artık on_enter (animasyon bitmiş durumda); 0.1s
+        # yalnızca ekranın yerine oturması için nefes payıdır. İşlem sonrası
+        # doğrudan çağrılarda da animasyon olmadığından bu süre yeterlidir.
         from kivy.clock import Clock
-        self._accounts_load_event = Clock.schedule_once(start_fetch, 0.4)
+        self._accounts_load_event = Clock.schedule_once(start_fetch, 0.1)
 
     def _begin_accounts_render(self, generation, loading, payload):
         """Background fetch sonucunu ana thread'de küçük partilerle çizer."""
