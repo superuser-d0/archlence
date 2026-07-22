@@ -10,6 +10,7 @@ from kivymd.uix.card import MDCard
 from kivymd.uix.progressbar import MDProgressBar
 from kivymd.uix.slider import MDSlider
 import ui.theme as ftheme
+from ui.components import is_read_only_asset_account
 
 class DebtMixin:
     """Borç/kredi takibi: hesaplanan krediyi borç olarak kaydetme, aktif borç
@@ -296,7 +297,12 @@ class DebtMixin:
             return
 
         accounts = AccountService.get_accounts()
-        checking_accounts = [acc for acc in accounts if acc["account_type"] == CHECKING]
+        # Salt okunur 'Aktif Varlıklarım' kartı vadesiz gibi görünse de borç
+        # ödeme kaynağı OLAMAZ; harcama izolasyonu bu pencerede de geçerli.
+        checking_accounts = [
+            acc for acc in accounts
+            if acc["account_type"] == CHECKING and not is_read_only_asset_account(acc)
+        ]
 
         if not checking_accounts:
             toast("Ödeme yapabileceğiniz vadesiz/nakit hesabınız bulunmamaktadır.")
@@ -332,7 +338,10 @@ class DebtMixin:
 
         def open_menu(*args):
             accounts_now = AccountService.get_accounts()
-            checking_now = [a for a in accounts_now if a["account_type"] == CHECKING]
+            checking_now = [
+                a for a in accounts_now
+                if a["account_type"] == CHECKING and not is_read_only_asset_account(a)
+            ]
             
             # Ana buton metnini güncel veriyle zorla güncelle (stale state koruması)
             for acc in checking_now:
