@@ -418,16 +418,125 @@ class AccountMixin:
                 lambda dt: self.open_delete_card_dialog(account_id), 0
             )
 
+        def upcoming_payments(*args):
+            self.card_settings_menu.dismiss()
+            from kivy.clock import Clock
+            Clock.schedule_once(
+                lambda dt: self.open_upcoming_installments(account_id), 0
+            )
+
         self.card_settings_menu = MDDropdownMenu(
             caller=caller,
             width_mult=3,
             items=[{
+                "text": "Gelecek Ödemeler",
+                "viewclass": "OneLineListItem",
+                "on_release": upcoming_payments,
+            }, {
                 "text": "Kartı Sil",
                 "viewclass": "OneLineListItem",
                 "on_release": delete_card,
             }],
         )
         self.card_settings_menu.open()
+
+    def open_upcoming_installments(self, account_id):
+        """Kartın devam eden taksit planlarını ('Gelecek Ödemeler') listeler.
+
+        Her satır: harcama adı, kalan/toplam taksit, aylık tutar (₺X/ay) ve
+        toplam kalan borç. `open_card_statement` ile aynı diyalog deseni.
+        """
+        from kivy.uix.scrollview import ScrollView
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.button import MDFlatButton
+        from kivymd.uix.list import MDList
+        from services.transaction_service import TransactionService
+
+        try:
+            plans = TransactionService.get_installment_plans(account_id)
+        except Exception as e:
+            toast(f"Taksit planları okunamadı: {e}")
+            return
+
+        body = MDList()
+        if not plans:
+            empty = MDLabel(
+                text="Bu kartta henüz taksitli işlem bulunmuyor",
+                font_style="Caption",
+                theme_text_color="Secondary",
+                halign="center",
+                size_hint_y=None,
+                height=dp(40),
+            )
+            empty.bind(size=empty.setter("text_size"))
+            body.add_widget(empty)
+        else:
+            style = self.theme_cls.theme_style
+            for plan in plans:
+                item = MDBoxLayout(
+                    orientation="vertical", size_hint_y=None, height=dp(56),
+                    spacing=dp(2), padding=(dp(8), dp(4), dp(8), dp(4)),
+                )
+                top = MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                                  height=dp(24), spacing=dp(6))
+                name_lbl = MDLabel(
+                    text=plan["description"],
+                    font_style="Subtitle2",
+                    bold=True,
+                    shorten=True,
+                    shorten_from="right",
+                )
+                monthly_lbl = MDLabel(
+                    text=f"{_fmt(plan['monthly_amount'])} / ay",
+                    font_style="Subtitle2",
+                    bold=True,
+                    halign="right",
+                    size_hint_x=None,
+                    width=dp(120),
+                    theme_text_color="Custom",
+                    text_color=ftheme.accent(style, "blue"),
+                )
+                top.add_widget(name_lbl)
+                top.add_widget(monthly_lbl)
+
+                bottom = MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                                     height=dp(20), spacing=dp(6))
+                # 'Kalan/Toplam Taksit': 3/6 = 3 taksit ödendi, 3 taksit kaldı.
+                progress_lbl = MDLabel(
+                    text=(f"{plan['paid_installments']}/{plan['total_installments']}"
+                          f" Taksit Ödendi"),
+                    font_style="Caption",
+                    theme_text_color="Secondary",
+                )
+                remaining_lbl = MDLabel(
+                    text=f"Kalan: {_fmt(plan['remaining_amount'])}",
+                    font_style="Caption",
+                    halign="right",
+                    theme_text_color="Custom",
+                    text_color=ftheme.accent(style, "red"),
+                )
+                bottom.add_widget(progress_lbl)
+                bottom.add_widget(remaining_lbl)
+
+                item.add_widget(top)
+                item.add_widget(bottom)
+                body.add_widget(item)
+
+        scroll = ScrollView(size_hint=(1, 1))
+        scroll.add_widget(body)
+        content = MDBoxLayout(orientation="vertical", size_hint_y=None, height=dp(320))
+        content.add_widget(scroll)
+
+        self.installments_dialog = MDDialog(
+            title="Gelecek Ödemeler",
+            type="custom",
+            content_cls=content,
+            buttons=[MDFlatButton(
+                text="KAPAT",
+                on_release=lambda x: self.installments_dialog.dismiss(),
+            )],
+        )
+        self.installments_dialog.open()
 
     # ─── İş mantığı (tamamlandı — değiştirmeyin) ──────────────────────────────
     def commit_new_account(self, name, account_type, initial_balance=0.0,

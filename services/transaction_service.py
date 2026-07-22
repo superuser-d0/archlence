@@ -5,10 +5,31 @@ from datetime import datetime
 
 SECRET_KEY = 'finora_secure_2026'
 
+# Taksit planları tablosu tembel (lazy) oluşturulur — asset_service'teki
+# asset_price_cache ile aynı desen; init_db'ye dokunmadan şema genişler.
+_INSTALLMENTS_TABLE = "installment_plans"
+
+
+def _ensure_installments_table(cursor) -> None:
+    """Tutarlar diğer tablolardaki gibi şifreli TEXT tutulur (SQL'de toplanmaz,
+    Python'da çözülür); taksit sayaçları sorgulanabilir düz INTEGER kalır."""
+    cursor.execute(f"""CREATE TABLE IF NOT EXISTS {_INSTALLMENTS_TABLE} (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL,
+        description TEXT NOT NULL,
+        total_amount TEXT NOT NULL,
+        monthly_amount TEXT NOT NULL,
+        total_installments INTEGER NOT NULL,
+        paid_installments INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL
+    )""")
+
+
 class TransactionService:
     @staticmethod
     def add_transaction(account_id, amount, transaction_type, category, description,
-                        transaction_date=None, enforce_credit_limit=True):
+                        transaction_date=None, enforce_credit_limit=True,
+                        installments=None):
         """transaction_date verilmezse şu an kullanılır; CSV içe aktarımı gibi
         geçmiş tarihli kayıtlar tarihi açıkça geçer — bakiye senkronu dahil
         aynı atomik yoldan geçmiş olurlar.
@@ -17,7 +38,20 @@ class TransactionService:
         aşılıyorsa ValueError fırlatılır. CSV içe aktarımı gibi geçmişi olduğu
         gibi yeniden kuran çağıranlar `enforce_credit_limit=False` geçebilir —
         aksi halde geçmişte limiti zorlamış gerçek bir harcama içe aktarılamazdı.
+
+        `installments` (2-12) verilirse işlem taksitli kredi kartı harcamasıdır:
+        tutarın tamamı karta tek seferde borç yazılır (banka limiti toplam tutar
+        kadar bloke eder), ayrıca AYNI commit içinde installment_plans'a aylık
+        taksit planı eklenir (aylık tutar = toplam / taksit sayısı). Böylece
+        işlem ile plan hiçbir zaman birbirinden kopamaz.
         """
+        if installments is not None:
+            installments = int(installments)
+            if not 1 <= installments <= 12:
+                raise ValueError("Taksit sayısı 1 ile 12 arasında olmalıdır.")
+            if installments == 1:
+                installments = None  # 1 taksit = tek çekim; plan kaydı gereksiz.
+
         if enforce_credit_limit and transaction_type in ("expense", "Gider"):
             allowed, reason = AccountService.check_spending_allowed(account_id, amount)
             if not allowed:
@@ -48,9 +82,78 @@ class TransactionService:
             # senkron güncellenir (gelir artırır, gider azaltır).
             adjust_account_balance(cursor, account_id, transaction_type, amount)
 
+            if installments:
+                # Taksit planı işlemle AYNI commit'te yazılır (atomiklik).
+                monthly = round(float(amount) / installments, 2)
+                _ensure_installments_table(cursor)
+                cursor.execute(f"""
+                    INSERT INTO {_INSTALLMENTS_TABLE}
+                        (account_id, description, total_amount, monthly_amount,
+                         total_installments, paid_installments, created_at)
+                    VALUES (?, ?, ?, ?, ?, 0, ?)
+                """, (
+                    account_id,
+                    encrypted_description,
+                    encrypt(str(amount), SECRET_KEY),
+                    encrypt(str(monthly), SECRET_KEY),
+                    installments,
+                    date_now,
+                ))
+
             conn.commit()
         finally:
             conn.close()
+
+    @staticmethod
+    def get_installment_plans(account_id):
+        """Bir kartın devam eden taksit planlarını (kalan taksidi olanları) döndürür.
+
+        'Gelecek Ödemeler' diyaloğunun veri kaynağı. Tutarlar şifreli TEXT
+        olduğundan Python'da çözülür (get_recent_for_account ile aynı desen).
+        Her eleman: description, total_amount, monthly_amount,
+        total_installments, paid_installments, remaining_installments,
+        remaining_amount, created_at.
+        """
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            _ensure_installments_table(cursor)
+            cursor.execute(
+                f"SELECT * FROM {_INSTALLMENTS_TABLE}"
+                " WHERE account_id = ? AND paid_installments < total_installments"
+                " ORDER BY created_at DESC, id DESC",
+                (int(account_id),),
+            )
+            rows = cursor.fetchall()
+        finally:
+            conn.close()
+
+        plans = []
+        for r in rows:
+            try:
+                total = float(decrypt(str(r["total_amount"]), SECRET_KEY))
+                monthly = float(decrypt(str(r["monthly_amount"]), SECRET_KEY))
+            except Exception:
+                continue
+            # Açıklama, transactions tablosundaki konvansiyonla aynı şekilde
+            # şifreli durur; çözülemezse plan gizlenmez, ad boş bırakılmaz.
+            try:
+                plan_description = decrypt(str(r["description"]), SECRET_KEY) or "Taksitli İşlem"
+            except Exception:
+                plan_description = "Taksitli İşlem"
+            remaining = int(r["total_installments"]) - int(r["paid_installments"])
+            plans.append({
+                "id": r["id"],
+                "description": plan_description,
+                "total_amount": total,
+                "monthly_amount": monthly,
+                "total_installments": int(r["total_installments"]),
+                "paid_installments": int(r["paid_installments"]),
+                "remaining_installments": remaining,
+                "remaining_amount": round(monthly * remaining, 2),
+                "created_at": r["created_at"],
+            })
+        return plans
 
     @staticmethod
     def get_transactions_by_period(filter_type):

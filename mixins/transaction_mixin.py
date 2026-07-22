@@ -109,6 +109,42 @@ class TransactionMixin:
         self._recurring_box.add_widget(auto_deduct_row)
         self._recurring_visible = False
 
+        # ── Taksit alanları (varsayılan GİZLİ) ─────────────────────────────────
+        # Yalnızca Gider + kredi kartı seçiliyken görünür (aşamalı gösterim,
+        # _recurring_box ile aynı remove/add deseni). 'Taksitli' seçilince
+        # 1-12 arası taksit sayısı seçici belirir; aylık tutar kayıtta
+        # toplam / taksit sayısı olarak hesaplanır (vade farkı uygulanmaz).
+        self.selected_installments = 2
+        self._installment_mode = "single"
+        self._installment_visible = False
+        self._installment_count_visible = False
+
+        pay_type_lbl = MDLabel(
+            text="Ödeme Tipi", font_style="Caption", theme_text_color="Secondary",
+            size_hint_y=None, height=dp(18),
+        )
+        self.installment_segment = MDSegmentedControl(size_hint_x=1, size_hint_y=None, height="48dp")
+        self.installment_segment.add_widget(MDSegmentedControlItem(text="Tek Çekim"))
+        self.installment_segment.add_widget(MDSegmentedControlItem(text="Taksitli"))
+        self.installment_segment.bind(on_active=self._on_installment_mode_active)
+
+        self.installment_count_button = ftheme.primary_button(
+            f"Taksit Sayısı: {self.selected_installments}", self.theme_cls,
+            size_hint_x=1, size_hint_y=None, height=dp(44),
+            on_release=self.open_installment_count_menu,
+        )
+        self._installment_count_box = MDBoxLayout(
+            orientation="vertical", size_hint_y=None, adaptive_height=True,
+        )
+        self._installment_count_box.add_widget(self.installment_count_button)
+
+        self._installment_box = MDBoxLayout(
+            orientation="vertical", size_hint_y=None, adaptive_height=True, spacing=dp(18),
+        )
+        self._installment_box.add_widget(pay_type_lbl)
+        self._installment_box.add_widget(self.installment_segment)
+        # _installment_count_box başta EKLENMEZ: Tek Çekim varsayılandır.
+
         dialog_layout.add_widget(self.amount_input)
         dialog_layout.add_widget(self.type_segment)
         dialog_layout.add_widget(self.category_button)
@@ -145,7 +181,10 @@ class TransactionMixin:
             if self._recurring_box.parent is not None:
                 layout.remove_widget(self._recurring_box)
         self._recurring_visible = active
+        self._reflow_dialog()
 
+    def _reflow_dialog(self):
+        """Adaptive içerik büyüyüp küçülünce diyaloğu bir sonraki karede yeniden ölçer."""
         def _reflow(dt):
             try:
                 self.dialog.update_height()
@@ -153,6 +192,85 @@ class TransactionMixin:
             except Exception:
                 pass
         Clock.schedule_once(_reflow, 0)
+
+    # ─── Taksit alanları (Gider + kredi kartı) ───────────────────────────────
+
+    def _selected_payment_is_credit_card(self):
+        acc = next(
+            (a for a in getattr(self, "_payment_methods", [])
+             if a["id"] == self.selected_account_id),
+            None,
+        )
+        return bool(acc and acc["account_type"] == "credit_card")
+
+    def _update_installment_visibility(self, *args):
+        """'Ödeme Tipi' bloğunu yalnızca Gider + kredi kartı iken gösterir.
+
+        Görünürlük koşulu düştüğünde mod da Tek Çekim'e sıfırlanır ki gizliyken
+        bayat bir 'Taksitli' seçimi kayda sızmasın."""
+        box = getattr(self, "_installment_box", None)
+        dialog = getattr(self, "dialog", None)
+        if box is None or dialog is None:
+            return
+        layout = dialog.content_cls
+        should_show = (
+            self.selected_type == "expense" and self._selected_payment_is_credit_card()
+        )
+        if should_show == self._installment_visible:
+            return
+        if should_show:
+            # Ödeme yöntemi butonunun hemen altına yerleştir; buton henüz bu
+            # layout'ta değilse (kuruluş sırası) sona ekle.
+            try:
+                layout.add_widget(box, index=layout.children.index(self.account_button))
+            except ValueError:
+                layout.add_widget(box)
+        else:
+            if box.parent is not None:
+                layout.remove_widget(box)
+            self._set_installment_mode("single")
+        self._installment_visible = should_show
+        self._reflow_dialog()
+
+    def _set_installment_mode(self, mode):
+        """Tek Çekim/Taksitli iç durumunu ve taksit sayısı alanını senkron tutar."""
+        self._installment_mode = mode
+        show_count = mode == "installment"
+        if show_count == self._installment_count_visible:
+            return
+        if show_count:
+            self._installment_box.add_widget(self._installment_count_box)
+        elif self._installment_count_box.parent is not None:
+            self._installment_box.remove_widget(self._installment_count_box)
+        self._installment_count_visible = show_count
+        self._reflow_dialog()
+
+    def _on_installment_mode_active(self, segmented_control, segmented_item):
+        self._set_installment_mode(
+            "installment" if segmented_item.text == "Taksitli" else "single"
+        )
+
+    def open_installment_count_menu(self, *args):
+        """1-12 arası taksit sayısı menüsü (1 = fiilen tek çekim)."""
+        items = [{
+            "text": f"{n} Taksit",
+            "viewclass": "OneLineListItem",
+            "on_release": (lambda n=n: self._set_installment_count(n)),
+        } for n in range(1, 13)]
+        self.installment_count_menu = MDDropdownMenu(
+            caller=self.installment_count_button, items=items, width_mult=3,
+        )
+        self.installment_count_menu.open()
+
+    def _set_installment_count(self, count):
+        self.selected_installments = int(count)
+        self.installment_count_button.text = f"Taksit Sayısı: {count}"
+        menu = getattr(self, "installment_count_menu", None)
+        if menu is not None:
+            try:
+                menu.dismiss()
+            except Exception:
+                pass
 
     def on_recurring_freq_active(self, segmented_control, segmented_item):
         """Tekrarlanan ödeme sıklığı seçimini (Aylık/Yıllık) günceller."""
@@ -170,6 +288,7 @@ class TransactionMixin:
         self.selected_category = "Kategori Seç"
         self.category_button.text = "Kategori Seç"
         self._revalidate_payment_method()
+        self._update_installment_visibility()
 
     # ─── Ödeme yöntemi (hesap / kart seçimi) ─────────────────────────────────
 
@@ -290,6 +409,8 @@ class TransactionMixin:
         self.account_button.text = self._payment_label(acc)
         if close_menu and getattr(self, "account_menu", None):
             self.account_menu.dismiss()
+        # Kredi kartı seçilince 'Ödeme Tipi' (Tek Çekim/Taksitli) alanı belirir.
+        self._update_installment_visibility()
 
     def open_category_menu(self, *args):
         """Kategori seçimini ARANABİLİR bir diyalogla açar.
@@ -383,6 +504,16 @@ class TransactionMixin:
         recurring_frequency = self.selected_frequency
         recurring_auto_deduct = self.auto_deduct_switch.active
 
+        # Taksit: yalnızca görünür Taksitli seçimde ve 2+ taksitte plan yazılır
+        # (1 taksit fiilen tek çekimdir). Aylık tutar serviste toplam/ay olarak
+        # hesaplanır; açıklamaya taksit bilgisi eklenir ki ekstrede ayırt edilsin.
+        use_installments = None
+        if (self.selected_type == "expense"
+                and getattr(self, "_installment_visible", False)
+                and getattr(self, "_installment_mode", "single") == "installment"
+                and int(getattr(self, "selected_installments", 1)) >= 2):
+            use_installments = int(self.selected_installments)
+
         if is_recurring and self.selected_type == "expense":
             # Abonelik Duplikasyonu koruması: aynı isimle (harf duyarsız)
             # ikinci kez aktif bir abonelik eklenmesin.
@@ -434,12 +565,16 @@ class TransactionMixin:
                     raise ValueError(
                         "Aktif Varlık hesabı salt okunurdur ve harcama kaynağı olamaz."
                     )
+                description = self.selected_category
+                if use_installments:
+                    description = f"{self.selected_category} ({use_installments} Taksit)"
                 TransactionService.add_transaction(
                     account_id=account_id,
                     amount=user_amount,
                     transaction_type=self.selected_type,
                     category=self.selected_category,
-                    description=self.selected_category
+                    description=description,
+                    installments=use_installments,
                 )
                 if is_recurring and self.selected_type == "expense":
                     from database.db import insert_recurring_payment, _advance_due_date
