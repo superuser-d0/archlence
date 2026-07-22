@@ -409,3 +409,55 @@ def fetch_portfolio_with_prices(assets: list, callback) -> None:
         callback(enriched)
 
     threading.Thread(target=_worker, daemon=True).start()
+
+
+# ─── Hesaplarım Bento özeti ──────────────────────────────────────────────────
+
+def _is_direct_try_asset(asset: dict) -> bool:
+    """Doğrudan Türk lirası kaydını ayıklar; USDTRY gibi dövizleri korur."""
+    code = str(asset.get("asset_code") or "").strip().upper()
+    name = " ".join(str(asset.get("asset_name") or "").strip().casefold().split())
+    return code in {"TL", "TRY", "TRY=X"} or name in {
+        "tl", "try", "türk lirası", "turk lirasi",
+    }
+
+
+def get_active_non_try_assets() -> list:
+    """Miktarı pozitif olan, doğrudan TL olmayan güncel portföy kayıtları."""
+    from database.db import get_all_assets
+
+    return [
+        asset for asset in get_all_assets()
+        if float(asset.get("quantity") or 0) > 0 and not _is_direct_try_asset(asset)
+    ]
+
+
+def fetch_active_non_try_total(callback) -> None:
+    """TL dışı aktif portföyün canlı toplamını tamamen arka planda hesaplar.
+
+    Callback ``total``, ``asset_count`` ve ``priced_count`` anahtarlarını içeren
+    bir sözlük alır. UI güncellemesini ana Kivy thread'ine taşımak çağıranın
+    sorumluluğundadır.
+    """
+    def _load_assets():
+        try:
+            assets = get_active_non_try_assets()
+        except Exception as exc:
+            callback({"total": None, "asset_count": 0, "priced_count": 0, "error": str(exc)})
+            return
+
+        if not assets:
+            callback({"total": 0.0, "asset_count": 0, "priced_count": 0})
+            return
+
+        def _aggregate(enriched):
+            priced = [item for item in enriched if item.get("total_value") is not None]
+            callback({
+                "total": sum(float(item["total_value"]) for item in priced),
+                "asset_count": len(assets),
+                "priced_count": len(priced),
+            })
+
+        fetch_portfolio_with_prices(assets, _aggregate)
+
+    threading.Thread(target=_load_assets, daemon=True).start()

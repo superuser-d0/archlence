@@ -29,7 +29,7 @@ from services.account_service import (
 )
 from ui.components import (
     PremiumCreditCardWidget, PremiumDebitCardWidget, PremiumAssetMirrorWidget,
-    BentoAccountWidget, is_read_only_asset_account,
+    BentoAccountWidget, ActiveAssetsBentoWidget, is_read_only_asset_account,
 )
 
 
@@ -42,6 +42,9 @@ class AccountMixin:
     # Diyaloğu kuran kod bu alana MDDialog örneğini atar; commit başarılı olunca
     # buradan dismiss edilir.
     account_dialog = None
+    _active_assets_refresh_event = None
+    _active_assets_refresh_busy = False
+    _active_assets_bento = None
 
     # ─── Diyalog (UI katmanı burada tamamlanacak) ─────────────────────────────
     def open_add_account_dialog(self, *args):
@@ -485,6 +488,17 @@ class AccountMixin:
         container_cards.clear_widgets()
         container_accounts.clear_widgets()
 
+        # Bu satır herhangi bir statik hesap bakiyesinin kopyası değildir;
+        # canlı varlık portföyü birazdan arka planda hesaplanır.
+        self._active_assets_bento = ActiveAssetsBentoWidget()
+        container_accounts.add_widget(self._active_assets_bento)
+        self._refresh_active_assets_total()
+        if self._active_assets_refresh_event is None:
+            from kivy.clock import Clock
+            self._active_assets_refresh_event = Clock.schedule_interval(
+                self._refresh_active_assets_total, 60.0
+            )
+
         accounts = AccountService.get_accounts()
         if not accounts:
             lbl = MDLabel(
@@ -510,12 +524,8 @@ class AccountMixin:
                     account_name=acc["name"],
                     balance=_fmt(acc["balance"]),
                 ))
-                # Aynı hesap alttaki Hesaplarım Bento listesinde kalmaya devam eder.
-                container_accounts.add_widget(BentoAccountWidget(
-                    account_name=acc["name"],
-                    account_type_label="Salt Okunur Varlık",
-                    balance=_fmt(acc["balance"]),
-                ))
+                # Hesaplarım tarafında bunun yerine canlı portföy agregasyonu
+                # gösterilir; aynı isimli ikinci/statik satır oluşturulmaz.
                 continue
 
             if is_credit_card:
@@ -564,6 +574,48 @@ class AccountMixin:
                     balance=_fmt(acc["balance"])
                 )
                 container_accounts.add_widget(card)
+
+    def _refresh_active_assets_total(self, *args):
+        """TL dışı portföy toplamını UI'yi bloklamadan yeniler."""
+        if self._active_assets_refresh_busy:
+            return
+        self._active_assets_refresh_busy = True
+        widget = self._active_assets_bento
+        if widget is not None:
+            widget.status_text = "Canlı fiyatlar güncelleniyor…"
+
+        from kivy.clock import Clock
+        from services.asset_service import fetch_active_non_try_total
+
+        def _on_result(result):
+            def _apply(dt):
+                self._active_assets_refresh_busy = False
+                current = self._active_assets_bento
+                if current is None:
+                    return
+                total = result.get("total")
+                asset_count = int(result.get("asset_count") or 0)
+                priced_count = int(result.get("priced_count") or 0)
+                if total is None:
+                    current.status_text = "Canlı fiyatlara ulaşılamadı"
+                    return
+                if asset_count and not priced_count:
+                    current.status_text = f"{asset_count} varlık • Fiyat bekleniyor"
+                    return
+                current.balance = _fmt(total)
+                if priced_count < asset_count:
+                    current.status_text = f"{priced_count}/{asset_count} varlık fiyatlandı"
+                else:
+                    current.status_text = f"{asset_count} TL dışı varlık • Canlı değer"
+
+            Clock.schedule_once(_apply, 0)
+
+        try:
+            fetch_active_non_try_total(_on_result)
+        except Exception:
+            self._active_assets_refresh_busy = False
+            if widget is not None:
+                widget.status_text = "Canlı fiyatlara ulaşılamadı"
 
     def _update_account_summary(self, summary):
         """Nakit / kart borcu / net servet etiketlerini doldurur (varsa)."""

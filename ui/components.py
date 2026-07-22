@@ -717,6 +717,66 @@ Builder.load_string('''
         bold: True
         theme_text_color: "Primary"
 
+<ActiveAssetsBentoWidget>:
+    size_hint_y: None
+    height: "112dp"
+    padding: "16dp"
+    spacing: "14dp"
+    orientation: "horizontal"
+    style: "outlined"
+    elevation: 0
+    radius: [dp(20)]
+    md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'green')
+    line_color: ftheme.card_line(app.theme_cls.theme_style)
+
+    MDCard:
+        size_hint: None, None
+        size: "52dp", "52dp"
+        pos_hint: {"center_y": 0.5}
+        radius: [dp(16)]
+        elevation: 0
+        md_bg_color: ftheme.elevated_bg(app.theme_cls.theme_style)
+
+        MDIcon:
+            icon: "wallet-outline"
+            halign: "center"
+            valign: "center"
+            theme_text_color: "Custom"
+            text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
+            font_size: "27sp"
+
+    MDBoxLayout:
+        orientation: "vertical"
+        spacing: "2dp"
+
+        MDLabel:
+            text: "Aktif Varlıklarım"
+            font_style: "Subtitle1"
+            bold: True
+            shorten: True
+            shorten_from: "right"
+            theme_text_color: "Primary"
+            size_hint_y: None
+            height: "28dp"
+
+        MDLabel:
+            text: root.status_text
+            font_style: "Caption"
+            theme_text_color: "Secondary"
+            shorten: True
+            shorten_from: "right"
+            size_hint_y: None
+            height: "22dp"
+
+        MDLabel:
+            text: root.balance
+            font_style: "H6"
+            bold: True
+            theme_text_color: "Custom"
+            text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
+            size_hint_y: None
+            height: "34dp"
+
 <PremiumAssetMirrorWidget>:
     size_hint: None, None
     width: "300dp"
@@ -963,3 +1023,7 @@ class BentoAccountWidget(MDCard):
     account_name = StringProperty("")
     account_type_label = StringProperty("")
     balance = StringProperty("₺0,00")
+
+class ActiveAssetsBentoWidget(MDCard):
+    balance = StringProperty("Hesaplanıyor…")
+    status_text = StringProperty("Canlı portföy değeri yükleniyor")
