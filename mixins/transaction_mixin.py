@@ -9,7 +9,15 @@ from kivymd.uix.segmentedcontrol import MDSegmentedControl, MDSegmentedControlIt
 from services.transaction_service import TransactionService
 from services.queries import CategoryService
 import ui.theme as ftheme
-from ui.components import is_read_only_asset_account
+from ui.components import is_read_only_asset_account, MiniCardPreviewWidget
+
+
+def _fmt(value):
+    """Tutarı Türkçe biçimde (₺1.234,56) yazar — account_mixin._fmt ile aynı."""
+    try:
+        return f"₺{float(value):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except (TypeError, ValueError):
+        return "₺0,00"
 
 
 class TransactionMixin:
@@ -67,9 +75,21 @@ class TransactionMixin:
         )
         self._load_payment_methods()
 
+        # Ödeme yöntemi butonunun HEMEN ALTINDAKİ dinamik alan: mini kart
+        # önizlemesi + (Gider+kredi kartında) taksit bloğu bu kutuda yaşar.
+        # Sabit bir konteyner kullanmak, dialog_layout'ta kırılgan index
+        # hesabı yapmadan ekleme/çıkarma sırasını garanti eder.
+        self._below_payment_box = MDBoxLayout(
+            orientation="vertical", size_hint_y=None, adaptive_height=True, spacing=dp(12),
+        )
+        self._mini_card_preview = MiniCardPreviewWidget()
+        self._below_payment_box.add_widget(self._mini_card_preview)
+
         # Tekrarlanan ödeme mi? (Kira, Netflix, Spotify vb. her ay tekrar eden giderler)
         # Switch açılınca aşağıdaki abonelik alanları belirir.
         recurring_row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="44dp", spacing="12dp")
+        # Taksitli mod ile karşılıklı dışlama için self üzerinde tutulur.
+        self._recurring_row = recurring_row
         recurring_lbl = MDLabel(text="Tekrarlanan Ödeme mi?", valign="center")
         recurring_lbl.bind(size=recurring_lbl.setter('text_size'))
         self.recurring_switch = MDSwitch(size_hint_x=None, width=dp(65))
@@ -149,6 +169,7 @@ class TransactionMixin:
         dialog_layout.add_widget(self.type_segment)
         dialog_layout.add_widget(self.category_button)
         dialog_layout.add_widget(self.account_button)
+        dialog_layout.add_widget(self._below_payment_box)
         dialog_layout.add_widget(recurring_row)
         # _recurring_box başta EKLENMEZ: ilk görünüm sade kalsın.
 
@@ -161,6 +182,8 @@ class TransactionMixin:
             )]
         )
         self.dialog.open()
+        # Varsayılan seçili ödeme yöntemini mini kartta göster.
+        self._update_mini_card_preview()
 
     # ─── Aşamalı gösterim (progressive disclosure) ───────────────────────────
 
@@ -184,18 +207,42 @@ class TransactionMixin:
         self._reflow_dialog()
 
     def _reflow_dialog(self):
-        """Adaptive içerik büyüyüp küçülünce diyaloğu bir sonraki karede yeniden ölçer."""
-        dialog = getattr(self, "dialog", None)
+        """Adaptive içerik büyüyüp küçülünce diyaloğu iki KAREDE yeniden ölçer.
 
-        def _reflow(dt):
-            if dialog is None or getattr(self, "dialog", None) is not dialog:
+        Siyah ekran/overlay hatasının kökü: remove/add_widget sonrası
+        adaptive_height (content_cls) ve `_spacer_top -> container` KV bağı
+        yüksekliği ancak SONRAKİ karede günceller. Tek karede update_height
+        bayat yükseklik okuyup dialog kartını yanlış boyutlandırıyor, arkadaki
+        ModalView siyah örtüsü ekranı kaplıyordu.
+
+        Kare 1: içerik layout'unu zorla + update_height (_spacer_top'u tazeler).
+        Kare 2: container layout'unu zorla + dialog.height'ı güncel container'dan
+        oku (boyut değişimi ModalView'i yeniden ortalar).
+        """
+        dialog = getattr(self, "dialog", None)
+        if dialog is None:
+            return
+
+        def _stage2(dt):
+            if getattr(self, "dialog", None) is not dialog:
                 return
             try:
-                dialog.update_height()
+                dialog.ids.container.do_layout()
                 dialog.height = dialog.ids.container.height
             except Exception:
                 pass
-        Clock.schedule_once(_reflow, 0)
+
+        def _stage1(dt):
+            if getattr(self, "dialog", None) is not dialog:
+                return
+            try:
+                dialog.content_cls.do_layout()
+                dialog.update_height()
+            except Exception:
+                pass
+            Clock.schedule_once(_stage2, 0)
+
+        Clock.schedule_once(_stage1, 0)
 
     # ─── Taksit alanları (Gider + kredi kartı) ───────────────────────────────
 
@@ -213,41 +260,62 @@ class TransactionMixin:
         Görünürlük koşulu düştüğünde mod da Tek Çekim'e sıfırlanır ki gizliyken
         bayat bir 'Taksitli' seçimi kayda sızmasın."""
         box = getattr(self, "_installment_box", None)
-        dialog = getattr(self, "dialog", None)
-        if box is None or dialog is None:
+        container = getattr(self, "_below_payment_box", None)
+        if box is None or container is None:
             return
-        layout = dialog.content_cls
         should_show = (
             self.selected_type == "expense" and self._selected_payment_is_credit_card()
         )
         if should_show == self._installment_visible:
             return
         if should_show:
-            # Ödeme yöntemi butonunun hemen altına yerleştir; buton henüz bu
-            # layout'ta değilse (kuruluş sırası) sona ekle.
-            try:
-                layout.add_widget(box, index=layout.children.index(self.account_button))
-            except ValueError:
-                layout.add_widget(box)
+            # Mini kart önizlemesinin hemen altına ekle (sabit konteyner).
+            if box.parent is None:
+                container.add_widget(box)
         else:
             if box.parent is not None:
-                layout.remove_widget(box)
+                container.remove_widget(box)
             self._set_installment_mode("single")
         self._installment_visible = should_show
         self._reflow_dialog()
 
     def _set_installment_mode(self, mode):
-        """Tek Çekim/Taksitli iç durumunu ve taksit sayısı alanını senkron tutar."""
+        """Tek Çekim/Taksitli iç durumu; taksit sayısı seçicisini gösterir ve
+        'Tekrarlanan Ödeme' alanını KARŞILIKLI DIŞLAR (Taksitli iken gizler)."""
         self._installment_mode = mode
-        show_count = mode == "installment"
-        if show_count == self._installment_count_visible:
-            return
-        if show_count:
-            self._installment_box.add_widget(self._installment_count_box)
-        elif self._installment_count_box.parent is not None:
-            self._installment_box.remove_widget(self._installment_count_box)
-        self._installment_count_visible = show_count
+        installment_on = mode == "installment"
+
+        # Taksit sayısı seçici (yalnızca Taksitli iken).
+        if installment_on != self._installment_count_visible:
+            if installment_on:
+                self._installment_box.add_widget(self._installment_count_box)
+            elif self._installment_count_box.parent is not None:
+                self._installment_box.remove_widget(self._installment_count_box)
+            self._installment_count_visible = installment_on
+
+        # Taksitli seçiliyken 'Tekrarlanan Ödeme' switch'i (ve açıksa abonelik
+        # alanları) formdan tamamen kaldırılır; Tek Çekim'de geri eklenir.
+        self._set_recurring_row_visible(not installment_on)
+
         self._reflow_dialog()
+
+    def _set_recurring_row_visible(self, visible):
+        """'Tekrarlanan Ödeme mi?' satırını forma ekler/çıkarır (taksit dışlaması)."""
+        row = getattr(self, "_recurring_row", None)
+        dialog = getattr(self, "dialog", None)
+        if row is None or dialog is None:
+            return
+        layout = dialog.content_cls
+        if visible:
+            if row.parent is None:
+                layout.add_widget(row)  # en alta geri döner
+        else:
+            # Önce açık abonelik alanlarını kapat (switch sıfırlanınca
+            # _toggle_recurring_fields _recurring_box'ı çıkarır), sonra satırı çıkar.
+            if self.recurring_switch.active:
+                self.recurring_switch.active = False
+            if row.parent is not None:
+                layout.remove_widget(row)
 
     def _on_installment_mode_active(self, segmented_control, segmented_item):
         self._set_installment_mode(
@@ -293,6 +361,7 @@ class TransactionMixin:
         self.category_button.text = "Kategori Seç"
         self._revalidate_payment_method()
         self._update_installment_visibility()
+        self._update_mini_card_preview()
 
     # ─── Ödeme yöntemi (hesap / kart seçimi) ─────────────────────────────────
 
@@ -415,6 +484,49 @@ class TransactionMixin:
             self.account_menu.dismiss()
         # Kredi kartı seçilince 'Ödeme Tipi' (Tek Çekim/Taksitli) alanı belirir.
         self._update_installment_visibility()
+        # Seçilen kart/hesabın mini önizlemesini (ad, son 4 hane, limit/bakiye) tazele.
+        self._update_mini_card_preview()
+
+    def _update_mini_card_preview(self, *args):
+        """Ödeme yöntemi seçim alanının altındaki mini kartı seçime göre günceller.
+
+        Kredi kartı → 'Güncel Limit' (kullanılabilir limit), vadesiz hesap →
+        'Güncel Bakiye'. Diyalog kurulurken önizleme henüz yoksa sessiz çıkar."""
+        widget = getattr(self, "_mini_card_preview", None)
+        if widget is None:
+            return
+        acc = next(
+            (a for a in getattr(self, "_payment_methods", [])
+             if a["id"] == self.selected_account_id),
+            None,
+        )
+        if acc is None:
+            widget.card_name = "Ödeme yöntemi seçilmedi"
+            widget.masked_text = ""
+            widget.info_label = ""
+            widget.info_value = ""
+            widget.icon = "credit-card-outline"
+            return
+
+        style = self.theme_cls.theme_style
+        widget.card_name = acc["name"]
+        is_credit = acc["account_type"] == "credit_card"
+
+        if acc.get("has_card_number") and acc.get("masked_number"):
+            widget.masked_text = f"•••• {str(acc['masked_number'])[-4:]}"
+        else:
+            widget.masked_text = acc.get("type_label", "Kredi Kartı" if is_credit else "")
+
+        if is_credit:
+            widget.icon = "credit-card-outline"
+            widget.info_label = "Güncel Limit"
+            widget.info_value = _fmt(acc.get("available_limit", 0.0))
+            widget.accent_color = ftheme.accent(style, "blue")
+        else:
+            widget.icon = "bank-outline"
+            widget.info_label = "Güncel Bakiye"
+            widget.info_value = _fmt(acc.get("balance", 0.0))
+            widget.accent_color = ftheme.accent(style, "green")
 
     def open_category_menu(self, *args):
         """Kategori seçimini ARANABİLİR bir diyalogla açar.

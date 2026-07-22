@@ -1018,7 +1018,106 @@ Builder.load_string('''
                 theme_text_color: "Custom"
                 text_color: ftheme.on_primary(app.theme_cls.theme_style)
                 on_release: app.add_funds_to_goal(root.goal_index)
+
+# ── Mini Kart Önizlemesi (işlem formunda seçili ödeme yöntemi) ───────────────
+# Kartlarım estetiğinin küçültülmüş prototipi: koyu yüzey, sol ikon tepsisi,
+# ad + son 4 hane, sağda Güncel Limit/Bakiye. Salt bilgilendirme amaçlıdır.
+<MiniCardPreviewWidget>:
+    size_hint_y: None
+    height: "74dp"
+    padding: "12dp"
+    spacing: "12dp"
+    orientation: "horizontal"
+    radius: [dp(16)]
+    elevation: 0
+    md_bg_color: 0.09, 0.10, 0.12, 1
+    line_color: 0, 0, 0, 0
+
+    # Sol: ikon tepsisi (glyph AnchorLayout ile kusursuz merkezlenir)
+    MDCard:
+        size_hint: None, None
+        size: "44dp", "44dp"
+        pos_hint: {"center_y": 0.5}
+        radius: [dp(12)]
+        elevation: 0
+        md_bg_color: 0.16, 0.18, 0.22, 1
+
+        AnchorLayout:
+            anchor_x: "center"
+            anchor_y: "center"
+            MDIcon:
+                icon: root.icon
+                size_hint: None, None
+                size: self.texture_size
+                theme_text_color: "Custom"
+                text_color: root.accent_color
+                font_size: "22sp"
+
+    # Orta: ad + maskeli numara
+    MDBoxLayout:
+        orientation: "vertical"
+        spacing: "2dp"
+        adaptive_height: True
+        pos_hint: {"center_y": 0.5}
+
+        MDLabel:
+            text: root.card_name
+            font_style: "Subtitle2"
+            bold: True
+            theme_text_color: "Custom"
+            text_color: 1, 1, 1, 1
+            shorten: True
+            shorten_from: "right"
+            size_hint_y: None
+            height: "22dp"
+
+        MDLabel:
+            text: root.masked_text
+            font_style: "Caption"
+            theme_text_color: "Custom"
+            text_color: 0.70, 0.72, 0.78, 1
+            shorten: True
+            shorten_from: "right"
+            size_hint_y: None
+            height: "18dp"
+
+    # Sağ: Güncel Limit / Güncel Bakiye
+    MDBoxLayout:
+        orientation: "vertical"
+        spacing: "2dp"
+        adaptive_height: True
+        size_hint_x: None
+        width: "130dp"
+        pos_hint: {"center_y": 0.5}
+
+        MDLabel:
+            text: root.info_label
+            font_style: "Caption"
+            halign: "right"
+            theme_text_color: "Custom"
+            text_color: 0.62, 0.64, 0.70, 1
+            size_hint_y: None
+            height: "16dp"
+
+        MDLabel:
+            text: root.info_value
+            font_style: "Subtitle1"
+            bold: True
+            halign: "right"
+            theme_text_color: "Custom"
+            text_color: root.accent_color
+            size_hint_y: None
+            height: "24dp"
 ''')
+
+class MiniCardPreviewWidget(MDCard):
+    card_name = StringProperty("")
+    masked_text = StringProperty("")
+    info_label = StringProperty("Güncel Bakiye")
+    info_value = StringProperty("₺0,00")
+    icon = StringProperty("credit-card-outline")
+    # Kredi kartı için teal, vadesiz hesap için yeşil vurgular (mixin atar).
+    accent_color = ColorProperty((0.30, 0.80, 0.75, 1))
 
 class SavingsGoalCard(MDCard):
     goal_index = NumericProperty(0)
