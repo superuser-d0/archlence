@@ -719,7 +719,9 @@ Builder.load_string('''
 
 <ActiveAssetsBentoWidget>:
     size_hint_y: None
-    height: "112dp"
+    # 16dp padding (üst+alt) + 88dp metin bloğu = 120dp; içerik tam sığar,
+    # taşma/preslenme olmadan dikeyde ortalanır.
+    height: "120dp"
     padding: "16dp"
     spacing: "14dp"
     orientation: "horizontal"
@@ -729,6 +731,7 @@ Builder.load_string('''
     md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'green')
     line_color: ftheme.card_line(app.theme_cls.theme_style)
 
+    # Simge kartı: satırın dikey merkezine sabitlenir.
     MDCard:
         size_hint: None, None
         size: "52dp", "52dp"
@@ -745,14 +748,21 @@ Builder.load_string('''
             text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
             font_size: "27sp"
 
+    # Metin bloğu da tam olarak simge ile AYNI eksende (center_y: 0.5)
+    # ortalanır; böylece cüzdan simgesi metin bloğunun dikey merkeziyle
+    # kusursuz hizalanır (eskiden blok yukarı yaslıydı, simge düşük görünüyordu).
     MDBoxLayout:
         orientation: "vertical"
         spacing: "2dp"
+        size_hint_y: None
+        adaptive_height: True
+        pos_hint: {"center_y": 0.5}
 
         MDLabel:
             text: "Aktif Varlıklarım"
             font_style: "Subtitle1"
             bold: True
+            valign: "center"
             shorten: True
             shorten_from: "right"
             theme_text_color: "Primary"
@@ -762,6 +772,7 @@ Builder.load_string('''
         MDLabel:
             text: root.status_text
             font_style: "Caption"
+            valign: "center"
             theme_text_color: "Secondary"
             shorten: True
             shorten_from: "right"
@@ -772,6 +783,7 @@ Builder.load_string('''
             text: root.balance
             font_style: "H6"
             bold: True
+            valign: "center"
             theme_text_color: "Custom"
             text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
             size_hint_y: None
