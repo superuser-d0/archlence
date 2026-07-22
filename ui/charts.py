@@ -293,11 +293,61 @@ class DashboardChartManager(MDBoxLayout):
                 pie_box  = kids[0]
                 comp_box = kids[1]
 
+        # Her grafik, kendi FloatLayout tutucusuna sarılır; böylece grafiğin TAM
+        # ORTASINA bir MDSpinner bindirebiliyoruz. Yükleme sırasında grafik
+        # opacity=0 (ham 'mavi halka' görünmez), spinner döner; veri gelince
+        # spinner kalkar ve grafik fade-in ile pürüzsüzce belirir.
         if pie_box:
-            pie_box.add_widget(self.pie_widget)
+            pie_holder = self._make_chart_holder(self.pie_widget)
+            self._pie_spinner = pie_holder._chart_spinner
+            pie_box.add_widget(pie_holder)
             pie_box.add_widget(self.legend_widget)
         if comp_box:
-            comp_box.add_widget(self.trend_chart)
+            comp_holder = self._make_chart_holder(self.trend_chart)
+            self._trend_spinner = comp_holder._chart_spinner
+            comp_box.add_widget(comp_holder)
+
+    def _make_chart_holder(self, chart_widget):
+        """Grafiği + ortalanmış bir MDSpinner'ı taşıyan FloatLayout döndürür."""
+        from kivy.uix.floatlayout import FloatLayout
+        from kivymd.uix.spinner import MDSpinner
+
+        holder = FloatLayout(size_hint=(1, 1))
+        chart_widget.size_hint = (1, 1)
+        holder.add_widget(chart_widget)
+        spinner = MDSpinner(
+            size_hint=(None, None), size=(dp(36), dp(36)),
+            pos_hint={"center_x": 0.5, "center_y": 0.5},
+            active=False, opacity=0,
+        )
+        holder.add_widget(spinner)
+        holder._chart_spinner = spinner
+        return holder
+
+    def _set_charts_loading(self, loading):
+        """Yükleme durumunu uygular: grafikleri gizle + spinnerları döndür,
+        ya da spinnerları durdurup grafikleri fade-in ile geri getir."""
+        from kivy.animation import Animation
+
+        charts = [w for w in (self.pie_widget, self.legend_widget, self.trend_chart) if w is not None]
+        spinners = [s for s in (getattr(self, "_pie_spinner", None),
+                                getattr(self, "_trend_spinner", None)) if s is not None]
+        if loading:
+            for w in charts:
+                Animation.cancel_all(w, "opacity")
+                w.opacity = 0
+            for s in spinners:
+                s.active = True
+                s.opacity = 1
+        else:
+            for s in spinners:
+                s.active = False
+                s.opacity = 0
+            for w in charts:
+                Animation.cancel_all(w, "opacity")
+                # Ham çizim görünmesin diye 0'dan başlatıp pürüzsüz belirt.
+                w.opacity = 0
+                Animation(opacity=1, duration=0.35, t="out_quad").start(w)
 
 
     # ── Public API ───────────────────────────────────────────────────────────
@@ -305,6 +355,9 @@ class DashboardChartManager(MDBoxLayout):
     def refresh_dashboard(self, period):
         """Fetch data in a background thread, then update all charts on the main thread."""
         import threading
+
+        # Ana thread'de: veri gelene kadar grafikleri gizle + spinner göster.
+        self._set_charts_loading(True)
 
         def _load():
             raw_data = TransactionService.get_transactions_by_period(period)
@@ -346,6 +399,11 @@ class DashboardChartManager(MDBoxLayout):
         buckets = self._build_time_buckets(raw_data, period)
         self.trend_chart.chart_data = buckets
         self.trend_chart.request_redraw()
+
+        # Çizim işlemi tamamlandı: bir sonraki karede (gerçek veri opacity=0
+        # iken çizildikten sonra) spinnerları kaldır ve grafiği fade-in ile
+        # getir — kullanıcı ham/boş grafiği hiç görmez.
+        Clock.schedule_once(lambda dt: self._set_charts_loading(False), 0)
 
     def _build_time_buckets(self, raw_data, filter_text):
         """Return list of {label, income, expense} dicts for the chosen period."""
