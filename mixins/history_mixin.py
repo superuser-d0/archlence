@@ -87,7 +87,11 @@ class HistoryMixin:
                 return
             Clock.schedule_once(lambda dt: self._render_history(content, result), 0)
 
-        threading.Thread(target=work, daemon=True).start()
+        # Dialog açılış animasyonunun ilk karelerini sorgu/decrypt işiyle
+        # yarıştırma; yükleme metni görünürken işi animasyon bitince başlat.
+        Clock.schedule_once(
+            lambda dt: threading.Thread(target=work, daemon=True).start(), 0.4
+        )
 
     def _render_history_error(self, container):
         container.clear_widgets()

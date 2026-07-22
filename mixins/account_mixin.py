@@ -19,6 +19,7 @@ from kivymd.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
+from kivymd.uix.spinner import MDSpinner
 
 import ui.theme as ftheme
 from services.account_service import (
@@ -45,6 +46,9 @@ class AccountMixin:
     _active_assets_refresh_event = None
     _active_assets_refresh_busy = False
     _active_assets_bento = None
+    _accounts_load_event = None
+    _accounts_render_event = None
+    _accounts_load_generation = 0
 
     # ─── Diyalog (UI katmanı burada tamamlanacak) ─────────────────────────────
     def open_add_account_dialog(self, *args):
@@ -182,7 +186,7 @@ class AccountMixin:
                 credit_limit = 0.0
                 # CVC yalnızca kredi kartı formunda soruluyor.
                 cvc_code = None
-                
+
             statement_date = self.acc_statement_field.text or None
             
             self.commit_new_account(
@@ -224,7 +228,7 @@ class AccountMixin:
         )
         self.account_dialog.open()
 
-    def _fill_card_recent(self, card, account_id):
+    def _fill_card_recent(self, card, account_id, items=None):
         """Kartın "Kart Kullanım Özeti" panelindeki son hareket listesini doldurur.
 
         Kart widget'ı KV'de boş bir `recent_container` ile geliyor; satırlar
@@ -237,12 +241,13 @@ class AccountMixin:
             return
         container.clear_widgets()
 
-        try:
-            from services.transaction_service import TransactionService
-            items = TransactionService.get_recent_for_account(account_id, limit=3)
-        except Exception as e:
-            print("Kart hareketleri okunamadı:", e)
-            return
+        if items is None:
+            try:
+                from services.transaction_service import TransactionService
+                items = TransactionService.get_recent_for_account(account_id, limit=3)
+            except Exception as e:
+                print("Kart hareketleri okunamadı:", e)
+                return
 
         if not items:
             empty = MDLabel(
@@ -609,23 +614,87 @@ class AccountMixin:
         return True
 
     def render_accounts(self, *args):
-        """Hesap/kart kartlarını `accounts_container`'a çizer ve özet etiketlerini
-        günceller. Konteyner henüz kv'de yoksa sessizce çıkar — böylece arayüz
-        parçası eklenmeden önce de backend testleri çağırabilir."""
+        """Hesapları geçiş animasyonundan sonra okuyup aşamalı olarak çizer."""
         if not (self.root and "accounts_container" in self.root.ids and "cards_container" in self.root.ids):  # type: ignore
             return
 
-        summary = AccountService.get_net_worth()
-        self._update_account_summary(summary)
-
         container_cards = self.root.ids.cards_container
         container_accounts = self.root.ids.accounts_container
-        
         container_cards.clear_widgets()
         container_accounts.clear_widgets()
 
-        # Bu satır herhangi bir statik hesap bakiyesinin kopyası değildir;
-        # canlı varlık portföyü birazdan arka planda hesaplanır.
+        loading = MDBoxLayout(
+            orientation="vertical", size_hint_y=None, height=dp(72),
+            spacing=dp(6),
+        )
+        spinner = MDSpinner(
+            size_hint=(None, None), size=(dp(32), dp(32)),
+            pos_hint={"center_x": .5}, active=True,
+        )
+        loading.add_widget(spinner)
+        loading.add_widget(MDLabel(
+            text="Hesaplar hazırlanıyor…", font_style="Caption",
+            theme_text_color="Secondary", halign="center",
+        ))
+        container_accounts.add_widget(loading)
+
+        self._accounts_load_generation += 1
+        generation = self._accounts_load_generation
+        if self._accounts_load_event is not None:
+            self._accounts_load_event.cancel()
+        if self._accounts_render_event is not None:
+            self._accounts_render_event.cancel()
+            self._accounts_render_event = None
+
+        def start_fetch(dt):
+            self._accounts_load_event = None
+
+            def fetch():
+                try:
+                    summary = AccountService.get_net_worth()
+                    accounts = AccountService.get_accounts()
+                    from services.transaction_service import TransactionService
+                    recent = {
+                        account["id"]: TransactionService.get_recent_for_account(
+                            account["id"], limit=3
+                        )
+                        for account in accounts
+                        if account["account_type"] == CREDIT_CARD
+                           or account.get("has_card_number", False)
+                    }
+                    payload = (summary, accounts, recent, None)
+                except Exception as exc:
+                    payload = (None, [], {}, exc)
+                from kivy.clock import Clock
+                Clock.schedule_once(
+                    lambda tick: self._begin_accounts_render(
+                        generation, loading, payload
+                    ), 0
+                )
+
+            import threading
+            threading.Thread(target=fetch, daemon=True).start()
+
+        # ScreenManager geçiş süresi boyunca SQL ve widget üretimi başlamaz.
+        from kivy.clock import Clock
+        self._accounts_load_event = Clock.schedule_once(start_fetch, 0.4)
+
+    def _begin_accounts_render(self, generation, loading, payload):
+        """Background fetch sonucunu ana thread'de küçük partilerle çizer."""
+        if generation != self._accounts_load_generation or not self.root:
+            return
+        summary, accounts, recent, error = payload
+        container_cards = self.root.ids.cards_container
+        container_accounts = self.root.ids.accounts_container
+        if error is not None:
+            loading.clear_widgets()
+            loading.add_widget(MDLabel(
+                text="Hesaplar yüklenemedi.", theme_text_color="Secondary",
+                halign="center",
+            ))
+            return
+
+        self._update_account_summary(summary)
         self._active_assets_bento = ActiveAssetsBentoWidget()
         container_accounts.add_widget(self._active_assets_bento)
         self._refresh_active_assets_total()
@@ -635,81 +704,96 @@ class AccountMixin:
                 self._refresh_active_assets_total, 60.0
             )
 
-        accounts = AccountService.get_accounts()
         if not accounts:
+            self._finish_accounts_render(generation, loading)
             lbl = MDLabel(
                 text="Henüz hesap eklenmedi — yukarıdaki butondan ekleyebilirsin.",
-                font_style="Caption",
-                italic=True,
-                theme_text_color="Secondary",
-                halign="center",
-                size_hint_y=None,
-                height=dp(40),
+                font_style="Caption", italic=True, theme_text_color="Secondary",
+                halign="center", size_hint_y=None, height=dp(40),
             )
             lbl.bind(size=lbl.setter("text_size"))
             container_accounts.add_widget(lbl)
             return
 
-        for acc in accounts:
-            is_credit_card = acc["account_type"] == CREDIT_CARD
-            has_card = acc.get("has_card_number", False)
+        pending = iter(accounts)
 
-            if is_read_only_asset_account(acc):
-                # Mirror kart yalnızca gösterge; buton/işlem davranışı içermez.
-                container_cards.add_widget(PremiumAssetMirrorWidget(
-                    account_name=acc["name"],
-                    balance=_fmt(acc["balance"]),
-                ))
-                # Hesaplarım tarafında bunun yerine canlı portföy agregasyonu
-                # gösterilir; aynı isimli ikinci/statik satır oluşturulmaz.
-                continue
-
-            if is_credit_card:
-                # Matematiksel Borç Hesaplama ve Type Casting
-                limit_val = acc.get("credit_limit") or 0.0
-                debt_val = acc.get("debt") or 0.0
-                
-                # Progress bar'ın 'Kullanılabilir Limit' oranını göstermesini sağla.
-                # Formül: yuzde = ((limit - guncel_borc) / limit) * 100
-                if debt_val == 0.0:
-                    # Eski migration kartlarında limit 0 kalmış olabilir. Borç
-                    # tamamen kapanmışsa bar yine de dolu görünmelidir.
-                    ratio = 100.0
-                elif limit_val > 0.0:
-                    ratio = ((limit_val - debt_val) / limit_val) * 100.0
-                else:
-                    ratio = 0.0
-                
-                # Değeri 0 ile 100 arasında sınırla
-                ratio = max(0.0, min(100.0, ratio))
-
-                card = PremiumCreditCardWidget(
-                    account_id=acc["id"],
-                    debt_ratio=ratio,
-                    card_name=acc["name"],
-                    masked_number=acc.get("masked_number", "**** **** **** 0000"),
-                    network_logo=acc.get("network_logo", ""),
-                    available_limit=_fmt(acc["available_limit"]),
-                    current_debt=_fmt(acc["debt"])
+        def render_chunk(dt):
+            if generation != self._accounts_load_generation:
+                self._accounts_render_event = None
+                return False
+            for _ in range(5):
+                try:
+                    acc = next(pending)
+                except StopIteration:
+                    self._accounts_render_event = None
+                    self._finish_accounts_render(generation, loading)
+                    return False
+                self._render_account_widget(
+                    acc, container_cards, container_accounts,
+                    recent.get(acc["id"], []),
                 )
-                container_cards.add_widget(card)
-                self._fill_card_recent(card, acc["id"])
-            elif has_card:
-                card = PremiumDebitCardWidget(
-                    card_name=acc["name"],
-                    masked_number=acc.get("masked_number", "**** **** **** 0000"),
-                    network_logo=acc.get("network_logo", ""),
-                    balance=_fmt(acc["balance"])
-                )
-                container_cards.add_widget(card)
-                self._fill_card_recent(card, acc["id"])
+            return True
+
+        from kivy.clock import Clock
+        # İlk küçük parti hemen, devamı frame başına bir parti olarak çizilir.
+        if render_chunk(0):
+            self._accounts_render_event = Clock.schedule_interval(render_chunk, 0)
+
+    def _finish_accounts_render(self, generation, loading):
+        if generation != self._accounts_load_generation:
+            return
+        if loading.parent is not None:
+            loading.parent.remove_widget(loading)
+
+    def _render_account_widget(self, acc, container_cards, container_accounts,
+                               recent_items):
+        """Tek hesap/kart widget'ını oluşturur; yalnızca ana thread'de çağrılır."""
+        is_credit_card = acc["account_type"] == CREDIT_CARD
+        has_card = acc.get("has_card_number", False)
+
+        if is_read_only_asset_account(acc):
+            container_cards.add_widget(PremiumAssetMirrorWidget(
+                account_name=acc["name"], balance=_fmt(acc["balance"]),
+            ))
+            return
+
+        if is_credit_card:
+            limit_val = acc.get("credit_limit") or 0.0
+            debt_val = acc.get("debt") or 0.0
+
+            if debt_val == 0.0:
+                ratio = 100.0
+            elif limit_val > 0.0:
+                ratio = ((limit_val - debt_val) / limit_val) * 100.0
             else:
-                card = BentoAccountWidget(
-                    account_name=acc["name"],
-                    account_type_label=acc["type_label"],
-                    balance=_fmt(acc["balance"])
-                )
-                container_accounts.add_widget(card)
+                ratio = 0.0
+            ratio = max(0.0, min(100.0, ratio))
+
+            card = PremiumCreditCardWidget(
+                account_id=acc["id"], debt_ratio=ratio,
+                card_name=acc["name"],
+                masked_number=acc.get("masked_number", "**** **** **** 0000"),
+                network_logo=acc.get("network_logo", ""),
+                available_limit=_fmt(acc["available_limit"]),
+                current_debt=_fmt(acc["debt"]),
+            )
+            container_cards.add_widget(card)
+            self._fill_card_recent(card, acc["id"], recent_items)
+        elif has_card:
+            card = PremiumDebitCardWidget(
+                card_name=acc["name"],
+                masked_number=acc.get("masked_number", "**** **** **** 0000"),
+                network_logo=acc.get("network_logo", ""),
+                balance=_fmt(acc["balance"]),
+            )
+            container_cards.add_widget(card)
+            self._fill_card_recent(card, acc["id"], recent_items)
+        else:
+            container_accounts.add_widget(BentoAccountWidget(
+                account_name=acc["name"],
+                account_type_label=acc["type_label"],
+                balance=_fmt(acc["balance"]),
+            ))
 
     def _refresh_active_assets_total(self, *args):
         """TL dışı portföy toplamını UI'yi bloklamadan yeniler."""
