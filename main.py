@@ -232,6 +232,10 @@ class FinoraApp( # type: ignore
         
         self.purge_logs()
         self.vacuum_database()
+        
+        from services.asset_service import start_data_warmup
+        start_data_warmup()
+        
         self.write_daily_balance_snapshot()
         self.setup_dynamic_months()
         self.safe_refresh_charts()

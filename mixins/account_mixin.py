@@ -623,7 +623,9 @@ class AccountMixin:
         self.render_accounts()
 
     def render_accounts(self, *args):
-        """Hesap verisini arka planda okuyup listeyi tek karede çizer."""
+        """Hesap verisini arka planda okumak yerine RAM'den çizer (Instant Render)."""
+        from services.asset_service import _asset_data_cache
+
         if not (self.root and "accounts_container" in self.root.ids and "cards_container" in self.root.ids):  # type: ignore
             return
 
@@ -632,88 +634,45 @@ class AccountMixin:
         container_cards.clear_widgets()
         container_accounts.clear_widgets()
 
-        loading = MDBoxLayout(
-            orientation="vertical", size_hint_y=None, height=dp(72),
-            spacing=dp(6),
-        )
-        spinner = MDSpinner(
-            size_hint=(None, None), size=(dp(32), dp(32)),
-            pos_hint={"center_x": .5}, active=True,
-        )
-        loading.add_widget(spinner)
-        loading.add_widget(MDLabel(
-            text="Hesaplar hazırlanıyor…", font_style="Caption",
-            theme_text_color="Secondary", halign="center",
-        ))
-        container_accounts.add_widget(loading)
-
-        self._accounts_load_generation += 1
-        generation = self._accounts_load_generation
-        if self._accounts_load_event is not None:
-            self._accounts_load_event.cancel()
-
-        def start_fetch(dt):
-            self._accounts_load_event = None
-
-            def fetch():
-                try:
-                    summary = AccountService.get_net_worth()
-                    accounts = AccountService.get_accounts()
-                    from services.transaction_service import TransactionService
-                    recent = {
-                        account["id"]: TransactionService.get_recent_for_account(
-                            account["id"], limit=3
-                        )
-                        for account in accounts
-                        if account["account_type"] == CREDIT_CARD
-                           or account.get("has_card_number", False)
-                    }
-                    payload = (summary, accounts, recent, None)
-                except Exception as exc:
-                    payload = (None, [], {}, exc)
-                from kivy.clock import Clock
-                Clock.schedule_once(
-                    lambda tick: self._begin_accounts_render(
-                        generation, loading, payload
-                    ), 0
-                )
-
-            import threading
-            threading.Thread(target=fetch, daemon=True).start()
-
-        # Sekme tetikleyicisi artık on_enter (animasyon bitmiş durumda); 0.1s
-        # yalnızca ekranın yerine oturması için nefes payıdır. İşlem sonrası
-        # doğrudan çağrılarda da animasyon olmadığından bu süre yeterlidir.
-        from kivy.clock import Clock
-        self._accounts_load_event = Clock.schedule_once(start_fetch, 0.1)
-
-    def _begin_accounts_render(self, generation, loading, payload):
-        """Background fetch sonucunu ana thread'de tek karede topluca çizer."""
-        if generation != self._accounts_load_generation or not self.root:
-            return
-        summary, accounts, recent, error = payload
-        container_cards = self.root.ids.cards_container
-        container_accounts = self.root.ids.accounts_container
-        if error is not None:
-            loading.clear_widgets()
+        if not _asset_data_cache or not _asset_data_cache.get("ready"):
+            from kivymd.uix.boxlayout import MDBoxLayout
+            from kivymd.uix.label import MDLabel
+            from kivymd.uix.spinner import MDSpinner
+            from kivy.metrics import dp
+            from kivy.clock import Clock
+            
+            loading = MDBoxLayout(
+                orientation="vertical", size_hint_y=None, height=dp(72), spacing=dp(6)
+            )
+            spinner = MDSpinner(
+                size_hint=(None, None), size=(dp(32), dp(32)), pos_hint={"center_x": .5}, active=True
+            )
+            loading.add_widget(spinner)
             loading.add_widget(MDLabel(
-                text="Hesaplar yüklenemedi.", theme_text_color="Secondary",
-                halign="center",
+                text="Önbellek hazırlanıyor…", font_style="Caption", theme_text_color="Secondary", halign="center"
             ))
+            container_accounts.add_widget(loading)
+            
+            Clock.schedule_once(self.render_accounts, 0.5)
             return
+
+        summary = _asset_data_cache["summary"]
+        accounts = _asset_data_cache["accounts"]
+        recent = _asset_data_cache["recent"]
 
         self._update_account_summary(summary)
+        
         self._active_assets_bento = ActiveAssetsBentoWidget()
         container_accounts.add_widget(self._active_assets_bento)
-        self._refresh_active_assets_total()
-        if self._active_assets_refresh_event is None:
+        self._apply_active_assets_result(_asset_data_cache.get("active_assets_result"))
+
+        if getattr(self, "_active_assets_refresh_event", None) is None:
             from kivy.clock import Clock
-            self._active_assets_refresh_event = Clock.schedule_interval(
-                self._refresh_active_assets_total, 60.0
-            )
+            self._active_assets_refresh_event = Clock.schedule_interval(self._silent_background_refresh, 60.0)
 
         if not accounts:
-            self._finish_accounts_render(generation, loading)
+            from kivymd.uix.label import MDLabel
+            from kivy.metrics import dp
             lbl = MDLabel(
                 text="Henüz hesap eklenmedi — yukarıdaki butondan ekleyebilirsin.",
                 font_style="Caption", italic=True, theme_text_color="Secondary",
@@ -723,22 +682,11 @@ class AccountMixin:
             container_accounts.add_widget(lbl)
             return
 
-        # Tüm kartlar TEK karede basılır: parça parça (chunk) çizim her karede
-        # yeni bir do_layout tetikleyip listeyi saniyelerce "büyütüyordu".
-        # Veri zaten arka planda hazırlandığı için burada yalnız widget kurulumu
-        # kalır; tek layout geçişiyle ekrana oturur.
         for acc in accounts:
             self._render_account_widget(
                 acc, container_cards, container_accounts,
                 recent.get(acc["id"], []),
             )
-        self._finish_accounts_render(generation, loading)
-
-    def _finish_accounts_render(self, generation, loading):
-        if generation != self._accounts_load_generation:
-            return
-        if loading.parent is not None:
-            loading.parent.remove_widget(loading)
 
     def _render_account_widget(self, acc, container_cards, container_accounts,
                                recent_items):
@@ -790,56 +738,53 @@ class AccountMixin:
                 balance=_fmt(acc["balance"]),
             ))
 
-    def _refresh_active_assets_total(self, *args):
-        """TL dışı portföy toplamını UI'yi bloklamadan yeniler."""
-        if self._active_assets_refresh_busy:
+    def _apply_active_assets_result(self, result):
+        if not result:
             return
-        self._active_assets_refresh_busy = True
-        widget = self._active_assets_bento
-        if widget is not None:
-            widget.status_text = "Canlı fiyatlar güncelleniyor…"
+        current = getattr(self, "_active_assets_bento", None)
+        if current is None:
+            return
+        total = result.get("total")
+        asset_count = int(result.get("asset_count") or 0)
+        priced_count = int(result.get("priced_count") or 0)
+        cached_count = int(result.get("cached_count") or 0)
+        
+        if total is None:
+            current.status_text = "Canlı fiyatlara ulaşılamadı"
+            return
+            
+        current.balance = _fmt(total)
+        if cached_count:
+            current.status_text = f"{priced_count}/{asset_count} varlık • Son bilinen fiyat"
+        elif priced_count < asset_count:
+            current.status_text = f"{priced_count}/{asset_count} varlık fiyatlandı"
+        else:
+            current.status_text = f"{asset_count} TL dışı varlık • Canlı değer"
 
-        from kivy.clock import Clock
-        from services.asset_service import fetch_active_non_try_total
-
-        def _on_result(result):
-            def _apply(dt):
-                complete = bool(result.get("complete", True))
-                if complete:
-                    self._active_assets_refresh_busy = False
-                current = self._active_assets_bento
-                if current is None:
-                    return
-                total = result.get("total")
-                asset_count = int(result.get("asset_count") or 0)
-                priced_count = int(result.get("priced_count") or 0)
-                cached_count = int(result.get("cached_count") or 0)
-                if total is None:
-                    current.status_text = "Canlı fiyatlara ulaşılamadı"
-                    return
-                if asset_count and not priced_count and not complete:
-                    current.status_text = f"{asset_count} varlık • Fiyat bekleniyor"
-                    return
-                if asset_count and not priced_count:
-                    current.balance = _fmt(0)
-                    current.status_text = "Canlı fiyat bulunamadı • 0 TL"
-                    return
-                current.balance = _fmt(total)
-                if cached_count:
-                    current.status_text = f"{priced_count}/{asset_count} varlık • Son bilinen fiyat"
-                elif priced_count < asset_count:
-                    current.status_text = f"{priced_count}/{asset_count} varlık fiyatlandı"
-                else:
-                    current.status_text = f"{asset_count} TL dışı varlık • Canlı değer"
-
-            Clock.schedule_once(_apply, 0)
-
-        try:
-            fetch_active_non_try_total(_on_result, progress_callback=_on_result)
-        except Exception:
-            self._active_assets_refresh_busy = False
-            if widget is not None:
-                widget.status_text = "Canlı fiyatlara ulaşılamadı"
+    def _silent_background_refresh(self, dt):
+        """UI'yi dondurmadan sadece arkadaki önbelleği günceller (Data Warm-up)."""
+        from services.asset_service import start_data_warmup
+        
+        def on_update():
+            from services.asset_service import _asset_data_cache
+            if not _asset_data_cache or not _asset_data_cache.get("ready"):
+                return
+            res = _asset_data_cache.get("active_assets_result")
+            self._apply_active_assets_result(res)
+            
+            try:
+                self._update_account_summary(_asset_data_cache["summary"])
+            except Exception:
+                pass
+                
+            # Grafiğin data özelliğini sessizce güncelle (varsa)
+            if hasattr(self, 'active_assets_chart') and hasattr(self.active_assets_chart, 'data'):
+                try:
+                    self.active_assets_chart.data = _asset_data_cache.get("some_chart_data")
+                except Exception:
+                    pass
+                    
+        start_data_warmup(on_update)
 
     def _update_account_summary(self, summary):
         """Nakit / kart borcu / net servet etiketlerini doldurur (varsa)."""

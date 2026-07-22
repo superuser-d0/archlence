@@ -28,6 +28,53 @@ import time
 
 GRAMS_PER_TROY_OUNCE = 31.1034768
 
+# -------------------------------------------------------------------------
+# GLOBAL PRE-CACHE (WARM-UP)
+# -------------------------------------------------------------------------
+_asset_data_cache = {
+    "summary": {"cash": 0, "card_debt": 0, "net": 0},
+    "accounts": [],
+    "recent": {},
+    "active_assets_result": None,
+    "ready": False
+}
+
+def start_data_warmup(callback=None):
+    """
+    Arka planda tüm verileri önceden yükler (Data Warm-up).
+    Uygulama açılışında çağrılır, veriler _asset_data_cache içine yazılır.
+    'Veri Hazır' flag'ini kaldırır.
+    """
+    def worker():
+        global _asset_data_cache
+        from services.account_service import AccountService
+        from services.transaction_service import TransactionService
+        try:
+            summary = AccountService.get_net_worth()
+            accounts = AccountService.get_accounts()
+            recent = {}
+            for account in accounts:
+                if account["account_type"] == "credit_card" or account.get("has_card_number", False):
+                    recent[account["id"]] = TransactionService.get_recent_for_account(account["id"], limit=3)
+            
+            def on_non_try(res):
+                global _asset_data_cache
+                _asset_data_cache["summary"] = summary
+                _asset_data_cache["accounts"] = accounts
+                _asset_data_cache["recent"] = recent
+                _asset_data_cache["active_assets_result"] = res
+                _asset_data_cache["ready"] = True
+                
+                if callback:
+                    from kivy.clock import Clock
+                    Clock.schedule_once(lambda dt: callback(), 0)
+
+            fetch_active_non_try_total(on_non_try)
+        except Exception as e:
+            print(f"Data warm-up failed: {e}")
+            
+    threading.Thread(target=worker, daemon=True).start()
+
 # USD/TRY kuru için modül seviyesinde, kısa ömürlü önbellek — Altın/Kripto
 # fiyatlarını her seferinde ayrı bir yfinance isteğiyle çevirmemek için.
 _usdtry_cache = {"rate": None, "time": 0.0}
