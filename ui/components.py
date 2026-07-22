@@ -685,7 +685,7 @@ Builder.load_string('''
 
 <BentoAccountWidget>:
     size_hint_y: None
-    height: "100dp"
+    height: "120dp"
     padding: "16dp"
     spacing: "8dp"
     orientation: "vertical"
