@@ -274,14 +274,14 @@ class AccountServiceTestCase(unittest.TestCase):
 
         conn = get_connection()
         recurring = conn.execute(
-            "SELECT is_active FROM recurring_payments WHERE account_id = ?", (deleted_id,)
+            "SELECT id FROM recurring_payments WHERE account_id = ?", (deleted_id,)
         ).fetchone()
         events = conn.execute(
             "SELECT COUNT(*) FROM balance_events WHERE entity_type = 'account' AND entity_id = ?",
             (deleted_id,),
         ).fetchone()[0]
         conn.close()
-        self.assertEqual(recurring["is_active"], 0)
+        self.assertIsNone(recurring)
         self.assertEqual(events, 0)
 
     # ─── Limit kontrolü ──────────────────────────────────────────────────────

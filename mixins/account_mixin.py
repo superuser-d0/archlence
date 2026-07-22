@@ -362,45 +362,96 @@ class AccountMixin:
         self.statement_dialog.open()
 
     def open_delete_card_dialog(self, account_id):
-        """Kartı ve karta bağlı hareketleri silmeden önce açık onay ister."""
+        """Aktif taksitleri arka planda sayıp kart silme onayını açar."""
+        import threading
+        import weakref
+        from kivy.clock import Clock
         from kivymd.uix.dialog import MDDialog
-        from kivymd.uix.button import MDFlatButton
 
         card = AccountService.get_account(account_id)
         if not card or card["account_type"] != CREDIT_CARD:
             toast("Kredi kartı bulunamadı.")
             return
 
-        def confirm(*args):
-            try:
-                AccountService.delete_credit_card(account_id)
-            except Exception as exc:
-                toast(f"Kart silinemedi: {exc}")
-                return
-            self.delete_card_dialog.dismiss()
-            self.render_accounts()
-            if hasattr(self, "refresh_dashboard_data"):
-                self.refresh_dashboard_data()
-            toast("Kredi kartı silindi.")
+        owner_ref = weakref.ref(self)
 
-        self.delete_card_dialog = MDDialog(
-            title="Kredi Kartını Sil",
-            text=(
-                f"{card['name']} kartı, karta bağlı ekstre hareketleri ve "
-                "otomatik ödeme bağlantıları silinecek. Bu işlem geri alınamaz."
-            ),
-            buttons=[
-                ftheme.secondary_button(
-                    "VAZGEÇ", self.theme_cls,
-                    on_release=lambda x: self.delete_card_dialog.dismiss(),
-                ),
-                ftheme.danger_button(
-                    "SİL", self.theme_cls,
-                    on_release=confirm,
-                ),
-            ],
-        )
-        self.delete_card_dialog.open()
+        def show_dialog(active_plan_count, error=None):
+            owner = owner_ref()
+            if owner is None:
+                return
+            if error is not None:
+                toast(f"Taksit planları kontrol edilemedi: {error}")
+                return
+
+            old_dialog = getattr(owner, "delete_card_dialog", None)
+            if old_dialog is not None:
+                old_dialog.dismiss()
+
+            if active_plan_count:
+                message = (
+                    "Dikkat: Bu karta ait devam eden "
+                    f"{active_plan_count} adet taksit planı bulunmaktadır. "
+                    "Kartı sildiğinizde bu taksit planları ve tüm geçmiş "
+                    "işlemler de kalıcı olarak silinecektir. Onaylıyor musunuz?"
+                )
+            else:
+                message = (
+                    f"{card['name']} kartı, karta bağlı tüm geçmiş işlemler ve "
+                    "otomatik ödemeler kalıcı olarak silinecektir. "
+                    "Onaylıyor musunuz?"
+                )
+
+            dialog_ref = {}
+
+            def confirm(*args):
+                try:
+                    AccountService.delete_credit_card(account_id)
+                except Exception as exc:
+                    toast(f"Kart silinemedi: {exc}")
+                    return
+                dialog_ref["dialog"].dismiss()
+                owner.render_accounts()
+                if hasattr(owner, "refresh_dashboard_data"):
+                    owner.refresh_dashboard_data()
+                toast("Kredi kartı silindi.")
+
+            dialog = MDDialog(
+                title="Kredi Kartını Sil",
+                text=message,
+                buttons=[
+                    ftheme.secondary_button(
+                        "VAZGEÇ", owner.theme_cls,
+                        on_release=lambda x: dialog_ref["dialog"].dismiss(),
+                    ),
+                    ftheme.danger_button(
+                        "SİL", owner.theme_cls,
+                        on_release=confirm,
+                    ),
+                ],
+            )
+            dialog_ref["dialog"] = dialog
+            owner.delete_card_dialog = dialog
+
+            def clear_reference(*args):
+                current = owner_ref()
+                if current is not None and getattr(
+                        current, "delete_card_dialog", None) is dialog:
+                    current.delete_card_dialog = None
+
+            dialog.bind(on_dismiss=clear_reference)
+            dialog.open()
+
+        def check_active_plans():
+            try:
+                count = AccountService.get_active_installment_plan_count(account_id)
+            except Exception as exc:
+                Clock.schedule_once(
+                    lambda dt, captured_exc=exc: show_dialog(0, captured_exc), 0
+                )
+                return
+            Clock.schedule_once(lambda dt: show_dialog(count), 0)
+
+        threading.Thread(target=check_active_plans, daemon=True).start()
 
     def open_card_settings(self, caller, account_id):
         """Karta özgü, nadir kullanılan işlemleri üç nokta menüsünde gösterir."""

@@ -357,34 +357,73 @@ class AccountService:
 
     @staticmethod
     def delete_credit_card(credit_card_id):
-        """Kredi kartını ve yalnızca ona bağlı geçmiş kayıtlarını atomik siler.
-
-        Karta bağlı otomatik ödemeler önce pasifleştirilir; böylece silinen hesap
-        kimliğiyle ileride tahsilat denenmez. Diğer hesapların hareketlerine
-        dokunulmaz.
-        """
-        card = AccountService.get_account(credit_card_id)
-        if not card or card["account_type"] != CREDIT_CARD:
-            raise ValueError("Kredi kartı bulunamadı.")
-
+        """Kartı ve karta ait bütün bağımlı kayıtları tek transaction'da siler."""
+        credit_card_id = int(credit_card_id)
         conn = get_connection()
         try:
             cursor = conn.cursor()
+            cursor.execute("BEGIN")
+            card = cursor.execute(
+                "SELECT id FROM accounts WHERE id = ? AND account_type = ?",
+                (credit_card_id, CREDIT_CARD),
+            ).fetchone()
+            if card is None:
+                raise ValueError("Kredi kartı bulunamadı.")
+
+            # Eski/minimal veritabanı şemalarında tablo bulunmayabilir. Güncel
+            # şemada mevcutsa silme aynı transaction'ın zorunlu parçasıdır.
+            has_installment_table = cursor.execute(
+                """SELECT 1 FROM sqlite_master
+                   WHERE type = 'table' AND name = 'installment_plans'"""
+            ).fetchone()
+            if has_installment_table:
+                cursor.execute(
+                    "DELETE FROM installment_plans WHERE account_id = ?",
+                    (credit_card_id,),
+                )
             cursor.execute(
-                "UPDATE recurring_payments SET is_active = 0 WHERE account_id = ?",
-                (int(credit_card_id),),
+                "DELETE FROM recurring_payments WHERE account_id = ?",
+                (credit_card_id,),
             )
-            cursor.execute("DELETE FROM transactions WHERE account_id = ?", (int(credit_card_id),))
+            cursor.execute(
+                "DELETE FROM transactions WHERE account_id = ?",
+                (credit_card_id,),
+            )
             cursor.execute(
                 "DELETE FROM balance_events WHERE entity_type = ? AND entity_id = ?",
-                (ACCOUNT, int(credit_card_id)),
+                (ACCOUNT, credit_card_id),
             )
             cursor.execute(
                 "DELETE FROM accounts WHERE id = ? AND account_type = ?",
-                (int(credit_card_id), CREDIT_CARD),
+                (credit_card_id, CREDIT_CARD),
             )
             if cursor.rowcount != 1:
                 raise ValueError("Kredi kartı bulunamadı.")
             conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_active_installment_plan_count(credit_card_id):
+        """Kartın tamamlanmamış taksit planı sayısını döndürür."""
+        conn = get_connection()
+        try:
+            table_exists = conn.execute(
+                """SELECT 1 FROM sqlite_master
+                   WHERE type = 'table' AND name = 'installment_plans'"""
+            ).fetchone()
+            if not table_exists:
+                return 0
+            row = conn.execute(
+                """SELECT COUNT(*) AS plan_count
+                   FROM installment_plans
+                   WHERE account_id = ?
+                     AND paid_installments < total_installments""",
+                (int(credit_card_id),),
+            ).fetchone()
+            return int(row["plan_count"] if row else 0)
         finally:
             conn.close()
