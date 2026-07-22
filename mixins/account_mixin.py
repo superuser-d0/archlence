@@ -631,8 +631,6 @@ class AccountMixin:
 
         container_cards = self.root.ids.cards_container
         container_accounts = self.root.ids.accounts_container
-        container_cards.clear_widgets()
-        container_accounts.clear_widgets()
 
         if not _asset_data_cache or not _asset_data_cache.get("ready"):
             from kivymd.uix.boxlayout import MDBoxLayout
@@ -651,7 +649,10 @@ class AccountMixin:
             loading.add_widget(MDLabel(
                 text="Önbellek hazırlanıyor…", font_style="Caption", theme_text_color="Secondary", halign="center"
             ))
-            container_accounts.add_widget(loading)
+            if not any(getattr(child, "_finora_loading", False)
+                       for child in container_accounts.children):
+                loading._finora_loading = True
+                container_accounts.add_widget(loading)
             
             Clock.schedule_once(self.render_accounts, 0.5)
             return
@@ -660,10 +661,23 @@ class AccountMixin:
         accounts = _asset_data_cache["accounts"]
         recent = _asset_data_cache["recent"]
 
+        # Keep the existing widget tree. Rebuilding KivyMD cards is much more
+        # expensive than updating their String/Numeric properties.
+        existing = {
+            getattr(child, "_finora_account_id", None): child
+            for child in list(container_cards.children) + list(container_accounts.children)
+            if getattr(child, "_finora_account_id", None) is not None
+        }
+        for child in list(container_accounts.children):
+            if getattr(child, "_finora_loading", False):
+                container_accounts.remove_widget(child)
+
         self._update_account_summary(summary)
         
-        self._active_assets_bento = ActiveAssetsBentoWidget()
-        container_accounts.add_widget(self._active_assets_bento)
+        if (self._active_assets_bento is None
+                or self._active_assets_bento.parent is None):
+            self._active_assets_bento = ActiveAssetsBentoWidget()
+            container_accounts.add_widget(self._active_assets_bento)
         self._apply_active_assets_result(_asset_data_cache.get("active_assets_result"))
 
         if getattr(self, "_active_assets_refresh_event", None) is None:
@@ -671,6 +685,9 @@ class AccountMixin:
             self._active_assets_refresh_event = Clock.schedule_interval(self._silent_background_refresh, 60.0)
 
         if not accounts:
+            for widget in existing.values():
+                if widget.parent is not None:
+                    widget.parent.remove_widget(widget)
             from kivymd.uix.label import MDLabel
             from kivy.metrics import dp
             lbl = MDLabel(
@@ -682,23 +699,55 @@ class AccountMixin:
             container_accounts.add_widget(lbl)
             return
 
+        self._account_render_generation = getattr(self, "_account_render_generation", 0) + 1
+        generation = self._account_render_generation
+        wanted_ids = {acc["id"] for acc in accounts}
+        pending_new = []
         for acc in accounts:
-            self._render_account_widget(
+            current = existing.get(acc["id"])
+            if current is None:
+                pending_new.append(acc)
+                continue
+            widget = self._render_account_widget(
                 acc, container_cards, container_accounts,
-                recent.get(acc["id"], []),
+                recent.get(acc["id"], []), current,
             )
+            widget._finora_account_id = acc["id"]
+
+        for account_id, widget in existing.items():
+            if account_id not in wanted_ids and widget.parent is not None:
+                widget.parent.remove_widget(widget)
+
+        def add_next(index=0):
+            if generation != self._account_render_generation:
+                return
+            if index >= len(pending_new):
+                return
+            acc = pending_new[index]
+            widget = self._render_account_widget(
+                acc, container_cards, container_accounts,
+                recent.get(acc["id"], []), None,
+            )
+            widget._finora_account_id = acc["id"]
+            from kivy.clock import Clock
+            Clock.schedule_once(lambda dt: add_next(index + 1), 0)
+
+        add_next()
 
     def _render_account_widget(self, acc, container_cards, container_accounts,
-                               recent_items):
+                               recent_items, existing=None):
         """Tek hesap/kart widget'ını oluşturur; yalnızca ana thread'de çağrılır."""
         is_credit_card = acc["account_type"] == CREDIT_CARD
         has_card = acc.get("has_card_number", False)
 
         if is_read_only_asset_account(acc):
-            container_cards.add_widget(PremiumAssetMirrorWidget(
-                account_name=acc["name"], balance=_fmt(acc["balance"]),
-            ))
-            return
+            widget = existing if isinstance(existing, PremiumAssetMirrorWidget) else None
+            if widget is None:
+                widget = PremiumAssetMirrorWidget()
+                container_cards.add_widget(widget)
+            widget.account_name = acc["name"]
+            widget.balance = _fmt(acc["balance"])
+            return widget
 
         if is_credit_card:
             limit_val = acc.get("credit_limit") or 0.0
@@ -712,31 +761,44 @@ class AccountMixin:
                 ratio = 0.0
             ratio = max(0.0, min(100.0, ratio))
 
-            card = PremiumCreditCardWidget(
-                account_id=acc["id"], debt_ratio=ratio,
-                card_name=acc["name"],
-                masked_number=acc.get("masked_number", "**** **** **** 0000"),
-                network_logo=acc.get("network_logo", ""),
-                available_limit=_fmt(acc["available_limit"]),
-                current_debt=_fmt(acc["debt"]),
-            )
-            container_cards.add_widget(card)
-            self._fill_card_recent(card, acc["id"], recent_items)
+            card = existing if isinstance(existing, PremiumCreditCardWidget) else None
+            if card is None:
+                card = PremiumCreditCardWidget(account_id=acc["id"])
+                container_cards.add_widget(card)
+            card.debt_ratio = ratio
+            card.card_name = acc["name"]
+            card.masked_number = acc.get("masked_number", "**** **** **** 0000")
+            card.network_logo = acc.get("network_logo", "")
+            card.available_limit = _fmt(acc["available_limit"])
+            card.current_debt = _fmt(acc["debt"])
+            signature = repr(recent_items)
+            if getattr(card, "_finora_recent_signature", None) != signature:
+                self._fill_card_recent(card, acc["id"], recent_items)
+                card._finora_recent_signature = signature
+            return card
         elif has_card:
-            card = PremiumDebitCardWidget(
-                card_name=acc["name"],
-                masked_number=acc.get("masked_number", "**** **** **** 0000"),
-                network_logo=acc.get("network_logo", ""),
-                balance=_fmt(acc["balance"]),
-            )
-            container_cards.add_widget(card)
-            self._fill_card_recent(card, acc["id"], recent_items)
+            card = existing if isinstance(existing, PremiumDebitCardWidget) else None
+            if card is None:
+                card = PremiumDebitCardWidget()
+                container_cards.add_widget(card)
+            card.card_name = acc["name"]
+            card.masked_number = acc.get("masked_number", "**** **** **** 0000")
+            card.network_logo = acc.get("network_logo", "")
+            card.balance = _fmt(acc["balance"])
+            signature = repr(recent_items)
+            if getattr(card, "_finora_recent_signature", None) != signature:
+                self._fill_card_recent(card, acc["id"], recent_items)
+                card._finora_recent_signature = signature
+            return card
         else:
-            container_accounts.add_widget(BentoAccountWidget(
-                account_name=acc["name"],
-                account_type_label=acc["type_label"],
-                balance=_fmt(acc["balance"]),
-            ))
+            widget = existing if isinstance(existing, BentoAccountWidget) else None
+            if widget is None:
+                widget = BentoAccountWidget()
+                container_accounts.add_widget(widget)
+            widget.account_name = acc["name"]
+            widget.account_type_label = acc["type_label"]
+            widget.balance = _fmt(acc["balance"])
+            return widget
 
     def _apply_active_assets_result(self, result):
         if not result:

@@ -1188,10 +1188,10 @@ class AssetMixin:
         """
         from kivymd.toast import toast
         toast("Fiyatlar anlık olarak güncelleniyor...")
-        self.load_active_assets()
+        self.load_active_assets(force_refresh=True)
 
 
-    def load_active_assets(self, *args):
+    def load_active_assets(self, *args, force_refresh=False):
         """DB okuma + yfinance fiyatlandırma + bugünkü nakit deltası dahil TÜM
         hesaplamaları arka planda bitirir; sonuç hazır olunca kart listesi TEK
         Clock çağrısıyla, tek karede basılır.
@@ -1203,6 +1203,15 @@ class AssetMixin:
         import threading
         from database.db import get_all_assets
         from services.asset_service import fetch_portfolio_with_prices
+        import time
+
+        if not force_refresh:
+            if getattr(self, "_asset_load_inflight", False):
+                return
+            loaded_at = getattr(self, "_asset_ui_loaded_at", 0.0)
+            if self._assets_cache and time.monotonic() - loaded_at < 300:
+                return
+        self._asset_load_inflight = True
 
         self._asset_load_generation = getattr(self, "_asset_load_generation", 0) + 1
         generation = self._asset_load_generation
@@ -1235,8 +1244,12 @@ class AssetMixin:
             def _on_ui(dt):
                 if generation != self._asset_load_generation:
                     return  # bayat sonuç — daha yeni bir yükleme başladı
-                self.render_active_assets(enriched)
-                self.update_wealth_card(self._assets_cache, today_delta)
+                self.render_active_assets_chunked(
+                    enriched,
+                    on_complete=lambda: self._finish_active_asset_load(
+                        today_delta
+                    ),
+                )
             Clock.schedule_once(_on_ui, 0)
 
         def _fetch_and_enrich():
@@ -1260,11 +1273,63 @@ class AssetMixin:
                     today_delta = None
                 _apply(enriched or [], today_delta)
 
-            fetch_portfolio_with_prices(assets, callback=on_complete)
+            fetch_portfolio_with_prices(
+                assets, callback=on_complete,
+                cache_callback=on_complete,
+                force_refresh=force_refresh,
+            )
 
         threading.Thread(target=_fetch_and_enrich, daemon=True).start()
 
-    def render_active_assets(self, assets):
+    def _finish_active_asset_load(self, today_delta):
+        import time
+        self.update_wealth_card(self._assets_cache, today_delta)
+        self._asset_load_inflight = False
+        self._asset_ui_loaded_at = time.monotonic()
+
+    def render_active_assets_chunked(self, assets, on_complete=None):
+        """Build one expensive asset card per frame to keep frames responsive."""
+        self._asset_render_generation = getattr(self, "_asset_render_generation", 0) + 1
+        generation = self._asset_render_generation
+        if not assets:
+            self.render_active_assets([])
+            if on_complete:
+                on_complete()
+            return
+
+        try:
+            container = self.root.ids.active_assets_container
+        except Exception:
+            return
+        wanted_ids = {asset.get("id") for asset in assets}
+        existing_cards = [
+            child for child in container.children
+            if getattr(child, "_finora_asset_id", None) is not None
+        ]
+        if existing_cards:
+            for card in existing_cards:
+                if card._finora_asset_id not in wanted_ids:
+                    container.remove_widget(card)
+            for child in list(container.children):
+                if getattr(child, "_finora_asset_id", None) is None:
+                    container.remove_widget(child)
+        else:
+            container.clear_widgets()
+        self._assets_cache = []
+
+        def draw_next(index=0):
+            if generation != self._asset_render_generation:
+                return
+            if index >= len(assets):
+                if on_complete:
+                    on_complete()
+                return
+            self.render_active_assets([assets[index]], append=True)
+            Clock.schedule_once(lambda dt: draw_next(index + 1), 0)
+
+        draw_next()
+
+    def render_active_assets(self, assets, append=False):
         """Varlık kartlarını renk kodlu K/Z (Kâr/Zarar) bilgisiyle dashboard'a basar.
         Kâr/Zarar (K/Z) hesaplaması: (Güncel Fiyat - Alım Fiyatı) * Miktar. Para birimi ₺'dir.
 
@@ -1277,9 +1342,10 @@ class AssetMixin:
             print("render_active_assets: container bulunamadı:", e)
             return
 
-        container.clear_widgets()
+        if not append:
+            container.clear_widgets()
 
-        if not assets:
+        if not assets and not append:
             from kivymd.uix.boxlayout import MDBoxLayout
             from kivymd.uix.label import MDLabel, MDIcon
             from kivymd.uix.button import MDRoundFlatIconButton
@@ -1337,6 +1403,42 @@ class AssetMixin:
         for asset in assets:
             signal = asset.get("signal", "pending")
             pnl_color = get_pnl_color(signal)
+
+            existing_card = next(
+                (child for child in container.children
+                 if getattr(child, "_finora_asset_id", None) == asset.get("id")),
+                None,
+            )
+            if existing_card is not None:
+                existing_card._finora_buy_lbl.text = (
+                    f"Alım: {asset['purchase_price']:,.4f} ₺  ×  "
+                    f"{asset['quantity']:g}"
+                )
+                if asset.get("current_price") is not None:
+                    existing_card._finora_cur_lbl.text = (
+                        f"Anlık: {asset['current_price']:,.4f} ₺"
+                    )
+                    existing_card._finora_cur_lbl.theme_text_color = "Secondary"
+                elif signal == "error":
+                    existing_card._finora_cur_lbl.text = "Güncellenemedi"
+                    existing_card._finora_cur_lbl.theme_text_color = "Error"
+                else:
+                    existing_card._finora_cur_lbl.text = "Fiyat alınıyor…"
+                    existing_card._finora_cur_lbl.theme_text_color = "Hint"
+                if asset.get("pnl_pct") is not None:
+                    sign = "+" if asset["pnl_pct"] >= 0 else ""
+                    pnl_text = (
+                        f"{sign}{asset['pnl_pct']:.2f}%  |  "
+                        f"{sign}{asset['pnl_amount']:,.2f} ₺  "
+                        f"(Toplam: {asset['total_value']:,.2f} ₺)"
+                    )
+                elif signal == "error":
+                    pnl_text = "Bağlantı Hatası!"
+                else:
+                    pnl_text = "Canlı veri bekleniyor…"
+                existing_card._finora_pnl_lbl.text = pnl_text
+                existing_card._finora_pnl_lbl.text_color = pnl_color
+                continue
 
             # Kart
             card = ftheme.apply_card_theme(MDCard(
@@ -1451,6 +1553,9 @@ class AssetMixin:
             card.add_widget(top_row)
             card.add_widget(mid_row)
             card.add_widget(pnl_lbl)
+            card._finora_buy_lbl = buy_lbl
+            card._finora_cur_lbl = cur_lbl
+            card._finora_pnl_lbl = pnl_lbl
             container.add_widget(card)
 
         # Kart yüksekliğini dinamik güncelle
@@ -1468,7 +1573,10 @@ class AssetMixin:
 
         # Zenginleştirilmiş listeyi önbelleğe al; Toplam Varlık kartı çağıran
         # tarafından (load_active_assets._apply) hazır delta ile güncellenir.
-        self._assets_cache = assets
+        if append:
+            self._assets_cache.extend(assets)
+        else:
+            self._assets_cache = assets
 
     def _sell_asset(self, asset_id):
         """Sat diyaloğu açar — kullanıcı satış fiyatını girer,

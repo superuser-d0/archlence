@@ -86,12 +86,37 @@ class InsightsMixin:
         threading.Thread(target=work, daemon=True).start()
 
     def _apply_insights(self, payload):
+        # These cards are expensive KivyMD trees. Never build them behind a
+        # different tab while that tab is animating; retain only the newest
+        # payload and retry when Home is actually visible.
+        try:
+            nav = self.root.ids.bottom_nav
+            current_tab = getattr(nav.get_current_tab(), "name", None)
+        except Exception:
+            current_tab = None
+        if current_tab != "home_tab":
+            self._pending_insights_payload = payload
+            pending = getattr(self, "_pending_insights_event", None)
+            if pending is not None:
+                pending.cancel()
+            self._pending_insights_event = Clock.schedule_once(
+                lambda dt: self._apply_insights(
+                    getattr(self, "_pending_insights_payload", payload)
+                ), 0.5
+            )
+            return
+
+        self._pending_insights_event = None
         if "health" in payload:
             self.render_health_score(payload["health"])
         if "candidates" in payload:
-            self.render_recurring_candidates(payload["candidates"])
+            Clock.schedule_once(
+                lambda dt: self.render_recurring_candidates(payload["candidates"]), 0
+            )
         if "anomalies" in payload:
-            self.render_anomalies(payload["anomalies"])
+            Clock.schedule_once(
+                lambda dt: self.render_anomalies(payload["anomalies"]), 0.05
+            )
 
     # ─── 1. Finansal sağlık skoru ────────────────────────────────────────────
 

@@ -394,6 +394,10 @@ class SavingsMixin:
             return
         container = self.root.ids.goals_container
         container.clear_widgets()
+        self._savings_render_generation = getattr(
+            self, "_savings_render_generation", 0
+        ) + 1
+        generation = self._savings_render_generation
 
         if not self.savings_goals:
             lbl = MDLabel(
@@ -409,7 +413,12 @@ class SavingsMixin:
             container.add_widget(lbl)
             return
 
-        for idx, goal in enumerate(self.savings_goals):
+        def draw_goal(idx):
+            if generation != self._savings_render_generation:
+                return
+            if idx >= len(self.savings_goals):
+                return
+            goal = self.savings_goals[idx]
             target    = float(goal.get("target", 1)) or 1.0
             current   = float(goal.get("current", 0.0))
             pct       = max(0.0, min(100.0, (current / target) * 100))
@@ -429,3 +438,6 @@ class SavingsMixin:
                 target_text=formatted_target,
             )
             container.add_widget(card)
+            Clock.schedule_once(lambda dt: draw_goal(idx + 1), 0)
+
+        draw_goal(0)
