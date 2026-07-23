@@ -21,14 +21,18 @@ hedefleyen bir arayüze sahip.
   ivmenize göre 30 günlük bir ODE simülasyonuyla varlık tahmini üretir.
 - **Premium / Standart tema sistemi** — açık/koyu mod ve özel Indigo
   "Premium Banking" paleti arasında dinamik geçiş.
+- **Otomatik abonelik radarı** — tekrarlayan işlemleri istatistiksel olarak
+  tespit edip "sessiz sızıntı" adaylarını yüzeye çıkarır.
+- **İstatistiksel anomali tespiti** — z-skoru tabanlı harcama sapması uyarıları.
+- **Finansal Sağlık Skoru** — tasarruf oranı, borç oranı ve oynaklık
+  bileşenlerinden hesaplanan, geçmişi saklanan bir skor.
+- **Çoklu dil (TR/EN)** — yerel i18n katmanı ile arayüz dili değiştirilebilir.
 
 ## Yol Haritası
 
-- [ ] Otomatik abonelik radarı ("sessiz sızıntı" tespiti)
-- [ ] İstatistiksel anomali tespiti
-- [ ] Finansal Sağlık Skoru
 - [ ] Bakiye zaman makinesi (point-in-time geçmiş & diff)
 - [ ] What-if senaryo sandbox'ı
+- [ ] Windows paket dağıtımının tamamlanması (build pipeline eklendi, test ediliyor)
 
 ## Ekran Görüntüleri
 
