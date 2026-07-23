@@ -44,15 +44,17 @@ class InsightsServiceTestCase(unittest.TestCase):
 
         when = (datetime.now() - timedelta(days=days_ago)).strftime("%Y-%m-%d %H:%M:%S")
         conn = sqlite3.connect(self.db_path)
-        conn.execute(
+        cursor = conn.execute(
             "INSERT INTO transactions"
             " (account_id, amount, type, category, description, transaction_date)"
             " VALUES (?, ?, ?, ?, ?, ?)",
             (1, encrypt(str(amount), SECRET_KEY), tx_type, category,
              encrypt(str(description), SECRET_KEY), when),
         )
+        transaction_id = cursor.lastrowid
         conn.commit()
         conn.close()
+        return transaction_id
 
     def _add_monthly_series(self, name, amount, category="Dijital Platformlar",
                             count=6, jitter=0.0):
@@ -153,8 +155,80 @@ class InsightsServiceTestCase(unittest.TestCase):
         candidates = detect_recurring_candidates(lookback_days=200)
         self.assertEqual(len(candidates), 1)
         self.assertEqual(candidates[0]["frequency"], "weekly")
+        self.assertTrue(candidates[0]["can_track"])
         # 25 TL x (30/7) ≈ 107 TL/ay
         self.assertAlmostEqual(candidates[0]["monthly_cost"], 25.0 * 30 / 7, delta=1.0)
+
+    def test_all_detected_frequencies_can_be_tracked(self):
+        """Radarın tanıdığı düzenli periyotların tümü ödeme motoruna aktarılabilir."""
+        from services.insights_service import detect_recurring_candidates
+
+        for name, interval, count in (
+            ("Haftalik", 7, 5),
+            ("Iki Haftalik", 14, 5),
+            ("Aylik", 30, 5),
+            ("Uc Aylik", 90, 3),
+        ):
+            with self.subTest(frequency=name):
+                conn = sqlite3.connect(self.db_path)
+                conn.execute("DELETE FROM transactions")
+                conn.commit()
+                conn.close()
+                for i in range(count):
+                    self._add_tx(
+                        100.0, "expense", "Dijital Platformlar", name,
+                        days_ago=interval * i + 1,
+                    )
+                candidates = detect_recurring_candidates(lookback_days=400)
+                self.assertEqual(len(candidates), 1)
+                self.assertTrue(candidates[0]["can_track"])
+
+    def test_advance_due_date_supports_every_frequency(self):
+        from database.db import _advance_due_date
+
+        cases = (
+            ("2026-01-01", "weekly", "2026-01-08"),
+            ("2026-01-01", "biweekly", "2026-01-15"),
+            ("2026-01-31", "monthly", "2026-02-28"),
+            ("2026-01-31", "quarterly", "2026-04-30"),
+            ("2024-02-29", "yearly", "2025-02-28"),
+        )
+        for start, frequency, expected in cases:
+            with self.subTest(frequency=frequency):
+                self.assertEqual(_advance_due_date(start, frequency), expected)
+
+    def test_advance_due_date_rejects_unknown_frequency(self):
+        from database.db import _advance_due_date
+
+        with self.assertRaises(ValueError):
+            _advance_due_date("2026-01-01", "sometimes")
+
+    def test_processing_quarterly_payment_advances_due_date(self):
+        """Gerçek ödeme yazımı üç aylık vadeyi aynı işlemde ilerletmeli."""
+        from database.db import (
+            get_active_recurring_payments, insert_recurring_payment,
+            process_due_recurring_payment,
+        )
+
+        insert_recurring_payment(
+            "Uc Aylik Test", 100.0, "Dijital Platformlar", "quarterly",
+            "2026-01-31", auto_deduct=0,
+        )
+        payment = get_active_recurring_payments()[0]
+        process_due_recurring_payment(payment)
+
+        conn = sqlite3.connect(self.db_path)
+        due_date = conn.execute(
+            "SELECT next_due_date FROM recurring_payments WHERE id = ?",
+            (payment["id"],),
+        ).fetchone()[0]
+        transaction_count = conn.execute(
+            "SELECT COUNT(*) FROM transactions"
+        ).fetchone()[0]
+        conn.close()
+
+        self.assertEqual(due_date, "2026-04-30")
+        self.assertEqual(transaction_count, 1)
 
     def test_normalize_name_collapses_noise(self):
         """Farklı yazımlar aynı adaya düşmeli."""
@@ -215,6 +289,41 @@ class InsightsServiceTestCase(unittest.TestCase):
 
         self.assertEqual(len(detect_anomalies(lookback_days=60, z_threshold=2.0)), 1)
         self.assertEqual(detect_anomalies(lookback_days=60, z_threshold=99.0), [])
+
+    def test_dismissed_anomaly_is_not_returned_again(self):
+        """Görüldü denilen işlem sonraki anomali taramalarından elenmeli."""
+        from services.insights_service import detect_anomalies, dismiss_anomaly
+
+        for i in range(10):
+            self._add_tx(
+                100.0 + i, "expense", "Süpermarket", f"Market {i}",
+                days_ago=i + 1,
+            )
+        anomaly_id = self._add_tx(
+            5000.0, "expense", "Süpermarket", "Buyuk Alisveris", days_ago=2,
+        )
+
+        self.assertEqual(len(detect_anomalies(lookback_days=60)), 1)
+        dismiss_anomaly(anomaly_id)
+        self.assertEqual(detect_anomalies(lookback_days=60), [])
+
+    def test_dismiss_anomaly_is_idempotent(self):
+        """Aynı karttan yinelenen olay iki dismissal satırı üretmemeli."""
+        from services.insights_service import dismiss_anomaly
+
+        transaction_id = self._add_tx(
+            5000.0, "expense", "Süpermarket", "Buyuk", days_ago=1,
+        )
+        dismiss_anomaly(transaction_id)
+        dismiss_anomaly(transaction_id)
+
+        conn = sqlite3.connect(self.db_path)
+        count = conn.execute(
+            "SELECT COUNT(*) FROM anomaly_dismissals WHERE transaction_id = ?",
+            (transaction_id,),
+        ).fetchone()[0]
+        conn.close()
+        self.assertEqual(count, 1)
 
     # ─── 3. Finansal sağlık skoru ────────────────────────────────────────────
 
@@ -323,6 +432,23 @@ class InsightsServiceTestCase(unittest.TestCase):
         self.assertAlmostEqual(history[0]["score"], result["score"], places=1)
         self.assertIn("savings_rate", history[0]["breakdown"])
         self.assertTrue(history[0]["date"])
+
+    def test_score_is_updated_instead_of_duplicated_on_same_day(self):
+        """Dashboard yenilemeleri aynı gün için yalnız son skoru bırakmalı."""
+        from services.insights_service import save_health_score, get_health_history
+
+        save_health_score(
+            40.0, {"savings_rate": 0.10}, "2026-07-23 08:00:00",
+        )
+        save_health_score(
+            72.0, {"savings_rate": 0.25}, "2026-07-23 18:30:00",
+        )
+
+        history = get_health_history()
+        self.assertEqual(len(history), 1)
+        self.assertEqual(history[0]["score"], 72.0)
+        self.assertEqual(history[0]["date"], "2026-07-23 18:30:00")
+        self.assertEqual(history[0]["breakdown"]["savings_rate"], 0.25)
 
     def test_history_returns_newest_first(self):
         """Geçmiş en yeniden eskiye sıralı dönmeli."""

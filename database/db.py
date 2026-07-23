@@ -385,22 +385,32 @@ def deactivate_recurring_payment(payment_id):
 
 
 def _advance_due_date(date_str, frequency):
-    """'YYYY-MM-DD' tarihine 1 ay veya 1 yıl ekler. Ay sonu/artık yıl kenar
-    durumlarını calendar.monthrange ile ele alır (örn. 31 Ocak + 1 ay -> 28/29 Şubat,
-    29 Şubat + 1 yıl -> 28 Şubat)."""
-    from datetime import date
+    """Vadeyi desteklenen sıklık kadar ileri alır.
+
+    Haftalık periyotlar sabit gün, aylık periyotlar takvim ayı üzerinden
+    ilerler. Böylece 31 Ocak + üç ay 30 Nisan olur; bilinmeyen bir değer de
+    sessizce aylık kabul edilmek yerine açıkça reddedilir.
+    """
+    from datetime import date, timedelta
     import calendar
 
     d = date.fromisoformat(date_str)
+    if frequency == "weekly":
+        return (d + timedelta(days=7)).isoformat()
+    if frequency == "biweekly":
+        return (d + timedelta(days=14)).isoformat()
     if frequency == "yearly":
         try:
             return d.replace(year=d.year + 1).isoformat()
         except ValueError:
             return d.replace(year=d.year + 1, day=28).isoformat()
+    if frequency not in ("monthly", "quarterly"):
+        raise ValueError(f"Desteklenmeyen tekrarlama sıklığı: {frequency}")
 
-    month = d.month + 1
-    year = d.year + (1 if month > 12 else 0)
-    month = 1 if month > 12 else month
+    months = 3 if frequency == "quarterly" else 1
+    month_index = d.month - 1 + months
+    year = d.year + month_index // 12
+    month = month_index % 12 + 1
     last_day = calendar.monthrange(year, month)[1]
     day = min(d.day, last_day)
     return date(year, month, day).isoformat()
@@ -412,6 +422,9 @@ def process_due_recurring_payment(payment):
     kalıbını izler) ve next_due_date'i bir periyot ileri alır. Bu sayede aynı gün
     tekrar çağrılsa da ödeme yeniden düşmez (next_due_date artık bugünü geçmiştir)."""
     from datetime import datetime
+    # Sıklığı herhangi bir finansal yazımdan önce doğrula. Geçersiz eski bir
+    # kayıt transaction/bakiye yazıp sonra vade hesabında yarım kalmamalı.
+    new_due = _advance_due_date(payment["next_due_date"], payment["frequency"])
     conn = get_connection()
     cursor = conn.cursor()
     enc_amount = encrypt(str(payment["amount"]), SECRET_KEY)
@@ -423,7 +436,6 @@ def process_due_recurring_payment(payment):
     """, (payment["account_id"], enc_amount, payment["category"], enc_desc, tx_date))
     adjust_account_balance(cursor, payment["account_id"], "expense", payment["amount"])
 
-    new_due = _advance_due_date(payment["next_due_date"], payment["frequency"])
     cursor.execute("UPDATE recurring_payments SET next_due_date = ? WHERE id = ?", (new_due, payment["id"]))
     conn.commit()
     conn.close()

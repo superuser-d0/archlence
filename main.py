@@ -144,7 +144,10 @@ from database.db import get_connection, ACCOUNT, record_balance_event
 from services.transaction_service import TransactionService
 from services.queries import CategoryService
 
-from ui.charts import CurvedTrendChart, HorizontalBarChart, LiquidWaveWidget, PieChart, DashboardChartManager, ConfettiWidget
+from ui.charts import (
+    CurvedTrendChart, HorizontalBarChart, LiquidWaveWidget, PieChart,
+    DashboardChartManager, ConfettiWidget, ScenarioComparisonChart,
+)
 from ui.components import CategorySettingItem, RightButtonsContainer, BudgetListItem, LegendItem, LegendWidget
 from ui.theme import (
     apply_premium_theme, apply_standard_theme, refresh_card_theme,
@@ -165,8 +168,10 @@ from mixins.migration_mixin import MigrationMixin
 from mixins.account_mixin import AccountMixin
 from mixins.insights_mixin import InsightsMixin
 from mixins.history_mixin import HistoryMixin
+from mixins.scenario_mixin import ScenarioMixin
 from security.security_service import SecurityService
 from services.history_service import write_daily_snapshot
+from services.projection_service import project_final_wealth
 
 # =========================================================================
 # 5. CONSTANTS
@@ -181,7 +186,7 @@ ADMIN_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
 class FinoraApp(
     MDApp, AssetMixin, DebtMixin, CalculatorMixin, TransactionMixin, # type: ignore
     BudgetMixin, SavingsMixin, RecurringMixin, MigrationMixin, AccountMixin, 
-    InsightsMixin, HistoryMixin
+    InsightsMixin, HistoryMixin, ScenarioMixin
 ):
     
     # -------------------------------------------------------------------------
@@ -404,12 +409,23 @@ class FinoraApp(
                     chart_box.refresh_theme()
                 except Exception as exc:
                     print("Tema sonrası grafikler yenilenemedi:", exc)
+            health_chart = self.root.ids.get("health_trend_chart")
+            if health_chart is not None:
+                try:
+                    health_chart.draw_immediate()
+                except Exception as exc:
+                    print("Tema sonrası sağlık trendi yenilenemedi:", exc)
             for widget in self.root.walk():
                 if isinstance(widget, HorizontalBarChart):
                     try:
                         widget.update_chart()
                     except Exception as exc:
                         print("Tema sonrası çubuk grafik yenilenemedi:", exc)
+                elif isinstance(widget, ScenarioComparisonChart):
+                    try:
+                        widget.draw_immediate()
+                    except Exception as exc:
+                        print("Tema sonrası senaryo grafiği yenilenemedi:", exc)
         if hasattr(self, "render_accounts"):
             try:
                 self.render_accounts()
@@ -511,28 +527,6 @@ class FinoraApp(
             write_daily_snapshot()
         except Exception as e:
             print("Günlük bakiye snapshot'ı yazılamadı:", e)
-
-    # -------------------------------------------------------------------------
-    # Financial Engine (ODE)
-    # -------------------------------------------------------------------------
-    @staticmethod
-    def _rk4_wealth_projection(W0, daily_income, daily_expense, days=30, r=0.0001):
-        I = daily_income
-        E = daily_expense
-        dt = 1.0
-
-        def f(t, W):
-            return r * W + I - E
-
-        W, t = W0, 0.0
-        for _ in range(days):
-            k1 = f(t,        W)
-            k2 = f(t + dt/2, W + dt/2 * k1)
-            k3 = f(t + dt/2, W + dt/2 * k2)
-            k4 = f(t + dt,   W + dt   * k3)
-            W  = W + (dt / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
-            t += dt
-        return W
 
     # -------------------------------------------------------------------------
     # Metrics & Dashboard Updates
@@ -652,10 +646,12 @@ class FinoraApp(
         except Exception:
             pass
 
-        projected_wealth = self._rk4_wealth_projection(
-            W0=total_balance,
-            daily_income=inc_30 / 30.0,
-            daily_expense=exp_30 / 30.0,
+        daily_income = inc_30 / 30.0
+        daily_expense = exp_30 / 30.0
+        projected_wealth = project_final_wealth(
+            initial_wealth=total_balance,
+            daily_income=daily_income,
+            daily_expense=daily_expense,
             days=30,
             r=0.0001,
         )
@@ -675,6 +671,8 @@ class FinoraApp(
             "period_expense": period_expense,
             "period_net": period_net,
             "projected_wealth": projected_wealth,
+            "projection_daily_income": daily_income,
+            "projection_daily_expense": daily_expense,
             "change_rate": change_rate,
         }
 
@@ -688,6 +686,11 @@ class FinoraApp(
 
         filter_text   = m["filter_text"]
         total_balance = m["total_balance"]
+        self._scenario_base_metrics = {
+            "base_balance": total_balance,
+            "base_daily_income": m.get("projection_daily_income", 0.0),
+            "base_daily_expense": m.get("projection_daily_expense", 0.0),
+        }
         period_net    = m["period_net"]
 
         def _set_changed(widget, prop, value):

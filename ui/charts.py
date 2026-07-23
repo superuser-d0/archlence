@@ -307,6 +307,246 @@ class CurvedTrendChart(Widget):
             PopMatrix()
 
 
+class HealthScoreSparkline(Widget):
+    """Finansal sağlık skorunun 0-100 aralığındaki günlük mini trendi."""
+
+    anim_progress = NumericProperty(0.0)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.chart_data = []
+        self._translate = None
+        self._redraw_trigger = Clock.create_trigger(self._redraw, 0)
+        self.bind(size=self._redraw_trigger, anim_progress=self._redraw_trigger)
+        self.bind(pos=self._sync_translate)
+
+    def _sync_translate(self, *args):
+        if self._translate is not None:
+            self._translate.x = self.x
+            self._translate.y = self.y
+
+    def request_redraw(self):
+        from kivy.animation import Animation
+        Animation.cancel_all(self, "anim_progress")
+        self.anim_progress = 0.0
+        Animation(
+            anim_progress=1.0, duration=0.75, t="out_cubic",
+        ).start(self)
+
+    def draw_immediate(self):
+        from kivy.animation import Animation
+        Animation.cancel_all(self, "anim_progress")
+        self.anim_progress = 1.0
+        self._redraw_trigger()
+
+    @staticmethod
+    def _score_role(score):
+        if score >= 60:
+            return "green"
+        if score >= 40:
+            return "amber"
+        return "red"
+
+    def _redraw(self, *args):
+        if not self.canvas:
+            return
+        self.canvas.clear()
+        if self.width <= 0 or self.height <= 0:
+            return
+
+        data = self.chart_data
+        app = MDApp.get_running_app()
+        style = app.theme_cls.theme_style if app is not None else "Light"
+        axis_color = ftheme.chart_axis(style)
+        grid_color = ftheme.chart_grid(style)
+
+        left, right = dp(4), max(dp(5), self.width - dp(4))
+        bottom, top = dp(4), max(dp(5), self.height - dp(4))
+        width = max(1, right - left)
+        height = max(1, top - bottom)
+
+        with self.canvas:
+            PushMatrix()
+            self._translate = Translate(self.x, self.y)
+
+            # Sabit 0-100 ölçeğinin sınır ve orta çizgileri.
+            for value in (0, 50, 100):
+                y = bottom + height * value / 100.0
+                Color(*(axis_color if value in (0, 100) else grid_color))
+                Line(points=[left, y, right, y], width=dp(0.6))
+
+            if len(data) < 2:
+                PopMatrix()
+                return
+
+            def px(index):
+                return left + index * width / (len(data) - 1)
+
+            def py(score):
+                value = max(0.0, min(100.0, float(score)))
+                return bottom + height * value / 100.0
+
+            raw_points = [
+                (px(index), py(item["score"]))
+                for index, item in enumerate(data)
+            ]
+            smooth = CurvedTrendChart._catmull_rom(raw_points, steps=12)
+            smooth = [
+                (x, max(bottom, min(top, y))) for x, y in smooth
+            ]
+
+            clip_x = left + width * self.anim_progress
+            visible = [(x, y) for x, y in smooth if x <= clip_x]
+            if len(visible) >= 2:
+                flat = [coordinate for point in visible for coordinate in point]
+                score = float(data[-1]["score"])
+                line_color = ftheme.accent(style, self._score_role(score))
+                Color(*line_color)
+                Line(points=flat, width=dp(2.0))
+
+                if self.anim_progress > 0.85:
+                    dot_radius = dp(3)
+                    Color(*line_color)
+                    Ellipse(
+                        pos=(raw_points[-1][0] - dot_radius,
+                             raw_points[-1][1] - dot_radius),
+                        size=(dot_radius * 2, dot_radius * 2),
+                    )
+
+            PopMatrix()
+
+
+class ScenarioComparisonChart(Widget):
+    """Taban ve what-if servet serilerini aynı eksende karşılaştırır."""
+
+    anim_progress = NumericProperty(0.0)
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.base_series = []
+        self.scenario_series = []
+        self._translate = None
+        self._redraw_trigger = Clock.create_trigger(self._redraw, 0)
+        self.bind(size=self._redraw_trigger, anim_progress=self._redraw_trigger)
+        self.bind(pos=self._sync_translate)
+
+    def _sync_translate(self, *args):
+        if self._translate is not None:
+            self._translate.x = self.x
+            self._translate.y = self.y
+
+    def set_series(self, base_series, scenario_series):
+        self.base_series = list(base_series or [])
+        self.scenario_series = list(scenario_series or [])
+        self.request_redraw()
+
+    def request_redraw(self):
+        from kivy.animation import Animation
+        Animation.cancel_all(self, "anim_progress")
+        self.anim_progress = 0.0
+        Animation(
+            anim_progress=1.0, duration=0.8, t="out_cubic",
+        ).start(self)
+
+    def draw_immediate(self):
+        from kivy.animation import Animation
+        Animation.cancel_all(self, "anim_progress")
+        self.anim_progress = 1.0
+        self._redraw_trigger()
+
+    def _redraw(self, *args):
+        if not self.canvas:
+            return
+        self.canvas.clear()
+        if self.width <= 0 or self.height <= 0:
+            return
+
+        app = MDApp.get_running_app()
+        style = app.theme_cls.theme_style if app is not None else "Light"
+        axis_color = ftheme.chart_axis(style)
+        grid_color = ftheme.chart_grid(style)
+        base_color = ftheme.accent(style, "muted")
+
+        left, right = dp(8), max(dp(9), self.width - dp(8))
+        bottom, top = dp(12), max(dp(13), self.height - dp(18))
+        chart_width = max(1, right - left)
+        chart_height = max(1, top - bottom)
+        all_values = [
+            float(value)
+            for series in (self.base_series, self.scenario_series)
+            for _day, value in series
+        ]
+
+        with self.canvas:
+            PushMatrix()
+            self._translate = Translate(self.x, self.y)
+            Color(*axis_color)
+            Line(points=[left, bottom, right, bottom], width=dp(0.8))
+
+            if not all_values:
+                PopMatrix()
+                return
+
+            low, high = min(all_values), max(all_values)
+            if low == high:
+                padding = max(1.0, abs(low) * 0.05)
+            else:
+                padding = (high - low) * 0.08
+            low -= padding
+            high += padding
+            value_span = max(1e-9, high - low)
+            max_day = max(
+                (day for series in (self.base_series, self.scenario_series)
+                 for day, _value in series),
+                default=1,
+            )
+
+            def px(day):
+                return left + (float(day) / max(1, max_day)) * chart_width
+
+            def py(value):
+                return bottom + ((float(value) - low) / value_span) * chart_height
+
+            for fraction in (0.0, 0.5, 1.0):
+                y = bottom + chart_height * fraction
+                Color(*grid_color)
+                Line(points=[left, y, right, y], width=dp(0.5))
+
+            if low <= 0 <= high:
+                Color(*axis_color)
+                Line(points=[left, py(0), right, py(0)], width=dp(0.8))
+
+            difference = (
+                self.scenario_series[-1][1] - self.base_series[-1][1]
+                if self.base_series and self.scenario_series else 0
+            )
+            scenario_role = "green" if difference > 0 else (
+                "red" if difference < 0 else "amber"
+            )
+            scenario_color = ftheme.accent(style, scenario_role)
+            clip_x = left + chart_width * self.anim_progress
+
+            def draw_series(series, color, width):
+                if len(series) < 2:
+                    return
+                raw = [(px(day), py(value)) for day, value in series]
+                smooth = CurvedTrendChart._catmull_rom(raw, steps=10)
+                smooth = [
+                    (x, max(bottom, min(top, y)))
+                    for x, y in smooth if x <= clip_x
+                ]
+                if len(smooth) >= 2:
+                    Color(*color)
+                    Line(
+                        points=[c for point in smooth for c in point],
+                        width=dp(width),
+                    )
+
+            draw_series(self.base_series, base_color, 1.4)
+            draw_series(self.scenario_series, scenario_color, 2.2)
+            PopMatrix()
+
+
 
 # ---------------------------------------------------------------------------
 # DashboardChartManager — Persistent layout manager (instances created ONCE)

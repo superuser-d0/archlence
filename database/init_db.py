@@ -179,6 +179,22 @@ def initialize_database():
     if "breakdown_json" not in existing_health_cols:
         cursor.execute("ALTER TABLE financial_health_history ADD COLUMN breakdown_json TEXT")
 
+    # Eski sürüm her dashboard yenilemesinde yeni bir satır yazıyordu. Aynı
+    # güne ait gürültüyü temizle, en son hesabı koru ve DB seviyesinde bundan
+    # sonra günde tek kayıt garantisi ver.
+    cursor.execute("""
+        DELETE FROM financial_health_history
+        WHERE id NOT IN (
+            SELECT MAX(id)
+            FROM financial_health_history
+            GROUP BY substr(date, 1, 10)
+        )
+    """)
+    cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_health_history_day
+        ON financial_health_history(substr(date, 1, 10))
+    """)
+
     # 10. Reddedilen Abonelik Adayları (Faz 1 — "sessiz sızıntı" radarı)
     # candidate_key: kategori + normalize edilmiş ad üzerinden üretilen kararlı
     # anahtar (bkz. services/insights_service.py::candidate_key). Kullanıcı bir
@@ -197,7 +213,17 @@ def initialize_database():
     if "dismissed_at" not in existing_dismissal_cols:
         cursor.execute("ALTER TABLE recurring_candidate_dismissals ADD COLUMN dismissed_at TEXT")
 
-    # 11. Bakiye Olay Defteri (Faz 2 — değişmez hareket kaydı)
+    # 11. Görülmüş/Gizlenmiş Anomaliler
+    # Anomali gerçek bir transaction satırına dayanır; transaction_id bu
+    # nedenle hash türetmekten daha kararlı ve tekil kimliktir.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS anomaly_dismissals (
+            transaction_id INTEGER PRIMARY KEY,
+            dismissed_at TEXT NOT NULL
+        )
+    """)
+
+    # 12. Bakiye Olay Defteri (Faz 2 — değişmez hareket kaydı)
     # accounts.balance ve savings_goals.current_amount'a dokunan HER nokta
     # buraya bir satır yazar. Kayıt, değişikliği yapan UPDATE ile AYNI cursor
     # ve AYNI commit içinde yazılır: işlem yarıda kalırsa defter de geri alınır,

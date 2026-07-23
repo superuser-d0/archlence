@@ -295,11 +295,11 @@ def detect_recurring_candidates(lookback_days=180):
             "next_due_date": (
                 dates[-1] + timedelta(days=int(round(mean_interval)))
             ).isoformat(),
-            # KISIT: recurring_payments motoru (database/db.py::_advance_due_date)
-            # yalnızca "monthly" ve "yearly" biliyor; başka her değeri aylık
-            # sayıyor. Haftalık/üç aylık bir adayı oraya yazmak vadeyi sessizce
-            # yanlış ilerletirdi, bu yüzden tespit edilir ama takibe alınamaz.
-            "can_track": frequency in ("monthly", "yearly"),
+            # Radarın tanıdığı tüm periyotlar recurring_payments motorunda da
+            # açıkça desteklenir; düzensiz seriler yukarıda zaten elenir.
+            "can_track": frequency in {
+                "weekly", "biweekly", "monthly", "quarterly", "yearly",
+            },
         })
 
     candidates.sort(key=lambda c: c["monthly_cost"], reverse=True)
@@ -320,6 +320,32 @@ def dismiss_recurring_candidate(key):
 
 # ── 2. Anomali tespiti ─────────────────────────────────────────────────────
 
+def _dismissed_anomaly_ids():
+    """Kullanıcının gördüm/gizle dediği transaction kimlikleri."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT transaction_id FROM anomaly_dismissals")
+        return {row["transaction_id"] for row in cursor.fetchall()}
+    finally:
+        conn.close()
+
+
+def dismiss_anomaly(transaction_id):
+    """Bir anomalinin kaynak işlemini kalıcı olarak gizler (idempotent)."""
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT OR IGNORE INTO anomaly_dismissals "
+            "(transaction_id, dismissed_at) VALUES (?, ?)",
+            (int(transaction_id), datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def detect_anomalies(lookback_days=90, z_threshold=2.0):
     """Kategori bazında olağandışı büyük harcamaları işaretler.
 
@@ -334,6 +360,7 @@ def detect_anomalies(lookback_days=90, z_threshold=2.0):
     z_score'a göre azalan sıralı.
     """
     records = _load_transactions(lookback_days, _EXPENSE_TYPES)
+    dismissed_ids = _dismissed_anomaly_ids()
 
     by_category = {}
     for rec in records:
@@ -351,6 +378,8 @@ def detect_anomalies(lookback_days=90, z_threshold=2.0):
             # Tüm tutarlar aynı — sapma yok.
             continue
         for rec in items:
+            if rec["id"] in dismissed_ids:
+                continue
             z = (rec["amount"] - mean) / stdev
             if z >= z_threshold:
                 anomalies.append({
@@ -482,19 +511,26 @@ def compute_financial_health_score(lookback_days=90, persist=True):
 
 
 def save_health_score(score, breakdown, computed_at=None):
-    """Skoru zaman damgasıyla financial_health_history'e yazar."""
+    """Günde tek sağlık skoru saklar; aynı gün yeniden hesaplanırsa günceller."""
+    timestamp = computed_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO financial_health_history (date, score, breakdown_json) VALUES (?, ?, ?)",
-        (
-            computed_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            float(score),
-            json.dumps(breakdown, ensure_ascii=False),
-        ),
-    )
-    conn.commit()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO financial_health_history "
+            "(date, score, breakdown_json) VALUES (?, ?, ?) "
+            "ON CONFLICT DO UPDATE SET "
+            "date = excluded.date, score = excluded.score, "
+            "breakdown_json = excluded.breakdown_json",
+            (
+                timestamp,
+                float(score),
+                json.dumps(breakdown, ensure_ascii=False),
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def get_health_history(limit=30):

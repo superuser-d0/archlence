@@ -21,10 +21,9 @@ kalan iş bu 5 özellik + teknik borçlar + paketleme.
 - [x] Karanlık mod tercihinin kalıcı olması — `finora_config.json` içinde
       `display.style` alanına yazılıyor, açılışta okunup geri yükleniyor.
 - [x] `tests.test_ids` düzeltmesi — `IdsApp`'e `active_category_type =
-      StringProperty("income")` eklendi. Doğrulama notu: ortamda video aygıtı
-      olmadığı için headless çalıştırma denemesi KV hatasına ulaşmadan ortam
-      seviyesinde durdu; kod incelemesiyle doğrulandı, görsel/headless
-      doğrulama (`xvfb-run` vb.) hâlâ açık.
+      StringProperty("income")` eklendi, stub sözleşmesi tamamlandı. TCP-Xvfb
+      ile gerçek OpenGL pencere üzerinde görsel/headless doğrulama da yapıldı
+      — KV/OpenGL smoke testi geçti.
 - [x] `ui/charts.py` grafik renklerinin (eksen, ızgara, etiket, boş-veri
       halkası) temaya uyarlanması + tema değişiminde trend/pasta/çubuk
       grafiklerin veriyi koruyarak yeniden çizilmesi. Gelir/gider ve kategori
@@ -34,7 +33,7 @@ kalan iş bu 5 özellik + teknik borçlar + paketleme.
 
 **SavingsService test hataları — çözüldü:**
 - [x] Test bakiyesi 10.000 TL'ye ayarlandı, her test sonunda özgün bakiye geri
-      yükleniyor. Sonuç: SavingsService 6/6, tam paket 97/97 yeşil,
+      yükleniyor. Sonuç: SavingsService 6/6, tam paket 120/120 yeşil,
       `git diff --check` temiz.
 
 **Madde 1 — TAMAMLANDI.**
@@ -53,14 +52,13 @@ kalan iş bu 5 özellik + teknik borçlar + paketleme.
 **Madde 2 — TAMAMLANDI (V1 çekirdeği).**
 
 İyileştirme kararları:
-- [ ] Haftalık, iki haftada bir ve üç aylık adayların otomatik takibe
-      alınması. Mevcut `recurring_payments` vade motoru yalnız `monthly` ve
-      `yearly` ilerletebildiği için bu değişiklik mantık katmanında ayrıca
-      tasarlanmalı. O zamana kadar bu adaylar tespit edilir ve kalıcı
-      yoksayılabilir, fakat otomatik takibe alınamaz.
-- [ ] Anomaliler için kalıcı “gördüm/gizle” akışı ve
-      `anomaly_dismissals` benzeri migration. Şu anda aynı tarihsel anomali
-      sonraki yenilemelerde yeniden gösterilebilir.
+- [x] Haftalık, iki haftada bir ve üç aylık adayların otomatik takibe
+      alınması. Vade motoru `weekly`, `biweekly`, `monthly`, `quarterly` ve
+      `yearly` periyotlarını; ay sonu ve artık yıl sınırlarını destekliyor.
+      Bilinmeyen periyotlar sessizce aylık sayılmak yerine reddediliyor.
+- [x] Anomaliler için kalıcı “GÖRDÜM” akışı ve `anomaly_dismissals`
+      migration'ı. Gizleme transaction kimliğiyle idempotent uygulanıyor ve
+      sonraki dashboard yenilemelerinde aynı anomali eleniyor.
 
 ### 3. Finansal Sağlık Skoru
 - [x] Tasarruf oranı, borç oranı ve oynaklık bileşenlerinden ağırlıklı skor
@@ -68,22 +66,48 @@ kalan iş bu 5 özellik + teknik borçlar + paketleme.
 - [x] Güncel skorun anasayfa kartında gösterilmesi.
 - [x] Skor geçmişinin `financial_health_history` tablosunda saklanması ve
       `get_health_history(limit=30)` ile okunması.
-- [ ] Son 30 sağlık skoru kaydını gösteren mini trend/sparkline grafiği.
-      Veri kaynağı hazır; eksik kısım `insights_mixin.py` ve
-      `ui/dashboard.kv` içindeki görselleştirme bağlantısı.
+- [x] Son 30 günlük sağlık skoru kaydını gösteren tema-duyarlı mini
+      trend/sparkline grafiği. Aynı gün içindeki dashboard yenilemeleri yeni
+      satır üretmek yerine günlük kaydı güncelliyor; eski aynı-gün tekrarları
+      migration sırasında tek kayda indiriliyor.
 
-**Madde 3 — HESAPLAMA, KALICILIK VE GÜNCEL SKOR UI TAMAMLANDI; trend
-görselleştirmesi açık.**
+**Madde 3 — TAMAMLANDI.**
 
 ### 4. Bakiye zaman makinesi (point-in-time geçmiş & diff)
-- [ ] Geçmiş anlık görüntü (snapshot) modeli — mevcut şemaya migration
-      gerekip gerekmediği netleştirilmeli.
-- [ ] Diff/karşılaştırma arayüzü.
+- [x] `daily_balance_snapshot` + `balance_events` defteriyle geçmiş anlık
+      görüntü/replay modeli; migration guard ve eksik defter healing/backfill.
+- [x] Son 30 günlük hızlı diff görünümü ile iki tarih seçicili özel tarih
+      aralığı karşılaştırması.
+- [x] Tek tarih seçerek gün sonu toplam bakiye, birikim toplamı ve hesaplama
+      kaynağını (`snapshot`/`replay`) gösteren point-in-time görünümü.
+- [x] Defter başlangıcından önceki tarihler için yanıltıcı sıfır yerine açık
+      “kayıt yok” durumu.
+
+**Madde 4 — TAMAMLANDI.**
 
 ### 5. What-if senaryo sandbox'ı (en soyut, en son)
-- [ ] Mevcut RK4 (4. derece Runge-Kutta) servet projeksiyon motorunun
-      parametrik hale getirilmesi (gelir/gider artış-azalış senaryoları).
-- [ ] Senaryo karşılaştırma arayüzü.
+- [x] RK4 (4. derece Runge-Kutta) servet projeksiyon motorunun Kivy'den
+      bağımsız `services/projection_service.py` katmanına taşınması; günlük
+      seri ve geriye uyumlu nihai değer API'leri.
+- [x] Gelir/gider yüzde değişimi, 30/90/365 günlük ufuk ve imzalı tek
+      seferlik gelir/gider parametreleriyle taban + what-if simülasyonu.
+- [x] Araçlar sekmesindeki What-If Sandbox diyaloğu, çok-serili karşılaştırma
+      grafiği ve taban senaryoya göre nihai fark/negatif varlık uyarısı.
+- [x] Analitik çözüm karşılaştırması, delta uygulaması, negatif senaryo,
+      365 günlük kararlılık ve headless mixin veri-akışı testleri.
+
+**Madde 5 — TAMAMLANDI.** Görsel doğrulama: TCP-Xvfb üzerinden gerçek OpenGL
+pencerede What-If Sandbox, Bakiye Geçmişi ve MDDatePicker akışları test
+edildi (ekran görüntüleri: `finora_scenario_smoke0003.png`,
+`finora_history_smoke0004.png`, `finora_datepicker_smoke0002.png`). Bu turda
+ayrıca Python 3.14'te `MDDatePicker`'ı çökerten `ast.Str` uyumsuzluğu
+giderildi, tarih seçici metinleri TR/EN sistemine bağlandı, What-If diyaloğu
+800×600 ekrana sığacak şekilde kompaktlaştırıldı.
+
+**Ortam notu:** Standart `xvfb-run` kullanımını kalıcı olarak düzeltmek için
+(bu oturumda TCP-Xvfb alternatifiyle aşıldı) `/tmp/.X11-unix` sahiplik/izin
+düzeltmesi gerekiyor — dilersen kendi terminalinde bir kerelik çalıştır:
+`sudo chown root:root /tmp/.X11-unix && sudo chmod 1777 /tmp/.X11-unix`.
 
 ### 6. Paketleme / Dağıtım (ürün donduktan sonra)
 - [ ] Windows paket dağıtımının tamamlanması (build pipeline var, test
@@ -101,15 +125,17 @@ görselleştirmesi açık.**
 ## Kalite ve Performans Takibi
 - [ ] `mixins/insights_mixin.py` render ve kullanıcı eylemleri için UI/mixin
       testleri: sağlık skoru render'ı, aboneliğe ekleme/yoksayma ve hata
-      durumları. Mevcut kapsam ağırlıklı olarak servis katmanında.
+      durumları. Aboneliğe ekleme ve anomali gizleme eylemleri için headless
+      testler eklendi; widget render ve hata yolları hâlâ açık.
 - [ ] İşlem hacmi birkaç bine ulaştığında insights yenileme süresini ölç.
       Şimdilik hesaplar arka plan thread'inde çalıştığı için acil değil;
       gerekirse sonuçları yeni işlem/değişiklik oluşana kadar cache'le.
 
 ## Sonraki Adım
-1. Sağlık skoru trend grafiğini tamamla (veri ve kalıcılık hazır).
-2. Insights mixin/UI akışları için test güvenlik ağı ekle.
-3. Haftalık/iki haftalık/üç aylık abonelik takibi ile anomali gizleme
-   özelliklerinin V1.0 kapsamına girip girmediğini kararlaştır.
-4. Ardından Madde 4 (bakiye zaman makinesi), Madde 5 (what-if sandbox) ve
-   ürün donduğunda Madde 6 (paketleme) sırasıyla ilerle.
+Beş killer feature de (Madde 1-5) tamamlandı, tam otomatik paket 120/120
+yeşil. Kalan tek şey Madde 6 — paketleme/dağıtım. Kalite takibindeki iki
+açık madde (insights widget render testleri, performans ölçümü) V1.0'ı
+bloklamıyor; paketlemeyle paralel ya da sonrasında ele alınabilir.
+
+1. Madde 6 (Windows paketleme, CI/CD) üzerinde ilerle.
+2. İstersen paralel olarak insights widget render/hata testlerini tamamla.

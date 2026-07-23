@@ -1,6 +1,7 @@
 #:import FadeTransition kivy.uix.screenmanager.FadeTransition
 #:import Window kivy.core.window.Window
 #:import LiquidWaveWidget ui.charts.LiquidWaveWidget
+#:import HealthScoreSparkline ui.charts.HealthScoreSparkline
 #:import RecycleListRow ui.components.RecycleListRow
 #:import ftheme ui.theme
 
@@ -597,7 +598,7 @@ MDScreen:
                                     elevation: 0
                                     line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     size_hint_y: None
-                                    height: "150dp"
+                                    height: "212dp"
                                     padding: "16dp"
                                     spacing: "10dp"
                                     radius: [24]
@@ -655,6 +656,23 @@ MDScreen:
                                         text: app.tr("Tasarruf oranı, borç/gelir ve gider oynaklığı birlikte değerlendirilir.", app.language)
                                         font_style: "Caption"
                                         theme_text_color: "Secondary"
+
+                                    MDFloatLayout:
+                                        size_hint_y: None
+                                        height: "52dp"
+
+                                        HealthScoreSparkline:
+                                            id: health_trend_chart
+                                            opacity: 0
+
+                                        MDLabel:
+                                            id: health_trend_empty
+                                            text: app.tr("Henüz yeterli geçmiş yok; birkaç gün kullanınca trend burada görünecek.", app.language)
+                                            font_style: "Caption"
+                                            theme_text_color: "Hint"
+                                            halign: "center"
+                                            valign: "middle"
+                                            text_size: self.size
 
                                 # FAZ 1: ABONELİK RADARI ("sessiz sızıntı")
                                 MDCard:
@@ -1725,6 +1743,40 @@ MDScreen:
                                     Widget:
                                     MDLabel:
                                         text: app.tr("Birikim\nHedefi", app.language)
+                                        font_style: "Subtitle1"
+                                        bold: True
+
+                                MDCard:
+                                    elevation: 0
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
+                                    size_hint_y: None
+                                    height: "140dp"
+                                    radius: [24]
+                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+                                    orientation: "vertical"
+                                    padding: "20dp"
+                                    spacing: "10dp"
+                                    ripple_behavior: True
+                                    on_release: app.open_scenario_sandbox()
+                                    MDFloatLayout:
+                                        size_hint: None, None
+                                        size: "48dp", "48dp"
+                                        canvas.before:
+                                            Color:
+                                                rgba: (0.13, 0.59, 0.95, 0.15)
+                                            RoundedRectangle:
+                                                pos: self.pos
+                                                size: self.size
+                                                radius: [24]
+                                        MDIcon:
+                                            icon: "chart-timeline-variant"
+                                            font_size: "24sp"
+                                            theme_text_color: "Custom"
+                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'blue')
+                                            pos_hint: {"center_x": .5, "center_y": .5}
+                                    Widget:
+                                    MDLabel:
+                                        text: app.tr("What-If\nSandbox", app.language)
                                         font_style: "Subtitle1"
                                         bold: True
 

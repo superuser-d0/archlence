@@ -73,6 +73,12 @@ class InsightsMixin:
                 print("Sağlık skoru hesaplanamadı:", e)
                 payload["health_error"] = str(e)
             try:
+                from services.insights_service import get_health_history
+                payload["health_history"] = get_health_history(limit=30)
+            except Exception as e:
+                print("Sağlık skoru geçmişi okunamadı:", e)
+                payload["health_history"] = []
+            try:
                 from services.insights_service import detect_recurring_candidates
                 payload["candidates"] = detect_recurring_candidates()
             except Exception as e:
@@ -119,6 +125,7 @@ class InsightsMixin:
             self.render_health_score(payload["health"])
         elif "health_error" in payload:
             self.render_health_error()
+        self.render_health_trend(payload.get("health_history", []))
         if "candidates" in payload:
             Clock.schedule_once(
                 lambda dt: self.render_recurring_candidates(payload["candidates"]), 0
@@ -180,6 +187,28 @@ class InsightsMixin:
             )
         except Exception as e:
             print("Sağlık skoru hata durumu çizilemedi:", e)
+
+    def render_health_trend(self, history):
+        """Günlük skor geçmişini kronolojik sparkline verisine dönüştürür."""
+        try:
+            ids = self.root.ids
+            chart = ids.health_trend_chart
+            empty_label = ids.health_trend_empty
+            chronological = list(reversed(history))
+            chart.chart_data = [
+                {"date": item["date"][:10], "score": float(item["score"])}
+                for item in chronological
+            ]
+
+            has_trend = len(chart.chart_data) >= 2
+            chart.opacity = 1 if has_trend else 0
+            empty_label.opacity = 0 if has_trend else 1
+            if has_trend:
+                chart.request_redraw()
+            else:
+                chart.draw_immediate()
+        except Exception as e:
+            print("Sağlık skoru trendi çizilemedi:", e)
 
     # ─── 2. Abonelik radarı ("sessiz sızıntı") ───────────────────────────────
 
@@ -244,8 +273,8 @@ class InsightsMixin:
                 text_color=self.theme_cls.primary_color,
                 on_release=lambda x, c=cand: self.track_recurring_candidate(c)))
         else:
-            # Tekrarlanan ödeme motoru yalnızca aylık/yıllık vade ilerletiyor;
-            # bu sıklık takibe alınamaz (bkz. insights_service::can_track).
+            # Savunmacı geri dönüş: gelecekte radarın tanıyıp ödeme motorunun
+            # henüz desteklemediği yeni bir periyot eklenirse gösterilir.
             note = MDLabel(
                 text=_t("Bu sıklık otomatik takibe alınamıyor."),
                 font_style="Caption",
@@ -351,7 +380,26 @@ class InsightsMixin:
         )
         text.bind(size=text.setter("text_size"))
         card.add_widget(text)
+        card.add_widget(MDFlatButton(
+            text=_t("GÖRDÜM"),
+            theme_text_color="Custom",
+            text_color=ftheme.accent(self.theme_cls.theme_style, "muted"),
+            on_release=lambda _button, item=anomaly: self.dismiss_anomaly(item),
+        ))
         return card
+
+    def dismiss_anomaly(self, anomaly):
+        """Anomali kartını kaynak transaction kimliğiyle kalıcı gizler."""
+        def work():
+            try:
+                from services.insights_service import dismiss_anomaly
+                dismiss_anomaly(anomaly["id"])
+            except Exception as e:
+                print("Anomali gizlenemedi:", e)
+                return
+            Clock.schedule_once(lambda dt: self.refresh_insights(), 0)
+
+        threading.Thread(target=work, daemon=True).start()
 
     # ─── Ortak ───────────────────────────────────────────────────────────────
 
