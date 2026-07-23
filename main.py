@@ -151,6 +151,7 @@ from ui.theme import (
     apply_dark_surface_tokens, restyle_text_fields, _refresh,
 )
 import ui.theme as ftheme
+from ui.i18n import tr as translate, set_language as set_active_language
 from screens.admin_screen import AdminScreen
 
 from mixins.asset_mixin import AssetMixin
@@ -177,8 +178,8 @@ ADMIN_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
 # =========================================================================
 # 6. MAIN APPLICATION CLASS
 # =========================================================================
-class FinoraApp( # type: ignore
-    MDApp, AssetMixin, DebtMixin, CalculatorMixin, TransactionMixin, 
+class FinoraApp(
+    MDApp, AssetMixin, DebtMixin, CalculatorMixin, TransactionMixin, # type: ignore
     BudgetMixin, SavingsMixin, RecurringMixin, MigrationMixin, AccountMixin, 
     InsightsMixin, HistoryMixin
 ):
@@ -194,6 +195,7 @@ class FinoraApp( # type: ignore
     home_circle_color = ColorProperty((0.5, 0.5, 0.5, 0.2))
     savings_goals = []
     theme_name = StringProperty("standard")
+    language = StringProperty("tr")
     
     _wealth_visible = True
     _liquid_balance_cache = 0.0
@@ -203,6 +205,12 @@ class FinoraApp( # type: ignore
     # Lifecycle & Initialization
     # -------------------------------------------------------------------------
     def build(self):
+        # Kivy'nin varsayılan 20 pre-frame iterasyonu, Finora'nın iç içe
+        # KivyMD/uyarlanabilir layout ağacı ilk kez ölçülürken zaman zaman
+        # yetmiyor. Uygulama tarafında -1 ile kendini planlayan bir callback
+        # yok; bu sınır yalnızca Builder'ın sonlu yerleşim zincirinin aynı
+        # karede tamamlanabilmesi için ölçülü biçimde yükseltilir.
+        Clock.max_iteration = 50
         initialize_database()
         self.store = JsonStore('savings_goals.json')
         if self.store.exists('goals'):
@@ -214,6 +222,11 @@ class FinoraApp( # type: ignore
         self.theme_cls.theme_style_switch_animation = False
         self.theme_cls.theme_style = "Light"
         self.config_store = JsonStore('finora_config.json')
+
+        language = "tr"
+        if self.config_store.exists('language'):
+            language = self.config_store.get('language').get('code', 'tr')
+        self.language = set_active_language(language)
         
         pref = "standard"
         if self.config_store.exists('theme'):
@@ -221,6 +234,54 @@ class FinoraApp( # type: ignore
             
         self.apply_theme(pref, persist=False)
         return Builder.load_file("ui/dashboard.kv")
+
+    def tr(self, text, language=None):
+        """KV ve Python arayüzünün ortak çeviri giriş noktası."""
+        return translate(text, language or self.language)
+
+    def set_language(self, code, persist=True):
+        """Uygulama dilini anında değiştirir ve tercihi kalıcılaştırır."""
+        self.language = set_active_language(code)
+        if persist:
+            try:
+                self.config_store.put('language', code=self.language)
+            except Exception as e:
+                print("Dil tercihi kaydedilemedi:", e)
+
+        # Python tarafında üretilen kartları seçilen dille yeniden oluştur.
+        if self.root:
+            chart_box = self.root.ids.get("chart_master_box")
+            if chart_box is not None:
+                pie_empty = getattr(chart_box, "_pie_empty_label", None)
+                trend_empty = getattr(chart_box, "_trend_empty_label", None)
+                if pie_empty is not None:
+                    pie_empty.text = self.tr("₺0\nVeri Yok")
+                if trend_empty is not None:
+                    trend_empty.text = self.tr("Veri Yok")
+            Clock.schedule_once(lambda dt: self.refresh_dashboard_data(), 0)
+            Clock.schedule_once(lambda dt: self.load_active_debts(), 0.05)
+            Clock.schedule_once(lambda dt: self.load_upcoming_recurring(), 0.1)
+
+    def open_language_dialog(self):
+        """Türkçe/İngilizce dil seçicisini açar."""
+        dialog = MDDialog(
+            title=self.tr("Uygulama Dili"),
+            buttons=[
+                MDFlatButton(
+                    text=translate("TÜRKÇE"),
+                    on_release=lambda _btn: (
+                        self.set_language("tr"), dialog.dismiss()
+                    ),
+                ),
+                MDRaisedButton(
+                    text=translate("ENGLISH"),
+                    on_release=lambda _btn: (
+                        self.set_language("en"), dialog.dismiss()
+                    ),
+                ),
+            ],
+        )
+        dialog.open()
 
     def on_start(self):
         self._normalize_card_shadows()
@@ -639,8 +700,13 @@ class FinoraApp( # type: ignore
             except Exception:
                 pass
 
-            _set_changed(self.root.ids.home_change_title, "text", f"Değişim ({filter_text})")
-            _set_changed(self.root.ids.today_card_title, "text", filter_text)
+            localized_filter = translate(filter_text)
+            _set_changed(
+                self.root.ids.home_change_title,
+                "text",
+                f"{translate('Değişim')} ({localized_filter})",
+            )
+            _set_changed(self.root.ids.today_card_title, "text", localized_filter)
 
             prefix = "+" if period_net > 0 else ""
             formatted_period = f"{period_net:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -680,7 +746,7 @@ class FinoraApp( # type: ignore
             projected_wealth = m["projected_wealth"]
             net_change = projected_wealth - total_balance
 
-            ode_label = (
+            ode_label = translate(
                 f"ODE Simülasyonu: Mevcut ivme ve %3,65 yıllık parametre ile "
                 f"30 gün sonraki beklenen varlık: {_fmt(projected_wealth)}"
             )
@@ -691,15 +757,15 @@ class FinoraApp( # type: ignore
             if projected_wealth < 0:
                 _set_changed(pred_icon, "icon", "alert-circle-outline")
                 _set_changed(pred_icon, "text_color", ftheme.accent(self.theme_cls, "red"))
-                _set_changed(pred_text, "text", f"{ode_label}\nDikkat: ODE modeli varlığınızın eksiye düşeceğini gösteriyor. Harcamalarınızı acilen gözden geçirin!")
+                _set_changed(pred_text, "text", translate(f"{ode_label}\nDikkat: ODE modeli varlığınızın eksiye düşeceğini gösteriyor. Harcamalarınızı acilen gözden geçirin!"))
             elif net_change < 0:
                 _set_changed(pred_icon, "icon", "trending-down")
                 _set_changed(pred_icon, "text_color", ftheme.accent(self.theme_cls, "amber"))
-                _set_changed(pred_text, "text", f"{ode_label}\nGider ivmeniz gelirinizi aşıyor; varlığınız {_fmt(abs(net_change))} azalabilir.")
+                _set_changed(pred_text, "text", translate(f"{ode_label}\nGider ivmeniz gelirinizi aşıyor; varlığınız {_fmt(abs(net_change))} azalabilir."))
             else:
                 _set_changed(pred_icon, "icon", "trending-up")
                 _set_changed(pred_icon, "text_color", ftheme.accent(self.theme_cls, "green"))
-                _set_changed(pred_text, "text", f"{ode_label}\nMevcut gelir-gider dengesiyle varlığınız {_fmt(net_change)} artış gösterebilir.")
+                _set_changed(pred_text, "text", translate(f"{ode_label}\nMevcut gelir-gider dengesiyle varlığınız {_fmt(net_change)} artış gösterebilir."))
 
         except Exception:
             pass
@@ -719,7 +785,7 @@ class FinoraApp( # type: ignore
                 self.root.ids.metric_val_savings.text = "%0,0"
 
             if 'metric_val_trend' in self.root.ids:
-                aim_text = f"{total_income:,.0f} ₺".replace(",", ".") if total_income > 0 else "Veri Yok"
+                aim_text = f"{total_income:,.0f} ₺".replace(",", ".") if total_income > 0 else translate("Veri Yok")
                 self.root.ids.metric_val_trend.text = aim_text
 
             for card_id in ("metric_card_income", "metric_card_expense",
@@ -750,13 +816,13 @@ class FinoraApp( # type: ignore
             lbl.text   = self._fmt_tr(total_wealth)
 
             if today_pnl is None:
-                pnl.text       = "Varlık fiyatları hesaplanıyor..."
+                pnl.text       = translate("Varlık fiyatları hesaplanıyor...")
                 pnl.text_color = ftheme.accent(self.theme_cls, "muted")
             else:
                 pct = (today_pnl / (total_wealth - today_pnl) * 100) if (total_wealth - today_pnl) != 0 else 0.0
                 sign = "+" if today_pnl >= 0 else "-"
                 c_sign = "+" if pct >= 0 else "-"
-                pnl.text = f"{sign}{self._fmt_tr(abs(today_pnl))} ({c_sign}{abs(pct):.2f}%) Bugün"
+                pnl.text = translate(f"{sign}{self._fmt_tr(abs(today_pnl))} ({c_sign}{abs(pct):.2f}%) Bugün")
                 
                 if today_pnl > 0: pnl.text_color = ftheme.accent(self.theme_cls, "green")
                 elif today_pnl < 0: pnl.text_color = ftheme.accent(self.theme_cls, "red")
@@ -1017,16 +1083,16 @@ class FinoraApp( # type: ignore
                     icon_name, icon_col = "cart-outline", (0.9, 0.2, 0.2, 1)
 
                 if category == "Varlık Alımı":
-                    amount_text = f"[color=#0277BD]- ₺{amount:,.2f} Yatırım[/color]"
+                    amount_text = translate(f"[color=#0277BD]- ₺{amount:,.2f} Yatırım[/color]")
                 elif category == "Varlık Satışı":
-                    amount_text = f"[color=#2E7D32]+ ₺{amount:,.2f} Satış[/color]"
+                    amount_text = translate(f"[color=#2E7D32]+ ₺{amount:,.2f} Satış[/color]")
                 elif t_type == "income":
                     amount_text = f"[color=#2E7D32]+ ₺{amount:,.2f}[/color]"
                 else:
                     amount_text = f"[color=#D32F2F]- ₺{amount:,.2f}[/color]"
 
                 data.append({
-                    "text": category,
+                    "text": translate(category),
                     "secondary_text": f"{t_date[:10]} | {amount_text}",
                     "icon_source": "",
                     "icon_name": icon_name,
@@ -1058,7 +1124,7 @@ class FinoraApp( # type: ignore
         self.root.ids.screen_manager.current = target_screen
 
     def _handle_failed_login(self):
-        self.root.ids.login_error_label.text = "Hatalı kullanıcı adı veya şifre!"
+        self.root.ids.login_error_label.text = translate("Hatalı kullanıcı adı veya şifre!")
         
         pwd_container = self.root.ids.password_container
         usr_input = self.root.ids.username_input
@@ -1154,15 +1220,15 @@ class FinoraApp( # type: ignore
         
         if last_month_exp > 0:
             change_percent = ((this_month_exp - last_month_exp) / last_month_exp) * 100
-            change_text = f"%{change_percent:.1f} arttı" if change_percent > 0 else f"%{abs(change_percent):.1f} azaldı"
+            change_text = translate(f"%{change_percent:.1f} arttı") if change_percent > 0 else translate(f"%{abs(change_percent):.1f} azaldı")
         else:
-            change_text = "karşılaştırılacak veri yok"
+            change_text = translate("karşılaştırılacak veri yok")
             
         savings_rate = ((this_month_inc - this_month_exp) / this_month_inc) * 100 if this_month_inc > 0 else 0
 
-        advice_text = (
+        advice_text = translate(
             f"Bu ay harcamalarınız geçen döneme kıyasla {change_text}.\n"
-            f"En çok harcama yapılan alan: {highest_cat_name}.\n"
+            f"En çok harcama yapılan alan: {translate(highest_cat_name)}.\n"
             f"Bu ayki net tasarruf oranınız: %{savings_rate:.1f}. Harika birikim dönemi!"
         )
 
@@ -1192,11 +1258,11 @@ class FinoraApp( # type: ignore
                 self.contact_dialog.dismiss()
 
         self.contact_dialog = MDDialog(
-            title="Bize Ulaşın",
-            text="Her türlü soru, öneri ve destek için bize aşağıdaki e-posta adresinden ulaşabilirsiniz:\n\n[b]support@finora.com[/b]",
+            title=translate("Bize Ulaşın"),
+            text=translate("Her türlü soru, öneri ve destek için bize aşağıdaki e-posta adresinden ulaşabilirsiniz:\n\n[b]support@finora.com[/b]"),
             buttons=[
-                ftheme.secondary_button("KAPAT", self.theme_cls, on_release=lambda x: self.contact_dialog.dismiss()),
-                ftheme.primary_button("E-POSTA GÖNDER", self.theme_cls, on_release=send_email),
+                ftheme.secondary_button(translate("KAPAT"), self.theme_cls, on_release=lambda x: self.contact_dialog.dismiss()),
+                ftheme.primary_button(translate("E-POSTA GÖNDER"), self.theme_cls, on_release=send_email),
             ],
         )
         if hasattr(self.contact_dialog, 'ids') and 'text' in self.contact_dialog.ids:
@@ -1205,24 +1271,26 @@ class FinoraApp( # type: ignore
 
     def confirm_delete_all_data(self):
         content = MDBoxLayout(orientation="vertical", size_hint_y=None, height="60dp")
-        self.reset_input = MDTextField(hint_text="SİL yazınız", helper_text="Onaylamak için büyük harflerle SİL yazın", helper_text_mode="persistent")
+        self.reset_input = MDTextField(hint_text=translate("SİL yazınız"), helper_text=translate("Onaylamak için büyük harflerle SİL yazın"), helper_text_mode="persistent")
         content.add_widget(self.reset_input)
 
         self.reset_dialog = MDDialog(
-            title="Tüm Verileri Sıfırla",
-            text="Tüm işlemler, varlıklar, borçlar ve hedefler kalıcı olarak silinecektir. Emin misiniz?",
+            title=translate("Tüm Verileri Sıfırla"),
+            text=translate("Tüm işlemler, varlıklar, borçlar ve hedefler kalıcı olarak silinecektir. Emin misiniz?"),
             type="custom",
             content_cls=content,
             buttons=[
-                ftheme.secondary_button("İPTAL", self.theme_cls, on_release=lambda x: self.reset_dialog.dismiss()),
-                ftheme.danger_button("SİL", self.theme_cls, on_release=self.delete_all_data),
+                ftheme.secondary_button(translate("İPTAL"), self.theme_cls, on_release=lambda x: self.reset_dialog.dismiss()),
+                ftheme.danger_button(translate("SİL"), self.theme_cls, on_release=self.delete_all_data),
             ],
         )
         self.reset_dialog.open()
 
     def delete_all_data(self, *args):
-        if hasattr(self, 'reset_input') and self.reset_input.text.strip() != "SİL":
-            toast("Silme işlemi iptal edildi. Onay için SİL yazmalısınız.")
+        expected_confirmation = "DELETE" if self.language == "en" else "SİL"
+        if (hasattr(self, 'reset_input') and
+                self.reset_input.text.strip().upper() != expected_confirmation):
+            toast(translate("Silme işlemi iptal edildi. Onay için SİL yazmalısınız."))
             return
         try:
             if hasattr(self, 'store'):
@@ -1252,7 +1320,7 @@ class FinoraApp( # type: ignore
             if 'budget_list' in self.root.ids:
                 self.root.ids.budget_list.clear_widgets()
             
-            toast("Tüm veriler başarıyla silindi!")
+            toast(translate("Tüm veriler başarıyla silindi!"))
             if hasattr(self, 'reset_dialog'):
                 self.reset_dialog.dismiss()
         except Exception as e:

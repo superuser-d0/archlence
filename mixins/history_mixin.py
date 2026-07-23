@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from kivy.clock import Clock
 from kivy.metrics import dp
 from kivymd.uix.boxlayout import MDBoxLayout
+from ui.i18n import tr as _t
 from kivymd.uix.button import MDFlatButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.label import MDLabel
@@ -53,19 +54,19 @@ class HistoryMixin:
             spacing=dp(8),
         )
         loading = MDLabel(
-            text="Defter okunuyor...",
+            text=_t("Defter okunuyor..."),
             theme_text_color="Secondary",
             halign="center",
         )
         content.add_widget(loading)
 
         self._history_dialog = MDDialog(
-            title=f"Bakiye Geçmişi (son {days_back} gün)",
+            title=_t(f"Bakiye Geçmişi (son {days_back} gün)"),
             type="custom",
             content_cls=content,
             buttons=[
                 MDFlatButton(
-                    text="KAPAT",
+                    text=_t("KAPAT"),
                     theme_text_color="Custom",
                     text_color=ftheme.accent(self.theme_cls.theme_style, "muted"),
                     on_release=lambda x: self._history_dialog.dismiss(),
@@ -96,7 +97,7 @@ class HistoryMixin:
     def _render_history_error(self, container):
         container.clear_widgets()
         lbl = MDLabel(
-            text="Geçmiş okunamadı.",
+            text=_t("Geçmiş okunamadı."),
             theme_text_color="Secondary",
             halign="center",
         )
@@ -160,7 +161,7 @@ class HistoryMixin:
 
             if result["savings_change"]:
                 savings = MDLabel(
-                    text=f"Birikim hedeflerinde: {_fmt(result['savings_change'])} değişim",
+                    text=_t(f"Birikim hedeflerinde: {_fmt(result['savings_change'])} değişim"),
                     font_style="Caption",
                     theme_text_color="Secondary",
                     size_hint_y=None,
@@ -172,7 +173,7 @@ class HistoryMixin:
             by_source = result.get("by_source") or {}
             if not by_source:
                 empty = MDLabel(
-                    text="Bu aralıkta bakiye hareketi yok.",
+                    text=_t("Bu aralıkta bakiye hareketi yok."),
                     theme_text_color="Secondary",
                     font_style="Body2",
                 )

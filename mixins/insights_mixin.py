@@ -18,6 +18,7 @@ from kivymd.uix.button import MDFlatButton, MDIconButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
 import ui.theme as ftheme
+from ui.i18n import tr as _t
 
 
 # Sağlık skoru bandı -> ftheme anlamsal renk adı. Renk doğrudan yazılmaz ki
@@ -70,6 +71,7 @@ class InsightsMixin:
                 payload["health"] = compute_financial_health_score()
             except Exception as e:
                 print("Sağlık skoru hesaplanamadı:", e)
+                payload["health_error"] = str(e)
             try:
                 from services.insights_service import detect_recurring_candidates
                 payload["candidates"] = detect_recurring_candidates()
@@ -91,7 +93,13 @@ class InsightsMixin:
         # payload and retry when Home is actually visible.
         try:
             nav = self.root.ids.bottom_nav
-            current_tab = getattr(nav.get_current_tab(), "name", None)
+            # KivyMD 1.x, sekmeleri MDBottomNavigation'ın içindeki
+            # ``ids.tab_manager`` ScreenManager'ında tutar. Bu sürümde
+            # ``get_current_tab()`` yok; onu çağırmak AttributeError üretip
+            # payload'ın sonsuza kadar ertelenmesine, kartın da
+            # "Hesaplanıyor..." durumunda kalmasına yol açıyordu.
+            tab_manager = nav.ids.tab_manager
+            current_tab = getattr(tab_manager, "current", None)
         except Exception:
             current_tab = None
         if current_tab != "home_tab":
@@ -109,6 +117,8 @@ class InsightsMixin:
         self._pending_insights_event = None
         if "health" in payload:
             self.render_health_score(payload["health"])
+        elif "health_error" in payload:
+            self.render_health_error()
         if "candidates" in payload:
             Clock.schedule_once(
                 lambda dt: self.render_recurring_candidates(payload["candidates"]), 0
@@ -133,13 +143,13 @@ class InsightsMixin:
 
             ids.health_score_value.text = f"{score:.0f}"
             ids.health_score_value.text_color = ftheme.accent(style, accent)
-            ids.health_score_label.text = score_label(score)
+            ids.health_score_label.text = _t(score_label(score))
 
             # Bileşenler: kullanıcıya skorun NEDEN o olduğunu göster.
             savings = breakdown.get("savings_rate", 0.0) * 100
             debt = breakdown.get("debt_ratio", 0.0) * 100
             volatility = breakdown.get("expense_volatility", 0.0) * 100
-            ids.health_breakdown_text.text = (
+            ids.health_breakdown_text.text = _t(
                 f"Tasarruf oranı %{savings:.0f}  ·  "
                 f"Borç/gelir %{debt:.0f}  ·  "
                 f"Gider oynaklığı %{volatility:.0f}"
@@ -149,6 +159,27 @@ class InsightsMixin:
             ids.health_score_bar.color = ftheme.accent(style, accent)
         except Exception as e:
             print("Sağlık skoru çizilemedi:", e)
+            self.render_health_error()
+
+    def render_health_error(self):
+        """Hesap/çizim hatasında kartı kalıcı yükleniyor durumundan çıkarır."""
+        try:
+            ids = self.root.ids
+            ids.health_score_value.text = "--"
+            ids.health_score_value.text_color = ftheme.accent(
+                self.theme_cls.theme_style, "red"
+            )
+            ids.health_score_label.text = _t("Hesaplanamadı")
+            ids.health_breakdown_text.text = (
+                "Finansal sağlık raporu şu anda oluşturulamadı. "
+                "Ana sayfayı yenileyerek tekrar deneyebilirsin."
+            )
+            ids.health_score_bar.value = 0
+            ids.health_score_bar.color = ftheme.accent(
+                self.theme_cls.theme_style, "red"
+            )
+        except Exception as e:
+            print("Sağlık skoru hata durumu çizilemedi:", e)
 
     # ─── 2. Abonelik radarı ("sessiz sızıntı") ───────────────────────────────
 
@@ -170,8 +201,8 @@ class InsightsMixin:
         # Toplam sızıntıyı en üstte özetle — asıl mesaj bu.
         total = sum(c["monthly_cost"] for c in self._recurring_candidates)
         summary = MDLabel(
-            text=f"Aylık toplam {_fmt(total)} tutarında {len(self._recurring_candidates)} "
-                 f"olası abonelik bulundu.",
+            text=_t(f"Aylık toplam {_fmt(total)} tutarında {len(self._recurring_candidates)} "
+                    f"olası abonelik bulundu."),
             font_style="Caption",
             theme_text_color="Secondary",
             size_hint_y=None,
@@ -196,9 +227,9 @@ class InsightsMixin:
         card.add_widget(title)
 
         detail = MDLabel(
-            text=f"{_fmt(cand['average_amount'])} × {cand['occurrences']} kez  →  "
-                 f"ayda {_fmt(cand['monthly_cost'])}\n"
-                 f"Kategori: {cand['category']}  ·  Son: {cand['last_seen']}",
+            text=_t(f"{_fmt(cand['average_amount'])} × {cand['occurrences']} kez  →  "
+                    f"ayda {_fmt(cand['monthly_cost'])}\n"
+                    f"Kategori: {cand['category']}  ·  Son: {cand['last_seen']}"),
             font_style="Caption", theme_text_color="Secondary",
             size_hint_y=None, height="40dp")
         detail.bind(size=detail.setter("text_size"))
@@ -208,7 +239,7 @@ class InsightsMixin:
                               size_hint_y=None, height="36dp")
         if cand.get("can_track", False):
             actions.add_widget(MDFlatButton(
-                text="ABONELİĞE EKLE",
+                text=_t("ABONELİĞE EKLE"),
                 theme_text_color="Custom",
                 text_color=self.theme_cls.primary_color,
                 on_release=lambda x, c=cand: self.track_recurring_candidate(c)))
@@ -216,14 +247,14 @@ class InsightsMixin:
             # Tekrarlanan ödeme motoru yalnızca aylık/yıllık vade ilerletiyor;
             # bu sıklık takibe alınamaz (bkz. insights_service::can_track).
             note = MDLabel(
-                text="Bu sıklık otomatik takibe alınamıyor.",
+                text=_t("Bu sıklık otomatik takibe alınamıyor."),
                 font_style="Caption",
                 theme_text_color="Hint",
             )
             note.bind(size=note.setter("text_size"))
             actions.add_widget(note)
         actions.add_widget(MDFlatButton(
-            text="YOKSAY",
+            text=_t("YOKSAY"),
             theme_text_color="Custom",
             text_color=ftheme.accent(self.theme_cls.theme_style, "muted"),
             on_release=lambda x, c=cand: self.dismiss_recurring_candidate(c)))
@@ -243,7 +274,7 @@ class InsightsMixin:
                 )
                 if has_active_recurring_payment(cand["name"]):
                     Clock.schedule_once(
-                        lambda dt: toast("Bu abonelik zaten kayıtlı."), 0)
+                        lambda dt: toast(_t("Bu abonelik zaten kayıtlı.")), 0)
                     return
                 insert_recurring_payment(
                     name=cand["name"],
@@ -257,10 +288,10 @@ class InsightsMixin:
                 )
             except Exception as e:
                 print("Abonelik eklenemedi:", e)
-                Clock.schedule_once(lambda dt: toast("Abonelik eklenemedi."), 0)
+                Clock.schedule_once(lambda dt: toast(_t("Abonelik eklenemedi.")), 0)
                 return
 
-            Clock.schedule_once(lambda dt: toast(f"{cand['name']} takibe alındı."), 0)
+            Clock.schedule_once(lambda dt: toast(_t(f"{cand['name']} takibe alındı.")), 0)
             Clock.schedule_once(lambda dt: self.refresh_insights(), 0)
 
         threading.Thread(target=work, daemon=True).start()
@@ -312,9 +343,9 @@ class InsightsMixin:
         card.add_widget(icon)
 
         text = MDLabel(
-            text=f"{anomaly['category']} · {_fmt(anomaly['amount'])}\n"
-                 f"Bu kategorideki ortalamanın {_fmt(anomaly['deviation'])} üzerinde "
-                 f"({anomaly['date']})",
+            text=_t(f"{_t(anomaly['category'])} · {_fmt(anomaly['amount'])}\n"
+                    f"Bu kategorideki ortalamanın {_fmt(anomaly['deviation'])} üzerinde "
+                    f"({anomaly['date']})"),
             font_style="Caption",
             theme_text_color="Secondary",
         )
@@ -326,7 +357,7 @@ class InsightsMixin:
 
     def _empty_label(self, message):
         lbl = MDLabel(
-            text=message,
+            text=_t(message),
             theme_text_color="Secondary",
             font_style="Body2",
             halign="center",

@@ -14,6 +14,7 @@ from kivymd.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDRaisedButton, MDFlatButton
 from kivymd.uix.dialog import MDDialog
+from ui.i18n import tr as _t
 from kivymd.uix.label import MDLabel
 from kivymd.uix.textfield import MDTextField
 from kivymd.uix.menu import MDDropdownMenu
@@ -36,7 +37,7 @@ class SavingsMixin:
             name = self.sg_name_input.text if self.sg_name_input.text else "Hedef"
             
             if target <= 0 or deposit <= 0:
-                toast("Lütfen 0'dan büyük tutarlar girin!")
+                toast(_t("Lütfen 0'dan büyük tutarlar girin!"))
                 return
                 
             periods = math.ceil(target / deposit)
@@ -45,18 +46,18 @@ class SavingsMixin:
                 months = periods // 30
                 days = periods % 30
                 time_str = f"{months} Ay, {days} Gün" if months > 0 else f"{days} Gün"
-                self.sg_result_label.text = f"'{name}' için gereken süre:\n{periods} Gün\n(~{time_str})"
+                self.sg_result_label.text = _t(f"'{name}' için gereken süre:\n{periods} Gün\n(~{time_str})")
             else:
                 years = periods // 12
                 months = periods % 12
                 time_str = f"{years} Yıl, {months} Ay" if years > 0 else f"{months} Ay"
-                self.sg_result_label.text = f"'{name}' için gereken süre:\n{periods} Ay\n(~{time_str})"
+                self.sg_result_label.text = _t(f"'{name}' için gereken süre:\n{periods} Ay\n(~{time_str})")
                 
             self.sg_result_label.theme_text_color = "Custom"
             self.sg_result_label.text_color = ftheme.accent(self.theme_cls, "blue")
 
         except ValueError:
-            toast("L\u00fctfen ge\u00e7erli say\u0131lar girin!")
+            toast(_t("L\u00fctfen ge\u00e7erli say\u0131lar girin!"))
 
     def commit_savings_goal(self, *args):
         """Yeni birikim hedefini listeye (maksimum 3 adet) ekler ve ana ekranı (dashboard) günceller."""
@@ -64,10 +65,10 @@ class SavingsMixin:
             target = float(self.sg_target_input.text)
             name   = self.sg_name_input.text.strip() or "Birikim Hedefim"
             if target <= 0:
-                toast("Hedef tutar 0'dan b\u00fcy\u00fck olmal\u0131d\u0131r!")
+                toast(_t("Hedef tutar 0'dan b\u00fcy\u00fck olmal\u0131d\u0131r!"))
                 return
             if len(self.savings_goals) >= 3:
-                toast("\u26a0\ufe0f En fazla 3 aktif hedef ekleyebilirsin!")
+                toast(_t("\u26a0\ufe0f En fazla 3 aktif hedef ekleyebilirsin!"))
                 return
             goal = {
                 "name":         name,
@@ -80,7 +81,7 @@ class SavingsMixin:
             goal["id"] = SavingsService.create_goal(name, target)
             self.savings_goals.append(goal)
             self.store.put('goals', data=self.savings_goals)
-            toast(f"\u2714 '{name}' hedefi eklendi!")
+            toast(_t(f"\u2714 '{name}' hedefi eklendi!"))
             self.sg_dialog.dismiss()
             # Refresh the dashboard cards
             try:
@@ -90,7 +91,7 @@ class SavingsMixin:
                 pass
                 self.safe_refresh_charts()
         except ValueError:
-            toast("L\u00fctfen ge\u00e7erli bir hedef tutar girin!")
+            toast(_t("L\u00fctfen ge\u00e7erli bir hedef tutar girin!"))
 
     def _estimate_goal_eta(self, goal):
         """Mevcut birikim hızına göre kalan ay tahminini metin olarak döndürür.
@@ -132,7 +133,8 @@ class SavingsMixin:
             current_amount=float(goal.get("current", 0)),
         )
         self.store.put("goals", data=self.savings_goals)
-        return int(goal["id"])
+        val = goal.get("id")
+        return int(val) if val is not None else 0
 
     def add_funds_to_goal(self, goal_idx, *args):
         """Belirtilen hedefe tek seferlik fon/para eklemek için bir diyalog penceresi açar.
@@ -149,7 +151,7 @@ class SavingsMixin:
             if account["account_type"] == CHECKING
         ]
         if not checking_accounts:
-            toast("Para yatırabileceğiniz vadesiz/nakit hesabı bulunamadı.")
+            toast(_t("Para yatırabileceğiniz vadesiz/nakit hesabı bulunamadı."))
             return
 
         selected_account_id = checking_accounts[0]["id"]
@@ -204,7 +206,7 @@ class SavingsMixin:
                 accounts[0] if accounts else None,
             )
             if selected is None:
-                account_btn.text = "Kullanılabilir hesap yok"
+                account_btn.text = _t("Kullanılabilir hesap yok")
                 account_btn.disabled = True
                 return
             selected_account_id = selected["id"]
@@ -239,7 +241,7 @@ class SavingsMixin:
             try:
                 amount = float(amount_field.text)
                 if amount <= 0:
-                    toast("0'dan b\u00fcy\u00fck bir tutar girin!")
+                    toast(_t("0'dan b\u00fcy\u00fck bir tutar girin!"))
                     return
                 target = float(g.get("target", 1)) or 1.0
                 old_pct = max(0.0, min(100.0, (g.get("current", 0.0) / target) * 100))
@@ -249,7 +251,7 @@ class SavingsMixin:
                     g["current"] = float(updated["current_amount"])
                 new_pct = max(0.0, min(100.0, (g["current"] / target) * 100))
                 self.store.put('goals', data=self.savings_goals)
-                toast(f"\u20ba{amount:,.2f} eklendi!")
+                toast(_t(f"\u20ba{amount:,.2f} eklendi!"))
                 fund_dlg.dismiss()
                 self.render_savings_goals(0)
                 self.safe_refresh_charts()
@@ -265,15 +267,15 @@ class SavingsMixin:
                     msg = "\U0001F389\U0001F389\U0001F389 Hedefe ula\u015ft\u0131n!" if top == 100 else f"\U0001F389 %{top} tamamland\u0131!"
                     toast(msg)
             except ValueError:
-                toast("Ge\u00e7erli bir say\u0131 girin!")
+                toast(_t("Ge\u00e7erli bir say\u0131 girin!"))
 
         fund_dlg = MDDialog(
-            title=f"{g['name']} \u2014 Para Yatır",
+            title=_t(f"{g['name']} \u2014 Para Yatır"),
             type="custom",
             content_cls=inner,
             buttons=[
-                ftheme.secondary_button("İPTAL", self.theme_cls, on_release=lambda x: fund_dlg.dismiss()),
-                ftheme.primary_button("YATIR", self.theme_cls, on_release=_do_add),
+                ftheme.secondary_button(_t("İPTAL"), self.theme_cls, on_release=lambda x: fund_dlg.dismiss()),
+                ftheme.primary_button(_t("YATIR"), self.theme_cls, on_release=_do_add),
             ]
         )
         fund_dlg.open()
@@ -323,20 +325,20 @@ class SavingsMixin:
             self._open_savings_refund_account_dialog(_finish)
 
         buttons = [
-            ftheme.secondary_button("İPTAL", self.theme_cls, on_release=lambda x: decision.dismiss()),
-            MDFlatButton(text="SADECE SİL", theme_text_color="Error", on_release=_discard),
+            ftheme.secondary_button(_t("İPTAL"), self.theme_cls, on_release=lambda x: decision.dismiss()),
+            MDFlatButton(text=_t("SADECE SİL"), theme_text_color="Error", on_release=_discard),
         ]
         if current > 0:
-            buttons.append(ftheme.primary_button("HESABA AKTAR VE SİL", self.theme_cls,
+            buttons.append(ftheme.primary_button(_t("HESABA AKTAR VE SİL"), self.theme_cls,
                                                   on_release=_open_refund))
-        decision = MDDialog(title=f"Hedefi Sil: {name}", type="custom",
+        decision = MDDialog(title=_t(f"Hedefi Sil: {name}"), type="custom",
                             content_cls=content, buttons=buttons)
         decision.open()
 
     def _open_savings_refund_account_dialog(self, on_confirm):
         accounts = [a for a in AccountService.get_accounts() if a["account_type"] == CHECKING]
         if not accounts:
-            toast("Bakiyenin aktarılabileceği vadesiz hesap bulunamadı.")
+            toast(_t("Bakiyenin aktarılabileceği vadesiz hesap bulunamadı."))
             return
         selected_id = accounts[0]["id"]
         account_btn = MDRaisedButton(size_hint_x=1, elevation=0,
@@ -366,11 +368,11 @@ class SavingsMixin:
                 refund_dialog.dismiss()
 
         refund_dialog = MDDialog(
-            title="Bakiyenin Aktarılacağı Hesap", type="custom", content_cls=content,
+            title=_t("Bakiyenin Aktarılacağı Hesap"), type="custom", content_cls=content,
             buttons=[
-                ftheme.secondary_button("İPTAL", self.theme_cls,
+                ftheme.secondary_button(_t("İPTAL"), self.theme_cls,
                                         on_release=lambda x: refund_dialog.dismiss()),
-                ftheme.primary_button("AKTAR VE SİL", self.theme_cls, on_release=_confirm),
+                ftheme.primary_button(_t("AKTAR VE SİL"), self.theme_cls, on_release=_confirm),
             ],
         )
         refund_dialog.open()
@@ -401,7 +403,7 @@ class SavingsMixin:
 
         if not self.savings_goals:
             lbl = MDLabel(
-                text="Birikim hedefi belirlenmedi — Araçlar sekmesinden hedef ekleyebilirsin!",
+                text=_t("Birikim hedefi belirlenmedi — Araçlar sekmesinden hedef ekleyebilirsin!"),
                 font_style="Caption",
                 italic=True,
                 theme_text_color="Secondary",

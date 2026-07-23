@@ -8,6 +8,7 @@ from kivymd.app import MDApp
 from kivy.clock import Clock
 from kivy.metrics import dp
 import ui.theme as ftheme
+from ui.i18n import tr as _t
 
 
 class AdminScreen(MDScreen):
@@ -37,7 +38,7 @@ class AdminScreen(MDScreen):
         conn.close()
         
         if 'stats_label' in self.ids:
-            self.ids.stats_label.text = f"Toplam İşlem Kaydı: {t_count}\nToplam Bütçe Kalemi: {b_count}"
+            self.ids.stats_label.text = _t(f"Toplam İşlem Kaydı: {t_count}\nToplam Bütçe Kalemi: {b_count}")
 
     def export_to_csv(self):
         """Tüm işlemleri Masaüstü'ne (yoksa Desktop, o da yoksa ev dizinine)
@@ -51,7 +52,7 @@ class AdminScreen(MDScreen):
             rows = cursor.fetchall()
             
             if not rows:
-                toast("Dışa aktarılacak kayıt bulunamadı.")
+                toast(_t("Dışa aktarılacak kayıt bulunamadı."))
                 return
                 
             col_names = [description[0] for description in cursor.description]
@@ -69,19 +70,19 @@ class AdminScreen(MDScreen):
                 writer = csv.writer(f)
                 writer.writerow(col_names)
                 writer.writerows(rows)
-            toast(f"Dışa aktarıldı: {filepath}")
+            toast(_t(f"Dışa aktarıldı: {filepath}"))
         except Exception as e:
-            toast(f"Hata: {e}")
+            toast(_t(f"Hata: {e}"))
         finally:
             conn.close()
 
     def confirm_factory_reset(self):
         self.reset_dialog = MDDialog(
-            title="Sistemi Sıfırla",
-            text="Tüm veriler silinecek! Onaylıyor musunuz?",
+            title=_t("Sistemi Sıfırla"),
+            text=_t("Tüm veriler silinecek! Onaylıyor musunuz?"),
             buttons=[
-                MDFlatButton(text="İPTAL", on_release=lambda x: self.reset_dialog.dismiss()),
-                MDRaisedButton(text="SIFIRLA", md_bg_color=ftheme.accent(self.theme_cls, 'red'), on_release=self.factory_reset),
+                MDFlatButton(text=_t("İPTAL"), on_release=lambda x: self.reset_dialog.dismiss()),
+                MDRaisedButton(text=_t("SIFIRLA"), md_bg_color=ftheme.accent(self.theme_cls, 'red'), on_release=self.factory_reset),
             ],
         )
         self.reset_dialog.open()
@@ -117,10 +118,8 @@ class AdminScreen(MDScreen):
         finally:
             conn.close()
 
-        toast("Sistem sıfırlandı!")
+        toast(_t("Sistem sıfırlandı!"))
 
         app = MDApp.get_running_app()
         if app:
             app.admin_logout() # type: ignore
-
-

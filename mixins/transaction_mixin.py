@@ -10,6 +10,7 @@ from services.transaction_service import TransactionService
 from services.queries import CategoryService
 import ui.theme as ftheme
 from ui.components import is_read_only_asset_account, MiniCardPreviewWidget
+from ui.i18n import tr as _t
 
 
 def _fmt(value):
@@ -34,7 +35,7 @@ class TransactionMixin:
         from kivymd.uix.selectioncontrol import MDSwitch
 
         self.selected_type = "income"
-        self.selected_category = "Kategori Seç"
+        self.selected_category = _t("Kategori Seç")
         self.selected_frequency = "monthly"
 
         # AŞAMALI GÖSTERİM: içerik artık sabit yükseklikli değil, adaptive.
@@ -47,19 +48,19 @@ class TransactionMixin:
             padding=[0, dp(4), 0, dp(4)],
         )
         self.amount_input = ftheme.make_text_field(
-            "Miktar (₺)", self.theme_cls, filter="float",
+            _t("Miktar (₺)"), self.theme_cls, filter="float",
             size_hint_y=None, height=dp(48),
         )
 
         # Segment ve butonlara açık yükseklik: adaptive konteynerde her çocuğun
         # size_hint_y=None + net height olmalı, yoksa kutu doğru ölçülmez.
         self.type_segment = MDSegmentedControl(size_hint_x=1, size_hint_y=None, height="48dp")
-        self.type_segment.add_widget(MDSegmentedControlItem(text="Gelir"))
-        self.type_segment.add_widget(MDSegmentedControlItem(text="Gider"))
+        self.type_segment.add_widget(MDSegmentedControlItem(text=_t("Gelir")))
+        self.type_segment.add_widget(MDSegmentedControlItem(text=_t("Gider")))
         self.type_segment.bind(on_active=self.on_segment_active)
 
         self.category_button = ftheme.primary_button(
-            "Kategori Seç", self.theme_cls, size_hint_x=1,
+            _t("Kategori Seç"), self.theme_cls, size_hint_x=1,
             size_hint_y=None, height=dp(44), on_release=self.open_category_menu,
         )
 
@@ -69,7 +70,7 @@ class TransactionMixin:
         # (database/db.py::adjust_account_balance işaret konvansiyonu).
         self.selected_account_id = None
         self.account_button = ftheme.primary_button(
-            "Ödeme Yöntemi", self.theme_cls,
+            _t("Ödeme Yöntemi"), self.theme_cls,
             size_hint_x=1, size_hint_y=None, height=dp(44),
             on_release=self.open_account_menu,
         )
@@ -90,7 +91,7 @@ class TransactionMixin:
         recurring_row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="44dp", spacing="12dp")
         # Taksitli mod ile karşılıklı dışlama için self üzerinde tutulur.
         self._recurring_row = recurring_row
-        recurring_lbl = MDLabel(text="Tekrarlanan Ödeme mi?", valign="center")
+        recurring_lbl = MDLabel(text=_t("Tekrarlanan Ödeme mi?"), valign="center")
         recurring_lbl.bind(size=recurring_lbl.setter('text_size'))
         self.recurring_switch = MDSwitch(size_hint_x=None, width=dp(65))
         self.recurring_switch.bind(active=self._toggle_recurring_fields)
@@ -99,17 +100,17 @@ class TransactionMixin:
 
         # ── Aşamalı olarak açılan (varsayılan GİZLİ) abonelik alanları ──────────
         self.recurring_name_input = ftheme.make_text_field(
-            "Ödeme Adı (örn: Netflix)", self.theme_cls,
+            _t("Ödeme Adı (örn: Netflix)"), self.theme_cls,
             size_hint_y=None, height=dp(48),
         )
 
         self.recurring_freq_segment = MDSegmentedControl(size_hint_x=1, size_hint_y=None, height="48dp")
-        self.recurring_freq_segment.add_widget(MDSegmentedControlItem(text="Aylık"))
-        self.recurring_freq_segment.add_widget(MDSegmentedControlItem(text="Yıllık"))
+        self.recurring_freq_segment.add_widget(MDSegmentedControlItem(text=_t("Aylık")))
+        self.recurring_freq_segment.add_widget(MDSegmentedControlItem(text=_t("Yıllık")))
         self.recurring_freq_segment.bind(on_active=self.on_recurring_freq_active)
 
         auto_deduct_row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="44dp", spacing="12dp")
-        auto_deduct_lbl = MDLabel(text="Vadesi Gelince Otomatik Düş", valign="center")
+        auto_deduct_lbl = MDLabel(text=_t("Vadesi Gelince Otomatik Düş"), valign="center")
         auto_deduct_lbl.bind(size=auto_deduct_lbl.setter('text_size'))
         self.auto_deduct_switch = MDSwitch(size_hint_x=None, width=dp(65))
         auto_deduct_row.add_widget(auto_deduct_lbl)
@@ -140,16 +141,16 @@ class TransactionMixin:
         self._installment_count_visible = False
 
         pay_type_lbl = MDLabel(
-            text="Ödeme Tipi", font_style="Caption", theme_text_color="Secondary",
+            text=_t("Ödeme Tipi"), font_style="Caption", theme_text_color="Secondary",
             size_hint_y=None, height=dp(18),
         )
         self.installment_segment = MDSegmentedControl(size_hint_x=1, size_hint_y=None, height="48dp")
-        self.installment_segment.add_widget(MDSegmentedControlItem(text="Tek Çekim"))
-        self.installment_segment.add_widget(MDSegmentedControlItem(text="Taksitli"))
+        self.installment_segment.add_widget(MDSegmentedControlItem(text=_t("Tek Çekim")))
+        self.installment_segment.add_widget(MDSegmentedControlItem(text=_t("Taksitli")))
         self.installment_segment.bind(on_active=self._on_installment_mode_active)
 
         self.installment_count_button = ftheme.primary_button(
-            f"Taksit Sayısı: {self.selected_installments}", self.theme_cls,
+            _t(f"Taksit Sayısı: {self.selected_installments}"), self.theme_cls,
             size_hint_x=1, size_hint_y=None, height=dp(44),
             on_release=self.open_installment_count_menu,
         )
@@ -174,11 +175,11 @@ class TransactionMixin:
         # _recurring_box başta EKLENMEZ: ilk görünüm sade kalsın.
 
         self.dialog = MDDialog(
-            title="Yeni Bir İşlem Ekle",
+            title=_t("Yeni Bir İşlem Ekle"),
             type="custom",
             content_cls=dialog_layout,
             buttons=[ftheme.primary_button(
-                "KAYDET", self.theme_cls, on_release=self.save_transaction
+                _t("KAYDET"), self.theme_cls, on_release=self.save_transaction
             )]
         )
         self.dialog.open()
@@ -319,7 +320,7 @@ class TransactionMixin:
 
     def _on_installment_mode_active(self, segmented_control, segmented_item):
         self._set_installment_mode(
-            "installment" if segmented_item.text == "Taksitli" else "single"
+            "installment" if segmented_item.text == _t("Taksitli") else "single"
         )
 
     def open_installment_count_menu(self, *args):
@@ -336,7 +337,7 @@ class TransactionMixin:
 
     def _set_installment_count(self, count):
         self.selected_installments = int(count)
-        self.installment_count_button.text = f"Taksit Sayısı: {count}"
+        self.installment_count_button.text = _t(f"Taksit Sayısı: {count}")
         menu = getattr(self, "installment_count_menu", None)
         if menu is not None:
             try:
@@ -346,7 +347,7 @@ class TransactionMixin:
 
     def on_recurring_freq_active(self, segmented_control, segmented_item):
         """Tekrarlanan ödeme sıklığı seçimini (Aylık/Yıllık) günceller."""
-        self.selected_frequency = "yearly" if segmented_item.text == "Yıllık" else "monthly"
+        self.selected_frequency = "yearly" if segmented_item.text == _t("Yıllık") else "monthly"
 
     def on_segment_active(self, segmented_control, segmented_item):
         """Gelir/Gider seçimi değişince türü günceller, kategori seçimini sıfırlar
@@ -356,9 +357,9 @@ class TransactionMixin:
         yöntemi de türe bağlı: gelir yalnızca vadesiz hesaba yatar (bkz.
         _valid_payment_methods), o yüzden gelire geçilince seçili kredi kartı
         varsa ilk geçerli hesaba düşürülür."""
-        self.selected_type = "expense" if segmented_item.text == "Gider" else "income"
-        self.selected_category = "Kategori Seç"
-        self.category_button.text = "Kategori Seç"
+        self.selected_type = "expense" if segmented_item.text == _t("Gider") else "income"
+        self.selected_category = _t("Kategori Seç")
+        self.category_button.text = _t("Kategori Seç")
         self._revalidate_payment_method()
         self._update_installment_visibility()
         self._update_mini_card_preview()
@@ -384,7 +385,7 @@ class TransactionMixin:
 
         if not self._payment_methods:
             self.selected_account_id = None
-            self.account_button.text = "Ödeme Yöntemi (hesap yok)"
+            self.account_button.text = _t("Ödeme Yöntemi (hesap yok)")
             self.account_button.disabled = True
             return
 
@@ -458,7 +459,7 @@ class TransactionMixin:
             print("Ödeme yöntemleri yenilenemedi:", exc)
         methods = self._valid_payment_methods()
         if not methods:
-            toast("Bu işlem türü için uygun bir hesap bulunamadı.")
+            toast(_t("Bu işlem türü için uygun bir hesap bulunamadı."))
             return
         current = next(
             (account for account in methods if account["id"] == previous_account_id),
@@ -476,7 +477,7 @@ class TransactionMixin:
 
     def _set_payment_method(self, acc, close_menu=True):
         if is_read_only_asset_account(acc):
-            toast("Aktif Varlık hesabı salt okunurdur ve ödeme yöntemi olamaz.")
+            toast(_t("Aktif Varlık hesabı salt okunurdur ve ödeme yöntemi olamaz."))
             return
         self.selected_account_id = acc["id"]
         self.account_button.text = self._payment_label(acc)
@@ -543,7 +544,7 @@ class TransactionMixin:
         self._all_categories = [str(c[1]) for c in CategoryService.get_categories(self.selected_type)]
 
         search_field = ftheme.make_text_field(
-            "Kategori ara...", self.theme_cls,
+            _t("Kategori ara..."), self.theme_cls,
             size_hint_y=None, height=dp(48),
         )
         self._category_list = MDList()
@@ -561,13 +562,16 @@ class TransactionMixin:
             """Listeyi arama sorgusuna göre (harf duyarsız) yeniden doldurur."""
             self._category_list.clear_widgets()
             q = query.strip().lower()
-            matches = [n for n in self._all_categories if q in n.lower()]
+            matches = [
+                n for n in self._all_categories
+                if q in n.lower() or q in _t(n).lower()
+            ]
             if not matches:
                 self._category_list.add_widget(
-                    OneLineListItem(text="Sonuç yok", disabled=True))
+                    OneLineListItem(text=_t("Sonuç yok"), disabled=True))
                 return
             for name in matches:
-                item = OneLineListItem(text=name)
+                item = OneLineListItem(text=_t(name))
                 item.bind(on_release=lambda inst, n=name: self.set_category(n))
                 self._category_list.add_widget(item)
 
@@ -575,18 +579,18 @@ class TransactionMixin:
         populate()
 
         self.category_dialog = MDDialog(
-            title="Kategori Seç",
+            title=_t("Kategori Seç"),
             type="custom",
             content_cls=content,
             buttons=[ftheme.secondary_button(
-                "KAPAT", self.theme_cls,
+                _t("KAPAT"), self.theme_cls,
                 on_release=lambda x: self.category_dialog.dismiss(),
             )],
         )
         self.category_dialog.open()
 
     def set_category(self, text_item):
-        self.category_button.text = text_item
+        self.category_button.text = _t(text_item)
         self.selected_category = text_item
         # Aranabilir kategori diyaloğunu kapat (eski dropdown ile de uyumlu).
         dlg = getattr(self, "category_dialog", None) or getattr(self, "category_menu", None)
@@ -602,17 +606,17 @@ class TransactionMixin:
         Doğrulama (kategori seçili mi, miktar geçerli ve pozitif mi) ana thread'de;
         AES şifreleme + DB yazma ayrı thread'de yapılır ki dialog donmasın.
         """
-        if self.selected_category == "Kategori Seç":
-            toast("Lütfen bir kategori seçin!") 
+        if self.selected_category == _t("Kategori Seç"):
+            toast(_t("Lütfen bir kategori seçin!"))
             return 
             
         try:
             user_amount = float(self.amount_input.text)
             if user_amount <= 0:
-                toast("Miktar 0'dan büyük olmalıdır!")
+                toast(_t("Miktar 0'dan büyük olmalıdır!"))
                 return
         except ValueError:
-            toast("Lütfen geçerli bir sayı girin!")
+            toast(_t("Lütfen geçerli bir sayı girin!"))
             return
 
         is_recurring = self.recurring_switch.active
@@ -627,8 +631,8 @@ class TransactionMixin:
         if (self.selected_type == "expense"
                 and getattr(self, "_installment_visible", False)
                 and getattr(self, "_installment_mode", "single") == "installment"
-                and int(getattr(self, "selected_installments", 1)) >= 2):
-            use_installments = int(self.selected_installments)
+                and getattr(self, "selected_installments", 1) >= 2):
+            use_installments = self.selected_installments
 
         # Worker başladıktan sonra form yeniden açılır/değişirse self üzerindeki
         # alanlar başka dialoga ait olabilir. DB işi ve başarı callback'i bu
@@ -643,10 +647,10 @@ class TransactionMixin:
             # ikinci kez aktif bir abonelik eklenmesin.
             from database.db import has_active_recurring_payment
             if has_active_recurring_payment(recurring_name):
-                toast("Bu isimde aktif bir aboneliğiniz zaten var!")
+                toast(_t("Bu isimde aktif bir aboneliğiniz zaten var!"))
                 return
 
-        toast("İşlem şifreleniyor...")
+        toast(_t("İşlem şifreleniyor..."))
 
         import threading
         import datetime
@@ -668,7 +672,7 @@ class TransactionMixin:
                     self.render_accounts()
                 except Exception as e:
                     print("Kart listesi tazelenemedi:", e)
-            toast("İşlem başarıyla eklendi!")
+            toast(_t("İşlem başarıyla eklendi!"))
 
         # Kredi kartı limit aşımı gibi kullanıcıya anlamlı gelen hatalarda genel
         # "bir hata oluştu" yerine gerçek sebebi göstermek için mesaj taşınır.

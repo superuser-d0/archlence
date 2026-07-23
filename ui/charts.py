@@ -12,6 +12,7 @@ from kivy.core.text import Label as CoreLabel  # type: ignore
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.app import MDApp
 from services.transaction_service import TransactionService
+from ui.i18n import tr as _t
 
 # Forward import
 from ui.components import LegendWidget
@@ -333,13 +334,13 @@ class DashboardChartManager(MDBoxLayout):
         # opacity=0 (ham 'mavi halka' görünmez), spinner döner; veri gelince
         # spinner kalkar ve grafik fade-in ile pürüzsüzce belirir.
         if pie_box:
-            pie_holder = self._make_chart_holder(self.pie_widget, "₺0\nVeri Yok")
+            pie_holder = self._make_chart_holder(self.pie_widget, _t("₺0\nVeri Yok"))
             self._pie_spinner = pie_holder._chart_spinner
             self._pie_empty_label = pie_holder._chart_empty_label
             pie_box.add_widget(pie_holder)
             pie_box.add_widget(self.legend_widget)
         if comp_box:
-            comp_holder = self._make_chart_holder(self.trend_chart, "Veri Yok")
+            comp_holder = self._make_chart_holder(self.trend_chart, _t("Veri Yok"))
             self._trend_spinner = comp_holder._chart_spinner
             self._trend_empty_label = comp_holder._chart_empty_label
             comp_box.add_widget(comp_holder)
@@ -469,8 +470,8 @@ class DashboardChartManager(MDBoxLayout):
     def _apply_data(self, raw_data, period):
         # 1. Aggregate 4-category totals for PieChart + Legend
         cat_totals = {
-            'Ana Gelir': 0, 'Ek Gelir': 0,
-            'Temel Gider': 0, 'Ekstra Gider': 0,
+            'Ana Gelir': 0.0, 'Ek Gelir': 0.0,
+            'Temel Gider': 0.0, 'Ekstra Gider': 0.0,
         }
         for tx in raw_data or []:
             t_type = tx.get('type')
@@ -611,7 +612,7 @@ class HorizontalBarChart(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.bind(pos=self.update_chart, size=self.update_chart, anim_progress=self.update_chart)
-        self.data = {"Veri Bekleniyor": 1}
+        self.data = {"Veri Bekleniyor": 1.0}
         # Gerçek renk update_chart'ta aktif temadan alınır (standart: Teal,
         # premium: Indigo); bu yalnızca tema yüklenmeden önceki geçici değer.
         self.colors = [(0.8, 0.8, 0.8, 1)]
@@ -877,7 +878,7 @@ class PieChart(Widget):
         self._redraw_trigger = Clock.create_trigger(self.update_chart, 0)
         self.bind(size=self._redraw_trigger, anim_progress=self._redraw_trigger)
         self.bind(pos=self._sync_translate)
-        self.data = {"Veri Bekleniyor": 1}
+        self.data = {"Veri Bekleniyor": 1.0}
         self.colors = [(0.8, 0.8, 0.8, 1)]
 
     def fetch_real_data(self):

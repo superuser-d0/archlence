@@ -14,6 +14,7 @@ from kivymd.toast import toast
 from kivymd.uix.button import MDRaisedButton
 
 from utils.crypto import decrypt
+from ui.i18n import tr as _t
 
 SECRET_KEY = 'finora_secure_2026'
 
@@ -37,7 +38,7 @@ class BudgetMixin:
             from kivymd.uix.button import MDRoundFlatButton
             for i in range(current_month_index, 13):
                 month_name = MONTHS[i - 1]
-                btn = MDRoundFlatButton(text=month_name)
+                btn = MDRoundFlatButton(text=_t(month_name))
                 btn.bind(on_release=lambda instance, m_idx=i: self.change_budget_month(m_idx))
                 container.add_widget(btn)
 
@@ -85,17 +86,17 @@ class BudgetMixin:
         harcanabilir_limit = planlanan_gelir - planlanan_gider
         
         # 3. SIFIRIN ALTI KONTROLÜ VE TAVSİYE MANTIĞI
-        advice_text = "Bütçeniz dengede."
+        advice_text = _t("Bütçeniz dengede.")
         icon = "check-circle"
         color = (0.18, 0.8, 0.25, 1) # Yeşil
         
         if harcanabilir_limit < 0:
-            advice_text = "Dikkat: Planlanan giderler, gelirlerinizi aşıyor. Bütçeniz eksiye düşecek!"
+            advice_text = _t("Dikkat: Planlanan giderler, gelirlerinizi aşıyor. Bütçeniz eksiye düşecek!")
             icon = "close-circle"
             color = (0.9, 0.2, 0.2, 1) # Kırmızı
             
         elif harcanabilir_limit == 0:
-            advice_text = "Dikkat: Gelir ve gideriniz başa baş. Bütçenizde hiç esneme payı yok."
+            advice_text = _t("Dikkat: Gelir ve gideriniz başa baş. Bütçenizde hiç esneme payı yok.")
             icon = "alert"
             color = (0.95, 0.6, 0.1, 1) # Turuncu
             
@@ -108,7 +109,7 @@ class BudgetMixin:
                 ay_ismi = MONTHS[target_month - 1]
             except:
                 ay_ismi = "Ocak"
-            self.root.ids.projection_label.text = f"{ay_ismi} Ayı Harcama Limitiniz: {formatted_limit}\n\n{advice_text}"
+            self.root.ids.projection_label.text = _t(f"{ay_ismi} Ayı Harcama Limitiniz: {formatted_limit}\n\n{advice_text}")
             self.root.ids.projection_icon.icon = icon
             self.root.ids.projection_icon.text_color = color
             
@@ -149,12 +150,12 @@ class BudgetMixin:
 
         # ── Inputs ───────────────────────────────────────────────────────────
         self.bp_name_input = MDTextField(
-            hint_text="Kalem Adı (Örn: Maaş, Kira)",
+            hint_text=_t("Kalem Adı (Örn: Maaş, Kira)"),
             size_hint_y=None,
             height=dp(68),
         )
         self.bp_amount_input = MDTextField(
-            hint_text="Tutar (₺)",
+            hint_text=_t("Tutar (₺)"),
             input_filter="float",
             size_hint_y=None,
             height=dp(68),
@@ -162,12 +163,12 @@ class BudgetMixin:
 
         # ── Gelir / Gider segmented control ─────────────────────────────────
         self.bp_type_segment = MDSegmentedControl(size_hint_x=1)
-        self.bp_type_segment.add_widget(MDSegmentedControlItem(text="Gelir"))
-        self.bp_type_segment.add_widget(MDSegmentedControlItem(text="Gider"))
+        self.bp_type_segment.add_widget(MDSegmentedControlItem(text=_t("Gelir")))
+        self.bp_type_segment.add_widget(MDSegmentedControlItem(text=_t("Gider")))
         self.bp_selected_type = "income"
 
         def on_seg_active(seg, item):
-            self.bp_selected_type = "expense" if item.text == "Gider" else "income"
+            self.bp_selected_type = "expense" if item.text == _t("Gider") else "income"
 
         self.bp_type_segment.bind(on_active=on_seg_active)
 
@@ -180,7 +181,7 @@ class BudgetMixin:
     padding=[dp(5), 0, dp(45), 0] # Shifted left by reducing left padding and increasing right padding
 )
         switch_label = MDLabel(
-            text="Mevcut kalemi diğer aylara da uygula",
+            text=_t("Mevcut kalemi diğer aylara da uygula"),
             theme_text_color="Primary",
             valign="center",
             halign="left",
@@ -206,13 +207,15 @@ class BudgetMixin:
         upcoming_months = ["Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
         for month_name in upcoming_months:
             btn = MDRaisedButton(
-                text=month_name,
+                text=_t(month_name),
                 size_hint=(1, None),
                 height=dp(36),
                 md_bg_color=self.theme_cls.primary_color,
                 text_color=(1, 1, 1, 1),
                 elevation=0,
             )
+            btn.month_index = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+                               "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"].index(month_name) + 1
             btn.is_selected = False
             btn.bind(on_release=self.toggle_custom_month_button)
             self.months_grid.add_widget(btn)
@@ -246,12 +249,12 @@ class BudgetMixin:
         outer_scroll.add_widget(form_layout)
 
         self.bp_dialog = MDDialog(
-            title="Bütçe Planlayıcı",
+            title=_t("Bütçe Planlayıcı"),
             type="custom",
             content_cls=outer_scroll,
             buttons=[
-                MDFlatButton(text="KAPAT", on_release=lambda x: self.bp_dialog.dismiss()),
-                MDRaisedButton(text="EKLE", on_release=self.save_budget_item),
+                MDFlatButton(text=_t("KAPAT"), on_release=lambda x: self.bp_dialog.dismiss()),
+                MDRaisedButton(text=_t("EKLE"), on_release=self.save_budget_item),
             ],
         )
         self.bp_dialog.open()
@@ -289,7 +292,7 @@ class BudgetMixin:
         conn.close()
 
         for item_id, item_type, name, amount in rows:
-            type_tr = "Gelir" if item_type == "income" else "Gider"
+            type_tr = _t("Gelir" if item_type == "income" else "Gider")
             amount_str = f"{amount:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
 
             # ── Row: [icon | text column | spacer | edit btn | delete btn] ──
@@ -370,12 +373,12 @@ class BudgetMixin:
         # Strip ALL invisible characters — prevents the Admin[] artifact
         name = self.bp_name_input.text.strip().replace('\n', '').replace('\r', '')
         if not name:
-            toast("Kalem adı boş olamaz!")
+            toast(_t("Kalem adı boş olamaz!"))
             return
         try:
             amount = float(self.bp_amount_input.text)
         except ValueError:
-            toast("Geçerli bir tutar girin!")
+            toast(_t("Geçerli bir tutar girin!"))
             return
 
         is_propagate_active = self.bp_repeat_switch.active
@@ -411,9 +414,8 @@ class BudgetMixin:
                       "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
             for child in self.months_grid.children:
                 if isinstance(child, MDRaisedButton) and getattr(child, "is_selected", False):
-                    try:
-                        m_int = MONTHS.index(child.text) + 1
-                    except ValueError:
+                    m_int = getattr(child, "month_index", None)
+                    if m_int is None:
                         continue
                     cursor.execute(
                         """INSERT INTO monthly_budget_plan (type, name, amount, target_month)
@@ -448,7 +450,7 @@ class BudgetMixin:
         conn.close()
         self.load_budget_list()
         self.generate_next_month_projection()
-        toast("Kalem silindi.")
+        toast(_t("Kalem silindi."))
 
     def edit_budget_item(self, item_id):
         """Silme işleminin yanındaki düzenle butonuna tıklandığında,

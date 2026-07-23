@@ -12,7 +12,13 @@ security/secret.key
 __pycache__/
 *.pyc
 .venv/
+venv/
 .vscode/
+
+# PyInstaller çıktıları — CI her seferinde yeniden üretir, repoya girmemeli
+build/
+dist/
+*.build/
 
 # IDE ajanlarının (Antigravity vb.) bıraktığı tek seferlik test çıktıları
 test_output*.txt

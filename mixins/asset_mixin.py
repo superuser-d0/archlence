@@ -13,6 +13,7 @@ from kivymd.uix.label import MDLabel
 
 from data.bist100 import BIST100_STOCKS
 import ui.theme as ftheme
+from ui.i18n import tr as _t
 
 # ─── Varlık / Hisse Simgeleri ─────────────────────────────────────────────────
 # Varlık türü → Material Design ikon adı
@@ -241,7 +242,7 @@ class AssetMixin:
 
         from kivymd.uix.label import MDLabel
         hint_lbl = MDLabel(
-            text="Portföyünüze eklemek istediğiniz varlık türünü seçin.",
+            text=_t("Portföyünüze eklemek istediğiniz varlık türünü seçin."),
             font_style="Body2",
             theme_text_color="Secondary",
             size_hint_y=None,
@@ -249,7 +250,7 @@ class AssetMixin:
         )
 
         type_btn = MDRaisedButton(
-            text=f"Tür Seç: {self._asset_selected_type}",
+            text=_t(f"Tür Seç: {self._asset_selected_type}"),
             size_hint_x=1,
             md_bg_color=self.theme_cls.primary_color, elevation=0,
         )
@@ -274,16 +275,16 @@ class AssetMixin:
         content.add_widget(type_btn)
 
         self.asset_type_dialog = MDDialog(
-            title="Yeni Varlık Ekle",
+            title=_t("Yeni Varlık Ekle"),
             type="custom",
             content_cls=content,
             buttons=[
                 MDFlatButton(
-                    text="İPTAL",
+                    text=_t("İPTAL"),
                     on_release=lambda x: self.asset_type_dialog.dismiss()
                 ),
                 MDRaisedButton(
-                    text="DEVAM",
+                    text=_t("DEVAM"),
                     md_bg_color=self.theme_cls.primary_color, elevation=0,
                     on_release=lambda x: self._on_asset_type_confirmed(),
                 ),
@@ -294,7 +295,7 @@ class AssetMixin:
     def _select_asset_type_main(self, asset_type, button):
         """Tür seçim diyaloğundaki dropdown için handler."""
         self._asset_selected_type = asset_type
-        button.text = f"Tür Seç: {asset_type}"
+        button.text = _t(f"Tür Seç: {asset_type}")
         self._asset_type_menu.dismiss()
 
     def _on_asset_type_confirmed(self):
@@ -332,7 +333,7 @@ class AssetMixin:
 
         # Arama kutusu
         search_field = MDTextField(
-            hint_text="Ara: Hisse adı veya sembol...",
+            hint_text=_t("Ara: Hisse adı veya sembol..."),
             size_hint_x=1,
             size_hint_y=None,
             height="48dp",
@@ -434,7 +435,7 @@ class AssetMixin:
 
         def _confirm_stock(instance):
             if not self._bist_selected_code:
-                toast("Lütfen bir hisse seçin!")
+                toast(_t("Lütfen bir hisse seçin!"))
                 return
             self._bist_dialog.dismiss()
             Clock.schedule_once(
@@ -445,17 +446,17 @@ class AssetMixin:
             )
 
         self._bist_dialog = MDDialog(
-            title="BIST 100 — Hisse Seç",
+            title=_t("BIST 100 — Hisse Seç"),
             type="custom",
             content_cls=content,
             buttons=[
                 MDFlatButton(
-                    text="GERİ",
+                    text=_t("GERİ"),
                     on_release=lambda x: (self._bist_dialog.dismiss(),
                                           Clock.schedule_once(lambda dt: self.show_add_asset_dialog(), 0.15)),
                 ),
                 MDFlatButton(
-                    text="SEÇ  ✓",
+                    text=_t("SEÇ  ✓"),
                     theme_text_color="Custom",
                     text_color=(0.08, 0.72, 0.42, 1),
                     on_release=_confirm_stock,
@@ -494,12 +495,12 @@ class AssetMixin:
         )
 
         self._asset_price_input = MDTextField(
-            hint_text="Alım Fiyatı (₺ / adet)",
+            hint_text=_t("Alım Fiyatı (₺ / adet)"),
             input_filter="float",
             size_hint_x=1,
         )
         self._asset_qty_input = MDTextField(
-            hint_text="Miktar / Lot (adet)",
+            hint_text=_t("Miktar / Lot (adet)"),
             input_filter="float",
             size_hint_x=1,
         )
@@ -513,13 +514,13 @@ class AssetMixin:
             Clock.schedule_once(lambda dt: self._show_bist100_picker(), 0.15)
 
         self._stock_price_dialog = MDDialog(
-            title="Alım Bilgileri",
+            title=_t("Alım Bilgileri"),
             type="custom",
             content_cls=content,
             buttons=[
-                MDFlatButton(text="GERİ", on_release=_go_back),
+                MDFlatButton(text=_t("GERİ"), on_release=_go_back),
                 MDRaisedButton(
-                    text="PORTFÖYE EKLE",
+                    text=_t("PORTFÖYE EKLE"),
                     md_bg_color=self.theme_cls.primary_color, elevation=0,
                     on_release=lambda x: self._save_stock_asset(),
                 ),
@@ -533,13 +534,13 @@ class AssetMixin:
         qty_text   = self._asset_qty_input.text.strip()
 
         if not price_text or not qty_text:
-            toast("Fiyat ve miktar zorunludur!")
+            toast(_t("Fiyat ve miktar zorunludur!"))
             return
         try:
             purchase_price = float(price_text.replace(",", "."))
             quantity       = float(qty_text.replace(",", "."))
         except ValueError:
-            toast("Geçersiz fiyat veya miktar!")
+            toast(_t("Geçersiz fiyat veya miktar!"))
             return
 
         asset_name = self._asset_name_input_val
@@ -568,14 +569,14 @@ class AssetMixin:
                     category="Varlık Alımı",
                     description=desc,
                 )
-                Clock.schedule_once(lambda dt: toast("Hisse eklendi! Fiyatlar güncelleniyor…"), 0)
+                Clock.schedule_once(lambda dt: toast(_t("Hisse eklendi! Fiyatlar güncelleniyor…")), 0)
                 Clock.schedule_once(lambda dt: self.load_active_assets(), 0)
                 Clock.schedule_once(lambda dt: self.load_asset_history(), 0)
                 Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                 Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
             except Exception as e:
                 print("Stock insert error:", e)
-                Clock.schedule_once(lambda dt: toast("Hisse eklenirken hata oluştu!"), 0)
+                Clock.schedule_once(lambda dt: toast(_t("Hisse eklenirken hata oluştu!")), 0)
 
         threading.Thread(target=_insert, daemon=True).start()
 
@@ -601,7 +602,7 @@ class AssetMixin:
         )
 
         search_field = MDTextField(
-            hint_text="Ara: Kripto adı veya sembol...",
+            hint_text=_t("Ara: Kripto adı veya sembol..."),
             size_hint_x=1,
             size_hint_y=None,
             height="48dp",
@@ -701,7 +702,7 @@ class AssetMixin:
 
         def _confirm_crypto(instance):
             if not self._crypto_selected_code:
-                toast("Lütfen bir kripto para seçin!")
+                toast(_t("Lütfen bir kripto para seçin!"))
                 return
             self._crypto_dialog.dismiss()
             # yfinance sembol uyumluluğu için -USD ekle (sadece yfinance isteğinde kullanılacak)
@@ -714,17 +715,17 @@ class AssetMixin:
             )
 
         self._crypto_dialog = MDDialog(
-            title="Top 100 Kripto — Seç",
+            title=_t("Top 100 Kripto — Seç"),
             type="custom",
             content_cls=content,
             buttons=[
                 MDFlatButton(
-                    text="GERİ",
+                    text=_t("GERİ"),
                     on_release=lambda x: (self._crypto_dialog.dismiss(),
                                           Clock.schedule_once(lambda dt: self.show_add_asset_dialog(), 0.15)),
                 ),
                 MDFlatButton(
-                    text="SEÇ  ✓",
+                    text=_t("SEÇ  ✓"),
                     theme_text_color="Custom",
                     text_color=(0.08, 0.72, 0.42, 1),
                     on_release=_confirm_crypto,
@@ -780,12 +781,12 @@ class AssetMixin:
         )
 
         self._asset_price_input = MDTextField(
-            hint_text="Alım Fiyatı (₺ / adet)",
+            hint_text=_t("Alım Fiyatı (₺ / adet)"),
             input_filter="float",
             size_hint_x=1,
         )
         self._asset_qty_input = MDTextField(
-            hint_text="Miktar (adet)",
+            hint_text=_t("Miktar (adet)"),
             input_filter="float",
             size_hint_x=1,
         )
@@ -799,13 +800,13 @@ class AssetMixin:
             Clock.schedule_once(lambda dt: self._show_crypto_picker(), 0.15)
 
         self._crypto_price_dialog = MDDialog(
-            title="Alım Bilgileri",
+            title=_t("Alım Bilgileri"),
             type="custom",
             content_cls=content,
             buttons=[
-                MDFlatButton(text="GERİ", on_release=_go_back),
+                MDFlatButton(text=_t("GERİ"), on_release=_go_back),
                 MDRaisedButton(
-                    text="PORTFÖYE EKLE",
+                    text=_t("PORTFÖYE EKLE"),
                     md_bg_color=self.theme_cls.primary_color, elevation=0,
                     on_release=lambda x: self._save_crypto_asset(),
                 ),
@@ -819,13 +820,13 @@ class AssetMixin:
         qty_text   = self._asset_qty_input.text.strip()
 
         if not price_text or not qty_text:
-            toast("Fiyat ve miktar zorunludur!")
+            toast(_t("Fiyat ve miktar zorunludur!"))
             return
         try:
             purchase_price = float(price_text.replace(",", "."))
             quantity       = float(qty_text.replace(",", "."))
         except ValueError:
-            toast("Geçersiz fiyat veya miktar!")
+            toast(_t("Geçersiz fiyat veya miktar!"))
             return
 
         asset_name = self._asset_name_input_val
@@ -854,14 +855,14 @@ class AssetMixin:
                     category="Varlık Alımı",
                     description=desc,
                 )
-                Clock.schedule_once(lambda dt: toast("Kripto eklendi! Fiyatlar güncelleniyor…"), 0)
+                Clock.schedule_once(lambda dt: toast(_t("Kripto eklendi! Fiyatlar güncelleniyor…")), 0)
                 Clock.schedule_once(lambda dt: self.load_active_assets(), 0)
                 Clock.schedule_once(lambda dt: self.load_asset_history(), 0)
                 Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                 Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
             except Exception as e:
                 print("Crypto insert error:", e)
-                Clock.schedule_once(lambda dt: toast("Kripto eklenirken hata oluştu!"), 0)
+                Clock.schedule_once(lambda dt: toast(_t("Kripto eklenirken hata oluştu!")), 0)
 
         threading.Thread(target=_insert, daemon=True).start()
 
@@ -899,13 +900,13 @@ class AssetMixin:
                 size_hint_y=None, height="36dp",
             )
             gold_btn = MDRaisedButton(
-                text=f"Altın Türü: {gold_types[0][0]}",
+                text=_t(f"Altın Türü: {gold_types[0][0]}"),
                 size_hint_x=1,
                 md_bg_color=GOLD_ICON_COLOR,
             )
 
             def _select_gold_type(label, symbol, friendly_name):
-                gold_btn.text = f"Altın Türü: {label}"
+                gold_btn.text = _t(f"Altın Türü: {label}")
                 self._asset_code_input.text = symbol
                 self._asset_name_input.text = friendly_name
                 self._gold_type_menu.dismiss()
@@ -949,16 +950,16 @@ class AssetMixin:
         self._refresh_type_logo_preview()
 
         self._asset_name_input = MDTextField(
-            hint_text="Varlık Adı (isteğe bağlı)",
+            hint_text=_t("Varlık Adı (isteğe bağlı)"),
             size_hint_x=1,
         )
         self._asset_price_input = MDTextField(
-            hint_text="Alım Fiyatı (₺)",
+            hint_text=_t("Alım Fiyatı (₺)"),
             input_filter="float",
             size_hint_x=1,
         )
         self._asset_qty_input = MDTextField(
-            hint_text="Miktar",
+            hint_text=_t("Miktar"),
             input_filter="float",
             size_hint_x=1,
         )
@@ -969,19 +970,19 @@ class AssetMixin:
         content.add_widget(self._asset_qty_input)
 
         self.asset_dialog = MDDialog(
-            title=f"Yeni {self._asset_selected_type} Ekle",
+            title=_t(f"Yeni {self._asset_selected_type} Ekle"),
             type="custom",
             content_cls=content,
             buttons=[
                 MDFlatButton(
-                    text="GERİ",
+                    text=_t("GERİ"),
                     on_release=lambda x: (
                         self.asset_dialog.dismiss(),
                         Clock.schedule_once(lambda dt: self.show_add_asset_dialog(), 0.15)
                     ),
                 ),
                 MDRaisedButton(
-                    text="EKLE",
+                    text=_t("EKLE"),
                     md_bg_color=self.theme_cls.primary_color, elevation=0,
                     on_release=lambda x: self._save_new_asset(),
                 ),
@@ -1114,7 +1115,7 @@ class AssetMixin:
     def _select_asset_type(self, asset_type, button, menu):
         """Eski uyumluluk — diğer varlık formu dropdown'ı için."""
         self._asset_selected_type = asset_type
-        button.text = f"Tür: {asset_type}"
+        button.text = _t(f"Tür: {asset_type}")
         menu.dismiss()
 
     def _save_new_asset(self):
@@ -1130,14 +1131,14 @@ class AssetMixin:
         qty_text    = self._asset_qty_input.text.strip()
 
         if not asset_code or not price_text or not qty_text:
-            toast("Sembol, fiyat ve miktar zorunludur!")
+            toast(_t("Sembol, fiyat ve miktar zorunludur!"))
             return
 
         try:
             purchase_price = float(price_text.replace(",", "."))
             quantity       = float(qty_text.replace(",", "."))
         except ValueError:
-            toast("Geçersiz fiyat veya miktar!")
+            toast(_t("Geçersiz fiyat veya miktar!"))
             return
 
         if not asset_name:
@@ -1170,7 +1171,7 @@ class AssetMixin:
                 )
 
                 Clock.schedule_once(
-                    lambda dt: toast("Varlık eklendi! Fiyatlar güncelleniyor…"), 0)
+                    lambda dt: toast(_t("Varlık eklendi! Fiyatlar güncelleniyor…")), 0)
                 Clock.schedule_once(lambda dt: self.load_active_assets(), 0)
                 Clock.schedule_once(lambda dt: self.load_asset_history(), 0)
                 Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
@@ -1178,7 +1179,7 @@ class AssetMixin:
             except Exception as e:
                 print("Asset insert error:", e)
                 Clock.schedule_once(
-                    lambda dt: toast("Varlık eklenirken hata oluştu!"), 0)
+                    lambda dt: toast(_t("Varlık eklenirken hata oluştu!")), 0)
 
         threading.Thread(target=_insert, daemon=True).start()
 
@@ -1187,7 +1188,7 @@ class AssetMixin:
         Arka planda load_active_assets() çağırarak yfinance'tan güncel fiyatları (₺ veya $) çeker.
         """
         from kivymd.toast import toast
-        toast("Fiyatlar anlık olarak güncelleniyor...")
+        toast(_t("Fiyatlar anlık olarak güncelleniyor..."))
         self.load_active_assets(force_refresh=True)
 
 
@@ -1236,7 +1237,7 @@ class AssetMixin:
             )
             container.add_widget(spinner)
             container.add_widget(MDLabel(
-                text="Varlıklar hazırlanıyor…", theme_text_color="Secondary",
+                text=_t("Varlıklar hazırlanıyor…"), theme_text_color="Secondary",
                 halign="center", size_hint_y=None, height="28dp",
             ))
 
@@ -1367,7 +1368,7 @@ class AssetMixin:
             )
             
             lbl = MDLabel(
-                text="Portföyünüz şu an boş.\nİlk yatırımınızı ekleyerek değerini canlı takip edin!",
+                text=_t("Portföyünüz şu an boş.\nİlk yatırımınızı ekleyerek değerini canlı takip edin!"),
                 theme_text_color="Secondary",
                 font_style="Body2",
                 halign="center",
@@ -1378,7 +1379,7 @@ class AssetMixin:
             
             btn = MDRoundFlatIconButton(
                 icon="plus",
-                text="İLK VARLIĞINI EKLE",
+                text=_t("İLK VARLIĞINI EKLE"),
                 pos_hint={"center_x": .5},
                 on_release=lambda x: self.show_add_asset_dialog(),
                 text_color=self.theme_cls.primary_color,
@@ -1420,10 +1421,10 @@ class AssetMixin:
                     )
                     existing_card._finora_cur_lbl.theme_text_color = "Secondary"
                 elif signal == "error":
-                    existing_card._finora_cur_lbl.text = "Güncellenemedi"
+                    existing_card._finora_cur_lbl.text = _t("Güncellenemedi")
                     existing_card._finora_cur_lbl.theme_text_color = "Error"
                 else:
-                    existing_card._finora_cur_lbl.text = "Fiyat alınıyor…"
+                    existing_card._finora_cur_lbl.text = _t("Fiyat alınıyor…")
                     existing_card._finora_cur_lbl.theme_text_color = "Hint"
                 if asset.get("pnl_pct") is not None:
                     sign = "+" if asset["pnl_pct"] >= 0 else ""
@@ -1433,9 +1434,9 @@ class AssetMixin:
                         f"(Toplam: {asset['total_value']:,.2f} ₺)"
                     )
                 elif signal == "error":
-                    pnl_text = "Bağlantı Hatası!"
+                    pnl_text = _t("Bağlantı Hatası!")
                 else:
-                    pnl_text = "Canlı veri bekleniyor…"
+                    pnl_text = _t("Canlı veri bekleniyor…")
                 existing_card._finora_pnl_lbl.text = pnl_text
                 existing_card._finora_pnl_lbl.text_color = pnl_color
                 continue
@@ -1499,27 +1500,27 @@ class AssetMixin:
                 height="22dp",
             )
             buy_lbl = MDLabel(
-                text=f"Alım: {asset['purchase_price']:,.4f} ₺  ×  {asset['quantity']:g}",
+                text=_t(f"Alım: {asset['purchase_price']:,.4f} ₺  ×  {asset['quantity']:g}"),
                 font_style="Caption",
                 theme_text_color="Secondary",
             )
             if asset.get("current_price") is not None:
                 cur_lbl = MDLabel(
-                    text=f"Anlık: {asset['current_price']:,.4f} ₺",
+                    text=_t(f"Anlık: {asset['current_price']:,.4f} ₺"),
                     font_style="Caption",
                     theme_text_color="Secondary",
                     halign="right",
                 )
             elif signal == "error":
                 cur_lbl = MDLabel(
-                    text="Güncellenemedi",
+                    text=_t("Güncellenemedi"),
                     font_style="Caption",
                     theme_text_color="Error",
                     halign="right",
                 )
             else:
                 cur_lbl = MDLabel(
-                    text="Fiyat alınıyor…",
+                    text=_t("Fiyat alınıyor…"),
                     font_style="Caption",
                     theme_text_color="Hint",
                     halign="right",
@@ -1536,9 +1537,9 @@ class AssetMixin:
                     f"(Toplam: {asset['total_value']:,.2f} ₺)"
                 )
             elif signal == "error":
-                pnl_text = "Bağlantı Hatası!"
+                pnl_text = _t("Bağlantı Hatası!")
             else:
-                pnl_text = "Canlı veri bekleniyor…"
+                pnl_text = _t("Canlı veri bekleniyor…")
 
             pnl_lbl = MDLabel(
                 text=pnl_text,
@@ -1610,7 +1611,7 @@ class AssetMixin:
             height="60dp",
         )
         self._sell_price_input = MDTextField(
-            hint_text="Satış fiyatı (₺ / adet)",
+            hint_text=_t("Satış fiyatı (₺ / adet)"),
             input_filter="float",
             size_hint_x=1,
         )
@@ -1630,16 +1631,16 @@ class AssetMixin:
             self._execute_sell(asset, sell_price)
 
         self._sell_dialog = MDDialog(
-            title="Varlığı Sat",
+            title=_t("Varlığı Sat"),
             type="custom",
             content_cls=layout,
             buttons=[
                 MDFlatButton(
-                    text="İPTAL",
+                    text=_t("İPTAL"),
                     on_release=lambda x: self._sell_dialog.dismiss(),
                 ),
                 MDRaisedButton(
-                    text="SAT",
+                    text=_t("SAT"),
                     md_bg_color=ftheme.accent(self.theme_cls, 'red'),
                     on_release=_confirm_sell,
                 ),
@@ -1688,7 +1689,7 @@ class AssetMixin:
             except Exception as e:
                 print("Asset sell error:", e)
                 Clock.schedule_once(
-                    lambda dt: toast("Satış işlemi başarısız!"), 0)
+                    lambda dt: toast(_t("Satış işlemi başarısız!")), 0)
 
         threading.Thread(target=_do_sell, daemon=True).start()
 

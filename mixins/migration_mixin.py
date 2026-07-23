@@ -3,6 +3,7 @@ import threading
 
 from kivy.clock import Clock
 from kivymd.toast import toast
+from ui.i18n import tr as _t
 
 
 class MigrationMixin:
@@ -13,18 +14,18 @@ class MigrationMixin:
 
     def export_data_csv(self):
         """Tüm verileri çözülmüş CSV olarak masaüstüne/uygulama dizinine yazar."""
-        toast("Veriler dışa aktarılıyor...")
+        toast(_t("Veriler dışa aktarılıyor..."))
 
         def _worker():
             try:
                 from services.migration_service import export_all_to_csv
                 path, count = export_all_to_csv()
                 Clock.schedule_once(
-                    lambda dt: toast(f"{count} kayıt dışa aktarıldı:\n{path}"), 0)
+                    lambda dt: toast(_t(f"{count} kayıt dışa aktarıldı:\n{path}")), 0)
             except Exception as e:
                 print("CSV export error:", e)
                 Clock.schedule_once(
-                    lambda dt: toast("Dışa aktarma sırasında hata oluştu!"), 0)
+                    lambda dt: toast(_t("Dışa aktarma sırasında hata oluştu!")), 0)
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -49,20 +50,20 @@ class MigrationMixin:
         def _confirm(instance):
             selection = chooser.selection
             if not selection:
-                toast("Lütfen bir CSV dosyası seçin!")
+                toast(_t("Lütfen bir CSV dosyası seçin!"))
                 return
             self._import_dialog.dismiss()
             self._import_csv_file(selection[0])
 
         self._import_dialog = MDDialog(
-            title="CSV'den İçe Aktar",
+            title=_t("CSV'den İçe Aktar"),
             type="custom",
             content_cls=content,
             buttons=[
-                MDFlatButton(text="İPTAL",
+                MDFlatButton(text=_t("İPTAL"),
                              on_release=lambda x: self._import_dialog.dismiss()),
                 MDFlatButton(
-                    text="İÇE AKTAR",
+                    text=_t("İÇE AKTAR"),
                     theme_text_color="Custom",
                     text_color=(0.08, 0.72, 0.42, 1),
                     on_release=_confirm,
@@ -74,7 +75,7 @@ class MigrationMixin:
     def _import_csv_file(self, path):
         """Seçilen CSV'yi arka planda içeri alır; bitince listeleri ve
         bakiyeyi tazeler."""
-        toast("İçe aktarılıyor, lütfen bekleyin...")
+        toast(_t("İçe aktarılıyor, lütfen bekleyin..."))
 
         def _worker():
             try:
@@ -83,7 +84,7 @@ class MigrationMixin:
 
                 def _done(dt):
                     if imported == 0:
-                        toast("Dosyada içe aktarılabilir işlem bulunamadı!")
+                        toast(_t("Dosyada içe aktarılabilir işlem bulunamadı!"))
                         return
                     sign = "+" if net_delta >= 0 else "-"
                     msg = f"{imported} işlem içe aktarıldı (bakiye etkisi: {sign}₺{abs(net_delta):,.2f})"
@@ -100,7 +101,7 @@ class MigrationMixin:
             except Exception as e:
                 print("CSV import error:", e)
                 Clock.schedule_once(
-                    lambda dt: toast("İçe aktarma sırasında hata oluştu!"), 0)
+                    lambda dt: toast(_t("İçe aktarma sırasında hata oluştu!")), 0)
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -114,12 +115,12 @@ class MigrationMixin:
         content = MDBoxLayout(orientation="vertical", size_hint_y=None, height=dp(112))
         md_list = MDList()
         
-        export_item = OneLineIconListItem(text="CSV Olarak Dışa Aktar")
+        export_item = OneLineIconListItem(text=_t("CSV Olarak Dışa Aktar"))
         export_icon = IconLeftWidget(icon="file-export-outline")
         export_item.add_widget(export_icon)
         export_item.bind(on_release=lambda x: self._on_export_selected(self._data_privacy_dialog))
         
-        import_item = OneLineIconListItem(text="CSV'den İçe Aktar")
+        import_item = OneLineIconListItem(text=_t("CSV'den İçe Aktar"))
         import_icon = IconLeftWidget(icon="file-import-outline")
         import_item.add_widget(import_icon)
         import_item.bind(on_release=lambda x: self._on_import_selected(self._data_privacy_dialog))
@@ -129,7 +130,7 @@ class MigrationMixin:
         content.add_widget(md_list)
         
         self._data_privacy_dialog = MDDialog(
-            title="Veriler ve Gizlilik",
+            title=_t("Veriler ve Gizlilik"),
             type="custom",
             content_cls=content,
         )

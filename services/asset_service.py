@@ -61,12 +61,15 @@ def invalidate_asset_data_cache(deleted_account_id=None, deleted_card_debt=0.0):
                 "card_debt": max(0.0, old_card_debt - debt),
                 "net": float(old_summary.get("net") or 0) + debt,
             }
+            accounts_raw = previous.get("accounts")
+            accounts_list = accounts_raw if isinstance(accounts_raw, list) else []
             accounts = [
-                account for account in (previous.get("accounts") or [])
-                if int(account["id"]) != account_id
+                account for account in accounts_list
+                if isinstance(account, dict) and int(account.get("id", 0)) != account_id
             ]
-            recent = dict(previous.get("recent") or {})
-            recent.pop(account_id, None)
+            recent_raw = previous.get("recent")
+            recent_dict = recent_raw if isinstance(recent_raw, dict) else {}
+            recent = dict(recent_dict)
             recent.pop(str(account_id), None)
             _asset_data_cache = {
                 "summary": summary,

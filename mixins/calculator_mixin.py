@@ -11,6 +11,7 @@ from kivymd.uix.gridlayout import MDGridLayout
 from kivymd.uix.segmentedcontrol import MDSegmentedControl, MDSegmentedControlItem
 from kivymd.uix.label import MDLabel
 import ui.theme as ftheme
+from ui.i18n import tr as _t
 
 
 class CalculatorMixin:
@@ -28,8 +29,8 @@ class CalculatorMixin:
             self.calc_layout = MDBoxLayout(orientation="vertical", spacing="10dp", size_hint_y=None, height="380dp")
             
             self.calc_input = MDTextField(
-                text="",
-                hint_text="0", 
+                text=_t(""),
+                hint_text=_t("0"),
                 halign="right", 
                 readonly=True, 
                 font_size="28sp",
@@ -57,7 +58,7 @@ class CalculatorMixin:
                 if not btn_text:
                     return
 
-                if current_text == "Hata":
+                if current_text == _t("Hata"):
                     current_text = ""
                 
                 if btn_text == 'C':
@@ -72,7 +73,7 @@ class CalculatorMixin:
                         result = str(eval(current_text, {"__builtins__": None}, safe_dict))
                         self.calc_input.text = result
                     except Exception:
-                        self.calc_input.text = "Hata"
+                        self.calc_input.text = _t("Hata")
                 else:
                     self.calc_input.text = current_text + btn_text
 
@@ -105,12 +106,12 @@ class CalculatorMixin:
             self.calc_layout.add_widget(self.calc_grid)
 
             self.calc_dialog = MDDialog(
-                title="Bilimsel Hesap Makinesi",
+                title=_t("Bilimsel Hesap Makinesi"),
                 type="custom",
                 content_cls=self.calc_layout,
                 buttons=[
                     MDFlatButton(
-                        text="KAPAT",
+                        text=_t("KAPAT"),
                         on_release=lambda x: self.calc_dialog.dismiss(),
                         theme_text_color="Custom",
                         text_color=ftheme.accent(self.theme_cls, 'muted'),
@@ -121,10 +122,10 @@ class CalculatorMixin:
             
         elif calc_type == "interest":
             self.int_layout = MDBoxLayout(orientation="vertical", spacing="15dp", size_hint_y=None, height="280dp")
-            self.int_principal = MDTextField(hint_text="Ana Para (₺)", input_filter="float")
-            self.int_rate = MDTextField(hint_text="Yıllık Faiz Oranı (%)", input_filter="float")
-            self.int_days = MDTextField(hint_text="Vade (Gün)", input_filter="int")
-            self.int_result_label = MDLabel(text="Sonuç bekleniyor...", theme_text_color="Primary", bold=True, halign="center", font_style="Subtitle2")
+            self.int_principal = MDTextField(hint_text=_t("Ana Para (₺)"), input_filter="float")
+            self.int_rate = MDTextField(hint_text=_t("Yıllık Faiz Oranı (%)"), input_filter="float")
+            self.int_days = MDTextField(hint_text=_t("Vade (Gün)"), input_filter="int")
+            self.int_result_label = MDLabel(text=_t("Sonuç bekleniyor..."), theme_text_color="Primary", bold=True, halign="center", font_style="Subtitle2")
             
             self.int_layout.add_widget(self.int_principal)
             self.int_layout.add_widget(self.int_rate)
@@ -132,10 +133,10 @@ class CalculatorMixin:
             self.int_layout.add_widget(self.int_result_label)
             
             self.int_dialog = MDDialog(
-                title="Faiz Getirisi", type="custom", content_cls=self.int_layout,
+                title=_t("Faiz Getirisi"), type="custom", content_cls=self.int_layout,
                 buttons=[
-                    MDFlatButton(text="KAPAT", on_release=lambda x: self.int_dialog.dismiss()),
-                    MDRaisedButton(text="HESAPLA", on_release=self.calculate_interest)
+                    MDFlatButton(text=_t("KAPAT"), on_release=lambda x: self.int_dialog.dismiss()),
+                    MDRaisedButton(text=_t("HESAPLA"), on_release=self.calculate_interest)
                 ]
             )
             self.int_dialog.open()
@@ -144,18 +145,18 @@ class CalculatorMixin:
             self.comp_layout = MDBoxLayout(orientation="vertical", spacing="10dp", size_hint_y=None, height="380dp")
             
             self.comp_mode = MDSegmentedControl(size_hint_x=1)
-            self.comp_mode.add_widget(MDSegmentedControlItem(text="Basit"))
-            self.comp_mode.add_widget(MDSegmentedControlItem(text="Gelişmiş"))
+            self.comp_mode.add_widget(MDSegmentedControlItem(text=_t("Basit")))
+            self.comp_mode.add_widget(MDSegmentedControlItem(text=_t("Gelişmiş")))
             self.comp_mode.bind(on_active=self.toggle_compound_mode)
             
-            self.comp_principal = MDTextField(hint_text="Ana Para (₺)", input_filter="float")
-            self.comp_rate = MDTextField(hint_text="Yıllık Faiz Oranı (%)", input_filter="float")
-            self.comp_time = MDTextField(hint_text="Süre (Yıl)", input_filter="int")
+            self.comp_principal = MDTextField(hint_text=_t("Ana Para (₺)"), input_filter="float")
+            self.comp_rate = MDTextField(hint_text=_t("Yıllık Faiz Oranı (%)"), input_filter="float")
+            self.comp_time = MDTextField(hint_text=_t("Süre (Yıl)"), input_filter="int")
             
             # Gelişmiş mod için
-            self.comp_deposit = MDTextField(hint_text="Aylık Eklenen Tutar (₺)", input_filter="float", opacity=0, disabled=True)
+            self.comp_deposit = MDTextField(hint_text=_t("Aylık Eklenen Tutar (₺)"), input_filter="float", opacity=0, disabled=True)
             
-            self.comp_result_label = MDLabel(text="Sonuç bekleniyor...", theme_text_color="Primary", bold=True, halign="center", font_style="Subtitle2")
+            self.comp_result_label = MDLabel(text=_t("Sonuç bekleniyor..."), theme_text_color="Primary", bold=True, halign="center", font_style="Subtitle2")
             
             self.comp_layout.add_widget(self.comp_mode)
             self.comp_layout.add_widget(self.comp_principal)
@@ -165,10 +166,10 @@ class CalculatorMixin:
             self.comp_layout.add_widget(self.comp_result_label)
             
             self.comp_dialog = MDDialog(
-                title="Bileşik Faiz", type="custom", content_cls=self.comp_layout,
+                title=_t("Bileşik Faiz"), type="custom", content_cls=self.comp_layout,
                 buttons=[
-                    MDFlatButton(text="KAPAT", on_release=lambda x: self.comp_dialog.dismiss()),
-                    MDRaisedButton(text="HESAPLA", on_release=self.calculate_compound)
+                    MDFlatButton(text=_t("KAPAT"), on_release=lambda x: self.comp_dialog.dismiss()),
+                    MDRaisedButton(text=_t("HESAPLA"), on_release=self.calculate_compound)
                 ]
             )
             self.comp_dialog.open()
@@ -180,27 +181,27 @@ class CalculatorMixin:
             self.loan_layout.bind(minimum_height=self.loan_layout.setter('height'))
             
             self.loan_mode = MDSegmentedControl(size_hint_x=1)
-            self.loan_mode.add_widget(MDSegmentedControlItem(text="Basit"))
-            self.loan_mode.add_widget(MDSegmentedControlItem(text="Gelişmiş"))
+            self.loan_mode.add_widget(MDSegmentedControlItem(text=_t("Basit")))
+            self.loan_mode.add_widget(MDSegmentedControlItem(text=_t("Gelişmiş")))
             self.loan_mode.bind(on_active=self.toggle_loan_mode)
             
-            self.loan_custom_name = MDTextField(hint_text="Borç/Kredi Adı (Örn: Araba Kredisi)", max_text_length=30)
-            self.loan_amount = MDTextField(hint_text="Kredi Tutarı (₺)", input_filter="float")
-            self.loan_rate = MDTextField(hint_text="Aylık Faiz Oranı (%)", input_filter="float")
-            self.loan_term = MDTextField(hint_text="Vade (Ay - Maks 36)", input_filter="int")
+            self.loan_custom_name = MDTextField(hint_text=_t("Borç/Kredi Adı (Örn: Araba Kredisi)"), max_text_length=30)
+            self.loan_amount = MDTextField(hint_text=_t("Kredi Tutarı (₺)"), input_filter="float")
+            self.loan_rate = MDTextField(hint_text=_t("Aylık Faiz Oranı (%)"), input_filter="float")
+            self.loan_term = MDTextField(hint_text=_t("Vade (Ay - Maks 36)"), input_filter="int")
             
             self.loan_type_selected = "İhtiyaç"
             self.loan_type = MDSegmentedControl(size_hint_x=1, opacity=0, disabled=True)
-            self.loan_type.add_widget(MDSegmentedControlItem(text="İhtiyaç"))
-            self.loan_type.add_widget(MDSegmentedControlItem(text="Taşıt"))
-            self.loan_type.add_widget(MDSegmentedControlItem(text="Konut"))
+            self.loan_type.add_widget(MDSegmentedControlItem(text=_t("İhtiyaç")))
+            self.loan_type.add_widget(MDSegmentedControlItem(text=_t("Taşıt")))
+            self.loan_type.add_widget(MDSegmentedControlItem(text=_t("Konut")))
             self.loan_type.bind(on_active=self.update_loan_type)
             
             self.custom_expenses = []
             
             self.expense_header_layout = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="40dp", opacity=0, disabled=True)
-            self.expense_header_label = MDLabel(text="Özel Masraflar (0/10)", font_style="Caption")
-            self.add_expense_btn = MDFlatButton(text="+ EKLE", on_release=self.open_expense_dialog, text_color=(0.13, 0.59, 0.95, 1))
+            self.expense_header_label = MDLabel(text=_t("Özel Masraflar (0/10)"), font_style="Caption")
+            self.add_expense_btn = MDFlatButton(text=_t("+ EKLE"), on_release=self.open_expense_dialog, text_color=(0.13, 0.59, 0.95, 1))
             self.expense_header_layout.add_widget(self.expense_header_label)
             self.expense_header_layout.add_widget(self.add_expense_btn)
             
@@ -209,7 +210,7 @@ class CalculatorMixin:
             self.expense_list_layout.bind(minimum_height=self.expense_list_layout.setter('height'))
             self.expense_list_scroll.add_widget(self.expense_list_layout)
             
-            self.loan_result_label = MDLabel(text="Hesaplama bekleniyor...", theme_text_color="Primary", bold=True, halign="center", font_style="Subtitle2")
+            self.loan_result_label = MDLabel(text=_t("Hesaplama bekleniyor..."), theme_text_color="Primary", bold=True, halign="center", font_style="Subtitle2")
             
             self.loan_layout.add_widget(self.loan_mode)
             self.loan_layout.add_widget(self.loan_custom_name)
@@ -223,15 +224,15 @@ class CalculatorMixin:
             
             self.loan_scroll.add_widget(self.loan_layout)
             
-            self.loan_table_btn = MDRaisedButton(text="TABLO", on_release=self.show_payment_plan_table, opacity=0, disabled=True, md_bg_color=self.theme_cls.primary_color, elevation=0)
-            self.add_debt_btn = MDRaisedButton(text="Borç Olarak Ekle", on_release=self.add_loan_to_debts, opacity=0, disabled=True, md_bg_color=self.theme_cls.primary_color, elevation=0)
+            self.loan_table_btn = MDRaisedButton(text=_t("TABLO"), on_release=self.show_payment_plan_table, opacity=0, disabled=True, md_bg_color=self.theme_cls.primary_color, elevation=0)
+            self.add_debt_btn = MDRaisedButton(text=_t("Borç Olarak Ekle"), on_release=self.add_loan_to_debts, opacity=0, disabled=True, md_bg_color=self.theme_cls.primary_color, elevation=0)
             self.loan_dialog = MDDialog(
-                title="Kredi Hesaplama", type="custom", content_cls=self.loan_scroll,
+                title=_t("Kredi Hesaplama"), type="custom", content_cls=self.loan_scroll,
                 buttons=[
-                    MDFlatButton(text="KAPAT", on_release=lambda x: self.loan_dialog.dismiss()),
+                    MDFlatButton(text=_t("KAPAT"), on_release=lambda x: self.loan_dialog.dismiss()),
                     self.loan_table_btn,
                     self.add_debt_btn,
-                    MDRaisedButton(text="HESAPLA", on_release=self.calculate_loan)
+                    MDRaisedButton(text=_t("HESAPLA"), on_release=self.calculate_loan)
                 ]
             )
             self.loan_dialog.open()
@@ -240,13 +241,13 @@ class CalculatorMixin:
             self.sg_auto_deposit = False
             self.sg_layout = MDBoxLayout(orientation="vertical", spacing="10dp", size_hint_y=None, height="420dp")
 
-            self.sg_name_input   = MDTextField(hint_text="Hedef Ad\u0131 (\u00d6rn: Raspberry Pi Projesi)", max_text_length=30)
-            self.sg_target_input = MDTextField(hint_text="Hedef Miktar (\u20ba)", input_filter="float")
-            self.sg_deposit_input= MDTextField(hint_text="D\u00fczenli Eklenecek Tutar (\u20ba)", input_filter="float")
+            self.sg_name_input   = MDTextField(hint_text=_t("Hedef Ad\u0131 (\u00d6rn: Raspberry Pi Projesi)"), max_text_length=30)
+            self.sg_target_input = MDTextField(hint_text=_t("Hedef Miktar (\u20ba)"), input_filter="float")
+            self.sg_deposit_input= MDTextField(hint_text=_t("D\u00fczenli Eklenecek Tutar (\u20ba)"), input_filter="float")
 
             self.sg_period_segment = MDSegmentedControl(size_hint_x=1)
-            self.sg_period_segment.add_widget(MDSegmentedControlItem(text="G\u00fcnl\u00fck"))
-            self.sg_period_segment.add_widget(MDSegmentedControlItem(text="Ayl\u0131k"))
+            self.sg_period_segment.add_widget(MDSegmentedControlItem(text=_t("G\u00fcnl\u00fck")))
+            self.sg_period_segment.add_widget(MDSegmentedControlItem(text=_t("Ayl\u0131k")))
             self.sg_period = "G\u00fcnl\u00fck"
             self.sg_period_segment.bind(on_active=self.update_sg_period)
 
@@ -254,7 +255,7 @@ class CalculatorMixin:
             from kivymd.uix.selectioncontrol import MDSwitch
             switch_row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="44dp", spacing="12dp")
             switch_lbl = MDLabel(
-                text="Bu tutar her d\u00f6nem otomatik eklensin mi?",
+                text=_t("Bu tutar her d\u00f6nem otomatik eklensin mi?"),
                 valign="center",
             )
             switch_lbl.bind(size=switch_lbl.setter('text_size'))
@@ -266,7 +267,7 @@ class CalculatorMixin:
             switch_row.add_widget(self.sg_auto_switch)
 
             self.sg_result_label = MDLabel(
-                text="Hesaplama bekleniyor...",
+                text=_t("Hesaplama bekleniyor..."),
                 theme_text_color="Primary", bold=True, halign="center", font_style="Subtitle2"
             )
 
@@ -278,11 +279,11 @@ class CalculatorMixin:
             self.sg_layout.add_widget(self.sg_result_label)
 
             self.sg_dialog = MDDialog(
-                title="Birikim Hedefi", type="custom", content_cls=self.sg_layout,
+                title=_t("Birikim Hedefi"), type="custom", content_cls=self.sg_layout,
                 buttons=[
-                    MDFlatButton(text="KAPAT", on_release=lambda x: self.sg_dialog.dismiss()),
-                    MDRaisedButton(text="HESAPLA", on_release=self.calculate_savings_goal),
-                    MDRaisedButton(text="HEDEFE EKLE", on_release=self.commit_savings_goal, md_bg_color=self.theme_cls.primary_color, elevation=0),
+                    MDFlatButton(text=_t("KAPAT"), on_release=lambda x: self.sg_dialog.dismiss()),
+                    MDRaisedButton(text=_t("HESAPLA"), on_release=self.calculate_savings_goal),
+                    MDRaisedButton(text=_t("HEDEFE EKLE"), on_release=self.commit_savings_goal, md_bg_color=self.theme_cls.primary_color, elevation=0),
                 ]
             )
             self.sg_dialog.open()
@@ -298,7 +299,7 @@ class CalculatorMixin:
             deposit = float(self.comp_deposit.text) if self.comp_deposit.text else 0.0
             
             if p <= 0 or r <= 0 or t <= 0:
-                toast("Lütfen 0'dan büyük değerler girin!")
+                toast(_t("Lütfen 0'dan büyük değerler girin!"))
                 return
                 
             # Bileşik faiz (Yıllık bileşme)
@@ -318,11 +319,11 @@ class CalculatorMixin:
             f_profit = f"{profit:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             f_amount = f"{amount:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            self.comp_result_label.text = f"Yatırım: {f_invest}\nKazanç: + {f_profit}\nToplam: {f_amount}"
+            self.comp_result_label.text = _t(f"Yatırım: {f_invest}\nKazanç: + {f_profit}\nToplam: {f_amount}")
             self.comp_result_label.theme_text_color = "Custom"
             self.comp_result_label.text_color = (0.6, 0.2, 0.8, 1)
         except ValueError:
-            toast("Lütfen geçerli sayılar girin!")
+            toast(_t("Lütfen geçerli sayılar girin!"))
 
     def calculate_loan(self, *args):
         """Kredi hesaplar (Anüite formülü: Taksit = P * (i * (1+i)^n) / ((1+i)^n - 1)).
@@ -334,7 +335,7 @@ class CalculatorMixin:
             n = int(self.loan_term.text)
             
             if p <= 0 or r_percent <= 0 or n <= 0:
-                toast("Lütfen 0'dan büyük değerler girin!")
+                toast(_t("Lütfen 0'dan büyük değerler girin!"))
                 return
             
             # --- YENİ DİNAMİK VADE KONTROLÜ ---
@@ -347,7 +348,7 @@ class CalculatorMixin:
                     max_term = 120
                     
             if n > max_term:
-                toast(f"Seçtiğiniz kredi türü için vade en fazla {max_term} ay olabilir!")
+                toast(_t(f"Seçtiğiniz kredi türü için vade en fazla {max_term} ay olabilir!"))
                 return
             # -----------------------------------
                 
@@ -444,7 +445,7 @@ class CalculatorMixin:
             }
             
         except ValueError:
-            toast("Lütfen tüm alanları sayılarla doldurun!")
+            toast(_t("Lütfen tüm alanları sayılarla doldurun!"))
 
     def export_plan_to_pdf(self, *args):
         """Kredi ödeme planını masaüstüne 'Ödeme_Planı.pdf' olarak dışa aktarır."""
@@ -509,7 +510,7 @@ class CalculatorMixin:
         
         filepath = os.path.join(desk_dir, "Ödeme_Planı.pdf")
         pdf.output(filepath)
-        toast(f"PDF kaydedildi: {filepath}")
+        toast(_t(f"PDF kaydedildi: {filepath}"))
 
 
     # ── Kredi/faiz hesaplayıcı yardımcıları ──────────────────────────────
@@ -519,7 +520,7 @@ class CalculatorMixin:
 
     def toggle_compound_mode(self, segment, item):
         """Bileşik faiz hesaplayıcısında basit/gelişmiş mod geçişini yönetir."""
-        if item.text == "Gelişmiş":
+        if item.text == _t("Gelişmiş"):
             self.comp_deposit.opacity = 1
             self.comp_deposit.disabled = False
         else:
@@ -529,7 +530,7 @@ class CalculatorMixin:
 
     def toggle_loan_mode(self, segment, item):
         """Kredi hesaplayıcısında gelişmiş mod açıldığında özel masraf alanlarını görünür yapar."""
-        if item.text == "Gelişmiş":
+        if item.text == _t("Gelişmiş"):
             self.loan_type.opacity = 1
             self.loan_type.disabled = False
             self.expense_header_layout.opacity = 1
@@ -549,33 +550,33 @@ class CalculatorMixin:
         self.loan_type_selected = item.text
         
         # Seçime göre dinamik hint_text (İpucu) güncellemesi
-        if item.text == "İhtiyaç":
-            self.loan_term.hint_text = "Vade (Ay - Maks 36)"
-        elif item.text == "Taşıt":
-            self.loan_term.hint_text = "Vade (Ay - Maks 48)"
-        elif item.text == "Konut":
-            self.loan_term.hint_text = "Vade (Ay - Maks 120)"
+        if item.text == _t("İhtiyaç"):
+            self.loan_term.hint_text = _t("Vade (Ay - Maks 36)")
+        elif item.text == _t("Taşıt"):
+            self.loan_term.hint_text = _t("Vade (Ay - Maks 48)")
+        elif item.text == _t("Konut"):
+            self.loan_term.hint_text = _t("Vade (Ay - Maks 120)")
         
     def open_expense_dialog(self, *args):
         """Krediye özel masraf eklemek için bir diyalog penceresi açar (maks. 10 masraf)."""
         if len(self.custom_expenses) >= 10:
-            toast("Maksimum 10 masraf ekleyebilirsiniz.")
+            toast(_t("Maksimum 10 masraf ekleyebilirsiniz."))
             return
             
         self.exp_dialog_layout = MDBoxLayout(orientation="vertical", spacing="10dp", size_hint_y=None, height="260dp")
         
-        self.exp_name = MDTextField(hint_text="Masraf Adı (Örn: Ekspertiz)", max_text_length=30)
+        self.exp_name = MDTextField(hint_text=_t("Masraf Adı (Örn: Ekspertiz)"), max_text_length=30)
         
         self.exp_type_segment = MDSegmentedControl(size_hint_x=1)
-        self.exp_type_segment.add_widget(MDSegmentedControlItem(text="Tek Seferlik"))
-        self.exp_type_segment.add_widget(MDSegmentedControlItem(text="Çok Seferlik"))
+        self.exp_type_segment.add_widget(MDSegmentedControlItem(text=_t("Tek Seferlik")))
+        self.exp_type_segment.add_widget(MDSegmentedControlItem(text=_t("Çok Seferlik")))
         
-        self.exp_amount = MDTextField(hint_text="Toplam Tutar (₺)", input_filter="float")
+        self.exp_amount = MDTextField(hint_text=_t("Toplam Tutar (₺)"), input_filter="float")
         
-        self.exp_term = MDTextField(hint_text="Süre (Ay)", input_filter="int", opacity=0, disabled=True)
+        self.exp_term = MDTextField(hint_text=_t("Süre (Ay)"), input_filter="int", opacity=0, disabled=True)
         
         def toggle_term_field(segment, item):
-            if item.text == "Çok Seferlik":
+            if item.text == _t("Çok Seferlik"):
                 self.exp_term.opacity = 1
                 self.exp_term.disabled = False
             else:
@@ -591,12 +592,12 @@ class CalculatorMixin:
         self.exp_dialog_layout.add_widget(self.exp_term)
         
         self.expense_dialog = MDDialog(
-            title="Özel Masraf Ekle",
+            title=_t("Özel Masraf Ekle"),
             type="custom",
             content_cls=self.exp_dialog_layout,
             buttons=[
-                MDFlatButton(text="İPTAL", on_release=lambda x: self.expense_dialog.dismiss()),
-                MDFlatButton(text="EKLE", on_release=self.add_custom_expense)
+                MDFlatButton(text=_t("İPTAL"), on_release=lambda x: self.expense_dialog.dismiss()),
+                MDFlatButton(text=_t("EKLE"), on_release=self.add_custom_expense)
             ]
         )
         self.expense_dialog.open()
@@ -607,12 +608,12 @@ class CalculatorMixin:
         amount_text = self.exp_amount.text
         
         if not name or not amount_text:
-            toast("Lütfen ad ve tutar girin!")
+            toast(_t("Lütfen ad ve tutar girin!"))
             return
             
         amount = float(amount_text)
         if amount <= 0:
-            toast("Tutar 0'dan büyük olmalı!")
+            toast(_t("Tutar 0'dan büyük olmalı!"))
             return
             
         is_cok = not self.exp_term.disabled
@@ -621,14 +622,14 @@ class CalculatorMixin:
         term = 0
         if is_cok:
             if not self.exp_term.text:
-                toast("Lütfen süre girin!")
+                toast(_t("Lütfen süre girin!"))
                 return
             term = int(self.exp_term.text)
             if term <= 0:
-                toast("Süre 1 aydan büyük olmalı!")
+                toast(_t("Süre 1 aydan büyük olmalı!"))
                 return
             if self.loan_term.text and term > int(self.loan_term.text):
-                toast(f"Süre, kredi vadesinden büyük olamaz ({self.loan_term.text} ay)!")
+                toast(_t(f"Süre, kredi vadesinden büyük olamaz ({self.loan_term.text} ay)!"))
                 return
 
         exp_data = {
@@ -645,7 +646,7 @@ class CalculatorMixin:
     def update_expense_list_ui(self):
         """Özel masraflar listesi arayüzünü (UI) yeniden çizer."""
         self.expense_list_layout.clear_widgets()
-        self.expense_header_label.text = f"Özel Masraflar ({len(self.custom_expenses)}/10)"
+        self.expense_header_label.text = _t(f"Özel Masraflar ({len(self.custom_expenses)}/10)")
         
         for idx, exp in enumerate(self.custom_expenses):
             row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="24dp")
@@ -682,7 +683,7 @@ class CalculatorMixin:
             d = int(self.int_days.text)
             
             if p <= 0 or r <= 0 or d <= 0:
-                toast("Lütfen 0'dan büyük değerler girin!")
+                toast(_t("Lütfen 0'dan büyük değerler girin!"))
                 return
                 
             gross_profit = p * r * d / 36500
@@ -692,11 +693,11 @@ class CalculatorMixin:
             f_profit = f"{net_profit:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             f_total = f"{total:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            self.int_result_label.text = f"Net Getiri: + {f_profit}\nVade Sonu: {f_total}\n(%5 Stopaj düşülmüştür)"
+            self.int_result_label.text = _t(f"Net Getiri: + {f_profit}\nVade Sonu: {f_total}\n(%5 Stopaj düşülmüştür)")
             self.int_result_label.theme_text_color = "Custom"
             self.int_result_label.text_color = (0.13, 0.59, 0.95, 1)
         except ValueError:
-            toast("Lütfen geçerli sayılar girin!")
+            toast(_t("Lütfen geçerli sayılar girin!"))
 
     def show_payment_plan_table(self, *args):
         """Hesaplanan kredi ödeme planını bir veri tablosu (Data Table) diyaloğunda gösterir."""
@@ -722,13 +723,13 @@ class CalculatorMixin:
         table_layout.add_widget(self.table)
         
         self.table_dialog = MDDialog(
-            title="Ödeme Planı",
+            title=_t("Ödeme Planı"),
             type="custom",
             content_cls=table_layout,
             size_hint=(0.95, 0.95),
             buttons=[
-                MDFlatButton(text="KAPAT", on_release=lambda x: self.table_dialog.dismiss()),
-                MDRaisedButton(text="PDF İNDİR", on_release=self.export_plan_to_pdf, md_bg_color=self.theme_cls.primary_color, elevation=0)
+                MDFlatButton(text=_t("KAPAT"), on_release=lambda x: self.table_dialog.dismiss()),
+                MDRaisedButton(text=_t("PDF İNDİR"), on_release=self.export_plan_to_pdf, md_bg_color=self.theme_cls.primary_color, elevation=0)
             ]
         )
         self.table_dialog.open()

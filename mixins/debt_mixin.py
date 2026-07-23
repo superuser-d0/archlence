@@ -11,6 +11,7 @@ from kivymd.uix.progressbar import MDProgressBar
 from kivymd.uix.slider import MDSlider
 import ui.theme as ftheme
 from ui.components import is_read_only_asset_account
+from ui.i18n import tr as _t
 
 class DebtMixin:
     """Borç/kredi takibi: hesaplanan krediyi borç olarak kaydetme, aktif borç
@@ -23,7 +24,7 @@ class DebtMixin:
     def add_loan_to_debts(self, *args):
         """CalculatorMixin'in son kredi hesabını (last_calculated_loan) borç olarak kaydeder."""
         if not hasattr(self, 'last_calculated_loan'):
-            toast("Önce hesaplama yapın!")
+            toast(_t("Önce hesaplama yapın!"))
             return
             
         from database.db import insert_debt
@@ -37,12 +38,12 @@ class DebtMixin:
                     loan["monthly_payment"],
                     loan["total_installments"]
                 )
-                Clock.schedule_once(lambda dt: toast("Borç başarıyla eklendi!"), 0)
+                Clock.schedule_once(lambda dt: toast(_t("Borç başarıyla eklendi!")), 0)
                 Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
                 Clock.schedule_once(lambda dt: self.loan_dialog.dismiss(), 0)
             except Exception as e:
                 print("Error adding debt:", e)
-                Clock.schedule_once(lambda dt: toast("Borç eklenirken hata oluştu!"), 0)
+                Clock.schedule_once(lambda dt: toast(_t("Borç eklenirken hata oluştu!")), 0)
                 
         threading.Thread(target=save_debt, daemon=True).start()
 
@@ -64,7 +65,7 @@ class DebtMixin:
             container.clear_widgets()
 
             if not debts:
-                lbl = MDLabel(text="Henüz aktif bir borcunuz bulunmuyor.", theme_text_color="Secondary", font_style="Body2", halign="center")
+                lbl = MDLabel(text=_t("Henüz aktif bir borcunuz bulunmuyor."), theme_text_color="Secondary", font_style="Body2", halign="center")
                 container.add_widget(lbl)
                 return
 
@@ -77,7 +78,7 @@ class DebtMixin:
                 
                 header = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="24dp")
                 name_lbl = MDLabel(text=f"{debt['debt_name']}", font_style="Subtitle2", bold=True)
-                amount_lbl = MDLabel(text=f"Aylık: {debt['monthly_payment']:,.2f} ₺", font_style="Caption", theme_text_color="Secondary", halign="right")
+                amount_lbl = MDLabel(text=_t(f"Aylık: {debt['monthly_payment']:,.2f} ₺"), font_style="Caption", theme_text_color="Secondary", halign="right")
                 auto_pay_btn = MDIconButton(
                     icon="calendar-sync" if debt.get("is_auto_pay") else "calendar-sync-outline",
                     theme_text_color="Custom",
@@ -150,22 +151,22 @@ class DebtMixin:
                         category="Borç Ödeme",
                         description=f"{debt['debt_name']} (Tamamen Kapatma)"
                     )
-                    Clock.schedule_once(lambda dt: toast("Borç tamamen kapatıldı!"), 0)
+                    Clock.schedule_once(lambda dt: toast(_t("Borç tamamen kapatıldı!")), 0)
                     Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
                     Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                     Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
                 except Exception as e:
                     print("Error closing debt:", e)
-                    Clock.schedule_once(lambda dt: toast("İşlem sırasında hata oluştu!"), 0)
+                    Clock.schedule_once(lambda dt: toast(_t("İşlem sırasında hata oluştu!")), 0)
 
             threading.Thread(target=process, daemon=True).start()
 
         self.dialog = MDDialog(
-            title="Borcu Kapat",
-            text=f"Kalan {remaining_balance:,.2f} ₺ bakiyeyi kapatmak istediğinize emin misiniz?",
+            title=_t("Borcu Kapat"),
+            text=_t(f"Kalan {remaining_balance:,.2f} ₺ bakiyeyi kapatmak istediğinize emin misiniz?"),
             buttons=[
-                ftheme.secondary_button("İPTAL", self.theme_cls, on_release=lambda x: self.dialog.dismiss()),
-                ftheme.danger_button("EVET, KAPAT", self.theme_cls, on_release=confirm),
+                ftheme.secondary_button(_t("İPTAL"), self.theme_cls, on_release=lambda x: self.dialog.dismiss()),
+                ftheme.danger_button(_t("EVET, KAPAT"), self.theme_cls, on_release=confirm),
             ]
         )
         self.dialog.open()
@@ -176,16 +177,16 @@ class DebtMixin:
 
         remaining_installments = debt['total_installments'] - debt['paid_installments']
         if remaining_installments <= 0:
-            toast("Bu borç zaten tamamen ödenmiş!")
+            toast(_t("Bu borç zaten tamamen ödenmiş!"))
             return
 
         content = MDBoxLayout(orientation="vertical", spacing="10dp", size_hint_y=None, height="120dp")
-        lbl = MDLabel(text=f"Kaç taksit ödemek istiyorsunuz? (Maks: {remaining_installments})", theme_text_color="Secondary")
+        lbl = MDLabel(text=_t(f"Kaç taksit ödemek istiyorsunuz? (Maks: {remaining_installments})"), theme_text_color="Secondary")
         slider = MDSlider(min=1, max=remaining_installments, value=1, step=1)
-        val_lbl = MDLabel(text="Seçilen: 1 Taksit", halign="center", bold=True)
+        val_lbl = MDLabel(text=_t("Seçilen: 1 Taksit"), halign="center", bold=True)
 
         def on_slider_value(instance, value):
-            val_lbl.text = f"Seçilen: {int(value)} Taksit"
+            val_lbl.text = _t(f"Seçilen: {int(value)} Taksit")
             
         slider.bind(value=on_slider_value)
 
@@ -212,23 +213,23 @@ class DebtMixin:
                         category="Kredi Taksiti",
                         description=f"{debt['debt_name']} ({selected_installments} Taksit Ödemesi)"
                     )
-                    Clock.schedule_once(lambda dt: toast(f"{selected_installments} taksit başarıyla ödendi!"), 0)
+                    Clock.schedule_once(lambda dt: toast(_t(f"{selected_installments} taksit başarıyla ödendi!")), 0)
                     Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
                     Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                     Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
                 except Exception as e:
                     print("Error paying installment:", e)
-                    Clock.schedule_once(lambda dt: toast("İşlem sırasında hata oluştu!"), 0)
+                    Clock.schedule_once(lambda dt: toast(_t("İşlem sırasında hata oluştu!")), 0)
 
             threading.Thread(target=process, daemon=True).start()
 
         self.dialog = MDDialog(
-            title="Taksit Öde",
+            title=_t("Taksit Öde"),
             type="custom",
             content_cls=content,
             buttons=[
-                ftheme.secondary_button("İPTAL", self.theme_cls, on_release=lambda x: self.dialog.dismiss()),
-                ftheme.primary_button("ÖDE", self.theme_cls, on_release=confirm),
+                ftheme.secondary_button(_t("İPTAL"), self.theme_cls, on_release=lambda x: self.dialog.dismiss()),
+                ftheme.primary_button(_t("ÖDE"), self.theme_cls, on_release=confirm),
             ]
         )
         self.dialog.open()
@@ -242,7 +243,7 @@ class DebtMixin:
         content = MDBoxLayout(orientation="vertical", spacing="14dp", size_hint_y=None, height="110dp")
 
         switch_row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="40dp")
-        switch_lbl = MDLabel(text="Otomatik Ödeme", theme_text_color="Secondary")
+        switch_lbl = MDLabel(text=_t("Otomatik Ödeme"), theme_text_color="Secondary")
         auto_switch = MDSwitch(active=bool(debt.get("is_auto_pay")))
         switch_row.add_widget(switch_lbl)
         switch_row.add_widget(auto_switch)
@@ -267,21 +268,21 @@ class DebtMixin:
             def process():
                 try:
                     update_debt_auto_pay(debt["id"], is_auto_pay, auto_pay_day)
-                    Clock.schedule_once(lambda dt: toast("Otomatik ödeme ayarları güncellendi!"), 0)
+                    Clock.schedule_once(lambda dt: toast(_t("Otomatik ödeme ayarları güncellendi!")), 0)
                     Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
                 except Exception as e:
                     print("Error updating auto-pay settings:", e)
-                    Clock.schedule_once(lambda dt: toast("Güncellenirken hata oluştu!"), 0)
+                    Clock.schedule_once(lambda dt: toast(_t("Güncellenirken hata oluştu!")), 0)
 
             threading.Thread(target=process, daemon=True).start()
 
         self.auto_pay_dialog = MDDialog(
-            title=f"{debt['debt_name']} — Otomatik Ödeme",
+            title=_t(f"{debt['debt_name']} — Otomatik Ödeme"),
             type="custom",
             content_cls=content,
             buttons=[
-                ftheme.secondary_button("İPTAL", self.theme_cls, on_release=lambda x: self.auto_pay_dialog.dismiss()),
-                ftheme.primary_button("KAYDET", self.theme_cls, on_release=confirm),
+                ftheme.secondary_button(_t("İPTAL"), self.theme_cls, on_release=lambda x: self.auto_pay_dialog.dismiss()),
+                ftheme.primary_button(_t("KAYDET"), self.theme_cls, on_release=confirm),
             ],
         )
         self.auto_pay_dialog.open()
@@ -293,7 +294,7 @@ class DebtMixin:
 
         card = AccountService.get_account(credit_card_id)
         if not card:
-            toast("Kredi kartı bulunamadı.")
+            toast(_t("Kredi kartı bulunamadı."))
             return
 
         accounts = AccountService.get_accounts()
@@ -305,7 +306,7 @@ class DebtMixin:
         ]
 
         if not checking_accounts:
-            toast("Ödeme yapabileceğiniz vadesiz/nakit hesabınız bulunmamaktadır.")
+            toast(_t("Ödeme yapabileceğiniz vadesiz/nakit hesabınız bulunmamaktadır."))
             return
 
         content = MDBoxLayout(orientation="vertical", spacing="14dp", size_hint_y=None, height="120dp")
@@ -333,7 +334,7 @@ class DebtMixin:
         def set_selected_account(acc):
             nonlocal selected_account_id
             selected_account_id = acc["id"]
-            account_btn.text = f"{acc['name']} (Bakiye: {acc['balance']:,.2f} ₺)"
+            account_btn.text = _t(f"{acc['name']} (Bakiye: {acc['balance']:,.2f} ₺)")
             self.pay_debt_menu.dismiss()
 
         def open_menu(*args):
@@ -346,7 +347,7 @@ class DebtMixin:
             # Ana buton metnini güncel veriyle zorla güncelle (stale state koruması)
             for acc in checking_now:
                 if acc["id"] == selected_account_id:
-                    account_btn.text = f"{acc['name']} (Bakiye: {acc['balance']:,.2f} ₺)"
+                    account_btn.text = _t(f"{acc['name']} (Bakiye: {acc['balance']:,.2f} ₺)")
                     break
             
             menu_items = []
@@ -364,22 +365,22 @@ class DebtMixin:
         def confirm(*args):
             amount_text = amount_input.text.strip()
             if not amount_text:
-                toast("Lütfen tutar giriniz.")
+                toast(_t("Lütfen tutar giriniz."))
                 return
             try:
                 amount = float(amount_text)
             except ValueError:
-                toast("Geçersiz tutar.")
+                toast(_t("Geçersiz tutar."))
                 return
 
             if amount <= 0:
-                toast("Tutar 0'dan büyük olmalıdır.")
+                toast(_t("Tutar 0'dan büyük olmalıdır."))
                 return
 
             def process():
                 try:
                     AccountService.pay_credit_card_debt(credit_card_id, selected_account_id, amount)
-                    Clock.schedule_once(lambda dt: toast("Borç başarıyla ödendi!"), 0)
+                    Clock.schedule_once(lambda dt: toast(_t("Borç başarıyla ödendi!")), 0)
                     Clock.schedule_once(lambda dt: self.pay_debt_dialog.dismiss(), 0)
                     
                     # refresh UI (kart bilgilerini anında güncelle)
@@ -415,12 +416,12 @@ class DebtMixin:
                 except Exception as e:
                     print("Error paying credit card debt:", e)
                     error_msg = str(e)
-                    Clock.schedule_once(lambda dt: toast(f"Hata: {error_msg}"), 0)
+                    Clock.schedule_once(lambda dt: toast(_t(f"Hata: {error_msg}")), 0)
 
             threading.Thread(target=process, daemon=True).start()
 
         self.pay_debt_dialog = MDDialog(
-            title=f"{card['name']} Borç Ödeme",
+            title=_t(f"{card['name']} Borç Ödeme"),
             type="custom",
             content_cls=content,
             buttons=[
@@ -428,7 +429,7 @@ class DebtMixin:
                     "İPTAL", self.theme_cls,
                     on_release=lambda x: self.pay_debt_dialog.dismiss(),
                 ),
-                ftheme.primary_button("ÖDE", self.theme_cls, on_release=confirm),
+                ftheme.primary_button(_t("ÖDE"), self.theme_cls, on_release=confirm),
             ]
         )
         self.pay_debt_dialog.open()

@@ -14,6 +14,7 @@ Diyalog üslubu için örnek: mixins/savings_mixin.py::add_funds_to_goal
 (MDDialog type="custom" + content_cls=MDBoxLayout + MDRaisedButton'lar).
 """
 from kivy.metrics import dp
+from ui.i18n import tr as _t
 from kivy.uix.widget import Widget
 from kivymd.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -97,8 +98,8 @@ class AccountMixin:
             pos_hint={"center_x": 0.5},
             segment_panel_height=SEG_H,
         )
-        type_checking = MDSegmentedControlItem(text="Nakit / Vadesiz")
-        type_credit = MDSegmentedControlItem(text="Kredi Kartı")
+        type_checking = MDSegmentedControlItem(text=_t("Nakit / Vadesiz"))
+        type_credit = MDSegmentedControlItem(text=_t("Kredi Kartı"))
         type_control.add_widget(type_checking)
         type_control.add_widget(type_credit)
 
@@ -109,16 +110,16 @@ class AccountMixin:
                 password=password,
             )
 
-        self.acc_name_field = create_modern_tf("Hesap / Kart Adı")
-        self.acc_initial_balance_field = create_modern_tf("Başlangıç Bakiyesi (₺)", "float")
-        self.acc_debt_field = create_modern_tf("Mevcut Borç (₺)", "float")
-        self.acc_limit_field = create_modern_tf("Toplam Limit (₺)", "float")
-        self.acc_statement_field = create_modern_tf("Hesap Kesim Günü (1-31, opsiyonel)", "int")
-        self.acc_card_number_field = create_modern_tf("Kart Numarası (Örn: 1234 5678 1234 5678)")
-        self.acc_expiry_field = create_modern_tf("Son Kullanma Tarihi (AA/YY)")
-        self.acc_cvc_field = create_modern_tf("CVC (Arkada yer alan 3 hane)", filter="int", password=True)
+        self.acc_name_field = create_modern_tf(_t("Hesap / Kart Adı"))
+        self.acc_initial_balance_field = create_modern_tf(_t("Başlangıç Bakiyesi (₺)"), "float")
+        self.acc_debt_field = create_modern_tf(_t("Mevcut Borç (₺)"), "float")
+        self.acc_limit_field = create_modern_tf(_t("Toplam Limit (₺)"), "float")
+        self.acc_statement_field = create_modern_tf(_t("Hesap Kesim Günü (1-31, opsiyonel)"), "int")
+        self.acc_card_number_field = create_modern_tf(_t("Kart Numarası (Örn: 1234 5678 1234 5678)"))
+        self.acc_expiry_field = create_modern_tf(_t("Son Kullanma Tarihi (AA/YY)"))
+        self.acc_cvc_field = create_modern_tf(_t("CVC (Arkada yer alan 3 hane)"), filter="int", password=True)
 
-        self.selected_account_type = "Nakit / Vadesiz"
+        self.selected_account_type = _t("Nakit / Vadesiz")
 
         dynamic_container = MDBoxLayout(
             orientation="vertical",
@@ -141,7 +142,7 @@ class AccountMixin:
 
         def fill_dynamic(account_type_label):
             dynamic_container.clear_widgets()
-            if account_type_label == "Kredi Kartı":
+            if account_type_label == _t("Kredi Kartı"):
                 dynamic_container.add_widget(self.acc_card_number_field)
                 dynamic_container.add_widget(self.acc_expiry_field)
                 dynamic_container.add_widget(self.acc_cvc_field)
@@ -168,7 +169,7 @@ class AccountMixin:
         type_control.bind(on_active=on_type_change)
 
         def do_save(instance):
-            is_credit = (self.selected_account_type == "Kredi Kartı")
+            is_credit = (self.selected_account_type == _t("Kredi Kartı"))
             acc_type = "credit_card" if is_credit else "checking"
             
             # Kart bilgileri her iki türde de opsiyonel; boş string yerine None
@@ -204,14 +205,14 @@ class AccountMixin:
                 self.account_dialog.dismiss()
 
         btn_cancel = MDFlatButton(
-            text="VAZGEÇ",
+            text=_t("VAZGEÇ"),
             on_release=do_cancel,
             theme_text_color="Custom",
             text_color=ftheme.accent(self.theme_cls, 'muted'),
         )
         
         btn_save = MDRaisedButton(
-            text="KAYDET",
+            text=_t("KAYDET"),
             on_release=do_save,
             md_bg_color=self.theme_cls.primary_color,
             elevation=0,
@@ -220,7 +221,7 @@ class AccountMixin:
         )
 
         self.account_dialog = MDDialog(
-            title="Hesap / Kart Ekle",
+            title=_t("Hesap / Kart Ekle"),
             type="custom",
             content_cls=inner,
             buttons=[btn_cancel, btn_save],
@@ -250,7 +251,7 @@ class AccountMixin:
 
         if not items:
             empty = MDLabel(
-                text="Bu kartta henüz hareket yok.",
+                text=_t("Bu kartta henüz hareket yok."),
                 font_style="Caption",
                 theme_text_color="Secondary",
                 size_hint_y=None,
@@ -302,13 +303,13 @@ class AccountMixin:
             # Ekstre, son hareket özetinin aksine yapay bir kayıt sınırı taşımaz.
             items = TransactionService.get_recent_for_account(account_id, limit=None)
         except Exception as e:
-            toast(f"Ekstre okunamadı: {e}")
+            toast(_t(f"Ekstre okunamadı: {e}"))
             return
 
         body = MDList()
         if not items:
             empty = MDLabel(
-                text="Bu kartta henüz hareket yok.",
+                text=_t("Bu kartta henüz hareket yok."),
                 font_style="Caption",
                 theme_text_color="Secondary",
                 halign="center",
@@ -351,7 +352,7 @@ class AccountMixin:
         content.add_widget(scroll)
 
         self.statement_dialog = MDDialog(
-            title="Kart Ekstresi",
+            title=_t("Kart Ekstresi"),
             type="custom",
             content_cls=content,
             buttons=[ftheme.secondary_button(
@@ -370,7 +371,7 @@ class AccountMixin:
 
         card = AccountService.get_account(account_id)
         if not card or card["account_type"] != CREDIT_CARD:
-            toast("Kredi kartı bulunamadı.")
+            toast(_t("Kredi kartı bulunamadı."))
             return
 
         owner_ref = weakref.ref(self)
@@ -380,7 +381,7 @@ class AccountMixin:
             if owner is None:
                 return
             if error is not None:
-                toast(f"Taksit planları kontrol edilemedi: {error}")
+                toast(_t(f"Taksit planları kontrol edilemedi: {error}"))
                 return
 
             old_dialog = getattr(owner, "delete_card_dialog", None)
@@ -408,7 +409,7 @@ class AccountMixin:
                 try:
                     AccountService.delete_credit_card(account_id)
                 except Exception as exc:
-                    toast(f"Kart silinemedi: {exc}")
+                    toast(_t(f"Kart silinemedi: {exc}"))
                     return
                 # Kartın ekrandan kalkmasını diyalog kapanış animasyonunun
                 # sonuna bağlama; silme onayında state değişimi anlıktır.
@@ -431,7 +432,7 @@ class AccountMixin:
                         current.render_accounts(removed_account_id=account_id)
 
                 Clock.schedule_once(verify_immediate_state, 0)
-                toast("Kredi kartı silindi.")
+                toast(_t("Kredi kartı silindi."))
 
             body = MDLabel(
                 text=message,
@@ -448,7 +449,7 @@ class AccountMixin:
             )
 
             dialog = MDDialog(
-                title="Kredi Kartını Sil",
+                title=_t("Kredi Kartını Sil"),
                 type="custom",
                 content_cls=body,
                 buttons=[
@@ -556,13 +557,13 @@ class AccountMixin:
         try:
             plans = TransactionService.get_installment_plans(account_id)
         except Exception as e:
-            toast(f"Taksit planları okunamadı: {e}")
+            toast(_t(f"Taksit planları okunamadı: {e}"))
             return
 
         body = MDList()
         if not plans:
             empty = MDLabel(
-                text="Bu kartta henüz taksitli işlem bulunmuyor",
+                text=_t("Bu kartta henüz taksitli işlem bulunmuyor"),
                 font_style="Caption",
                 theme_text_color="Secondary",
                 halign="center",
@@ -588,7 +589,7 @@ class AccountMixin:
                     shorten_from="right",
                 )
                 monthly_lbl = MDLabel(
-                    text=f"{_fmt(plan['monthly_amount'])} / ay",
+                    text=_t(f"{_fmt(plan['monthly_amount'])} / ay"),
                     font_style="Subtitle2",
                     bold=True,
                     halign="right",
@@ -610,7 +611,7 @@ class AccountMixin:
                     theme_text_color="Secondary",
                 )
                 remaining_lbl = MDLabel(
-                    text=f"Kalan: {_fmt(plan['remaining_amount'])}",
+                    text=_t(f"Kalan: {_fmt(plan['remaining_amount'])}"),
                     font_style="Caption",
                     halign="right",
                     theme_text_color="Custom",
@@ -636,11 +637,11 @@ class AccountMixin:
                 pass
 
         dialog = MDDialog(
-            title="Gelecek Ödemeler",
+            title=_t("Gelecek Ödemeler"),
             type="custom",
             content_cls=content,
             buttons=[MDFlatButton(
-                text="KAPAT",
+                text=_t("KAPAT"),
                 on_release=lambda x: dialog.dismiss(),
             )],
         )
@@ -679,7 +680,7 @@ class AccountMixin:
             return False
 
         label = ACCOUNT_TYPE_LABELS.get(account_type, "Hesap")
-        toast(f"✔ {label} eklendi: {str(name).strip()}")
+        toast(_t(f"✔ {label} eklendi: {str(name).strip()}"))
 
         if getattr(self, "account_dialog", None):
             try:
@@ -764,19 +765,33 @@ class AccountMixin:
             )
             loading.add_widget(spinner)
             loading.add_widget(MDLabel(
-                text="Önbellek hazırlanıyor…", font_style="Caption", theme_text_color="Secondary", halign="center"
+                text=_t("Önbellek hazırlanıyor…"), font_style="Caption", theme_text_color="Secondary", halign="center"
             ))
             if not any(getattr(child, "_finora_loading", False)
                        for child in container_accounts.children):
                 loading._finora_loading = True
                 container_accounts.add_widget(loading)
             
-            Clock.schedule_once(self.render_accounts, 0.5)
+            if getattr(self, "_accounts_cache_poll_event", None) is None:
+                def poll_again(dt):
+                    self._accounts_cache_poll_event = None
+                    if self.root:
+                        self.render_accounts()
+                self._accounts_cache_poll_event = Clock.schedule_once(
+                    poll_again, 0.5
+                )
             return
 
-        summary = _asset_data_cache["summary"]
-        accounts = _asset_data_cache["accounts"]
-        recent = _asset_data_cache["recent"]
+        pending_poll = getattr(self, "_accounts_cache_poll_event", None)
+        if pending_poll is not None:
+            pending_poll.cancel()
+            self._accounts_cache_poll_event = None
+
+        summary = _asset_data_cache.get("summary") or {}
+        accounts_raw = _asset_data_cache.get("accounts")
+        accounts = accounts_raw if isinstance(accounts_raw, list) else []
+        recent_raw = _asset_data_cache.get("recent")
+        recent = recent_raw if isinstance(recent_raw, dict) else {}
 
         # Keep the existing widget tree. Rebuilding KivyMD cards is much more
         # expensive than updating their String/Numeric properties.
@@ -808,7 +823,7 @@ class AccountMixin:
             from kivymd.uix.label import MDLabel
             from kivy.metrics import dp
             lbl = MDLabel(
-                text="Henüz hesap eklenmedi — yukarıdaki butondan ekleyebilirsin.",
+                text=_t("Henüz hesap eklenmedi — yukarıdaki butondan ekleyebilirsin."),
                 font_style="Caption", italic=True, theme_text_color="Secondary",
                 halign="center", size_hint_y=None, height=dp(40),
             )
@@ -883,7 +898,7 @@ class AccountMixin:
                 card = PremiumCreditCardWidget(account_id=acc["id"])
                 container_cards.add_widget(card)
             card.debt_ratio = ratio
-            card.card_name = acc["name"]
+            card.card_name = _t(acc["name"])
             card.masked_number = acc.get("masked_number", "**** **** **** 0000")
             card.network_logo = acc.get("network_logo", "")
             card.available_limit = _fmt(acc["available_limit"])
@@ -898,7 +913,7 @@ class AccountMixin:
             if card is None:
                 card = PremiumDebitCardWidget()
                 container_cards.add_widget(card)
-            card.card_name = acc["name"]
+            card.card_name = _t(acc["name"])
             card.masked_number = acc.get("masked_number", "**** **** **** 0000")
             card.network_logo = acc.get("network_logo", "")
             card.balance = _fmt(acc["balance"])
@@ -912,8 +927,8 @@ class AccountMixin:
             if widget is None:
                 widget = BentoAccountWidget()
                 container_accounts.add_widget(widget)
-            widget.account_name = acc["name"]
-            widget.account_type_label = acc["type_label"]
+            widget.account_name = _t(acc["name"])
+            widget.account_type_label = _t(acc["type_label"])
             widget.balance = _fmt(acc["balance"])
             return widget
 
@@ -929,16 +944,16 @@ class AccountMixin:
         cached_count = int(result.get("cached_count") or 0)
         
         if total is None:
-            current.status_text = "Canlı fiyatlara ulaşılamadı"
+            current.status_text = _t("Canlı fiyatlara ulaşılamadı")
             return
             
         current.balance = _fmt(total)
         if cached_count:
-            current.status_text = f"{priced_count}/{asset_count} varlık • Son bilinen fiyat"
+            current.status_text = _t(f"{priced_count}/{asset_count} varlık • Son bilinen fiyat")
         elif priced_count < asset_count:
-            current.status_text = f"{priced_count}/{asset_count} varlık fiyatlandı"
+            current.status_text = _t(f"{priced_count}/{asset_count} varlık fiyatlandı")
         else:
-            current.status_text = f"{asset_count} TL dışı varlık • Canlı değer"
+            current.status_text = _t(f"{asset_count} TL dışı varlık • Canlı değer")
 
     def _silent_background_refresh(self, dt):
         """UI'yi dondurmadan sadece arkadaki önbelleği günceller (Data Warm-up)."""

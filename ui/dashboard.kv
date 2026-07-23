@@ -28,14 +28,7 @@
 <LegendItem>:
     orientation: "horizontal"
     size_hint_y: None
-    height: "24dp"
-    MDIcon:
-        icon: "circle"
-        theme_text_color: "Custom"
-        text_color: root.color
-    MDLabel:
-        text: root.text
-        theme_text_color: "Primary"
+    height: "26dp"
 
 <CategorySettingItem>:
     orientation: "horizontal"
@@ -59,7 +52,7 @@
 <ClickableSettingsRow@ButtonBehavior+MDBoxLayout>:
 
 <BudgetListItem>:
-    text: ""
+    text: app.tr("", app.language)
     secondary_text: ""
     
     IconLeftWidget:
@@ -71,7 +64,7 @@
     MDBoxLayout:
         orientation: "vertical"
         MDTopAppBar:
-            title: "Sistem Yönetimi (Admin)"
+            title: app.tr("Sistem Yönetimi (Admin)", app.language)
             left_action_items: [["logout", lambda x: app.admin_logout()]]
             elevation: 4
         
@@ -93,24 +86,24 @@
                     radius: [24]
                     
                     MDLabel:
-                        text: "Veritabanı Durumu"
+                        text: app.tr("Veritabanı Durumu", app.language)
                         font_style: "H6"
                         bold: True
                     
                     MDLabel:
                         id: stats_label
-                        text: "Toplam İşlem Kaydı: ...\nToplam Bütçe Kalemi: ..."
+                        text: app.tr("Toplam İşlem Kaydı: ...\nToplam Bütçe Kalemi: ...", app.language)
                         theme_text_color: "Secondary"
                 
                 MDRaisedButton:
-                    text: "Veritabanını Dışa Aktar (CSV)"
+                    text: app.tr("Veritabanını Dışa Aktar (CSV)", app.language)
                     icon: "export"
                     size_hint_x: 1
                     md_bg_color: app.theme_cls.primary_color
                     on_release: root.export_to_csv()
                 
                 MDRaisedButton:
-                    text: "Sistemi Sıfırla (Factory Reset)"
+                    text: app.tr("Sistemi Sıfırla (Factory Reset)", app.language)
                     icon: "delete-forever"
                     size_hint_x: 1
                     md_bg_color: ftheme.danger_bg(app.theme_cls.theme_style)
@@ -147,21 +140,21 @@ MDScreen:
                     height: "480dp"
 
                     MDLabel:
-                        text: "FINORA"
+                        text: app.tr("FINORA", app.language)
                         font_style: "H3"
                         halign: "center"
                         theme_text_color: "Primary"
                         bold: True
 
                     MDLabel:
-                        text: "Güvenli Giriş"
+                        text: app.tr("Güvenli Giriş", app.language)
                         font_style: "Subtitle1"
                         halign: "center"
                         theme_text_color: "Secondary"
 
                     MDTextField:
                         id: username_input
-                        hint_text: "Kullanıcı Adı"
+                        hint_text: app.tr("Kullanıcı Adı", app.language)
                         icon_right: "account"
                         size_hint_x: 0.8
                         pos_hint: {"center_x": .5}
@@ -177,7 +170,7 @@ MDScreen:
 
                         MDTextField:
                             id: password_input
-                            hint_text: "Şifre"
+                            hint_text: app.tr("Şifre", app.language)
                             password: True
                             multiline: False
                             write_tab: False
@@ -193,27 +186,27 @@ MDScreen:
                                 password_input.password = False if password_input.password is True else True
 
                     MDTextButton:
-                        text: "Şifreni mi unuttun?"
+                        text: app.tr("Şifreni mi unuttun?", app.language)
                         theme_text_color: "Hint"
                         pos_hint: {"center_x": .5}
                         on_release: screen_manager.current = "forgot_password"
 
                     MDLabel:
                         id: login_error_label
-                        text: ""
+                        text: app.tr("", app.language)
                         theme_text_color: "Error"
                         halign: "center"
                         size_hint_y: None
                         height: "20dp"
 
                     MDRaisedButton:
-                        text: "GİRİŞ YAP"
+                        text: app.tr("GİRİŞ YAP", app.language)
                         size_hint_x: 0.5
                         pos_hint: {"center_x": .5}
                         on_release: app.check_login()
                         
                     MDTextButton:
-                        text: "Finora'da yeni misin? Hemen bir hesap oluştur."
+                        text: app.tr("Finora'da yeni misin? Hemen bir hesap oluştur.", app.language)
                         theme_text_color: "Primary"
                         pos_hint: {"center_x": .5}
 
@@ -225,7 +218,7 @@ MDScreen:
             MDBoxLayout:
                 orientation: "vertical"
                 MDTopAppBar:
-                    title: "Şifre Sıfırlama"
+                    title: app.tr("Şifre Sıfırlama", app.language)
                     left_action_items: [["arrow-left", lambda x: setattr(screen_manager, 'current', 'login')]]
                     elevation: 4
                 
@@ -238,20 +231,20 @@ MDScreen:
                     height: "350dp"
 
                     MDLabel:
-                        text: "Finora hesabınıza bağlı olan\ne-posta adresini giriniz."
+                        text: app.tr("Finora hesabınıza bağlı olan\ne-posta adresini giriniz.", app.language)
                         halign: "center"
                         font_style: "Subtitle1"
                         theme_text_color: "Primary"
 
                     MDTextField:
-                        hint_text: "ornek@finora.com"
+                        hint_text: app.tr("ornek@finora.com", app.language)
                         icon_right: "email"
                         size_hint_x: 0.8
                         pos_hint: {"center_x": .5}
                         mode: "rectangle"
 
                     MDRaisedButton:
-                        text: "ŞİFRE AL"
+                        text: app.tr("ŞİFRE AL", app.language)
                         size_hint_x: 0.5
                         pos_hint: {"center_x": .5}
 
@@ -264,7 +257,7 @@ MDScreen:
             MDBoxLayout:
                 orientation: "vertical"
                 MDTopAppBar:
-                    title: "Ayarlar"
+                    title: app.tr("Ayarlar", app.language)
                     left_action_items: [["arrow-left", lambda x: setattr(screen_manager, 'current', 'login')]]
                     elevation: 4
                 
@@ -273,6 +266,37 @@ MDScreen:
                         orientation: "vertical"
                         adaptive_height: True
                         MDSeparator:
+
+                        ClickableSettingsRow:
+                            orientation: "horizontal"
+                            size_hint_y: None
+                            height: "64dp"
+                            padding: ["20dp", 0, "20dp", 0]
+                            spacing: "20dp"
+                            on_release: app.open_language_dialog()
+                            MDIcon:
+                                icon: "translate"
+                                size_hint_x: None
+                                width: "36dp"
+                                halign: "center"
+                                pos_hint: {"center_y": .5}
+                                theme_text_color: "Primary"
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                MDLabel:
+                                    text: app.tr("Dil", app.language)
+                                    theme_text_color: "Primary"
+                                MDLabel:
+                                    text: "English" if app.language == "en" else "Türkçe"
+                                    font_style: "Caption"
+                                    theme_text_color: "Secondary"
+                            MDIcon:
+                                icon: "chevron-right"
+                                pos_hint: {"center_y": .5}
+                                theme_text_color: "Hint"
+
+                        MDSeparator:
+
                         MDBoxLayout:
                             orientation: "horizontal"
                             size_hint_y: None
@@ -287,7 +311,7 @@ MDScreen:
                                 pos_hint: {"center_y": .5}
                                 theme_text_color: "Primary"
                             MDLabel:
-                                text: "Karanlık Mod"
+                                text: app.tr("Karanlık Mod", app.language)
                                 theme_text_color: "Primary"
                             MDSwitch:
                                 size_hint_x: None
@@ -320,7 +344,7 @@ MDScreen:
                 # ==== 1. SEKME: ANA SAYFA ====
                 MDBottomNavigationItem:
                     name: "home_tab"
-                    text: "Ana Sayfa"
+                    text: app.tr("Ana Sayfa", app.language)
                     icon: "home-variant"
                     
                     MDBoxLayout:
@@ -340,7 +364,7 @@ MDScreen:
                                 on_release: bottom_nav.switch_tab("settings_tab")
                                 
                             MDTextField:
-                                hint_text: "Finora'da ara..."
+                                hint_text: app.tr("Finora'da ara...", app.language)
                                 icon_left: "magnify"
                                 mode: "round"
                                 size_hint_y: None
@@ -374,7 +398,7 @@ MDScreen:
                                         theme_text_color: "Secondary"
                                         pos_hint: {"center_y": .5}
                                     MDLabel:
-                                        text: "Cüzdanım"
+                                        text: app.tr("Cüzdanım", app.language)
                                         font_style: "Subtitle1"
                                         bold: True
                                         adaptive_width: True
@@ -406,13 +430,13 @@ MDScreen:
                                         spacing: "10dp"
 
                                         MDLabel:
-                                            text: "Toplam Bakiye"
+                                            text: app.tr("Toplam Bakiye", app.language)
                                             halign: "center"
                                             theme_text_color: "Secondary"
 
                                         MDLabel:
                                             id: home_total_balance
-                                            text: "0,00 ₺" 
+                                            text: app.tr("0,00 ₺", app.language)
                                             font_style: "H5"
                                             bold: True
                                             halign: "center"
@@ -426,7 +450,7 @@ MDScreen:
                                             
                                             MDLabel:
                                                 id: change_rate_label
-                                                text: "%0.0"
+                                                text: app.tr("%0.0", app.language)
                                                 font_size: "14sp"
                                                 theme_text_color: "Custom"
                                                 text_color: ftheme.accent(app.theme_cls.theme_style, 'blue')
@@ -440,7 +464,7 @@ MDScreen:
                                                 
                                         MDLabel:
                                             id: home_change_title
-                                            text: "Aylık Gider Değişimi"
+                                            text: app.tr("Aylık Gider Değişimi", app.language)
                                             halign: "center"
                                             font_size: "12sp"
                                             theme_text_color: "Secondary"
@@ -464,7 +488,7 @@ MDScreen:
                                         pos_hint: {"center_y": .5}
                                     MDLabel:
                                         id: negative_balance_label
-                                        text: "Dikkat: Bakiye Negatif!"
+                                        text: app.tr("Dikkat: Bakiye Negatif!", app.language)
                                         theme_text_color: "Error"
                                         font_style: "Caption"
                                         bold: True
@@ -479,13 +503,13 @@ MDScreen:
                                     segment_color: ftheme.card_bg(app.theme_cls.theme_style)
                                     on_active: app.change_home_filter(args[1].text)
                                     MDSegmentedControlItem:
-                                        text: "Bugün"
+                                        text: app.tr("Bugün", app.language)
                                     MDSegmentedControlItem:
-                                        text: "1 Hafta"
+                                        text: app.tr("1 Hafta", app.language)
                                     MDSegmentedControlItem:
-                                        text: "1 Ay"
+                                        text: app.tr("1 Ay", app.language)
                                     MDSegmentedControlItem:
-                                        text: "1 Yıl"
+                                        text: app.tr("1 Yıl", app.language)
 
                                 MDBoxLayout:
                                     orientation: "horizontal"
@@ -503,12 +527,12 @@ MDScreen:
                                         
                                         MDLabel:
                                             id: today_card_title
-                                            text: "Bugün"
+                                            text: app.tr("Bugün", app.language)
                                             font_size: "14sp"
                                             theme_text_color: "Secondary"
                                         MDLabel:
                                             id: today_card_amount
-                                            text: "0,0 ₺"
+                                            text: app.tr("0,0 ₺", app.language)
                                             font_style: "Subtitle1"
                                             bold: True
 
@@ -521,12 +545,12 @@ MDScreen:
                                         orientation: "vertical"
                                         
                                         MDLabel:
-                                            text: "Toplam"
+                                            text: app.tr("Toplam", app.language)
                                             font_size: "14sp"
                                             theme_text_color: "Secondary"
                                         MDLabel:
                                             id: total_card_amount
-                                            text: "0,0 ₺"
+                                            text: app.tr("0,0 ₺", app.language)
                                             font_style: "Subtitle1"
                                             bold: True
 
@@ -555,13 +579,13 @@ MDScreen:
                                         spacing: "2dp"
                                         pos_hint: {"center_y": .5}
                                         MDLabel:
-                                            text: "Algoritmik Öngörü"
+                                            text: app.tr("Algoritmik Öngörü", app.language)
                                             font_style: "Subtitle2"
                                             bold: True
                                             theme_text_color: "Primary"
                                         MDLabel:
                                             id: prediction_text
-                                            text: "Veriler analiz ediliyor..."
+                                            text: app.tr("Veriler analiz ediliyor...", app.language)
                                             font_style: "Caption"
                                             theme_text_color: "Secondary"
 
@@ -591,7 +615,7 @@ MDScreen:
                                             size_hint_x: None
                                             width: "24dp"
                                         MDLabel:
-                                            text: "Finansal Sağlık Skoru"
+                                            text: app.tr("Finansal Sağlık Skoru", app.language)
                                             font_style: "Subtitle1"
                                             bold: True
                                             theme_text_color: "Primary"
@@ -602,7 +626,7 @@ MDScreen:
                                         spacing: "12dp"
                                         MDLabel:
                                             id: health_score_value
-                                            text: "--"
+                                            text: app.tr("--", app.language)
                                             font_style: "H4"
                                             bold: True
                                             size_hint_x: None
@@ -612,7 +636,7 @@ MDScreen:
                                             text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
                                         MDLabel:
                                             id: health_score_label
-                                            text: "Hesaplanıyor..."
+                                            text: app.tr("Hesaplanıyor...", app.language)
                                             font_style: "Subtitle2"
                                             bold: True
                                             theme_text_color: "Secondary"
@@ -628,7 +652,7 @@ MDScreen:
 
                                     MDLabel:
                                         id: health_breakdown_text
-                                        text: "Tasarruf oranı, borç/gelir ve gider oynaklığı birlikte değerlendirilir."
+                                        text: app.tr("Tasarruf oranı, borç/gelir ve gider oynaklığı birlikte değerlendirilir.", app.language)
                                         font_style: "Caption"
                                         theme_text_color: "Secondary"
 
@@ -655,7 +679,7 @@ MDScreen:
                                             size_hint_x: None
                                             width: "24dp"
                                         MDLabel:
-                                            text: "Abonelik Radarı"
+                                            text: app.tr("Abonelik Radarı", app.language)
                                             font_style: "Subtitle1"
                                             bold: True
                                             theme_text_color: "Primary"
@@ -690,7 +714,7 @@ MDScreen:
                                             size_hint_x: None
                                             width: "24dp"
                                         MDLabel:
-                                            text: "Olağandışı Harcamalar"
+                                            text: app.tr("Olağandışı Harcamalar", app.language)
                                             font_style: "Subtitle1"
                                             bold: True
                                             theme_text_color: "Primary"
@@ -727,7 +751,7 @@ MDScreen:
                                             text_color: app.theme_cls.primary_color
                                             font_size: "24sp"
                                         MDLabel:
-                                            text: "Aylık Bütçe Planı"
+                                            text: app.tr("Aylık Bütçe Planı", app.language)
                                             font_style: "H6"
                                             bold: True
                                         MDIconButton:
@@ -752,7 +776,7 @@ MDScreen:
 
                                     MDLabel:
                                         id: projection_label
-                                        text: "Ay seçin ve plan oluşturun..."
+                                        text: app.tr("Ay seçin ve plan oluşturun...", app.language)
                                         theme_text_color: "Secondary"
                                         font_style: "Body2"
                                         halign: "left"
@@ -781,7 +805,7 @@ MDScreen:
                                             text_color: app.theme_cls.primary_color
                                             font_size: "24sp"
                                         MDLabel:
-                                            text: "Aktif Borçlarım"
+                                            text: app.tr("Aktif Borçlarım", app.language)
                                             font_style: "H6"
                                             bold: True
                                             
@@ -793,7 +817,7 @@ MDScreen:
                                             adaptive_height: True
                                             
                                             MDLabel:
-                                                text: "Henüz aktif bir borcunuz bulunmuyor."
+                                                text: app.tr("Henüz aktif bir borcunuz bulunmuyor.", app.language)
                                                 theme_text_color: "Secondary"
                                                 font_style: "Body2"
                                                 halign: "center"
@@ -820,7 +844,7 @@ MDScreen:
                                             text_color: app.theme_cls.primary_color
                                             font_size: "24sp"
                                         MDLabel:
-                                            text: "Yaklaşan Ödemeler"
+                                            text: app.tr("Yaklaşan Ödemeler", app.language)
                                             font_style: "H6"
                                             bold: True
 
@@ -832,7 +856,7 @@ MDScreen:
                                             adaptive_height: True
 
                                             MDLabel:
-                                                text: "Yaklaşan ödeme bulunmuyor."
+                                                text: app.tr("Yaklaşan ödeme bulunmuyor.", app.language)
                                                 theme_text_color: "Secondary"
                                                 font_style: "Body2"
                                                 halign: "center"
@@ -847,7 +871,7 @@ MDScreen:
                                     padding: ["0dp", "15dp", "0dp", "0dp"]
                                     
                                     MDLabel:
-                                        text: "Son İşlemler"
+                                        text: app.tr("Son İşlemler", app.language)
                                         font_style: "H6"
                                         bold: True
                                         size_hint_y: None
@@ -860,11 +884,11 @@ MDScreen:
                                         segment_color: ftheme.card_bg(app.theme_cls.theme_style)
                                         on_active: app.load_recent_transactions(args[1].text)
                                         MDSegmentedControlItem:
-                                            text: "Günlük"
+                                            text: app.tr("Günlük", app.language)
                                         MDSegmentedControlItem:
-                                            text: "Haftalık"
+                                            text: app.tr("Haftalık", app.language)
                                         MDSegmentedControlItem:
-                                            text: "Aylık"
+                                            text: app.tr("Aylık", app.language)
                                             
                                     RecycleView:
                                         id: recent_transactions_list
@@ -883,7 +907,7 @@ MDScreen:
                 # ==== 2. SEKME: VARLIKLARIM ====
                 MDBottomNavigationItem:
                     name: "assets_tab"
-                    text: "Varlıklarım"
+                    text: app.tr("Varlıklarım", app.language)
                     icon: "finance"
                     # on_tab_press DEĞİL: o event animasyon başlarken tetiklenir ve
                     # ağır grafik/liste kurulumu kare atlatır. on_enter geçiş
@@ -895,7 +919,7 @@ MDScreen:
                         MDBoxLayout:
                             orientation: "vertical"
                             MDTopAppBar:
-                                title: "Varlıklarım"
+                                title: app.tr("Varlıklarım", app.language)
                                 elevation: 4
                             
                             AnchorLayout:
@@ -927,13 +951,13 @@ MDScreen:
                                                 radius: [20, 20, 20, 20]
                                                 md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'green')
                                                 MDLabel:
-                                                    text: "Gelir"
+                                                    text: app.tr("Gelir", app.language)
                                                     font_style: "Caption"
                                                     theme_text_color: "Secondary"
                                                     halign: "center"
                                                 MDLabel:
                                                     id: period_income_label
-                                                    text: "₺0,00"
+                                                    text: app.tr("₺0,00", app.language)
                                                     font_style: "Subtitle2"
                                                     bold: True
                                                     halign: "center"
@@ -949,13 +973,13 @@ MDScreen:
                                                 radius: [20, 20, 20, 20]
                                                 md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'red')
                                                 MDLabel:
-                                                    text: "Gider"
+                                                    text: app.tr("Gider", app.language)
                                                     font_style: "Caption"
                                                     theme_text_color: "Secondary"
                                                     halign: "center"
                                                 MDLabel:
                                                     id: period_expense_label
-                                                    text: "₺0,00"
+                                                    text: app.tr("₺0,00", app.language)
                                                     font_style: "Subtitle2"
                                                     bold: True
                                                     halign: "center"
@@ -971,13 +995,13 @@ MDScreen:
                                                 radius: [20, 20, 20, 20]
                                                 md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'blue')
                                                 MDLabel:
-                                                    text: "Net Bakiye"
+                                                    text: app.tr("Net Bakiye", app.language)
                                                     font_style: "Caption"
                                                     theme_text_color: "Secondary"
                                                     halign: "center"
                                                 MDLabel:
                                                     id: period_net_label
-                                                    text: "₺0,00"
+                                                    text: app.tr("₺0,00", app.language)
                                                     font_style: "Subtitle2"
                                                     bold: True
                                                     halign: "center"
@@ -994,7 +1018,7 @@ MDScreen:
                                                 size_hint_y: None
                                                 height: "30dp"
                                                 MDLabel:
-                                                    text: "Detaylar"
+                                                    text: app.tr("Detaylar", app.language)
                                                     font_style: "H6"
                                                     bold: True
 
@@ -1007,7 +1031,7 @@ MDScreen:
                                             
                                                 MDFillRoundFlatButton:
                                                     id: btn_filter_today
-                                                    text: "Bugün"
+                                                    text: app.tr("Bugün", app.language)
                                                     size_hint_x: 0.2
                                                     md_bg_color: app.theme_cls.primary_color
                                                     text_color: ftheme.on_primary(app.theme_cls.theme_style)
@@ -1015,7 +1039,7 @@ MDScreen:
                                                 
                                                 MDFillRoundFlatButton:
                                                     id: btn_filter_week
-                                                    text: "1 Hafta"
+                                                    text: app.tr("1 Hafta", app.language)
                                                     size_hint_x: 0.2
                                                     md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
                                                     text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
@@ -1023,7 +1047,7 @@ MDScreen:
                                                 
                                                 MDFillRoundFlatButton:
                                                     id: btn_filter_month
-                                                    text: "1 Ay"
+                                                    text: app.tr("1 Ay", app.language)
                                                     size_hint_x: 0.2
                                                     md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
                                                     text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
@@ -1031,7 +1055,7 @@ MDScreen:
                                                 
                                                 MDFillRoundFlatButton:
                                                     id: btn_filter_year
-                                                    text: "1 Yıl"
+                                                    text: app.tr("1 Yıl", app.language)
                                                     size_hint_x: 0.2
                                                     md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
                                                     text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
@@ -1039,7 +1063,7 @@ MDScreen:
 
                                                 MDFillRoundFlatButton:
                                                     id: btn_filter_lifetime
-                                                    text: "Hayat Boyu"
+                                                    text: app.tr("Hayat Boyu", app.language)
                                                     size_hint_x: 0.2
                                                     md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
                                                     text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
@@ -1088,7 +1112,7 @@ MDScreen:
                                                         spacing: "6dp"
 
                                                         MDLabel:
-                                                            text: "Toplam Varlık"
+                                                            text: app.tr("Toplam Varlık", app.language)
                                                             font_style: "Caption"
                                                             theme_text_color: "Secondary"
                                                             halign: "center"
@@ -1105,7 +1129,7 @@ MDScreen:
 
                                                             MDLabel:
                                                                 id: wealth_amount_label
-                                                                text: "₺---"
+                                                                text: app.tr("₺---", app.language)
                                                                 font_style: "H5"
                                                                 bold: True
                                                                 adaptive_width: True
@@ -1123,7 +1147,7 @@ MDScreen:
 
                                                         MDLabel:
                                                             id: wealth_daily_pnl_label
-                                                            text: "Veriler yükleniyor..."
+                                                            text: app.tr("Veriler yükleniyor...", app.language)
                                                             font_style: "Caption"
                                                             halign: "center"
                                                             size_hint_y: None
@@ -1161,7 +1185,7 @@ MDScreen:
                                                             font_size: "24sp"
                                                             pos_hint: {"center_y": .5}
                                                         MDLabel:
-                                                            text: "Aktif Varlıklarım"
+                                                            text: app.tr("Aktif Varlıklarım", app.language)
                                                             font_style: "H6"
                                                             bold: True
                                                             pos_hint: {"center_y": .5}
@@ -1190,7 +1214,7 @@ MDScreen:
                                                             adaptive_height: True
 
                                                             MDLabel:
-                                                                text: "Yükleniyor..."
+                                                                text: app.tr("Yükleniyor...", app.language)
                                                                 theme_text_color: "Hint"
                                                                 font_style: "Body2"
                                                                 halign: "center"
@@ -1218,7 +1242,7 @@ MDScreen:
                                                             font_size: "24sp"
                                                             pos_hint: {"center_y": .5}
                                                         MDLabel:
-                                                            text: "Varlık Geçmişi"
+                                                            text: app.tr("Varlık Geçmişi", app.language)
                                                             font_style: "H6"
                                                             bold: True
                                                             pos_hint: {"center_y": .5}
@@ -1237,7 +1261,7 @@ MDScreen:
 
                                                     MDLabel:
                                                         id: asset_history_empty_label
-                                                        text: "Henüz varlık işlemi bulunmuyor."
+                                                        text: app.tr("Henüz varlık işlemi bulunmuyor.", app.language)
                                                         theme_text_color: "Secondary"
                                                         font_style: "Body2"
                                                         halign: "center"
@@ -1276,11 +1300,11 @@ MDScreen:
                                                             theme_text_color: "Custom"
                                                             text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
                                                         MDLabel:
-                                                            text: "Toplam Gelir"
+                                                            text: app.tr("Toplam Gelir", app.language)
                                                             font_style: "Caption"
                                                         MDLabel:
                                                             id: metric_val_income
-                                                            text: "0 ₺"
+                                                            text: app.tr("0 ₺", app.language)
                                                             bold: True
                                                 
                                                     MDCard:
@@ -1297,11 +1321,11 @@ MDScreen:
                                                             theme_text_color: "Custom"
                                                             text_color: ftheme.accent(app.theme_cls.theme_style, 'red')
                                                         MDLabel:
-                                                            text: "Toplam Gider"
+                                                            text: app.tr("Toplam Gider", app.language)
                                                             font_style: "Caption"
                                                         MDLabel:
                                                             id: metric_val_expense
-                                                            text: "0 ₺"
+                                                            text: app.tr("0 ₺", app.language)
                                                             bold: True
 
                                                     MDCard:
@@ -1318,11 +1342,11 @@ MDScreen:
                                                             theme_text_color: "Custom"
                                                             text_color: ftheme.accent(app.theme_cls.theme_style, 'blue')
                                                         MDLabel:
-                                                            text: "Tasarruf Oranı"
+                                                            text: app.tr("Tasarruf Oranı", app.language)
                                                             font_style: "Caption"
                                                         MDLabel:
                                                             id: metric_val_savings
-                                                            text: "%0"
+                                                            text: app.tr("%0", app.language)
                                                             bold: True
 
                                                     MDCard:
@@ -1339,12 +1363,12 @@ MDScreen:
                                                             theme_text_color: "Custom"
                                                             text_color: ftheme.accent(app.theme_cls.theme_style, 'amber')
                                                         MDLabel:
-                                                            text: "Aylık Gelir Amacı"
+                                                            text: app.tr("Aylık Gelir Amacı", app.language)
                                                             font_style: "Caption"
                                                             theme_text_color: "Secondary"
                                                         MDLabel:
                                                             id: metric_val_trend
-                                                            text: "—"
+                                                            text: app.tr("—", app.language)
                                                             font_style: "Subtitle2"
                                                             theme_text_color: "Primary"
                         
@@ -1361,7 +1385,7 @@ MDScreen:
                 # ==== YENİ SEKME: HESAPLARIM / KARTLARIM ====
                 MDBottomNavigationItem:
                     name: "accounts_tab"
-                    text: "Kartlarım"
+                    text: app.tr("Kartlarım", app.language)
                     icon: "credit-card-multiple-outline"
                     # Animasyon bittikten sonra + 0.1s Clock gecikmesiyle yüklenir
                     # (bkz. AccountMixin.on_accounts_tab_enter) — geçiş takılmasın.
@@ -1371,7 +1395,7 @@ MDScreen:
                         MDBoxLayout:
                             orientation: "vertical"
                             MDTopAppBar:
-                                title: "Kartlarım"
+                                title: app.tr("Kartlarım", app.language)
                                 elevation: 4
                             
                             AnchorLayout:
@@ -1403,13 +1427,13 @@ MDScreen:
                                                 radius: [20, 20, 20, 20]
                                                 md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'green')
                                                 MDLabel:
-                                                    text: "Nakit"
+                                                    text: app.tr("Nakit", app.language)
                                                     font_style: "Caption"
                                                     theme_text_color: "Secondary"
                                                     halign: "center"
                                                 MDLabel:
                                                     id: accounts_cash_label
-                                                    text: "₺0,00"
+                                                    text: app.tr("₺0,00", app.language)
                                                     font_style: "Subtitle2"
                                                     bold: True
                                                     halign: "center"
@@ -1425,13 +1449,13 @@ MDScreen:
                                                 radius: [20, 20, 20, 20]
                                                 md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'red')
                                                 MDLabel:
-                                                    text: "Kart Borcu"
+                                                    text: app.tr("Kart Borcu", app.language)
                                                     font_style: "Caption"
                                                     theme_text_color: "Secondary"
                                                     halign: "center"
                                                 MDLabel:
                                                     id: accounts_debt_label
-                                                    text: "₺0,00"
+                                                    text: app.tr("₺0,00", app.language)
                                                     font_style: "Subtitle2"
                                                     bold: True
                                                     halign: "center"
@@ -1447,13 +1471,13 @@ MDScreen:
                                                 radius: [20, 20, 20, 20]
                                                 md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'blue')
                                                 MDLabel:
-                                                    text: "Net Servet"
+                                                    text: app.tr("Net Servet", app.language)
                                                     font_style: "Caption"
                                                     theme_text_color: "Secondary"
                                                     halign: "center"
                                                 MDLabel:
                                                     id: accounts_net_label
-                                                    text: "₺0,00"
+                                                    text: app.tr("₺0,00", app.language)
                                                     font_style: "Subtitle2"
                                                     bold: True
                                                     halign: "center"
@@ -1463,13 +1487,13 @@ MDScreen:
                                             orientation: "horizontal"
                                             adaptive_height: True
                                             MDLabel:
-                                                text: "Kartlarım"
+                                                text: app.tr("Kartlarım", app.language)
                                                 font_style: "H6"
                                                 bold: True
                                                 size_hint_y: None
                                                 height: self.texture_size[1]
                                             MDRaisedButton:
-                                                text: "+ EKLE"
+                                                text: app.tr("+ EKLE", app.language)
                                                 elevation: 0
                                                 on_release: app.open_add_account_dialog()
 
@@ -1496,7 +1520,7 @@ MDScreen:
                                             adaptive_height: True
                                             padding: ["0dp", "16dp", "0dp", "0dp"]
                                             MDLabel:
-                                                text: "Hesaplarım"
+                                                text: app.tr("Hesaplarım", app.language)
                                                 font_style: "H6"
                                                 bold: True
                                                 size_hint_y: None
@@ -1517,13 +1541,13 @@ MDScreen:
                 # ==== 3. SEKME: ARAÇLAR ====
                 MDBottomNavigationItem:
                     name: "tools_tab"
-                    text: "Araçlar"
+                    text: app.tr("Araçlar", app.language)
                     icon: "tools"
                     
                     MDBoxLayout:
                         orientation: "vertical"
                         MDTopAppBar:
-                            title: "Hesaplama Araçları"
+                            title: app.tr("Hesaplama Araçları", app.language)
                             elevation: 4
                         
                         ScrollView:
@@ -1564,7 +1588,7 @@ MDScreen:
                                             pos_hint: {"center_x": .5, "center_y": .5}
                                     Widget:
                                     MDLabel:
-                                        text: "Hesap\nMakinesi"
+                                        text: app.tr("Hesap\nMakinesi", app.language)
                                         font_style: "Subtitle1"
                                         bold: True
                                 
@@ -1598,7 +1622,7 @@ MDScreen:
                                             pos_hint: {"center_x": .5, "center_y": .5}
                                     Widget:
                                     MDLabel:
-                                        text: "Faiz\nGetirisi"
+                                        text: app.tr("Faiz\nGetirisi", app.language)
                                         font_style: "Subtitle1"
                                         bold: True
 
@@ -1632,7 +1656,7 @@ MDScreen:
                                             pos_hint: {"center_x": .5, "center_y": .5}
                                     Widget:
                                     MDLabel:
-                                        text: "Bileşik\nFaiz"
+                                        text: app.tr("Bileşik\nFaiz", app.language)
                                         font_style: "Subtitle1"
                                         bold: True
 
@@ -1666,7 +1690,7 @@ MDScreen:
                                             pos_hint: {"center_x": .5, "center_y": .5}
                                     Widget:
                                     MDLabel:
-                                        text: "Kredi\nHesaplama"
+                                        text: app.tr("Kredi\nHesaplama", app.language)
                                         font_style: "Subtitle1"
                                         bold: True
 
@@ -1700,7 +1724,7 @@ MDScreen:
                                             pos_hint: {"center_x": .5, "center_y": .5}
                                     Widget:
                                     MDLabel:
-                                        text: "Birikim\nHedefi"
+                                        text: app.tr("Birikim\nHedefi", app.language)
                                         font_style: "Subtitle1"
                                         bold: True
 
@@ -1734,23 +1758,24 @@ MDScreen:
                                             pos_hint: {"center_x": .5, "center_y": .5}
                                     Widget:
                                     MDLabel:
-                                        text: "Verileri\nSıfırla"
+                                        text: app.tr("Verileri\nSıfırla", app.language)
                                         font_style: "Subtitle1"
                                         bold: True
 
                 # ==== 4. SEKME: AYARLAR ====
                 MDBottomNavigationItem:
                     name: "settings_tab"
-                    text: "Ayarlar"
+                    text: app.tr("Ayarlar", app.language)
                     icon: "cog-outline"
                     
                     MDBoxLayout:
                         orientation: "vertical"
                         MDTopAppBar:
-                            title: "Ayarlar"
+                            title: app.tr("Ayarlar", app.language)
                             elevation: 4
                         
                         ScrollView:
+                            do_scroll_x: False
                             MDBoxLayout:
                                 orientation: "vertical"
                                 adaptive_height: True
@@ -1772,8 +1797,38 @@ MDScreen:
                                         pos_hint: {"center_y": .5}
                                         theme_text_color: "Primary"
                                     MDLabel:
-                                        text: "Kategori Ayarları"
+                                        text: app.tr("Kategori Ayarları", app.language)
                                         theme_text_color: "Primary"
+                                    MDIcon:
+                                        icon: "chevron-right"
+                                        pos_hint: {"center_y": .5}
+                                        theme_text_color: "Hint"
+
+                                MDSeparator:
+
+                                ClickableSettingsRow:
+                                    orientation: "horizontal"
+                                    size_hint_y: None
+                                    height: "64dp"
+                                    padding: ["20dp", 0, "20dp", 0]
+                                    spacing: "20dp"
+                                    on_release: app.open_language_dialog()
+                                    MDIcon:
+                                        icon: "translate"
+                                        size_hint_x: None
+                                        width: "36dp"
+                                        halign: "center"
+                                        pos_hint: {"center_y": .5}
+                                        theme_text_color: "Primary"
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        MDLabel:
+                                            text: app.tr("Dil", app.language)
+                                            theme_text_color: "Primary"
+                                        MDLabel:
+                                            text: "English" if app.language == "en" else "Türkçe"
+                                            font_style: "Caption"
+                                            theme_text_color: "Secondary"
                                     MDIcon:
                                         icon: "chevron-right"
                                         pos_hint: {"center_y": .5}
@@ -1783,7 +1838,7 @@ MDScreen:
 
                                 # --- GÖRÜNÜM AYARLARI ---
                                 MDLabel:
-                                    text: "Görünüm Ayarları"
+                                    text: app.tr("Görünüm Ayarları", app.language)
                                     font_style: "Caption"
                                     bold: True
                                     theme_text_color: "Secondary"
@@ -1808,10 +1863,10 @@ MDScreen:
                                     MDBoxLayout:
                                         orientation: "vertical"
                                         MDLabel:
-                                            text: "Premium Mavi Tema"
+                                            text: app.tr("Premium Mavi Tema", app.language)
                                             theme_text_color: "Primary"
                                         MDLabel:
-                                            text: "Kapalıyken standart tema kullanılır"
+                                            text: app.tr("Kapalıyken standart tema kullanılır", app.language)
                                             font_style: "Caption"
                                             theme_text_color: "Secondary"
                                     MDSwitch:
@@ -1841,7 +1896,7 @@ MDScreen:
                                         pos_hint: {"center_y": .5}
                                         theme_text_color: "Primary"
                                     MDLabel:
-                                        text: "Veriler ve Gizlilik"
+                                        text: app.tr("Veriler ve Gizlilik", app.language)
                                         theme_text_color: "Primary"
                                     MDIcon:
                                         icon: "chevron-right"
@@ -1866,7 +1921,7 @@ MDScreen:
                                         pos_hint: {"center_y": .5}
                                         theme_text_color: "Primary"
                                     MDLabel:
-                                        text: "Bakiye Geçmişi"
+                                        text: app.tr("Bakiye Geçmişi", app.language)
                                         theme_text_color: "Primary"
                                     MDIcon:
                                         icon: "chevron-right"
@@ -1889,7 +1944,7 @@ MDScreen:
                                         pos_hint: {"center_y": .5}
                                         theme_text_color: "Primary"
                                     MDLabel:
-                                        text: "Karanlık Mod"
+                                        text: app.tr("Karanlık Mod", app.language)
                                         theme_text_color: "Primary"
                                     MDSwitch:
                                         size_hint_x: None
@@ -1917,7 +1972,7 @@ MDScreen:
                                         pos_hint: {"center_y": .5}
                                         theme_text_color: "Primary"
                                     MDLabel:
-                                        text: "Bize Ulaşın"
+                                        text: app.tr("Bize Ulaşın", app.language)
                                         theme_text_color: "Primary"
                                     MDIcon:
                                         icon: "chevron-right"
@@ -1938,7 +1993,7 @@ MDScreen:
                                         pos_hint: {"center_y": .5}
                                         theme_text_color: "Error"
                                     MDLabel:
-                                        text: "Çıkış Yap"
+                                        text: app.tr("Çıkış Yap", app.language)
                                         theme_text_color: "Error"
                                     MDIcon:
                                         icon: "chevron-right"
@@ -1946,7 +2001,6 @@ MDScreen:
                                         theme_text_color: "Hint"
 
                                 MDSeparator:
-                        Widget:
 
         # --- KATEGORİ AYARLARI (ALT SAYFA) ---
         MDScreen:
@@ -1955,7 +2009,7 @@ MDScreen:
             MDBoxLayout:
                 orientation: "vertical"
                 MDTopAppBar:
-                    title: "Kategori Ayarları"
+                    title: app.tr("Kategori Ayarları", app.language)
                     left_action_items: [["arrow-left", lambda x: setattr(screen_manager, 'current', 'home')]]
                     elevation: 4
                 MDBoxLayout:
@@ -1965,13 +2019,13 @@ MDScreen:
                     padding: ["16dp", "8dp", "16dp", "8dp"]
                     spacing: "16dp"
                     MDFillRoundFlatButton:
-                        text: "Gelir"
+                        text: app.tr("Gelir", app.language)
                         size_hint_x: 1
                         md_bg_color: app.theme_cls.primary_color if app.active_category_type == 'income' else ftheme.inactive_control_bg(app.theme_cls.theme_style)
                         text_color: ftheme.on_primary(app.theme_cls.theme_style) if app.active_category_type == 'income' else ftheme.inactive_control_text(app.theme_cls.theme_style)
                         on_release: app.load_categories('income')
                     MDFillRoundFlatButton:
-                        text: "Gider"
+                        text: app.tr("Gider", app.language)
                         size_hint_x: 1
                         md_bg_color: app.theme_cls.primary_color if app.active_category_type == 'expense' else ftheme.inactive_control_bg(app.theme_cls.theme_style)
                         text_color: ftheme.on_primary(app.theme_cls.theme_style) if app.active_category_type == 'expense' else ftheme.inactive_control_text(app.theme_cls.theme_style)
@@ -1982,10 +2036,10 @@ MDScreen:
                     height: "40dp"
                     padding: "15dp", 0, "40dp", 0
                     MDLabel:
-                        text: "Kategori Adı"
+                        text: app.tr("Kategori Adı", app.language)
                         bold: True
                     MDLabel:
-                        text: "Ana Kaynak Mı?"
+                        text: app.tr("Ana Kaynak Mı?", app.language)
                         bold: True
                         halign: "right"
                 ScrollView:

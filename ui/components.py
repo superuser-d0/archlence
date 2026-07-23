@@ -10,6 +10,7 @@ from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivymd.app import MDApp
 from kivymd.uix.label import MDLabel
 import unicodedata
+from ui.i18n import tr as _t
 
 
 def is_read_only_asset_account(account):
@@ -180,7 +181,7 @@ class LegendWidget(MDBoxLayout):
                 height=dp(26),
                 spacing=dp(12),
             )
-            row.text = cat
+            row.text = _t(cat)
 
             from kivymd.uix.label import MDIcon
             dot = MDIcon(
@@ -193,7 +194,7 @@ class LegendWidget(MDBoxLayout):
                 pos_hint={'center_y': 0.5}
             )
             lbl = MDLabel(
-                text=cat,
+                text=_t(cat),
                 theme_text_color='Primary',
                 font_style='Caption',
                 pos_hint={'center_y': 0.5}
@@ -216,7 +217,7 @@ class LegendWidget(MDBoxLayout):
         for cat, lbl in self.labels.items():
             val = data_dict.get(cat, 0)
             pct = (val / total * 100) if total > 0 else 0.0
-            lbl.text = f"{cat}  {pct:.1f}%"
+            lbl.text = f"{_t(cat)}  {pct:.1f}%"
 
     # Legacy compatibility shim
     def update_legend(self, new_data):
@@ -320,7 +321,7 @@ Builder.load_string('''
             radius: [dp(8)]
             elevation: 0
             MDLabel:
-                text: "Kredi Kartı"
+                text: app.tr("Kredi Kartı", app.language)
                 font_style: "Caption"
                 theme_text_color: "Custom"
                 text_color: (0.3, 0.3, 0.8, 1) if app.theme_cls.theme_style == "Light" else (0.6, 0.6, 1, 1)
@@ -342,7 +343,7 @@ Builder.load_string('''
         MDBoxLayout:
             orientation: "vertical"
             MDLabel:
-                text: "Kullanılabilir Limit"
+                text: app.tr("Kullanılabilir Limit", app.language)
                 font_style: "Caption"
                 theme_text_color: "Secondary"
             MDLabel:
@@ -352,7 +353,7 @@ Builder.load_string('''
         MDBoxLayout:
             orientation: "vertical"
             MDLabel:
-                text: "Güncel Borç"
+                text: app.tr("Güncel Borç", app.language)
                 font_style: "Caption"
                 theme_text_color: "Secondary"
                 halign: "right"
@@ -375,7 +376,7 @@ Builder.load_string('''
         height: "8dp"
 
     MDLabel:
-        text: "Kart Kullanım Özeti"
+        text: app.tr("Kart Kullanım Özeti", app.language)
         font_style: "Overline"
         theme_text_color: "Secondary"
         size_hint_y: None
@@ -401,7 +402,7 @@ Builder.load_string('''
                 pos_hint: {"center_y": 0.5}
                 theme_text_color: "Secondary"
             MDLabel:
-                text: "İnternet Alışverişi"
+                text: app.tr("İnternet Alışverişi", app.language)
                 font_style: "Caption"
                 size_hint_x: 1
                 halign: "left"
@@ -428,7 +429,7 @@ Builder.load_string('''
                 pos_hint: {"center_y": 0.5}
                 theme_text_color: "Secondary"
             MDLabel:
-                text: "Kartı Dondur"
+                text: app.tr("Kartı Dondur", app.language)
                 font_style: "Caption"
                 size_hint_x: 1
                 halign: "left"
@@ -446,7 +447,7 @@ Builder.load_string('''
         height: "1dp"
 
     MDLabel:
-        text: "Son Hareketler"
+        text: app.tr("Son Hareketler", app.language)
         font_style: "Overline"
         theme_text_color: "Secondary"
         size_hint_y: None
@@ -469,14 +470,14 @@ Builder.load_string('''
         spacing: "8dp"
         orientation: "horizontal"
         MDFlatButton:
-            text: "Ekstre"
+            text: app.tr("Ekstre", app.language)
             size_hint_x: 0.5
             line_color: app.theme_cls.primary_color
             theme_text_color: "Custom"
             text_color: app.theme_cls.primary_color
             on_release: app.open_card_statement(root.account_id)
         MDFlatButton:
-            text: "Borç Öde"
+            text: app.tr("Borç Öde", app.language)
             size_hint_x: 0.5
             line_color: app.theme_cls.primary_color
             theme_text_color: "Custom"
@@ -538,7 +539,7 @@ Builder.load_string('''
             adaptive_height: True
             
         MDLabel:
-            text: "BANKA KARTI"
+            text: app.tr("BANKA KARTI", app.language)
             theme_text_color: "Custom"
             text_color: ftheme.bank_card_text(app.theme_cls.theme_style, True)
             font_style: "Caption"
@@ -571,7 +572,7 @@ Builder.load_string('''
             radius: [dp(8)]
             elevation: 0
             MDLabel:
-                text: "Banka Kartı"
+                text: app.tr("Banka Kartı", app.language)
                 font_style: "Caption"
                 theme_text_color: "Custom"
                 text_color: (0.3, 0.3, 0.8, 1) if app.theme_cls.theme_style == "Light" else (0.6, 0.6, 1, 1)
@@ -583,7 +584,7 @@ Builder.load_string('''
         height: "40dp"
         orientation: "vertical"
         MDLabel:
-            text: "Güncel Bakiye"
+            text: app.tr("Güncel Bakiye", app.language)
             font_style: "Caption"
             theme_text_color: "Secondary"
         MDLabel:
@@ -596,7 +597,7 @@ Builder.load_string('''
         height: "8dp"
 
     MDLabel:
-        text: "Kart Kullanım Özeti"
+        text: app.tr("Kart Kullanım Özeti", app.language)
         font_style: "Overline"
         theme_text_color: "Secondary"
         size_hint_y: None
@@ -622,7 +623,7 @@ Builder.load_string('''
                 pos_hint: {"center_y": 0.5}
                 theme_text_color: "Secondary"
             MDLabel:
-                text: "İnternet Alışverişi"
+                text: app.tr("İnternet Alışverişi", app.language)
                 font_style: "Caption"
                 size_hint_x: 1
                 halign: "left"
@@ -649,7 +650,7 @@ Builder.load_string('''
                 pos_hint: {"center_y": 0.5}
                 theme_text_color: "Secondary"
             MDLabel:
-                text: "Kartı Dondur"
+                text: app.tr("Kartı Dondur", app.language)
                 font_style: "Caption"
                 size_hint_x: 1
                 halign: "left"
@@ -667,7 +668,7 @@ Builder.load_string('''
         height: "1dp"
 
     MDLabel:
-        text: "Son Hareketler"
+        text: app.tr("Son Hareketler", app.language)
         font_style: "Overline"
         theme_text_color: "Secondary"
         size_hint_y: None
@@ -707,7 +708,7 @@ Builder.load_string('''
             halign: "right"
             
     MDLabel:
-        text: "Bakiye"
+        text: app.tr("Bakiye", app.language)
         font_style: "Caption"
         theme_text_color: "Secondary"
         
@@ -767,7 +768,7 @@ Builder.load_string('''
         pos_hint: {"center_y": 0.5}
 
         MDLabel:
-            text: "Aktif Varlıklarım"
+            text: app.tr("Aktif Varlıklarım", app.language)
             font_style: "Subtitle1"
             bold: True
             valign: "center"
@@ -825,7 +826,7 @@ Builder.load_string('''
         Widget:
 
         MDLabel:
-            text: "SALT OKUNUR"
+            text: app.tr("SALT OKUNUR", app.language)
             font_style: "Overline"
             bold: True
             halign: "right"
@@ -844,7 +845,7 @@ Builder.load_string('''
         height: "30dp"
 
     MDLabel:
-        text: "Güncel Bakiye"
+        text: app.tr("Güncel Bakiye", app.language)
         font_style: "Caption"
         theme_text_color: "Custom"
         text_color: 0.70, 0.86, 0.79, 1
@@ -868,7 +869,7 @@ Builder.load_string('''
         height: "1dp"
 
     MDLabel:
-        text: "Gösterge hesabı • Harcama kaynağı değildir"
+        text: app.tr("Gösterge hesabı • Harcama kaynağı değildir", app.language)
         font_style: "Caption"
         theme_text_color: "Custom"
         text_color: 0.70, 0.86, 0.79, 1
@@ -977,7 +978,7 @@ Builder.load_string('''
             MDBoxLayout:
                 orientation: "vertical"
                 MDLabel:
-                    text: "Toplanan"
+                    text: app.tr("Toplanan", app.language)
                     font_style: "Caption"
                     theme_text_color: "Secondary"
                     halign: "left"
@@ -991,7 +992,7 @@ Builder.load_string('''
             MDBoxLayout:
                 orientation: "vertical"
                 MDLabel:
-                    text: "Hedef"
+                    text: app.tr("Hedef", app.language)
                     font_style: "Caption"
                     theme_text_color: "Secondary"
                     halign: "right"
@@ -1009,7 +1010,7 @@ Builder.load_string('''
             size_hint_y: None
             height: "40dp"
             MDRaisedButton:
-                text: "Biriktir"
+                text: app.tr("Biriktir", app.language)
                 icon: "plus"
                 size_hint: None, None
                 height: "40dp"

@@ -9,6 +9,7 @@ from kivymd.uix.button import MDFlatButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
 import ui.theme as ftheme
+from ui.i18n import tr as _t
 
 
 class RecurringMixin:
@@ -47,7 +48,7 @@ class RecurringMixin:
 
             if not visible:
                 lbl = MDLabel(
-                    text="Yaklaşan ödeme bulunmuyor.",
+                    text=_t("Yaklaşan ödeme bulunmuyor."),
                     theme_text_color="Secondary",
                     font_style="Body2",
                     halign="center",
@@ -60,11 +61,11 @@ class RecurringMixin:
                 due = datetime.date.fromisoformat(p["next_due_date"])
                 days_left = (due - today).days
                 if days_left < 0:
-                    status = f"Gecikti ({-days_left} gün)"
+                    status = _t(f"Gecikti ({-days_left} gün)")
                 elif days_left == 0:
-                    status = "Bugün"
+                    status = _t("Bugün")
                 else:
-                    status = f"{days_left} gün kaldı"
+                    status = _t(f"{days_left} gün kaldı")
 
                 card = ftheme.apply_card_theme(MDCard(
                     orientation="vertical", padding="12dp", spacing="6dp",
@@ -88,12 +89,12 @@ class RecurringMixin:
 
                 btn_layout = MDBoxLayout(orientation="horizontal", spacing="10dp", size_hint_y=None, height="32dp")
                 if not p["auto_deduct"]:
-                    pay_btn = MDFlatButton(text="ÖDE", on_release=lambda x, pp=p: self.pay_recurring_now(pp))
+                    pay_btn = MDFlatButton(text=_t("ÖDE"), on_release=lambda x, pp=p: self.pay_recurring_now(pp))
                     btn_layout.add_widget(pay_btn)
                 else:
-                    auto_lbl = MDLabel(text="Otomatik düşecek", font_style="Caption", theme_text_color="Secondary")
+                    auto_lbl = MDLabel(text=_t("Otomatik düşecek"), font_style="Caption", theme_text_color="Secondary")
                     btn_layout.add_widget(auto_lbl)
-                pause_btn = MDFlatButton(text="DURDUR", on_release=lambda x, pid=p["id"]: self.deactivate_recurring(pid))
+                pause_btn = MDFlatButton(text=_t("DURDUR"), on_release=lambda x, pid=p["id"]: self.deactivate_recurring(pid))
                 btn_layout.add_widget(pause_btn)
 
                 card.add_widget(header)
@@ -109,13 +110,13 @@ class RecurringMixin:
         def process():
             try:
                 process_due_recurring_payment(payment)
-                Clock.schedule_once(lambda dt: toast(f"{payment['name']} ödendi!"), 0)
+                Clock.schedule_once(lambda dt: toast(_t(f"{payment['name']} ödendi!")), 0)
                 Clock.schedule_once(lambda dt: self.load_upcoming_recurring(), 0)
                 Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                 Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
             except Exception as e:
                 print("Error paying recurring payment:", e)
-                Clock.schedule_once(lambda dt: toast("İşlem sırasında hata oluştu!"), 0)
+                Clock.schedule_once(lambda dt: toast(_t("İşlem sırasında hata oluştu!")), 0)
 
         threading.Thread(target=process, daemon=True).start()
 
@@ -125,7 +126,7 @@ class RecurringMixin:
         def process():
             try:
                 deactivate_recurring_payment(payment_id)
-                Clock.schedule_once(lambda dt: toast("Tekrarlanan ödeme durduruldu."), 0)
+                Clock.schedule_once(lambda dt: toast(_t("Tekrarlanan ödeme durduruldu.")), 0)
                 Clock.schedule_once(lambda dt: self.load_upcoming_recurring(), 0)
             except Exception as e:
                 print("Error deactivating recurring payment:", e)
