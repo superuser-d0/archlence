@@ -13,6 +13,7 @@ from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.app import MDApp
 from services.transaction_service import TransactionService
 from ui.i18n import tr as _t
+from ui import theme as ftheme
 
 # Forward import
 from ui.components import LegendWidget
@@ -52,9 +53,6 @@ class CurvedTrendChart(Widget):
     COLOR_INCOME_FILL  = (0.16, 0.84, 0.60, 0.20)
     COLOR_EXPENSE_LINE = (0.30, 0.45, 0.95, 1.0)    # blue
     COLOR_EXPENSE_FILL = (0.30, 0.45, 0.95, 0.15)
-    COLOR_AXIS         = (0.60, 0.60, 0.60, 0.70)
-    COLOR_GRID         = (0.55, 0.55, 0.55, 0.12)
-    COLOR_LABEL        = (0.72, 0.72, 0.72, 1.0)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -131,6 +129,11 @@ class CurvedTrendChart(Widget):
 
         p    = self.anim_progress
         data = self.chart_data
+        app = MDApp.get_running_app()
+        style = app.theme_cls.theme_style if app is not None else "Light"
+        axis_color = ftheme.chart_axis(style)
+        grid_color = ftheme.chart_grid(style)
+        label_color = ftheme.chart_label(style)
 
         # ── Layout margins ────────────────────────────────────────────────
         PAD_LEFT  = dp(50)   # Y-axis label gutter (wider for larger font)
@@ -156,7 +159,7 @@ class CurvedTrendChart(Widget):
             # Yalnız eksen iskeleti çizilir; "Veri Yok" metnini tutucudaki
             # empty_label gösterir (ikisi birden çizilince üst üste biniyordu).
             if not data:
-                Color(*self.COLOR_AXIS)
+                Color(*axis_color)
                 Line(points=[cx0, cy0, cx1, cy0], width=dp(1))
                 Line(points=[cx0, cy0, cx0, cy1], width=dp(1))
                 PopMatrix()
@@ -183,11 +186,11 @@ class CurvedTrendChart(Widget):
             for t in range(N_TICKS + 1):
                 val = t * y_step
                 gy  = py(val)
-                Color(*self.COLOR_GRID)
+                Color(*grid_color)
                 Line(points=[cx0, gy, cx1, gy], width=dp(0.5))
                 # Y label
                 lt = _label_texture(self._fmt_k(val), dp(11),
-                                    (*self.COLOR_LABEL[:3], 0.9))
+                                    (*label_color[:3], 0.9))
                 Color(1, 1, 1, 0.9)
                 Rectangle(texture=lt,
                           pos=(cx0 - lt.width - dp(4), gy - lt.height / 2),
@@ -200,7 +203,7 @@ class CurvedTrendChart(Widget):
                     continue
                 lx = px(i)
                 xt = _label_texture(d['label'], dp(11),
-                                    (*self.COLOR_LABEL[:3], 0.9))
+                                    (*label_color[:3], 0.9))
                 Color(1, 1, 1, 0.9)
                 Rectangle(texture=xt,
                           pos=(max(cx0, min(lx - xt.width / 2, cx1 - xt.width)),
@@ -208,7 +211,7 @@ class CurvedTrendChart(Widget):
                           size=xt.size)
 
             # ── Axis lines ───────────────────────────────────────────────
-            Color(*self.COLOR_AXIS)
+            Color(*axis_color)
             Line(points=[cx0, cy0, cx1, cy0], width=dp(1.2))
             Line(points=[cx0, cy0, cx0, cy1], width=dp(1.2))
 
@@ -451,6 +454,13 @@ class DashboardChartManager(MDBoxLayout):
 
         threading.Thread(target=_load, daemon=True).start()
 
+    def refresh_theme(self):
+        """Mevcut veriyi koruyarak tema-duyarlı canvas renklerini tazele."""
+        if self.pie_widget is not None:
+            self.pie_widget.draw_immediate()
+        if self.trend_chart is not None:
+            self.trend_chart.draw_immediate()
+
     # Legacy shim so any existing callers (on_tab_press etc.) keep working
     def render_dashboard(self, period):
         self.refresh_dashboard(period)
@@ -615,7 +625,7 @@ class HorizontalBarChart(Widget):
         self.data = {"Veri Bekleniyor": 1.0}
         # Gerçek renk update_chart'ta aktif temadan alınır (standart: Teal,
         # premium: Indigo); bu yalnızca tema yüklenmeden önceki geçici değer.
-        self.colors = [(0.8, 0.8, 0.8, 1)]
+        self.colors = [tuple(ftheme.chart_empty("Light"))]
 
     def highlight_bar(self, targets):
         self.selected_targets = targets
@@ -879,7 +889,7 @@ class PieChart(Widget):
         self.bind(size=self._redraw_trigger, anim_progress=self._redraw_trigger)
         self.bind(pos=self._sync_translate)
         self.data = {"Veri Bekleniyor": 1.0}
-        self.colors = [(0.8, 0.8, 0.8, 1)]
+        self.colors = [tuple(ftheme.chart_empty("Light"))]
 
     def fetch_real_data(self):
         # Deprecated: The logic was moved to FinoraApp.update_metrics_and_goals()
@@ -940,8 +950,10 @@ class PieChart(Widget):
                     texts.append((value, mid_angle))
                     angle_start += slice_angle
             else:
-                # Render a light grey donut when there's no data
-                Color(0.8, 0.8, 0.8, 1)
+                # Verisiz halka aktif yüzey temasına göre nötrleşir.
+                app = MDApp.get_running_app()
+                style = app.theme_cls.theme_style if app is not None else "Light"
+                Color(*ftheme.chart_empty(style))
                 Ellipse(pos=(x, y), size=(d, d), angle_start=0, angle_end=360 * self.anim_progress)
                 texts.append((0, 0)) # Placeholder for 0%
             

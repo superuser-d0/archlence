@@ -7,10 +7,11 @@ os.chdir(_ROOT)
 def main():
     from kivy.lang import Builder
     from kivymd.app import MDApp
-    from kivy.properties import ColorProperty
+    from kivy.properties import ColorProperty, StringProperty
 
     class IdsApp(MDApp):
         home_circle_color = ColorProperty((0, 0, 0, 0))
+        active_category_type = StringProperty("income")
 
         def build(self):
             return Builder.load_file("ui/dashboard.kv")

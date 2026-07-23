@@ -19,23 +19,40 @@ def _get_balance():
         conn.close()
 
 
+def _set_balance(amount):
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE accounts SET balance = ? WHERE id = ?",
+            (float(amount), DEFAULT_ACCOUNT_ID),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 class SavingsServiceTest(unittest.TestCase):
     """Gerçek finance.db üzerinde çalışır; her test kendi açtığı hedefi silip
-    bakiyeyi başlangıç değerine geri döndürür (delete_goal iadesi sayesinde)."""
+    hesabın özgün bakiyesini test sonunda geri yükler."""
 
     def setUp(self):
         initialize_database()  # savings_goals tablosu idempotent oluşsun
+        self.original_balance = _get_balance()
+        _set_balance(10000.0)
         self.balance_before = _get_balance()
         self.goal_id = SavingsService.create_goal(
             "Test Yaz Tatili (Bali)", 50000.0, "2026-08-01"
         )
 
     def tearDown(self):
-        SavingsService.delete_goal(self.goal_id)
-        self.assertAlmostEqual(
-            _get_balance(), self.balance_before, places=2,
-            msg="Temizlik sonrası bakiye başlangıca dönmedi",
-        )
+        try:
+            SavingsService.delete_goal(self.goal_id)
+            self.assertAlmostEqual(
+                _get_balance(), self.balance_before, places=2,
+                msg="Hedef temizliği sonrası test bakiyesi başlangıca dönmedi",
+            )
+        finally:
+            _set_balance(self.original_balance)
 
     def test_deposit_isolates_from_main_balance(self):
         """1.000 TL aktarımda ana bakiye azalmalı, hedef aynı tutarda artmalı."""

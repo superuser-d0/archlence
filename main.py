@@ -220,8 +220,13 @@ class FinoraApp(
         # binerek bazı label'ları eski zemin rengine/şeffaflığa bırakabiliyor.
         # Uygulamanın kendi geçişi yeterli; metin renkleri atomik güncellenir.
         self.theme_cls.theme_style_switch_animation = False
-        self.theme_cls.theme_style = "Light"
         self.config_store = JsonStore('finora_config.json')
+        saved_style = "Light"
+        if self.config_store.exists('display'):
+            saved_style = self.config_store.get('display').get('style', 'Light')
+        self.theme_cls.theme_style = (
+            saved_style if saved_style in ("Light", "Dark") else "Light"
+        )
 
         language = "tr"
         if self.config_store.exists('language'):
@@ -352,6 +357,10 @@ class FinoraApp(
             self._applying_theme_style = True
             try:
                 self.theme_cls.theme_style = desired_style
+                try:
+                    self.config_store.put('display', style=desired_style)
+                except Exception as e:
+                    print("Görünüm tercihi kaydedilemedi:", e)
                 Clock.schedule_once(self._after_theme_switch, 0)
             finally:
                 self._applying_theme_style = False
@@ -388,6 +397,19 @@ class FinoraApp(
 
     def _rebuild_after_theme_layout(self, *args):
         """Tema ve navigation yerleşimi oturduktan sonra dinamik kartları kur."""
+        if self.root:
+            chart_box = self.root.ids.get("chart_master_box")
+            if chart_box is not None and hasattr(chart_box, "refresh_theme"):
+                try:
+                    chart_box.refresh_theme()
+                except Exception as exc:
+                    print("Tema sonrası grafikler yenilenemedi:", exc)
+            for widget in self.root.walk():
+                if isinstance(widget, HorizontalBarChart):
+                    try:
+                        widget.update_chart()
+                    except Exception as exc:
+                        print("Tema sonrası çubuk grafik yenilenemedi:", exc)
         if hasattr(self, "render_accounts"):
             try:
                 self.render_accounts()

@@ -380,6 +380,26 @@ def accent(style, name):
     return list(dark if _is_dark(style) else light)
 
 
+def chart_axis(style):
+    """Grafik eksenleri için yüzey üzerinde okunabilir nötr çizgi."""
+    return [0.35, 0.36, 0.41, 0.70] if not _is_dark(style) else [0.76, 0.78, 0.84, 0.72]
+
+
+def chart_grid(style):
+    """Grafik ızgarası; eksenden daha geri planda kalan nötr çizgi."""
+    return [0.35, 0.36, 0.41, 0.12] if not _is_dark(style) else [0.76, 0.78, 0.84, 0.16]
+
+
+def chart_label(style):
+    """Canvas dokusuna basılan grafik etiketlerinin metin rengi."""
+    return [0.32, 0.33, 0.38, 1] if not _is_dark(style) else [0.78, 0.80, 0.86, 1]
+
+
+def chart_empty(style):
+    """Verisiz grafiklerin nötr dolgu/halka rengi."""
+    return [0.80, 0.80, 0.80, 1] if not _is_dark(style) else [0.34, 0.35, 0.39, 1]
+
+
 _FIELD_ROLES = ("hint", "text", "fill", "line")
 
 
