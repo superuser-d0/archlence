@@ -122,7 +122,7 @@ def _extract_and_strip_kz(text):
         kz_amount = _parse_price_str(m.group(2))
     except ValueError:
         return stripped, None
-    return stripped, f"K/Z: {m.group(1)}{format_price_tl(kz_amount)}"
+    return stripped, _t(f"K/Z: {m.group(1)}{format_price_tl(kz_amount)}")
 
 
 def format_history_description(description, category, is_buy):
@@ -152,6 +152,7 @@ def format_history_description(description, category, is_buy):
     if body:
         import re
         body = re.sub(r'\s*\([^)]+\)', '', body)
+        body = _t(body)
 
     return body, kz_text
 
@@ -258,7 +259,7 @@ class AssetMixin:
         menu_items = [
             {
                 "viewclass": "AssetTypeMenuItem",
-                "text": t,
+                "text": _t(t),
                 "icon": ASSET_TYPE_ICONS.get(t, "wallet-outline"),
                 "on_release": lambda x=t, btn=type_btn: self._select_asset_type_main(x, btn),
             }
@@ -913,7 +914,7 @@ class AssetMixin:
 
             gold_menu_items = [
                 {
-                    "text": label,
+                    "text": _t(label),
                     "on_release": lambda l=label, s=symbol, n=friendly_name: _select_gold_type(l, s, n),
                 }
                 for label, symbol, friendly_name in gold_types
@@ -930,7 +931,7 @@ class AssetMixin:
             )
             for label, symbol, friendly_name in quick_picks:
                 chip = MDFlatButton(
-                    text=label,
+                    text=_t(label),
                     theme_text_color="Custom",
                     text_color=(0.08, 0.72, 0.42, 1),
                     size_hint_x=1,
@@ -1097,7 +1098,7 @@ class AssetMixin:
             "Döviz": "Sembol (Örn: USDTRY=X)",
             "Tahvil": "Sembol",
         }
-        return hints.get(asset_type, "Sembol")
+        return _t(hints.get(asset_type, "Sembol"))
 
     def _get_symbol_helper(self, asset_type):
         helpers = {
@@ -1106,7 +1107,7 @@ class AssetMixin:
             "Döviz": "Dolar: USDTRY=X, Euro: EURTRY=X",
             "Tahvil": "Yahoo Finance sembolü girin",
         }
-        return helpers.get(asset_type, "Yahoo Finance sembolü girin")
+        return _t(helpers.get(asset_type, "Yahoo Finance sembolü girin"))
 
     def _get_default_symbol(self, asset_type):
         defaults = {"Altın": "GC=F"}
@@ -1411,12 +1412,12 @@ class AssetMixin:
                 None,
             )
             if existing_card is not None:
-                existing_card._finora_buy_lbl.text = (
+                existing_card._finora_buy_lbl.text = _t(
                     f"Alım: {asset['purchase_price']:,.4f} ₺  ×  "
                     f"{asset['quantity']:g}"
                 )
                 if asset.get("current_price") is not None:
-                    existing_card._finora_cur_lbl.text = (
+                    existing_card._finora_cur_lbl.text = _t(
                         f"Anlık: {asset['current_price']:,.4f} ₺"
                     )
                     existing_card._finora_cur_lbl.theme_text_color = "Secondary"
@@ -1428,7 +1429,7 @@ class AssetMixin:
                     existing_card._finora_cur_lbl.theme_text_color = "Hint"
                 if asset.get("pnl_pct") is not None:
                     sign = "+" if asset["pnl_pct"] >= 0 else ""
-                    pnl_text = (
+                    pnl_text = _t(
                         f"{sign}{asset['pnl_pct']:.2f}%  |  "
                         f"{sign}{asset['pnl_amount']:,.2f} ₺  "
                         f"(Toplam: {asset['total_value']:,.2f} ₺)"
@@ -1531,7 +1532,7 @@ class AssetMixin:
             # Alt satır: K/Z
             if asset.get("pnl_pct") is not None:
                 sign = "+" if asset["pnl_pct"] >= 0 else ""
-                pnl_text = (
+                pnl_text = _t(
                     f"{sign}{asset['pnl_pct']:.2f}%  |  "
                     f"{sign}{asset['pnl_amount']:,.2f} ₺  "
                     f"(Toplam: {asset['total_value']:,.2f} ₺)"
@@ -1601,7 +1602,7 @@ class AssetMixin:
             padding=["0dp", "8dp", "0dp", "0dp"],
         )
         info_lbl = MDLabel(
-            text=(
+            text=_t(
                 f"{asset['asset_name']} ({asset['asset_code']})\n"
                 f"Miktar: {asset['quantity']:g}  |  "
                 f"Alım fiyatı: {asset['purchase_price']:,.4g} ₺"
@@ -1624,8 +1625,7 @@ class AssetMixin:
                 # Handle comma gracefully if someone pastes it
                 sell_price = float(price_text.replace(",", "."))
             except ValueError:
-                from kivymd.toast import toast as _t
-                _t("Geçerli bir fiyat girin!")
+                toast(_t("Geçerli bir fiyat girin!"))
                 return
             self._sell_dialog.dismiss()
             self._execute_sell(asset, sell_price)
@@ -1680,7 +1680,7 @@ class AssetMixin:
 
                 Clock.schedule_once(
                     lambda dt: toast(
-                        f"Satış tamamlandı! {sign}₺{abs(pnl):,.2f} K/Z"
+                        _t(f"Satış tamamlandı! {sign}₺{abs(pnl):,.2f} K/Z")
                     ), 0)
                 Clock.schedule_once(lambda dt: self.load_active_assets(), 0)
                 Clock.schedule_once(lambda dt: self.load_asset_history(), 0)

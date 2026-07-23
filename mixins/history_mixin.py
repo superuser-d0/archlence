@@ -124,9 +124,9 @@ class HistoryMixin:
                 )
                 container.add_widget(headline)
                 note = MDLabel(
-                    text=f"Bakiye defteri {result.get('ledger_start') or '—'} "
-                         f"tarihinde başlıyor; öncesi için kayıt yok.\n"
-                         f"Aşağıdaki hareketler defterin başlangıcından bugüne.",
+                    text=_t(f"Bakiye defteri {result.get('ledger_start') or '—'} "
+                            f"tarihinde başlıyor; öncesi için kayıt yok.\n"
+                            f"Aşağıdaki hareketler defterin başlangıcından bugüne."),
                     font_style="Caption",
                     theme_text_color="Secondary",
                     size_hint_y=None,
@@ -188,7 +188,7 @@ class HistoryMixin:
                 row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
                                   height=dp(24), spacing=dp(8))
                 row.add_widget(MDLabel(
-                    text=f"{_SOURCE_LABELS.get(source, source)} ({info['count']})",
+                    text=_t(f"{_SOURCE_LABELS.get(source, source)} ({info['count']})"),
                     font_style="Caption",
                     theme_text_color="Secondary",
                 ))

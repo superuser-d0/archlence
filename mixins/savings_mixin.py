@@ -34,7 +34,7 @@ class SavingsMixin:
         try:
             target = float(self.sg_target_input.text)
             deposit = float(self.sg_deposit_input.text)
-            name = self.sg_name_input.text if self.sg_name_input.text else "Hedef"
+            name = self.sg_name_input.text if self.sg_name_input.text else _t("Hedef")
             
             if target <= 0 or deposit <= 0:
                 toast(_t("Lütfen 0'dan büyük tutarlar girin!"))
@@ -42,7 +42,7 @@ class SavingsMixin:
                 
             periods = math.ceil(target / deposit)
             
-            if self.sg_period == "Günlük":
+            if self.sg_period == _t("Günlük"):
                 months = periods // 30
                 days = periods % 30
                 time_str = f"{months} Ay, {days} Gün" if months > 0 else f"{days} Gün"
@@ -102,24 +102,24 @@ class SavingsMixin:
         created_at = goal.get("created_at")
 
         if target > 0 and current >= target:
-            return "Tebrikler, hedefe ulaştın! 🎉"
+            return _t("Tebrikler, hedefe ulaştın! 🎉")
         if not created_at or current <= 0:
-            return "Henüz tahmin için yeterli veri yok"
+            return _t("Henüz tahmin için yeterli veri yok")
 
         try:
             created = datetime.date.fromisoformat(created_at)
         except ValueError:
-            return "Henüz tahmin için yeterli veri yok"
+            return _t("Henüz tahmin için yeterli veri yok")
 
         days_elapsed = max(1, (datetime.date.today() - created).days)
         months_elapsed = max(1.0, days_elapsed / 30.0)
         avg_monthly_pace = current / months_elapsed
 
         if avg_monthly_pace <= 0:
-            return "Henüz tahmin için yeterli veri yok"
+            return _t("Henüz tahmin için yeterli veri yok")
 
         remaining_months = math.ceil((target - current) / avg_monthly_pace)
-        return f"Şu anki hızla ~{remaining_months} ay kaldı"
+        return _t(f"Şu anki hızla ~{remaining_months} ay kaldı")
 
     # ─── One-time deposit into a goal ────────────────────────────────────────
     def _ensure_goal_db_id(self, goal):
@@ -156,7 +156,7 @@ class SavingsMixin:
 
         selected_account_id = checking_accounts[0]["id"]
         amount_field = ftheme.make_text_field(
-            "Yatırılacak Tutar (\u20ba)", self.theme_cls, filter="float"
+            _t("Yatırılacak Tutar (\u20ba)"), self.theme_cls, filter="float"
         )
         account_btn = MDRaisedButton(
             size_hint_x=1,
@@ -264,7 +264,7 @@ class SavingsMixin:
                             self.root.ids.confetti_overlay.burst()
                     except Exception:
                         pass
-                    msg = "\U0001F389\U0001F389\U0001F389 Hedefe ula\u015ft\u0131n!" if top == 100 else f"\U0001F389 %{top} tamamland\u0131!"
+                    msg = _t("\U0001F389\U0001F389\U0001F389 Hedefe ula\u015ft\u0131n!") if top == 100 else _t(f"\U0001F389 %{top} tamamland\u0131!")
                     toast(msg)
             except ValueError:
                 toast(_t("Ge\u00e7erli bir say\u0131 girin!"))
@@ -288,9 +288,9 @@ class SavingsMixin:
         name = str(goal.get("name", "Birikim Hedefim"))
         current = float(goal.get("current", 0) or 0)
         formatted = f"{current:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        message = (f"Bu hedef için şu ana kadar biriktirdiğiniz {formatted} ₺ ne yapılsın?"
+        message = (_t(f"Bu hedef için şu ana kadar biriktirdiğiniz {formatted} ₺ ne yapılsın?")
                    if current > 0 else
-                   "Bu hedefte birikmiş bakiye yok. Hedef kalıcı olarak silinsin mi?")
+                   _t("Bu hedefte birikmiş bakiye yok. Hedef kalıcı olarak silinsin mi?"))
         content = MDLabel(text=message, theme_text_color="Secondary",
                           size_hint_y=None, height=dp(64), valign="middle")
         content.bind(size=content.setter("text_size"))
@@ -301,7 +301,7 @@ class SavingsMixin:
                 if not SavingsService.delete_goal(goal_id, account_id, refund=refund):
                     raise ValueError("Hedef bulunamadı")
             except (ValueError, TypeError) as exc:
-                toast(str(exc))
+                toast(_t(str(exc)))
                 return False
             self.savings_goals.pop(goal_idx)
             self.store.put("goals", data=self.savings_goals)
@@ -313,7 +313,7 @@ class SavingsMixin:
                 self.render_accounts()
             except Exception:
                 pass
-            toast("Bakiye hesaba aktarıldı ve hedef silindi." if refund else "Hedef silindi.")
+            toast(_t("Bakiye hesaba aktarıldı ve hedef silindi.") if refund else _t("Hedef silindi."))
             return True
 
         def _discard(*_):

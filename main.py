@@ -958,8 +958,18 @@ class FinoraApp(
     # -------------------------------------------------------------------------
     # List & Navigation Interactions
     # -------------------------------------------------------------------------
+    # Zaman filtresi butonları hem sabit Türkçe anahtar (alt satırdaki
+    # butonlar) hem de dile göre çevrilen segmented control metniyle
+    # çağrılabiliyor; ikincisi İngilizce modda "1 Ay" gibi anahtarlarla asla
+    # eşleşmeyeceği için gelen metni önce kanonik Türkçe karşılığına çeviriyoruz.
+    _HOME_FILTER_KEYS = ("Bugün", "1 Hafta", "1 Ay", "1 Yıl", "Hayat Boyu")
+
     def change_home_filter(self, text):
-        self.home_filter = text
+        canonical = next(
+            (key for key in self._HOME_FILTER_KEYS if self.tr(key) == text),
+            text,
+        )
+        self.home_filter = canonical
         self.sync_filter_buttons_ui()
         self.safe_refresh_charts()
         self.load_recent_transactions()

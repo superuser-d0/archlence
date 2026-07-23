@@ -342,9 +342,9 @@ class CalculatorMixin:
             max_term = 36 # Varsayılan (Basit mod veya İhtiyaç)
             
             if not self.loan_type.disabled: # Eğer "Gelişmiş" mod açıksa
-                if self.loan_type_selected == "Taşıt":
+                if self.loan_type_selected == _t("Taşıt"):
                     max_term = 48
-                elif self.loan_type_selected == "Konut":
+                elif self.loan_type_selected == _t("Konut"):
                     max_term = 120
                     
             if n > max_term:
@@ -388,10 +388,10 @@ class CalculatorMixin:
             f_emi = f"{emi:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             f_total = f"{total_payment:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            res_text = f"Temel Taksit: {f_emi}\nToplam Geri Ödeme: {f_total}"
+            res_text = _t(f"Temel Taksit: {f_emi}\nToplam Geri Ödeme: {f_total}")
             if is_advanced:
                 f_net = f"{net_cash:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
-                res_text += f"\nEle Geçecek: {f_net} (Tüm Peşin Masraflar Düşülmüş)"
+                res_text += _t(f"\nEle Geçecek: {f_net} (Tüm Peşin Masraflar Düşülmüş)")
                 
             self.loan_result_label.text = res_text
             self.loan_result_label.theme_text_color = "Custom"
@@ -452,54 +452,59 @@ class CalculatorMixin:
         import os
         from fpdf import FPDF
         
-        def tr(text):
+        def _deaccent(text):
+            """PDF'in temel 'Helvetica' fontu Türkçe karakterleri desteklemez;
+            burada çeviri değil yalnızca ASCII'ye indirgeme yapılır."""
             return str(text).replace("₺", "TL").replace("İ", "I").replace("ı", "i").replace("Ş", "S").replace("ş", "s").replace("Ğ", "G").replace("ğ", "g").replace("Ü", "U").replace("ü", "u").replace("Ö", "O").replace("ö", "o").replace("Ç", "C").replace("ç", "c")
-            
+
+        def pdf_text(text):
+            return _deaccent(_t(text))
+
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Helvetica", style="B", size=16)
-        pdf.cell(200, 10, text=tr("Ödeme Planı"), ln=True, align="C")
+        pdf.cell(200, 10, text=pdf_text("Ödeme Planı"), ln=True, align="C")
         pdf.ln(10)
-        
+
         pdf.set_font("Helvetica", style="B", size=8)
         cols = ["Ay", "Temel Taksit", "Ek Masraf", "Toplam Ödeme", "Anapara", "Faiz/Vergi", "Bakiye"]
         col_widths = [10, 25, 25, 30, 25, 25, 30]
-        
+
         for i, col in enumerate(cols):
-            pdf.cell(col_widths[i], 10, text=tr(col), border=1, align="C")
+            pdf.cell(col_widths[i], 10, text=pdf_text(col), border=1, align="C")
         pdf.ln()
-        
+
         pdf.set_font("Helvetica", size=8)
         for row in self.loan_table_data:
             for i, val in enumerate(row):
-                pdf.cell(col_widths[i], 10, text=tr(val), border=1, align="C")
+                pdf.cell(col_widths[i], 10, text=_deaccent(val), border=1, align="C")
             pdf.ln()
-            
+
         if not self.loan_type.disabled:
             pdf.ln(10)
             pdf.set_font("Helvetica", style="B", size=12)
-            pdf.cell(200, 10, text=tr("--- TEK SEFERLİK (PEŞİN) MASRAFLAR DETAYI ---"), ln=True, align="L")
-            
+            pdf.cell(200, 10, text=pdf_text("--- TEK SEFERLİK (PEŞİN) MASRAFLAR DETAYI ---"), ln=True, align="L")
+
             pdf.set_font("Helvetica", size=10)
             p = float(self.loan_amount.text)
             file_exp = (p * 0.005) * 1.15
             ins_exp = p * 0.008
-            
-            pdf.cell(200, 8, text=tr(f"- Kredi Tahsis Ücreti: {file_exp:,.2f} TL"), ln=True, align="L")
-            pdf.cell(200, 8, text=tr(f"- Hayat Sigortası (Ortalama): {ins_exp:,.2f} TL"), ln=True, align="L")
-            
+
+            pdf.cell(200, 8, text=pdf_text(f"- Kredi Tahsis Ücreti: {file_exp:,.2f} TL"), ln=True, align="L")
+            pdf.cell(200, 8, text=pdf_text(f"- Hayat Sigortası (Ortalama): {ins_exp:,.2f} TL"), ln=True, align="L")
+
             total_pesin = file_exp + ins_exp
-            
+
             for exp in self.custom_expenses:
                 if exp["type"] == "Tek Seferlik":
-                    pdf.cell(200, 8, text=tr(f"- {exp['name']}: {exp['amount']:,.2f} TL"), ln=True, align="L")
+                    pdf.cell(200, 8, text=pdf_text(f"- {exp['name']}: {exp['amount']:,.2f} TL"), ln=True, align="L")
                     total_pesin += exp["amount"]
-            
+
             pdf.ln(4)
             pdf.set_font("Helvetica", style="B", size=10)
-            pdf.cell(200, 8, text=tr(f"- Toplam Peşin Kesinti: {total_pesin:,.2f} TL"), ln=True, align="L")
+            pdf.cell(200, 8, text=pdf_text(f"- Toplam Peşin Kesinti: {total_pesin:,.2f} TL"), ln=True, align="L")
             net_tutar = p - total_pesin
-            pdf.cell(200, 8, text=tr(f"- Krediden Ele Geçecek Net Tutar: {net_tutar:,.2f} TL"), ln=True, align="L")
+            pdf.cell(200, 8, text=pdf_text(f"- Krediden Ele Geçecek Net Tutar: {net_tutar:,.2f} TL"), ln=True, align="L")
 
         home_dir = os.path.expanduser("~")
         desk_dir = os.path.join(home_dir, "Masaüstü")
@@ -710,13 +715,13 @@ class CalculatorMixin:
             use_pagination=True,
             rows_num=10,
             column_data=[
-                ("Ay", dp(15)),
-                ("Temel Taksit", dp(30)),
-                ("Ek Masraf", dp(25)),
-                ("Toplam Ödeme", dp(30)),
-                ("Anapara", dp(25)),
-                ("Faiz/Vergi", dp(25)),
-                ("Bakiye", dp(30)),
+                (_t("Ay"), dp(15)),
+                (_t("Temel Taksit"), dp(30)),
+                (_t("Ek Masraf"), dp(25)),
+                (_t("Toplam Ödeme"), dp(30)),
+                (_t("Anapara"), dp(25)),
+                (_t("Faiz/Vergi"), dp(25)),
+                (_t("Bakiye"), dp(30)),
             ],
             row_data=self.loan_table_data,
         )

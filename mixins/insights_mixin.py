@@ -170,7 +170,7 @@ class InsightsMixin:
                 self.theme_cls.theme_style, "red"
             )
             ids.health_score_label.text = _t("Hesaplanamadı")
-            ids.health_breakdown_text.text = (
+            ids.health_breakdown_text.text = _t(
                 "Finansal sağlık raporu şu anda oluşturulamadı. "
                 "Ana sayfayı yenileyerek tekrar deneyebilirsin."
             )
@@ -221,7 +221,7 @@ class InsightsMixin:
             self.theme_cls, tint="amber")
 
         title = MDLabel(
-            text=f"{cand['name']}  ·  {_frequency_label(cand['frequency'])}",
+            text=_t(f"{cand['name']}  ·  {_frequency_label(cand['frequency'])}"),
             font_style="Subtitle2", bold=True,
             size_hint_y=None, height="24dp")
         card.add_widget(title)

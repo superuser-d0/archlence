@@ -356,7 +356,7 @@ class AccountMixin:
             type="custom",
             content_cls=content,
             buttons=[ftheme.secondary_button(
-                "KAPAT", self.theme_cls,
+                _t("KAPAT"), self.theme_cls,
                 on_release=lambda x: self.statement_dialog.dismiss(),
             )],
         )
@@ -381,7 +381,7 @@ class AccountMixin:
             if owner is None:
                 return
             if error is not None:
-                toast(_t(f"Taksit planları kontrol edilemedi: {error}"))
+                toast(_t(f"Taksit planları kontrol edilemedi: {_t(str(error))}"))
                 return
 
             old_dialog = getattr(owner, "delete_card_dialog", None)
@@ -389,7 +389,7 @@ class AccountMixin:
                 old_dialog.dismiss()
 
             if active_plan_count:
-                message = (
+                message = _t(
                     "Dikkat: Bu karta ait devam eden "
                     f"[b]{active_plan_count} adet aktif taksit planı[/b] "
                     "bulunmaktadır. "
@@ -397,7 +397,7 @@ class AccountMixin:
                     "işlemler de kalıcı olarak silinecektir. Onaylıyor musunuz?"
                 )
             else:
-                message = (
+                message = _t(
                     f"{card['name']} kartı, karta bağlı tüm geçmiş işlemler ve "
                     "otomatik ödemeler kalıcı olarak silinecektir. "
                     "Onaylıyor musunuz?"
@@ -409,7 +409,7 @@ class AccountMixin:
                 try:
                     AccountService.delete_credit_card(account_id)
                 except Exception as exc:
-                    toast(_t(f"Kart silinemedi: {exc}"))
+                    toast(_t(f"Kart silinemedi: {_t(str(exc))}"))
                     return
                 # Kartın ekrandan kalkmasını diyalog kapanış animasyonunun
                 # sonuna bağlama; silme onayında state değişimi anlıktır.
@@ -454,11 +454,11 @@ class AccountMixin:
                 content_cls=body,
                 buttons=[
                     ftheme.secondary_button(
-                        "VAZGEÇ", owner.theme_cls,
+                        _t("VAZGEÇ"), owner.theme_cls,
                         on_release=lambda x: dialog_ref["dialog"].dismiss(),
                     ),
                     ftheme.danger_button(
-                        "SİL", owner.theme_cls,
+                        _t("SİL"), owner.theme_cls,
                         on_release=confirm,
                     ),
                 ],
@@ -523,11 +523,11 @@ class AccountMixin:
             caller=caller,
             width_mult=3,
             items=[{
-                "text": "Gelecek Ödemeler",
+                "text": _t("Gelecek Ödemeler"),
                 "viewclass": "OneLineListItem",
                 "on_release": upcoming_payments,
             }, {
-                "text": "Kartı Sil",
+                "text": _t("Kartı Sil"),
                 "viewclass": "OneLineListItem",
                 "on_release": delete_card,
             }],
@@ -557,7 +557,7 @@ class AccountMixin:
         try:
             plans = TransactionService.get_installment_plans(account_id)
         except Exception as e:
-            toast(_t(f"Taksit planları okunamadı: {e}"))
+            toast(_t(f"Taksit planları okunamadı: {_t(str(e))}"))
             return
 
         body = MDList()
@@ -605,8 +605,8 @@ class AccountMixin:
                                      height=dp(20), spacing=dp(6))
                 # 'Kalan/Toplam Taksit': 3/6 = 3 taksit ödendi, 3 taksit kaldı.
                 progress_lbl = MDLabel(
-                    text=(f"{plan['paid_installments']}/{plan['total_installments']}"
-                          f" Taksit Ödendi"),
+                    text=_t(f"{plan['paid_installments']}/{plan['total_installments']}"
+                            f" Taksit Ödendi"),
                     font_style="Caption",
                     theme_text_color="Secondary",
                 )
@@ -676,7 +676,7 @@ class AccountMixin:
                 cvc_code=cvc_code
             )
         except ValueError as exc:
-            toast(str(exc))
+            toast(_t(str(exc)))
             return False
 
         label = ACCOUNT_TYPE_LABELS.get(account_type, "Hesap")

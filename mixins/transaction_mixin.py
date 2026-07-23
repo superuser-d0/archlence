@@ -326,7 +326,7 @@ class TransactionMixin:
     def open_installment_count_menu(self, *args):
         """1-12 arası taksit sayısı menüsü (1 = fiilen tek çekim)."""
         items = [{
-            "text": f"{n} Taksit",
+            "text": _t(f"{n} Taksit"),
             "viewclass": "OneLineListItem",
             "on_release": (lambda n=n: self._set_installment_count(n)),
         } for n in range(1, 13)]
@@ -502,7 +502,7 @@ class TransactionMixin:
             None,
         )
         if acc is None:
-            widget.card_name = "Ödeme yöntemi seçilmedi"
+            widget.card_name = _t("Ödeme yöntemi seçilmedi")
             widget.masked_text = ""
             widget.info_label = ""
             widget.info_value = ""
@@ -516,16 +516,16 @@ class TransactionMixin:
         if acc.get("has_card_number") and acc.get("masked_number"):
             widget.masked_text = f"•••• {str(acc['masked_number'])[-4:]}"
         else:
-            widget.masked_text = acc.get("type_label", "Kredi Kartı" if is_credit else "")
+            widget.masked_text = _t(acc.get("type_label", "Kredi Kartı" if is_credit else ""))
 
         if is_credit:
             widget.icon = "credit-card-outline"
-            widget.info_label = "Güncel Limit"
+            widget.info_label = _t("Güncel Limit")
             widget.info_value = _fmt(acc.get("available_limit", 0.0))
             widget.accent_color = ftheme.accent(style, "blue")
         else:
             widget.icon = "bank-outline"
-            widget.info_label = "Güncel Bakiye"
+            widget.info_label = _t("Güncel Bakiye")
             widget.info_value = _fmt(acc.get("balance", 0.0))
             widget.accent_color = ftheme.accent(style, "green")
 
@@ -679,7 +679,7 @@ class TransactionMixin:
         error_message = {"text": "İşlem kaydedilirken bir hata oluştu!"}
 
         def error_callback(dt):
-            toast(error_message["text"])
+            toast(_t(error_message["text"]))
 
         def background_task():
             try:

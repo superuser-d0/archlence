@@ -97,9 +97,9 @@ class DebtMixin:
 
                 progress = MDProgressBar(value=debt["paid_installments"], max=debt["total_installments"], size_hint_y=None, height="8dp")
 
-                status_text = f"Kalan: {debt['total_installments'] - debt['paid_installments']}/{debt['total_installments']} Taksit"
+                status_text = _t(f"Kalan: {debt['total_installments'] - debt['paid_installments']}/{debt['total_installments']} Taksit")
                 if debt.get("is_auto_pay"):
-                    status_text += f"   •  Ayın {debt.get('auto_pay_day', 1)}. günü otomatik ödenecek"
+                    status_text += _t(f"   •  Ayın {debt.get('auto_pay_day', 1)}. günü otomatik ödenecek")
                 status_lbl = MDLabel(
                     text=status_text, font_style="Caption",
                     theme_text_color="Custom",
@@ -110,11 +110,11 @@ class DebtMixin:
 
                 btn_layout = MDBoxLayout(orientation="horizontal", spacing="10dp", size_hint_y=None, height="36dp")
                 pay_btn = ftheme.secondary_button(
-                    "Taksit Öde", self.theme_cls,
+                    _t("Taksit Öde"), self.theme_cls,
                     on_release=lambda x, d=debt: self.pay_debt_installments(d),
                 )
                 close_btn = ftheme.danger_button(
-                    "Tamamen Kapat", self.theme_cls,
+                    _t("Tamamen Kapat"), self.theme_cls,
                     on_release=lambda x, d=debt: self.close_debt_completely(d),
                 )
                 btn_layout.add_widget(pay_btn)
@@ -249,7 +249,7 @@ class DebtMixin:
         switch_row.add_widget(auto_switch)
 
         day_input = ftheme.make_text_field(
-            "Ödeme Günü (1-31)", self.theme_cls,
+            _t("Ödeme Günü (1-31)"), self.theme_cls,
             filter="int",
             text=str(debt.get("auto_pay_day", 1)),
         )
@@ -416,7 +416,7 @@ class DebtMixin:
                 except Exception as e:
                     print("Error paying credit card debt:", e)
                     error_msg = str(e)
-                    Clock.schedule_once(lambda dt: toast(_t(f"Hata: {error_msg}")), 0)
+                    Clock.schedule_once(lambda dt: toast(_t(f"Hata: {_t(error_msg)}")), 0)
 
             threading.Thread(target=process, daemon=True).start()
 
