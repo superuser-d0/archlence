@@ -235,6 +235,7 @@ EN = {
     "Top 100 Kripto — Seç": "Top 100 Crypto — Select",
     "Toplam Tutar (₺)": "Total Amount (₺)",
     "Tutar (₺)": "Amount (₺)",
+    "Ödenecek Tutar (₺)": "Payment Amount (₺)",
     "Tutar 0'dan büyük olmalı!": "Amount must be greater than zero!",
     "Tutar 0'dan büyük olmalıdır.": "Amount must be greater than zero.",
     "Tüm Verileri Sıfırla": "Reset All Data",

@@ -312,7 +312,7 @@ class DebtMixin:
         content = MDBoxLayout(orientation="vertical", spacing="14dp", size_hint_y=None, height="120dp")
 
         amount_input = ftheme.make_text_field(
-            "Ödenecek Tutar (₺)", self.theme_cls,
+            _t("Ödenecek Tutar (₺)"), self.theme_cls,
             filter="float",
             text=str(card["debt"]) if card["debt"] > 0 else ""
         )
@@ -320,7 +320,7 @@ class DebtMixin:
 
         selected_account_id = checking_accounts[0]["id"]
         account_btn = ftheme.primary_button(
-            f"{checking_accounts[0]['name']} (Bakiye: {checking_accounts[0]['balance']:,.2f} ₺)",
+            _t(f"{checking_accounts[0]['name']} (Bakiye: {checking_accounts[0]['balance']:,.2f} ₺)"),
             self.theme_cls,
             size_hint_x=1
         )
@@ -353,7 +353,7 @@ class DebtMixin:
             menu_items = []
             for acc in checking_now:
                 menu_items.append({
-                    "text": f"{acc['name']} (Bakiye: {acc['balance']:,.2f} ₺)",
+                    "text": _t(f"{acc['name']} (Bakiye: {acc['balance']:,.2f} ₺)"),
                     "viewclass": "OneLineListItem",
                     "on_release": lambda x=acc: set_selected_account(x),
                 })
@@ -426,7 +426,7 @@ class DebtMixin:
             content_cls=content,
             buttons=[
                 ftheme.secondary_button(
-                    "İPTAL", self.theme_cls,
+                    _t("İPTAL"), self.theme_cls,
                     on_release=lambda x: self.pay_debt_dialog.dismiss(),
                 ),
                 ftheme.primary_button(_t("ÖDE"), self.theme_cls, on_release=confirm),
