@@ -519,7 +519,7 @@ class CalculatorMixin:
 
 
     # ── Kredi/faiz hesaplayıcı yardımcıları ──────────────────────────────
-    # Bu metodlar main.py'deki FinoraApp gövdesinden taşındı; open_calculator
+    # Bu metodlar main.py'deki ArchlenceApp gövdesinden taşındı; open_calculator
     # içindeki buton bind'ları zaten bunlara başvuruyordu, artık aynı sınıfta
     # tanımlılar. Davranışları değişmedi.
 

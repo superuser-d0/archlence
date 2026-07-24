@@ -1,4 +1,4 @@
-"""Finora tema sistemi — Standart (KivyMD varsayılan) + Premium Banking (Indigo).
+"""Archlence tema sistemi — Standart (KivyMD varsayılan) + Premium Banking (Indigo).
 
 Tema artık KALICI DEĞİL: uygulama varsayılan olarak Standart (Teal) açılır,
 kullanıcı Ayarlar'dan Premium'a geçebilir. Bu modül iki yönlü geçişi yönetir:
@@ -9,29 +9,29 @@ Light/Indigo token'larını birebir geri yükler.
 from kivy.utils import get_color_from_hex
 
 # ── Premium Banking renk token'ları ────────────────────────────────────────
-FINORA_PRIMARY_HEX = "5444E5"    # Ana accent: Indigo/Çivit
-FINORA_SECONDARY_HEX = "3B2FC3"  # Koyu indigo
-FINORA_BG_HEX = "F9F9FF"         # Açık tema canvas: slate beyaz
-FINORA_SURFACE_HEX = "FFFFFF"    # Kart yüzeyleri: saf beyaz
-FINORA_TEXT_HEX = "151C27"       # Birincil metin: lacivert-siyah
+ARCHLENCE_PRIMARY_HEX = "5444E5"    # Ana accent: Indigo/Çivit
+ARCHLENCE_SECONDARY_HEX = "3B2FC3"  # Koyu indigo
+ARCHLENCE_BG_HEX = "F9F9FF"         # Açık tema canvas: slate beyaz
+ARCHLENCE_SURFACE_HEX = "FFFFFF"    # Kart yüzeyleri: saf beyaz
+ARCHLENCE_TEXT_HEX = "151C27"       # Birincil metin: lacivert-siyah
 
 # ── Karanlık tema yüzey merdiveni ──────────────────────────────────────────
 # Material "dark surface elevation" mantığı: kartlar zeminden ÇİZGİYLE değil,
 # bir tık açık dolguyla ayrışır. Neon kenarlık yerine bu merdiven kullanılır.
-FINORA_DARK_BG_HEX = "121212"       # Canvas (en dip)
-FINORA_DARK_SURFACE_HEX = "1E1E1E"  # Kart / diyalog yüzeyi (+1 basamak)
-FINORA_DARK_ELEVATED_HEX = "262626" # İç içe kart / seçili durum (+2 basamak)
+ARCHLENCE_DARK_BG_HEX = "121212"       # Canvas (en dip)
+ARCHLENCE_DARK_SURFACE_HEX = "1E1E1E"  # Kart / diyalog yüzeyi (+1 basamak)
+ARCHLENCE_DARK_ELEVATED_HEX = "262626" # İç içe kart / seçili durum (+2 basamak)
 
 # rgba karşılıkları (Python tarafında grafik/canvas çizimleri için)
-FINORA_PRIMARY = get_color_from_hex(FINORA_PRIMARY_HEX)
-FINORA_SECONDARY = get_color_from_hex(FINORA_SECONDARY_HEX)
-FINORA_TEXT = get_color_from_hex(FINORA_TEXT_HEX)
+ARCHLENCE_PRIMARY = get_color_from_hex(ARCHLENCE_PRIMARY_HEX)
+ARCHLENCE_SECONDARY = get_color_from_hex(ARCHLENCE_SECONDARY_HEX)
+ARCHLENCE_TEXT = get_color_from_hex(ARCHLENCE_TEXT_HEX)
 
 # Tema rol token'ları. Koyu kart yüzeyi Light Mode'da da bilinçli olarak kalır;
 # gerçek bankacılık uygulamalarındaki fiziksel kart metaforunu korur.
-FINORA_BANK_CARD_HEX = "171C25"
-FINORA_BANK_CARD_TEXT_HEX = "F7F9FC"
-FINORA_BANK_CARD_MUTED_HEX = "AEB7C6"
+ARCHLENCE_BANK_CARD_HEX = "171C25"
+ARCHLENCE_BANK_CARD_TEXT_HEX = "F7F9FC"
+ARCHLENCE_BANK_CARD_MUTED_HEX = "AEB7C6"
 
 # KivyMD'nin dokunulmamış Light/Indigo token'ları; ilk apply çağrısında
 # yakalanır, standarda dönüşte geri yüklenir (premium mutasyonu kalıcı olmasın).
@@ -49,7 +49,7 @@ def _ensure_captured():
 
 
 def apply_dark_surface_tokens():
-    """KivyMD'nin varsayılan Dark token'larını Finora yüzey merdiveniyle ezer.
+    """KivyMD'nin varsayılan Dark token'larını Archlence yüzey merdiveniyle ezer.
 
     Varsayılan Dark paleti Background ve CardsDialogs için birbirine çok yakın
     griler verdiği için kartlar zeminden ayrışmıyordu; eski çözüm kartlara kalın
@@ -59,9 +59,9 @@ def apply_dark_surface_tokens():
     Her tema uygulamasında idempotent olarak çağrılır (sözlük mutasyonu).
     """
     from kivymd.color_definitions import colors
-    colors["Dark"]["Background"] = FINORA_DARK_BG_HEX
-    colors["Dark"]["CardsDialogs"] = FINORA_DARK_SURFACE_HEX
-    colors["Dark"]["AppBar"] = FINORA_DARK_SURFACE_HEX
+    colors["Dark"]["Background"] = ARCHLENCE_DARK_BG_HEX
+    colors["Dark"]["CardsDialogs"] = ARCHLENCE_DARK_SURFACE_HEX
+    colors["Dark"]["AppBar"] = ARCHLENCE_DARK_SURFACE_HEX
 
 
 def _patch_text_color_once():
@@ -77,10 +77,10 @@ def _patch_text_color_once():
     güvenli.
     """
     from kivymd.theming import ThemeManager
-    if getattr(ThemeManager, "_finora_text_patched", False):
+    if getattr(ThemeManager, "_archlence_text_patched", False):
         return
 
-    def _finora_get_text_color(self, opposite=False):
+    def _archlence_get_text_color(self, opposite=False):
         theme_style = self._get_theme_style(opposite)
         if theme_style == "Light":
             from kivymd.app import MDApp
@@ -94,8 +94,8 @@ def _patch_text_color_once():
         color = get_color_from_hex("FFFFFF")
         return tuple(color)
 
-    ThemeManager._get_text_color.__code__ = _finora_get_text_color.__code__
-    ThemeManager._finora_text_patched = True
+    ThemeManager._get_text_color.__code__ = _archlence_get_text_color.__code__
+    ThemeManager._archlence_text_patched = True
 
 
 def _refresh(theme_cls):
@@ -112,13 +112,13 @@ def apply_premium_theme(theme_cls):
     _patch_text_color_once()
 
     # Indigo paletinin ana tonlarını marka renkleriyle ez (primary_hue "500").
-    colors["Indigo"]["500"] = FINORA_PRIMARY_HEX
-    colors["Indigo"]["700"] = FINORA_SECONDARY_HEX
-    colors["Indigo"]["A700"] = FINORA_SECONDARY_HEX
+    colors["Indigo"]["500"] = ARCHLENCE_PRIMARY_HEX
+    colors["Indigo"]["700"] = ARCHLENCE_SECONDARY_HEX
+    colors["Indigo"]["A700"] = ARCHLENCE_SECONDARY_HEX
     # Açık tema zeminleri.
-    colors["Light"]["Background"] = FINORA_BG_HEX
-    colors["Light"]["CardsDialogs"] = FINORA_SURFACE_HEX
-    colors["Light"]["AppBar"] = FINORA_SURFACE_HEX
+    colors["Light"]["Background"] = ARCHLENCE_BG_HEX
+    colors["Light"]["CardsDialogs"] = ARCHLENCE_SURFACE_HEX
+    colors["Light"]["AppBar"] = ARCHLENCE_SURFACE_HEX
     apply_dark_surface_tokens()
 
     # theme_style'a DOKUNULMAZ: kullanıcı karanlık moddayken palet değiştirince
@@ -167,14 +167,14 @@ def _is_dark(style):
 def card_bg(style):
     """Kart/yüzey dolgusu — karanlıkta zeminden bir basamak açık (#1E1E1E)."""
     if _is_dark(style):
-        return get_color_from_hex(FINORA_DARK_SURFACE_HEX)
+        return get_color_from_hex(ARCHLENCE_DARK_SURFACE_HEX)
     return [1, 1, 1, 1]
 
 
 def elevated_bg(style):
     """İç içe kart ya da seçili durum yüzeyi (+2 basamak)."""
     if _is_dark(style):
-        return get_color_from_hex(FINORA_DARK_ELEVATED_HEX)
+        return get_color_from_hex(ARCHLENCE_DARK_ELEVATED_HEX)
     return get_color_from_hex("F1F1F6")
 
 
@@ -192,19 +192,19 @@ def card_line(style):
 def muted_bg(style):
     """Segmented control / filtre çubuğu gibi pasif konteyner zeminleri."""
     if _is_dark(style):
-        return get_color_from_hex(FINORA_DARK_ELEVATED_HEX)
+        return get_color_from_hex(ARCHLENCE_DARK_ELEVATED_HEX)
     return [0.93, 0.93, 0.95, 1]
 
 
 def bank_card_bg(style):
     """Premium kartın temadan bağımsız gece mavisi fiziksel kart yüzeyi."""
-    return get_color_from_hex(FINORA_BANK_CARD_HEX)
+    return get_color_from_hex(ARCHLENCE_BANK_CARD_HEX)
 
 
 def bank_card_text(style, muted=False):
     """Gece mavisi kart üzerinde WCAG dostu ana/ikincil metin."""
     return get_color_from_hex(
-        FINORA_BANK_CARD_MUTED_HEX if muted else FINORA_BANK_CARD_TEXT_HEX
+        ARCHLENCE_BANK_CARD_MUTED_HEX if muted else ARCHLENCE_BANK_CARD_TEXT_HEX
     )
 
 
@@ -255,7 +255,7 @@ def field_style(style):
 
 
 def make_text_field(hint, theme_cls, filter=None, mode="fill", **kwargs):
-    """Tema duyarlı, yuvarlatılmış standart Finora giriş alanı."""
+    """Tema duyarlı, yuvarlatılmış standart Archlence giriş alanı."""
     from kivy.metrics import dp
     from kivymd.uix.textfield import MDTextField
     from typing import Any
@@ -356,7 +356,7 @@ def tint_bg(style, name):
     if not _is_dark(style):
         return list(light)
     # Koyu yüzeyin üzerine tint'i alfa ile karıştır — düz, opak bir sonuç ver.
-    base = get_color_from_hex(FINORA_DARK_SURFACE_HEX)
+    base = get_color_from_hex(ARCHLENCE_DARK_SURFACE_HEX)
     a = dark[3]
     return [base[i] * (1 - a) + dark[i] * a for i in range(3)] + [1]
 
@@ -419,7 +419,7 @@ def field_color(style, role):
 
 
 def apply_card_theme(card, theme_cls, tint=None):
-    """Python'da imperatif kurulan bir MDCard'ı Finora yüzey diline bağlar.
+    """Python'da imperatif kurulan bir MDCard'ı Archlence yüzey diline bağlar.
 
     KV'deki kartlar tema değişiminde bağlamalar sayesinde kendiliğinden
     güncellenir; Python'da kurulanlar rengi bir kez hesaplar. Bu yüzden seçilen
@@ -427,7 +427,7 @@ def apply_card_theme(card, theme_cls, tint=None):
     `refresh_card_theme` ile yeniden uygulanır (kart başına bind kurup
     yeniden çizimlerde sızıntı bırakmamak için işaret + tarama yöntemi).
     """
-    card._finora_tint = tint
+    card._archlence_tint = tint
     refresh_card_theme(card, theme_cls)
     return card
 
@@ -438,5 +438,5 @@ def refresh_card_theme(card, theme_cls):
     if hasattr(card, "shadow_softness"):
         card.shadow_softness = 0
     card.line_color = card_line(theme_cls)
-    tint = getattr(card, "_finora_tint", None)
+    tint = getattr(card, "_archlence_tint", None)
     card.md_bg_color = tint_bg(theme_cls, tint) if tint else card_bg(theme_cls)

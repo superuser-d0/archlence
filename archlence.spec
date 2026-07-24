@@ -1,19 +1,22 @@
 # -*- mode: python ; coding: utf-8 -*-
 #
-# Finora — Windows PyInstaller spec dosyası
+# Archlence — Windows PyInstaller spec dosyası
 #
 # ÖNEMLİ: PyInstaller çapraz derleme YAPAMAZ. Bu dosya Windows üzerinde
 # çalıştırılmalı (GitHub Actions'taki windows-latest runner dahil). Linux'ta
-# `pyinstaller finora.spec` çalıştırırsan Linux binary üretir, .exe değil.
+# `pyinstaller archlence.spec` çalıştırırsan Linux binary üretir, .exe değil.
 #
 # Kullanım (Windows'ta, venv aktifken):
 #   pip install pyinstaller kivy_deps.sdl2 kivy_deps.glew kivy_deps.angle
-#   pyinstaller finora.spec
+#   pyinstaller archlence.spec
 #
-# Çıktı: dist/Finora/Finora.exe (+ yanındaki DLL/kaynak klasörü — bu bir
+# Çıktı: dist/Archlence/Archlence.exe (+ yanındaki DLL/kaynak klasörü — bu bir
 # "onedir" build, tek dosyalık .exe DEĞİL. Kivy uygulamaları PyInstaller'da
 # --onefile ile sık sorun çıkarır; onedir çok daha güvenilir. Dağıtırken
-# dist/Finora/ klasörünün TAMAMINI zipleyip paylaş.)
+# dist/Archlence/ klasörünün TAMAMINI zipleyip paylaş.)
+#
+# İkonun vektör kaynağı assets/icon_source.svg; masaüstü paketleri için
+# üretilmiş PNG ve çok çözünürlüklü ICO sürümleri assets/ altında tutulur.
 
 import os
 from kivy_deps import sdl2, glew
@@ -66,13 +69,13 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="Finora",
+    name="Archlence",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     console=False,   # arka planda siyah konsol penceresi açılmasın
-    icon=None,        # ikon hazır olunca: "assets/icon.ico"
+    icon="assets/icon.ico",
 )
 
 coll = COLLECT(
@@ -83,5 +86,5 @@ coll = COLLECT(
     *[Tree(p) for p in sdl2.dep_bins + glew.dep_bins],
     strip=False,
     upx=True,
-    name="Finora",
+    name="Archlence",
 )

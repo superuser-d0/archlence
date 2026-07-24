@@ -458,16 +458,29 @@ def compute_financial_health_score(lookback_days=90, persist=True):
       * borç/gelir oranı    %30 — active_debts'teki aylık taksit toplamı
       * gider oynaklığı     %20 — aylık gider dalgalanması
 
-    `persist=True` ise skor financial_health_history'e zaman damgasıyla
-    yazılır (trend grafiği için). Testlerde persist=False kullanılabilir.
+    `persist=True` ise anlamlı skor financial_health_history'e zaman
+    damgasıyla yazılır (gelecekteki geçmiş sorguları için). Testlerde
+    persist=False kullanılabilir.
 
-    Döner: {score, breakdown: {...}, components: {...}, computed_at}
+    Döner: {score, breakdown: {...}, computed_at, insufficient_data}
     """
     expenses = _load_transactions(lookback_days, _EXPENSE_TYPES)
     incomes = _load_transactions(lookback_days, _INCOME_TYPES)
 
     total_expense = sum(r["amount"] for r in expenses)
     total_income = sum(r["amount"] for r in incomes)
+    computed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Yalnızca gerçekten hiç gelir/gider verisi olmayan pencereyi ayırıyoruz.
+    # Tek taraflı veya az sayıdaki gerçek işlemi burada reddetmek, gerçek bir
+    # 50 puanı da "veri yok" sanmak olurdu.
+    if total_income <= 0 and total_expense <= 0:
+        return {
+            "score": None,
+            "breakdown": {},
+            "computed_at": computed_at,
+            "insufficient_data": True,
+        }
 
     # Aylık borç yükü: active_debts şifreli tutarlar taşıdığı için
     # get_active_debts zaten çözerek döndürüyor, onu tekrar kullanıyoruz.
@@ -503,11 +516,15 @@ def compute_financial_health_score(lookback_days=90, persist=True):
         "lookback_days": lookback_days,
     }
 
-    computed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     if persist:
         save_health_score(score, breakdown, computed_at)
 
-    return {"score": score, "breakdown": breakdown, "computed_at": computed_at}
+    return {
+        "score": score,
+        "breakdown": breakdown,
+        "computed_at": computed_at,
+        "insufficient_data": False,
+    }
 
 
 def save_health_score(score, breakdown, computed_at=None):
@@ -534,7 +551,7 @@ def save_health_score(score, breakdown, computed_at=None):
 
 
 def get_health_history(limit=30):
-    """Son N skoru en yeniden eskiye döndürür (trend çizimi için)."""
+    """Son N skoru en yeniden eskiye döndürür (gelecekteki geçmiş görünümü için)."""
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(

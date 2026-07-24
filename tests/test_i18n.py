@@ -22,6 +22,14 @@ class I18nTestCase(unittest.TestCase):
         self.assertEqual(tr("Aylık: 1.250 ₺"), "Monthly: 1.250 ₺")
         self.assertEqual(tr("Maaş"), "Salary")
 
+    def test_what_if_labels_have_real_turkish_translations(self):
+        set_language("tr")
+        self.assertEqual(tr("What-If\nSandbox"), "Varsayım\nAlanı")
+        self.assertEqual(tr("What-If Sandbox"), "Varsayım Alanı")
+        set_language("en")
+        self.assertEqual(tr("What-If\nSandbox"), "What-If\nSandbox")
+        self.assertEqual(tr("What-If Sandbox"), "What-If Sandbox")
+
     def test_every_static_kv_phrase_has_an_english_translation(self):
         ui_dir = Path(__file__).parents[1] / "ui"
         sources = [
@@ -33,7 +41,7 @@ class I18nTestCase(unittest.TestCase):
             values.extend(re.findall(
                 r'app\.tr\("((?:[^"\\]|\\.)*)", app\.language\)', source
             ))
-        ignored = {"", "FINORA", "ornek@finora.com"}
+        ignored = {"", "ARCHLENCE"}
         missing = []
         for raw in values:
             value = raw.replace(r"\n", "\n").replace(r'\"', '"')

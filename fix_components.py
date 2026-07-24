@@ -1,6 +1,9 @@
 import re
+from pathlib import Path
 
-with open('/home/cem/Documents/finora/ui/components.py', 'r') as f:
+components_path = Path(__file__).resolve().parent / "ui" / "components.py"
+
+with components_path.open('r', encoding='utf-8') as f:
     content = f.read()
 
 # Find the start of Builder.load_string('''\n<PremiumCreditCardWidget>:
@@ -31,7 +34,7 @@ new_kv = '''<PremiumCreditCardWidget>:
                 radius: [dp(16)]
                 
         MDLabel:
-            text: "Finora"
+            text: "Archlence"
             theme_text_color: "Custom"
             text_color: 1, 1, 1, 1
             font_style: "H6"
@@ -197,6 +200,5 @@ new_kv = '''<PremiumCreditCardWidget>:
 pattern = r'<PremiumCreditCardWidget>:.*?(?=<BentoAccountWidget>:)'
 new_content = re.sub(pattern, new_kv, content, flags=re.DOTALL)
 
-with open('/home/cem/Documents/finora/ui/components.py', 'w') as f:
+with components_path.open('w', encoding='utf-8') as f:
     f.write(new_content)
-

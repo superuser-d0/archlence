@@ -400,8 +400,8 @@ class InsightsServiceTestCase(unittest.TestCase):
         self.assertGreaterEqual(result["score"], 0.0)
         self.assertLessEqual(result["score"], 100.0)
 
-    def test_empty_database_produces_neutral_score(self):
-        """Hiç işlem yokken servis çökmemeli."""
+    def test_empty_database_returns_insufficient_data(self):
+        """Hiç işlem yokken nötr 50 yerine açık veri-yok durumu dönmeli."""
         from services.insights_service import (
             compute_financial_health_score, detect_anomalies,
             detect_recurring_candidates,
@@ -410,6 +410,31 @@ class InsightsServiceTestCase(unittest.TestCase):
         self.assertEqual(detect_recurring_candidates(), [])
         self.assertEqual(detect_anomalies(), [])
         result = compute_financial_health_score(persist=False)
+        self.assertTrue(result["insufficient_data"])
+        self.assertIsNone(result["score"])
+        self.assertEqual(result["breakdown"], {})
+
+    def test_insufficient_score_is_not_persisted(self):
+        """Veri yok sonucu persist=True olsa bile geçmişe yazılmamalı."""
+        from services.insights_service import (
+            compute_financial_health_score, get_health_history,
+        )
+
+        result = compute_financial_health_score(persist=True)
+
+        self.assertTrue(result["insufficient_data"])
+        self.assertEqual(get_health_history(), [])
+
+    def test_real_transactions_still_produce_a_numeric_score(self):
+        """Az ama gerçek veri, veri-yok durumuyla karıştırılmamalı."""
+        from services.insights_service import compute_financial_health_score
+
+        self._add_tx(1000.0, "income", "Maaş", "Maas", days_ago=2)
+        self._add_tx(800.0, "expense", "Süpermarket", "Market", days_ago=1)
+        result = compute_financial_health_score(persist=False)
+
+        self.assertFalse(result["insufficient_data"])
+        self.assertIsInstance(result["score"], float)
         self.assertGreaterEqual(result["score"], 0.0)
         self.assertLessEqual(result["score"], 100.0)
 

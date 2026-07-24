@@ -1132,7 +1132,7 @@ class PieChart(Widget):
         self.colors = [tuple(ftheme.chart_empty("Light"))]
 
     def fetch_real_data(self):
-        # Deprecated: The logic was moved to FinoraApp.update_metrics_and_goals()
+        # Deprecated: The logic was moved to ArchlenceApp.update_metrics_and_goals()
         # This is kept empty temporarily to avoid crashes if called before restart
         pass
     def update_chart(self, *args):

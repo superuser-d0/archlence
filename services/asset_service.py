@@ -141,6 +141,40 @@ def start_data_warmup(callback=None):
             
     threading.Thread(target=worker, daemon=True).start()
 
+
+def refresh_account_cache_snapshot():
+    """Hesap bakiyelerini ağ beklemeden mevcut cache'e atomik olarak yazar.
+
+    İşlem kaydı worker'ından çağrılır; UI thread'indeki ``render_accounts``
+    böylece eski açılış snapshot'ını değil yeni DB durumunu görür.
+    """
+    global _asset_data_cache
+    from services.account_service import AccountService
+    from services.transaction_service import TransactionService
+
+    summary = AccountService.get_net_worth()
+    accounts = AccountService.get_accounts()
+    recent = {}
+    for account in accounts:
+        if (
+            account["account_type"] == "credit_card"
+            or account.get("has_card_number", False)
+        ):
+            recent[account["id"]] = TransactionService.get_recent_for_account(
+                account["id"], limit=3
+            )
+
+    with _warmup_lock:
+        previous = _asset_data_cache or {}
+        _asset_data_cache = {
+            "summary": summary,
+            "accounts": accounts,
+            "recent": recent,
+            "active_assets_result": previous.get("active_assets_result"),
+            "ready": True,
+        }
+    return _asset_data_cache
+
 # USD/TRY kuru için modül seviyesinde, kısa ömürlü önbellek — Altın/Kripto
 # fiyatlarını her seferinde ayrı bir yfinance isteğiyle çevirmemek için.
 _usdtry_cache = {"rate": None, "time": 0.0}
@@ -484,7 +518,7 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
     # a separate interpreter. The child re-enters this function with the env
     # flag and uses the existing local worker implementation below.
     import os
-    if not os.environ.get("FINORA_ASSET_PRICE_CHILD"):
+    if not os.environ.get("ARCHLENCE_ASSET_PRICE_CHILD"):
         def _isolated_worker():
             fresh = None if force_refresh else _read_cached_portfolio(assets)
             if fresh is not None:
@@ -498,11 +532,11 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
             import subprocess
             import sys
             import tempfile
-            fd, output_path = tempfile.mkstemp(prefix="finora_prices_", suffix=".json")
+            fd, output_path = tempfile.mkstemp(prefix="archlence_prices_", suffix=".json")
             os.close(fd)
             try:
                 env = dict(os.environ)
-                env["FINORA_ASSET_PRICE_CHILD"] = "1"
+                env["ARCHLENCE_ASSET_PRICE_CHILD"] = "1"
                 subprocess.run(
                     [sys.executable, "-m", "services.asset_price_worker", output_path],
                     input=json.dumps(assets, ensure_ascii=False), text=True,
@@ -775,9 +809,8 @@ def get_active_non_try_assets() -> list:
 
 
 def _ensure_price_cache(conn) -> None:
-    conn.execute(f"""CREATE TABLE IF NOT EXISTS {_PRICE_CACHE_TABLE} (
-        symbol TEXT PRIMARY KEY, price_try REAL NOT NULL, updated_at INTEGER NOT NULL
-    )""")
+    from database.models import ASSET_PRICE_CACHE_SCHEMA
+    conn.execute(ASSET_PRICE_CACHE_SCHEMA)
     conn.commit()
 
 
@@ -790,10 +823,10 @@ def _read_cached_prices(symbols: set[str]) -> dict[str, float]:
         _ensure_price_cache(conn)
         placeholders = ",".join("?" for _ in symbols)
         rows = conn.execute(
-            f"SELECT symbol, price_try FROM {_PRICE_CACHE_TABLE} WHERE symbol IN ({placeholders})",
+            f"SELECT symbol, price FROM {_PRICE_CACHE_TABLE} WHERE symbol IN ({placeholders})",
             tuple(symbols),
         ).fetchall()
-        return {row["symbol"]: float(row["price_try"]) for row in rows}
+        return {row["symbol"]: float(row["price"]) for row in rows}
     finally:
         conn.close()
 
@@ -805,11 +838,15 @@ def _store_prices(prices: dict[str, float]) -> None:
     conn = get_connection()
     try:
         _ensure_price_cache(conn)
-        now = int(time.time())
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Europe/Istanbul")).isoformat()
         conn.executemany(
-            f"""INSERT INTO {_PRICE_CACHE_TABLE} (symbol, price_try, updated_at)
-                VALUES (?, ?, ?) ON CONFLICT(symbol) DO UPDATE SET
-                price_try=excluded.price_try, updated_at=excluded.updated_at""",
+            f"""INSERT INTO {_PRICE_CACHE_TABLE}
+                    (symbol, price, asset_type, updated_at)
+                VALUES (?, ?, 'UNKNOWN', ?)
+                ON CONFLICT(symbol) DO UPDATE SET
+                    price=excluded.price, updated_at=excluded.updated_at""",
             [(symbol, price, now) for symbol, price in prices.items()],
         )
         conn.commit()
@@ -884,11 +921,10 @@ def _fetch_live_try_prices(assets: list[dict]) -> dict[str, float]:
 
 
 def fetch_active_non_try_total(callback, progress_callback=None) -> None:
-    """TL dışı aktif portföyün canlı toplamını tamamen arka planda hesaplar.
+    """TL dışı portföy toplamını dinamik TTL cache'iyle arka planda hesaplar.
 
-    Callback ``total``, ``asset_count`` ve ``priced_count`` anahtarlarını içeren
-    bir sözlük alır. UI güncellemesini ana Kivy thread'ine taşımak çağıranın
-    sorumluluğundadır.
+    Bu özet yolu ağ sonucu beklemez: son fiyatları anında toplar, eksik/bayat
+    sembollerin yenilenmesini price_service daemon thread'lerine bırakır.
     """
     def _load_assets():
         try:
@@ -910,72 +946,40 @@ def fetch_active_non_try_total(callback, progress_callback=None) -> None:
                 "cached_count": 0, "complete": False,
             })
 
-        symbols = {(a["asset_code"] or "").strip().upper() for a in assets}
-        try:
-            cached_prices = _read_cached_prices(symbols)
-        except Exception:
-            cached_prices = {}
-        live_prices, error = {}, None
-        try:
-            live_prices = _fetch_live_try_prices(assets)
-            _store_prices(live_prices)
-        except Exception as exc:
-            error = str(exc)
-        prices = {**cached_prices, **live_prices}
+        from services.price_service import (
+            fetch_prices_async, get_cached_prices,
+        )
 
-        def finish(final_prices, isolated_error=None):
-          try:
-            priced_assets = [
-                a for a in assets
-                if (a["asset_code"] or "").strip().upper() in final_prices
-            ]
-            total = 0.0
-            cached_count = 0
-            for index, asset in enumerate(priced_assets, 1):
-                symbol = (asset["asset_code"] or "").strip().upper()
-                total += float(asset["quantity"]) * final_prices[symbol]
-                if symbol not in live_prices:
-                    cached_count += 1
-                if progress_callback is not None:
-                    progress_callback({
-                        "total": total, "asset_count": len(assets),
-                        "priced_count": index, "cached_count": cached_count,
-                        "complete": False, "asset": asset, "error": error,
-                    })
-            callback({
-                "total": total, "asset_count": len(assets),
-                "priced_count": len(priced_assets),
-                "cached_count": cached_count, "complete": True,
-                "error": isolated_error or error,
-            })
-          except Exception as exc:
-            callback({"total": 0.0, "asset_count": len(assets),
-                      "priced_count": 0, "cached_count": 0,
-                      "complete": True, "error": str(exc)})
-
-        missing = [
-            asset for asset in assets
-            if (asset["asset_code"] or "").strip().upper() not in prices
+        requested = [
+            (
+                (asset["asset_code"] or "").strip().upper(),
+                asset.get("asset_type"),
+            )
+            for asset in assets
         ]
-        if not missing:
-            finish(prices)
-            return
-
-        # BIST/altın yfinance fallback'i ayrı proseste çalışır; pandas hiçbir
-        # zaman Kivy prosesinin GIL'ini tutmaz.
-        def isolated_complete(enriched):
-            isolated_prices = {}
-            for item in enriched or []:
-                price = item.get("current_price")
-                if price is not None and float(price) > 0:
-                    symbol = (item.get("asset_code") or "").strip().upper()
-                    isolated_prices[symbol] = float(price)
-            try:
-                _store_prices(isolated_prices)
-            except Exception:
-                pass
-            finish({**prices, **isolated_prices})
-
-        fetch_portfolio_with_prices(missing, callback=isolated_complete)
+        prices = get_cached_prices(symbol for symbol, _kind in requested)
+        # Tek çağrı bütün vadesi dolmuş sembolleri bir batch worker'a toplar.
+        fetch_prices_async(requested, callback=None)
+        total = 0.0
+        priced_count = 0
+        for asset in assets:
+            symbol = (asset["asset_code"] or "").strip().upper()
+            price = prices.get(symbol)
+            if price is None:
+                continue
+            priced_count += 1
+            total += float(asset["quantity"]) * float(price)
+            if progress_callback is not None:
+                progress_callback({
+                    "total": total, "asset_count": len(assets),
+                    "priced_count": priced_count,
+                    "cached_count": priced_count, "complete": False,
+                    "asset": asset,
+                })
+        callback({
+            "total": total, "asset_count": len(assets),
+            "priced_count": priced_count, "cached_count": priced_count,
+            "complete": True,
+        })
 
     threading.Thread(target=_load_assets, daemon=True).start()

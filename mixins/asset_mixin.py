@@ -1194,24 +1194,20 @@ class AssetMixin:
 
 
     def load_active_assets(self, *args, force_refresh=False):
-        """DB okuma + yfinance fiyatlandırma + bugünkü nakit deltası dahil TÜM
-        hesaplamaları arka planda bitirir; sonuç hazır olunca kart listesi TEK
-        Clock çağrısıyla, tek karede basılır.
+        """Yerel fiyat cache'ini hemen gösterip canlı fiyatları sessizce yeniler.
 
-        Eski sürüm frame başına bir kart çizip ('_stream_pending_assets') her
-        fiyat geldikçe remove_widget/add_widget yapıyordu — bu rekürsif akış
-        Kivy'nin do_layout'unu spamlayıp sekme geçişlerini kilitliyordu.
+        Ağ ve yfinance yalnız daemon worker'da çalışır. UI önce SQLite'taki son
+        fiyatlarla çizilir; dinamik TTL'i dolan semboller tek batch istekte
+        yenilenince mevcut kartlar yerinde güncellenir.
         """
         import threading
         from database.db import get_all_assets
-        from services.asset_service import fetch_portfolio_with_prices
-        import time
+        from services.price_service import (
+            enrich_assets_from_cache, fetch_asset_prices_async,
+        )
 
         if not force_refresh:
             if getattr(self, "_asset_load_inflight", False):
-                return
-            loaded_at = getattr(self, "_asset_ui_loaded_at", 0.0)
-            if self._assets_cache and time.monotonic() - loaded_at < 300:
                 return
         self._asset_load_inflight = True
 
@@ -1225,7 +1221,7 @@ class AssetMixin:
         # İskelet yalnızca liste gerçekten boşken gösterilir; mevcut kartlar
         # yeni veri gelene dek YERİNDE kalır (temizle/yeniden-kur titremesi yok).
         has_cards = any(
-            getattr(child, "_finora_asset_id", None) is not None
+            getattr(child, "_archlence_asset_id", None) is not None
             for child in container.children
         )
         if not has_cards:
@@ -1242,14 +1238,16 @@ class AssetMixin:
                 halign="center", size_hint_y=None, height="28dp",
             ))
 
-        def _apply(enriched, today_delta):
+        def _apply(enriched, today_delta, final=False):
             def _on_ui(dt):
                 if generation != self._asset_load_generation:
                     return  # bayat sonuç — daha yeni bir yükleme başladı
                 self.render_active_assets_chunked(
                     enriched,
-                    on_complete=lambda: self._finish_active_asset_load(
-                        today_delta
+                    on_complete=lambda: (
+                        self._finish_active_asset_load(today_delta)
+                        if final else
+                        self._update_cached_asset_summary(today_delta)
                     ),
                 )
             Clock.schedule_once(_on_ui, 0)
@@ -1259,35 +1257,59 @@ class AssetMixin:
                 assets = get_all_assets()
             except Exception as e:
                 print("Asset load error:", e)
-                _apply([], None)
+                _apply([], None, final=True)
                 return
             if not assets:
-                _apply([], None)
+                _apply([], None, final=True)
                 return
 
-            def on_complete(enriched):
-                # Hâlâ arka plan thread'indeyiz: bugünkü nakit hareket deltası
-                # da burada (DB + şifre çözme) hesaplanır ki UI thread'i
-                # yalnızca hazır değerleri bassın.
-                try:
-                    today_delta = self._compute_today_liquid_delta()
-                except Exception:
-                    today_delta = None
-                _apply(enriched or [], today_delta)
+            try:
+                today_delta = self._compute_today_liquid_delta()
+            except Exception:
+                today_delta = None
 
-            fetch_portfolio_with_prices(
-                assets, callback=on_complete,
-                cache_callback=on_complete,
+            # İlk sonuç yalnız SQLite'tan gelir; hiçbir ağ çağrısını beklemez.
+            cached = enrich_assets_from_cache(assets)
+            _apply(cached, today_delta, final=False)
+
+            fetch_asset_prices_async(
+                assets,
+                callback=lambda enriched: _apply(
+                    enriched or cached, today_delta, final=True
+                ),
                 force_refresh=force_refresh,
             )
 
         threading.Thread(target=_fetch_and_enrich, daemon=True).start()
 
+    def _update_cached_asset_summary(self, today_delta):
+        """Cache render'ından sonra toplamı ve zaman etiketini günceller."""
+        self.update_wealth_card(self._assets_cache, today_delta)
+        self._update_asset_price_timestamp()
+
     def _finish_active_asset_load(self, today_delta):
         import time
         self.update_wealth_card(self._assets_cache, today_delta)
+        self._update_asset_price_timestamp()
         self._asset_load_inflight = False
         self._asset_ui_loaded_at = time.monotonic()
+
+    def _update_asset_price_timestamp(self):
+        try:
+            label = self.root.ids.asset_prices_updated_label
+        except Exception:
+            return
+        from services.price_service import get_last_updated_at
+
+        symbols = [
+            asset.get("asset_code") for asset in getattr(self, "_assets_cache", [])
+            if asset.get("asset_code")
+        ]
+        updated_at = get_last_updated_at(symbols)
+        label.text = _t(
+            f"Son Güncelleme: {updated_at.strftime('%H:%M')}"
+            if updated_at else "Son Güncelleme: —"
+        )
 
     def render_active_assets_chunked(self, assets, on_complete=None):
         """Build one expensive asset card per frame to keep frames responsive."""
@@ -1306,14 +1328,14 @@ class AssetMixin:
         wanted_ids = {asset.get("id") for asset in assets}
         existing_cards = [
             child for child in container.children
-            if getattr(child, "_finora_asset_id", None) is not None
+            if getattr(child, "_archlence_asset_id", None) is not None
         ]
         if existing_cards:
             for card in existing_cards:
-                if card._finora_asset_id not in wanted_ids:
+                if card._archlence_asset_id not in wanted_ids:
                     container.remove_widget(card)
             for child in list(container.children):
-                if getattr(child, "_finora_asset_id", None) is None:
+                if getattr(child, "_archlence_asset_id", None) is None:
                     container.remove_widget(child)
         else:
             container.clear_widgets()
@@ -1408,25 +1430,25 @@ class AssetMixin:
 
             existing_card = next(
                 (child for child in container.children
-                 if getattr(child, "_finora_asset_id", None) == asset.get("id")),
+                 if getattr(child, "_archlence_asset_id", None) == asset.get("id")),
                 None,
             )
             if existing_card is not None:
-                existing_card._finora_buy_lbl.text = _t(
+                existing_card._archlence_buy_lbl.text = _t(
                     f"Alım: {asset['purchase_price']:,.4f} ₺  ×  "
                     f"{asset['quantity']:g}"
                 )
                 if asset.get("current_price") is not None:
-                    existing_card._finora_cur_lbl.text = _t(
+                    existing_card._archlence_cur_lbl.text = _t(
                         f"Anlık: {asset['current_price']:,.4f} ₺"
                     )
-                    existing_card._finora_cur_lbl.theme_text_color = "Secondary"
+                    existing_card._archlence_cur_lbl.theme_text_color = "Secondary"
                 elif signal == "error":
-                    existing_card._finora_cur_lbl.text = _t("Güncellenemedi")
-                    existing_card._finora_cur_lbl.theme_text_color = "Error"
+                    existing_card._archlence_cur_lbl.text = _t("Güncellenemedi")
+                    existing_card._archlence_cur_lbl.theme_text_color = "Error"
                 else:
-                    existing_card._finora_cur_lbl.text = _t("Fiyat alınıyor…")
-                    existing_card._finora_cur_lbl.theme_text_color = "Hint"
+                    existing_card._archlence_cur_lbl.text = _t("Fiyat alınıyor…")
+                    existing_card._archlence_cur_lbl.theme_text_color = "Hint"
                 if asset.get("pnl_pct") is not None:
                     sign = "+" if asset["pnl_pct"] >= 0 else ""
                     pnl_text = _t(
@@ -1438,8 +1460,8 @@ class AssetMixin:
                     pnl_text = _t("Bağlantı Hatası!")
                 else:
                     pnl_text = _t("Canlı veri bekleniyor…")
-                existing_card._finora_pnl_lbl.text = pnl_text
-                existing_card._finora_pnl_lbl.text_color = pnl_color
+                existing_card._archlence_pnl_lbl.text = pnl_text
+                existing_card._archlence_pnl_lbl.text_color = pnl_color
                 continue
 
             # Kart
@@ -1451,7 +1473,7 @@ class AssetMixin:
                 height="100dp",
                 radius=[10],
             ), self.theme_cls)
-            card._finora_asset_id = asset.get("id")
+            card._archlence_asset_id = asset.get("id")
 
             # Üst satır: İsim + Sil butonu
             top_row = MDBoxLayout(
@@ -1555,16 +1577,16 @@ class AssetMixin:
             card.add_widget(top_row)
             card.add_widget(mid_row)
             card.add_widget(pnl_lbl)
-            card._finora_buy_lbl = buy_lbl
-            card._finora_cur_lbl = cur_lbl
-            card._finora_pnl_lbl = pnl_lbl
+            card._archlence_buy_lbl = buy_lbl
+            card._archlence_cur_lbl = cur_lbl
+            card._archlence_pnl_lbl = pnl_lbl
             container.add_widget(card)
 
         # Kart yüksekliğini dinamik güncelle
         try:
             card_count = len([
                 child for child in container.children
-                if getattr(child, "_finora_asset_id", None) is not None
+                if getattr(child, "_archlence_asset_id", None) is not None
             ])
             parent_card = container.parent.parent  # ScrollView → MDCard
             new_height = max(280, 60 + card_count * 108)

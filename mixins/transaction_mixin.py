@@ -24,7 +24,7 @@ def _fmt(value):
 class TransactionMixin:
     """Gelir/gider işlemi ekleme akışı: dialog, kategori seçimi ve kayıt.
 
-    FinoraApp'e karışan (mixin) sınıf; self.dialog, self.selected_type gibi
+    ArchlenceApp'e karışan (mixin) sınıf; self.dialog, self.selected_type gibi
     durumları app örneği üzerinde tutar. Kayıt işlemi şifreleme içerdiği için
     arka plan thread'inde yapılır, UI güncellemeleri Clock ile ana thread'e döner.
     """
@@ -45,7 +45,7 @@ class TransactionMixin:
         dialog_layout = MDBoxLayout(
             orientation="vertical", spacing=dp(18),
             size_hint_y=None, adaptive_height=True,
-            padding=[0, dp(4), 0, dp(4)],
+            padding=[dp(16), dp(4), dp(16), dp(4)],
         )
         self.amount_input = ftheme.make_text_field(
             _t("Miktar (₺)"), self.theme_cls, filter="float",
@@ -103,6 +103,15 @@ class TransactionMixin:
             _t("Ödeme Adı (örn: Netflix)"), self.theme_cls,
             size_hint_y=None, height=dp(48),
         )
+        import datetime
+        self.recurrence_day_input = ftheme.make_text_field(
+            _t("Her Ayın Hangi Günü Ödenecek? (1-31)"),
+            self.theme_cls,
+            filter="int",
+            size_hint_y=None,
+            height=dp(48),
+        )
+        self.recurrence_day_input.text = str(datetime.date.today().day)
 
         self.recurring_freq_segment = MDSegmentedControl(size_hint_x=1, size_hint_y=None, height="48dp")
         self.recurring_freq_segment.add_widget(MDSegmentedControlItem(text=_t("Aylık")))
@@ -126,6 +135,7 @@ class TransactionMixin:
             orientation="vertical", size_hint_y=None, adaptive_height=True, spacing=dp(18),
         )
         self._recurring_box.add_widget(self.recurring_name_input)
+        self._recurring_box.add_widget(self.recurrence_day_input)
         self._recurring_box.add_widget(self.recurring_freq_segment)
         self._recurring_box.add_widget(auto_deduct_row)
         self._recurring_visible = False
@@ -174,10 +184,21 @@ class TransactionMixin:
         dialog_layout.add_widget(recurring_row)
         # _recurring_box başta EKLENMEZ: ilk görünüm sade kalsın.
 
+        from kivy.uix.scrollview import ScrollView
+        from kivy.core.window import Window
+        form_scroll = ScrollView(
+            do_scroll_x=False,
+            size_hint_y=None,
+            height=min(dp(440), Window.height * 0.68),
+        )
+        form_scroll.add_widget(dialog_layout)
+        self._transaction_form_layout = dialog_layout
+        self._transaction_form_scroll = form_scroll
+
         self.dialog = MDDialog(
             title=_t("Yeni Bir İşlem Ekle"),
             type="custom",
-            content_cls=dialog_layout,
+            content_cls=form_scroll,
             buttons=[ftheme.primary_button(
                 _t("KAYDET"), self.theme_cls, on_release=self.save_transaction
             )]
@@ -197,7 +218,7 @@ class TransactionMixin:
         """
         if active == self._recurring_visible:
             return
-        layout = self.dialog.content_cls
+        layout = self._transaction_form_layout
         if active:
             # recurring_row'dan (en alttaki temel alan) hemen sonraya ekle.
             layout.add_widget(self._recurring_box)
@@ -206,6 +227,13 @@ class TransactionMixin:
                 layout.remove_widget(self._recurring_box)
         self._recurring_visible = active
         self._reflow_dialog()
+        if active:
+            Clock.schedule_once(
+                lambda dt: self._transaction_form_scroll.scroll_to(
+                    self.recurrence_day_input, padding=dp(12), animate=False
+                ),
+                0,
+            )
 
     def _reflow_dialog(self):
         """Adaptive içerik büyüyüp küçülünce diyaloğu iki KAREDE yeniden ölçer.
@@ -237,6 +265,7 @@ class TransactionMixin:
             if getattr(self, "dialog", None) is not dialog:
                 return
             try:
+                self._transaction_form_layout.do_layout()
                 dialog.content_cls.do_layout()
                 dialog.update_height()
             except Exception:
@@ -592,6 +621,7 @@ class TransactionMixin:
     def set_category(self, text_item):
         self.category_button.text = _t(text_item)
         self.selected_category = text_item
+        self.on_category_select(text_item)
         # Aranabilir kategori diyaloğunu kapat (eski dropdown ile de uyumlu).
         dlg = getattr(self, "category_dialog", None) or getattr(self, "category_menu", None)
         if dlg is not None:
@@ -599,6 +629,14 @@ class TransactionMixin:
                 dlg.dismiss()
             except Exception:
                 pass
+
+    def on_category_select(self, category):
+        """Dijital Abonelik kategorisi seçildiğinde tekrarlama alanını açar."""
+        from services.recurring_service import apply_category_trigger
+
+        switch = getattr(self, "recurring_switch", None)
+        if switch is not None:
+            apply_category_trigger(category, switch)
 
     def save_transaction(self, *args):
         """Girilen işlemi doğrular ve arka planda şifreleyip veritabanına yazar.
@@ -623,6 +661,15 @@ class TransactionMixin:
         recurring_name = self.recurring_name_input.text.strip() or self.selected_category
         recurring_frequency = self.selected_frequency
         recurring_auto_deduct = self.auto_deduct_switch.active
+        recurrence_day = None
+        if is_recurring:
+            try:
+                recurrence_day = int(self.recurrence_day_input.text)
+                if not 1 <= recurrence_day <= 31:
+                    raise ValueError
+            except (TypeError, ValueError):
+                toast(_t("Ödeme günü 1 ile 31 arasında olmalıdır."))
+                return
 
         # Taksit: yalnızca görünür Taksitli seçimde ve 2+ taksitte plan yazılır
         # (1 taksit fiilen tek çekimdir). Aylık tutar serviste toplam/ay olarak
@@ -707,12 +754,24 @@ class TransactionMixin:
                     description=description,
                     installments=use_installments,
                 )
+                # render_accounts ön-ısıtılmış snapshot okur. DB yazımından
+                # hemen sonra snapshot'ı bu worker içinde yenilemezsek başarı
+                # callback'i eski bakiyeyi tekrar çizer.
+                from services.asset_service import refresh_account_cache_snapshot
+                refresh_account_cache_snapshot()
                 if is_recurring and submitted_type == "expense":
-                    from database.db import insert_recurring_payment, _advance_due_date
-                    next_due = _advance_due_date(datetime.date.today().isoformat(), recurring_frequency)
+                    from database.db import insert_recurring_payment
+                    from services.recurring_service import next_due_for_recurrence
+                    next_due = next_due_for_recurrence(
+                        datetime.date.today(),
+                        recurring_frequency,
+                        recurrence_day,
+                    )
                     insert_recurring_payment(
                         recurring_name, user_amount, submitted_category,
-                        recurring_frequency, next_due, recurring_auto_deduct
+                        recurring_frequency, next_due, recurring_auto_deduct,
+                        account_id=account_id,
+                        recurrence_day=recurrence_day,
                     )
                 Clock.schedule_once(success_callback, 0)
             except ValueError as e:

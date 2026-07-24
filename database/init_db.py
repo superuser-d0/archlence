@@ -1,4 +1,6 @@
 from database.db import get_connection
+from datetime import date
+from database.models import ASSET_PRICE_CACHE_SCHEMA
 
 def initialize_database():
     conn = get_connection()
@@ -74,9 +76,52 @@ def initialize_database():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             type TEXT NOT NULL,
             name TEXT NOT NULL,
-            amount REAL NOT NULL
+            amount REAL NOT NULL,
+            target_month INTEGER DEFAULT 1,
+            target_year INTEGER,
+            category_name TEXT,
+            rollover_enabled INTEGER DEFAULT 0,
+            is_template INTEGER DEFAULT 0,
+            alert_threshold_pct INTEGER DEFAULT 80
         )
     """)
+    cursor.execute("PRAGMA table_info(monthly_budget_plan)")
+    existing_budget_cols = {row[1] for row in cursor.fetchall()}
+    if "target_month" not in existing_budget_cols:
+        cursor.execute(
+            "ALTER TABLE monthly_budget_plan "
+            "ADD COLUMN target_month INTEGER DEFAULT 1"
+        )
+    budget_migrations = {
+        "target_year": "INTEGER",
+        "category_name": "TEXT",
+        "rollover_enabled": "INTEGER DEFAULT 0",
+        "is_template": "INTEGER DEFAULT 0",
+        "alert_threshold_pct": "INTEGER DEFAULT 80",
+    }
+    for column, definition in budget_migrations.items():
+        if column not in existing_budget_cols:
+            cursor.execute(
+                f"ALTER TABLE monthly_budget_plan "
+                f"ADD COLUMN {column} {definition}"
+            )
+    cursor.execute(
+        "UPDATE monthly_budget_plan SET target_year = ? "
+        "WHERE target_year IS NULL",
+        (date.today().year,),
+    )
+    cursor.execute(
+        "UPDATE monthly_budget_plan SET rollover_enabled = 0 "
+        "WHERE rollover_enabled IS NULL"
+    )
+    cursor.execute(
+        "UPDATE monthly_budget_plan SET is_template = 0 "
+        "WHERE is_template IS NULL"
+    )
+    cursor.execute(
+        "UPDATE monthly_budget_plan SET alert_threshold_pct = 80 "
+        "WHERE alert_threshold_pct IS NULL"
+    )
 
     # 5. Aktif Borçlar Tablosu
     cursor.execute("""
@@ -125,6 +170,34 @@ def initialize_database():
     if "purchase_date" not in existing_cols:
         cursor.execute("ALTER TABLE active_assets ADD COLUMN purchase_date TEXT")
 
+    # Dinamik TTL fiyat önbelleği. Eski sürüm aynı tablo adını
+    # (price_try REAL, updated_at INTEGER) ile tembel oluşturuyordu; satırları
+    # kaybetmeden yeni DateTime/metaveri sözleşmesine taşı.
+    cursor.execute(
+        "SELECT name FROM sqlite_master "
+        "WHERE type='table' AND name='asset_price_cache'"
+    )
+    if cursor.fetchone():
+        cursor.execute("PRAGMA table_info(asset_price_cache)")
+        price_cache_cols = {row[1] for row in cursor.fetchall()}
+        if not {"price", "asset_type"}.issubset(price_cache_cols):
+            cursor.execute(
+                "ALTER TABLE asset_price_cache "
+                "RENAME TO asset_price_cache_legacy"
+            )
+            cursor.execute(ASSET_PRICE_CACHE_SCHEMA)
+            if "price_try" in price_cache_cols:
+                cursor.execute("""
+                    INSERT OR REPLACE INTO asset_price_cache
+                        (symbol, price, asset_type, updated_at)
+                    SELECT symbol, price_try, 'UNKNOWN',
+                           datetime(updated_at, 'unixepoch', 'localtime')
+                      FROM asset_price_cache_legacy
+                """)
+            cursor.execute("DROP TABLE asset_price_cache_legacy")
+    else:
+        cursor.execute(ASSET_PRICE_CACHE_SCHEMA)
+
     # 7. Tekrarlanan Ödemeler Tablosu (Kira, Netflix, Spotify vb.)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS recurring_payments (
@@ -134,10 +207,22 @@ def initialize_database():
             category TEXT,
             frequency TEXT NOT NULL DEFAULT 'monthly',
             next_due_date TEXT NOT NULL,
+            recurrence_day INTEGER CHECK (recurrence_day BETWEEN 1 AND 31),
             auto_deduct INTEGER DEFAULT 0,
             is_active INTEGER DEFAULT 1,
             account_id INTEGER DEFAULT 1
         )
+    """)
+    cursor.execute("PRAGMA table_info(recurring_payments)")
+    existing_recurring_cols = {row[1] for row in cursor.fetchall()}
+    if "recurrence_day" not in existing_recurring_cols:
+        cursor.execute(
+            "ALTER TABLE recurring_payments ADD COLUMN recurrence_day INTEGER"
+        )
+    cursor.execute("""
+        UPDATE recurring_payments
+        SET recurrence_day = CAST(strftime('%d', next_due_date) AS INTEGER)
+        WHERE recurrence_day IS NULL
     """)
 
     # 8. Birikim Hedefleri Tablosu (Yaz Tatili, Araç Peşinatı, Acil Durum Fonu vb.)
@@ -373,7 +458,7 @@ def initialize_database():
             
             # GİDER KATEGORİLERİ (Ad, Tür, Önem)
             ("Ev Kirası", "expense", "main"), ("Aidat", "expense", "main"), ("Emlak Vergisi", "expense", "extra"), ("Ev Bakım/Onarım", "expense", "extra"), ("Ev Eşyası", "expense", "extra"),
-            ("Elektrik", "expense", "main"), ("Su", "expense", "main"), ("Doğalgaz", "expense", "main"), ("İnternet", "expense", "main"), ("Cep Telefonu", "expense", "main"), ("Dijital Platformlar", "expense", "extra"),
+            ("Elektrik", "expense", "main"), ("Su", "expense", "main"), ("Doğalgaz", "expense", "main"), ("İnternet", "expense", "main"), ("Cep Telefonu", "expense", "main"), ("Dijital Platformlar", "expense", "extra"), ("Dijital Abonelik", "expense", "extra"),
             ("Akaryakıt", "expense", "main"), ("Toplu Taşıma", "expense", "main"), ("Taksi", "expense", "extra"), ("Araç Bakım", "expense", "extra"), ("MTV", "expense", "extra"), ("Sigorta/Kasko", "expense", "extra"), ("Otopark/Köprü", "expense", "extra"),
             ("Süpermarket", "expense", "main"), ("Pazaryeri", "expense", "main"), ("Dışarıda Yemek", "expense", "extra"), ("Paket Servis", "expense", "extra"), ("Su Siparişi", "expense", "main"),
             ("Hastane", "expense", "main"), ("İlaç/Eczane", "expense", "main"), ("Sağlık Sigortası", "expense", "main"), ("Kişisel Bakım", "expense", "extra"), ("Kuaför/Berber", "expense", "extra"), ("Spor Salonu", "expense", "extra"),
@@ -398,6 +483,15 @@ def initialize_database():
     if not cursor.fetchone():
         cursor.execute("INSERT INTO categories(name, type, importance) VALUES(?,?,?)",
                        ("Varlık Satışı", "income", "extra"))
+    cursor.execute(
+        "SELECT 1 FROM categories WHERE name = ? AND type = ?",
+        ("Dijital Abonelik", "expense"),
+    )
+    if not cursor.fetchone():
+        cursor.execute(
+            "INSERT INTO categories(name, type, importance) VALUES(?,?,?)",
+            ("Dijital Abonelik", "expense", "extra"),
+        )
     conn.commit()
 
     # Varsayılan hesaplar kurulduktan SONRA çalışmalı ki yeni kurulumda da

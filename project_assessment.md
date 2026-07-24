@@ -1,4 +1,4 @@
-# Finora Proje Değerlendirmesi ve İş Modeli Stratejisi
+# Archlence Proje Değerlendirmesi ve İş Modeli Stratejisi
 
 ## 1. Projenin Mevcut Durumu ve Kalan Süre
 
@@ -33,7 +33,7 @@ Bu proje kesinlikle para kazandırabilir. Ancak "SaaS (Aylık Abonelik)" modelin
 
 ### Model A: Freemium (Tek Seferlik Ödeme / Ömür Boyu Lisans) - *En Çok Önerdiğim*
 * **Ücretsiz Sürüm (Free):** Temel gelir/gider takibi, vadesiz hesaplar, temel kategoriler, standart açık tema. İnsanlar uygulamayı indirip veri girmeye başlar ve alışırlar.
-* **Finora Premium (Tek seferlik 39$ - 49$):** 
+* **Archlence Premium (Tek seferlik 39$ - 49$):**
     * RK4 Servet Projeksiyonu ve Yapay Zeka Tavsiyeleri
     * Karanlık Mod ve "Indigo Premium Banking" Arayüzü
     * Abonelik radarı ve Anomali tespiti

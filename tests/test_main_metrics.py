@@ -6,9 +6,9 @@ os.environ["KIVY_NO_ARGS"] = "1"
 os.environ["KIVY_WINDOW"] = "mock"
 
 def main():
-    from main import FinoraApp
+    from main import ArchlenceApp
 
-    app = FinoraApp()
+    app = ArchlenceApp()
     app.build()
     app.update_metrics_and_goals()
     print("Metrics updated successfully!")

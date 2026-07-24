@@ -2,8 +2,10 @@
 finance.db
 finance.db.bak*
 savings_goals.json
-finora_config.json
+archlence_config.json
+legacy_config_backup.json
 crash.log
+db_backups/
 
 # Şifreleme anahtarı — asla commit edilmemeli
 security/secret.key

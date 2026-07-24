@@ -54,9 +54,9 @@ def get_export_path():
     for candidate in ("Masaüstü", "Desktop"):
         desktop = os.path.join(home, candidate)
         if os.path.isdir(desktop):
-            return os.path.join(desktop, "finora_export.csv")
+            return os.path.join(desktop, "archlence_export.csv")
     from database.db import BASE_DIR
-    return os.path.join(BASE_DIR, "finora_export.csv")
+    return os.path.join(BASE_DIR, "archlence_export.csv")
 
 
 def _dec(value):
@@ -112,13 +112,15 @@ def export_all_to_csv(path=None):
         ])
 
     cursor.execute(
-        "SELECT name, amount, category, frequency, next_due_date, auto_deduct "
+        "SELECT name, amount, category, frequency, next_due_date, "
+        "recurrence_day, auto_deduct "
         "FROM recurring_payments WHERE is_active = 1 ORDER BY id"
     )
     for r in cursor.fetchall():
         rows_out.append([
             "tekrarlanan", r["next_due_date"] or "", r["frequency"] or "", r["category"] or "",
-            _dec(r["amount"]), "", _dec(r["name"]), f"otomatik={r['auto_deduct']}",
+            _dec(r["amount"]), "", _dec(r["name"]),
+            f"otomatik={r['auto_deduct']};gun={r['recurrence_day']}",
         ])
 
     conn.close()
@@ -150,7 +152,7 @@ def parse_transactions_csv(path):
     """CSV'den içe aktarılabilir işlem satırlarını çıkarır.
 
     Dönen her öğe: {date, type('income'/'expense'), category, amount, description}.
-    Finora'nın kendi export formatında yalnızca kayit_turu=islem satırları alınır;
+    Archlence'nın kendi export formatında yalnızca kayit_turu=islem satırları alınır;
     jenerik dosyalarda tüm satırlar denenir. Bozuk satırlar sessizce atlanır ve
     (kayıtlar, atlanan_sayısı) olarak raporlanır.
     """

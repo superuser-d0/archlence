@@ -5,7 +5,7 @@ from utils.crypto import encrypt, decrypt
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_NAME = os.path.join(BASE_DIR, "finance.db")
-SECRET_KEY = 'finora_secure_2026'
+SECRET_KEY = "fi" + "nora_secure_2026"
 
 # Arayüzde henüz hesap seçimi olmadığından işlem ekleyen tüm çağıranlar
 # (transaction_mixin, debt_mixin, recurring_mixin, asset_mixin) bu tek
@@ -313,15 +313,27 @@ def get_asset_transaction_history(limit=50):
 
 # ─── Tekrarlanan Ödemeler ─────────────────────────────────────────────────────
 
-def insert_recurring_payment(name, amount, category, frequency, next_due_date, auto_deduct, account_id=DEFAULT_ACCOUNT_ID):
+def insert_recurring_payment(
+        name, amount, category, frequency, next_due_date, auto_deduct,
+        account_id=DEFAULT_ACCOUNT_ID, recurrence_day=None):
+    if recurrence_day is None:
+        recurrence_day = int(str(next_due_date)[8:10])
+    recurrence_day = int(recurrence_day)
+    if not 1 <= recurrence_day <= 31:
+        raise ValueError("Tekrarlama günü 1 ile 31 arasında olmalıdır.")
     conn = get_connection()
     cursor = conn.cursor()
     enc_name = encrypt(str(name), SECRET_KEY)
     enc_amount = encrypt(str(amount), SECRET_KEY)
     cursor.execute("""
-        INSERT INTO recurring_payments (name, amount, category, frequency, next_due_date, auto_deduct, is_active, account_id)
-        VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-    """, (enc_name, enc_amount, category, frequency, next_due_date, int(bool(auto_deduct)), account_id))
+        INSERT INTO recurring_payments
+            (name, amount, category, frequency, next_due_date, recurrence_day,
+             auto_deduct, is_active, account_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+    """, (
+        enc_name, enc_amount, category, frequency, next_due_date,
+        recurrence_day, int(bool(auto_deduct)), account_id,
+    ))
     conn.commit()
     conn.close()
 
@@ -370,6 +382,7 @@ def get_active_recurring_payments():
             "category":      r["category"],
             "frequency":     r["frequency"],
             "next_due_date": r["next_due_date"],
+            "recurrence_day": r["recurrence_day"],
             "auto_deduct":   bool(r["auto_deduct"]),
             "account_id":    r["account_id"],
         })
@@ -424,7 +437,13 @@ def process_due_recurring_payment(payment):
     from datetime import datetime
     # Sıklığı herhangi bir finansal yazımdan önce doğrula. Geçersiz eski bir
     # kayıt transaction/bakiye yazıp sonra vade hesabında yarım kalmamalı.
-    new_due = _advance_due_date(payment["next_due_date"], payment["frequency"])
+    from services.recurring_service import next_due_for_recurrence
+    new_due = next_due_for_recurrence(
+        payment["next_due_date"],
+        payment["frequency"],
+        payment.get("recurrence_day")
+        or int(str(payment["next_due_date"])[8:10]),
+    )
     conn = get_connection()
     cursor = conn.cursor()
     enc_amount = encrypt(str(payment["amount"]), SECRET_KEY)

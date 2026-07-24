@@ -26,7 +26,7 @@ class StartupImportTest(unittest.TestCase):
             os.environ.setdefault('KIVY_WINDOW', 'mock')
 
             module = importlib.import_module('main')
-            assert module.FinoraApp is not None
+            assert module.ArchlenceApp is not None
             print('imported')
             """
         )

@@ -1,451 +1,704 @@
-"""Aylık bütçe planlayıcı mixin'i.
+"""Kategori bazlı aylık bütçe takip arayüzü."""
 
-monthly_budget_plan tablosu üzerinde çalışan tüm akış: ay seçici butonları,
-planlayıcı diyaloğu, kalem ekleme/düzenleme/silme ve seçili ayın harcanabilir
-limit projeksiyonu. main.py'deki FinoraApp gövdesinden taşındı; davranış
-değişmedi. Bütçe tutarları şifresiz saklanır (yalnızca transactions/assets/
-active_debts tutarları şifrelenir), bu yüzden burada encrypt kullanılmaz;
-decrypt yalnızca projeksiyonun okuduğu eski şifreli kayıtlar için gerekir.
-"""
 import datetime
+import threading
 
+from kivy.clock import Clock
 from kivy.metrics import dp
 from kivymd.toast import toast
 from kivymd.uix.button import MDRaisedButton
 
-from utils.crypto import decrypt
 from ui.i18n import tr as _t
 
-SECRET_KEY = 'finora_secure_2026'
+
+GREEN = (0.18, 0.8, 0.25, 1)
+RED = (0.9, 0.2, 0.2, 1)
+AMBER = (0.95, 0.6, 0.1, 1)
+MONTHS = [
+    "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
+]
+
+
+def _fmt(value):
+    return (
+        f"{float(value):,.2f} ₺"
+        .replace(",", "X").replace(".", ",").replace("X", ".")
+    )
 
 
 class BudgetMixin:
     def setup_dynamic_months(self):
-        """Uygulama açılışında, içinde bulunulan aydan yıl sonuna kadar olan ayları
-        gösteren yatay buton listesini (ay seçici) oluşturur.
-        """
-        import datetime
-        MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
-                  "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
-        
-        current_month_index = datetime.datetime.now().month  
-        self.active_budget_month = current_month_index
-        
-        container = getattr(self.root.ids, 'month_selector_container', None)
-        if container:
-            container.clear_widgets()
-            
-            from kivymd.uix.button import MDRoundFlatButton
-            for i in range(current_month_index, 13):
-                month_name = MONTHS[i - 1]
-                btn = MDRoundFlatButton(text=_t(month_name))
-                btn.bind(on_release=lambda instance, m_idx=i: self.change_budget_month(m_idx))
-                container.add_widget(btn)
+        now = datetime.date.today()
+        self.active_budget_month = now.month
+        self.active_budget_year = now.year
+        container = getattr(self.root.ids, "month_selector_container", None)
+        if not container:
+            return
+        container.clear_widgets()
+        from kivymd.uix.button import MDRoundFlatButton
+        for month in range(1, 13):
+            button = MDRoundFlatButton(text=_t(MONTHS[month - 1]))
+            button.bind(
+                on_release=lambda _button, value=month:
+                    self.change_budget_month(value)
+            )
+            container.add_widget(button)
 
-    def change_budget_month(self, month_index):
-        """Ay seçiciden farklı bir ay tıklandığında aktif ayı günceller ve listeyi/projeksiyonu yeniler."""
-        self.active_budget_month = month_index
+    def change_budget_month(self, month_index, year=None):
+        self.active_budget_month = int(month_index)
+        if year is not None:
+            self.active_budget_year = int(year)
+        elif not hasattr(self, "active_budget_year"):
+            self.active_budget_year = datetime.date.today().year
         self.load_budget_list()
         self.generate_next_month_projection()
 
+    def _budget_period(self):
+        today = datetime.date.today()
+        return (
+            int(getattr(self, "active_budget_month", today.month)),
+            int(getattr(self, "active_budget_year", today.year)),
+        )
+
     def generate_next_month_projection(self):
-        """Seçili ay için gelir-gider farkını (harcanabilir limit) hesaplar ve arayüze tavsiye metniyle birlikte yansıtır."""
-        import datetime
-        target_month = getattr(self, "active_budget_month", datetime.datetime.now().month)
-        
-        from database.db import get_connection
-        conn = get_connection()
-        cursor = conn.cursor()
-        
-        # 1. SADECE Bütçe Planlayıcı tablosundan (monthly_budget_plan) ve SEÇİLİ AY'a ait verileri çek
-        try:
-            cursor.execute("SELECT type, amount FROM monthly_budget_plan WHERE target_month = ?", (target_month,))
-        except Exception:
-            cursor.execute("SELECT type, amount FROM monthly_budget_plan")
-            
-        rows = cursor.fetchall()
-        planlanan_gelir = 0.0
-        planlanan_gider = 0.0
-        for t_type, amount in rows:
-            # save_budget_item tutarları düz float yazar; yalnızca çok eski
-            # kayıtlar şifreli olabilir. Önce düz sayı dene, olmazsa decrypt —
-            # eski sıralama (önce decrypt) düz kayıtları 0 sayıp limiti
-            # yanlış hesaplıyordu.
-            try:
-                val = float(amount)
-            except (TypeError, ValueError):
-                try:
-                    val = float(decrypt(str(amount), SECRET_KEY))
-                except Exception:
-                    val = 0.0
-            if t_type == "Gelir" or t_type == "income": planlanan_gelir += val
-            elif t_type == "Gider" or t_type == "expense": planlanan_gider += val
-        conn.close()
-        
-        # 2. İZOLE HESAPLAMA (Geçmiş varlıklar veya ekstra harcamalar dahil edilmez)
-        harcanabilir_limit = planlanan_gelir - planlanan_gider
-        
-        # 3. SIFIRIN ALTI KONTROLÜ VE TAVSİYE MANTIĞI
-        advice_text = _t("Bütçeniz dengede.")
-        icon = "check-circle"
-        color = (0.18, 0.8, 0.25, 1) # Yeşil
-        
-        if harcanabilir_limit < 0:
-            advice_text = _t("Dikkat: Planlanan giderler, gelirlerinizi aşıyor. Bütçeniz eksiye düşecek!")
-            icon = "close-circle"
-            color = (0.9, 0.2, 0.2, 1) # Kırmızı
-            
-        elif harcanabilir_limit == 0:
-            advice_text = _t("Dikkat: Gelir ve gideriniz başa baş. Bütçenizde hiç esneme payı yok.")
-            icon = "alert"
-            color = (0.95, 0.6, 0.1, 1) # Turuncu
-            
-        # Arayüz (UI) Güncellemesi
-        if hasattr(self.root.ids, 'projection_label'):
-            formatted_limit = f"{harcanabilir_limit:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
-            MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
-                      "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
-            try:
-                ay_ismi = MONTHS[target_month - 1]
-            except:
-                ay_ismi = "Ocak"
-            self.root.ids.projection_label.text = _t(f"{ay_ismi} Ayı Harcama Limitiniz: {formatted_limit}\n\n{advice_text}")
+        from services.budget_service import calculate_monthly_budget
+        month, year = self._budget_period()
+        budget = calculate_monthly_budget(month, year)
+        remaining = budget["remaining_budget"]
+        reserved = budget["reserved_recurring"]
+        advice, icon, color = _t("Bütçeniz dengede."), "check-circle", GREEN
+        if remaining < 0:
+            advice, icon, color = (
+                _t("Dikkat: Planlanan giderler, gelirlerinizi aşıyor. Bütçeniz eksiye düşecek!"),
+                "close-circle", RED,
+            )
+        elif remaining == 0:
+            advice, icon, color = (
+                _t("Dikkat: Gelir ve gideriniz başa baş. Bütçenizde hiç esneme payı yok."),
+                "alert", AMBER,
+            )
+        if hasattr(self.root.ids, "projection_label"):
+            reserved_text = (
+                f"\n{_t('Ayrılmış abonelik gideri:')} {_fmt(reserved)}"
+                if reserved else ""
+            )
+            self.root.ids.projection_label.text = (
+                f"{_t(MONTHS[month - 1])} {year} · "
+                f"{_t('Harcama limitiniz:')} {_fmt(remaining)}"
+                f"{reserved_text}\n\n{advice}"
+            )
             self.root.ids.projection_icon.icon = icon
             self.root.ids.projection_icon.text_color = color
-            
         return {
-            "harcanabilir_limit": harcanabilir_limit,
-            "tavsiye": advice_text,
-            "tavsiye_ikonu": icon
+            "harcanabilir_limit": remaining,
+            "ayrilmis_abonelik_gideri": reserved,
+            "tavsiye": advice,
+            "tavsiye_ikonu": icon,
         }
 
+    # ── Planlayıcı formu ────────────────────────────────────────────────────
     def show_budget_planner(self):
-        """Bütçe planlama arayüzünü (kalem ekleme/düzenleme diyaloğu) açar."""
-        from kivymd.uix.dialog import MDDialog
-        from kivymd.uix.button import MDRaisedButton, MDFlatButton
-        from kivymd.uix.boxlayout import MDBoxLayout
-        from kivymd.uix.textfield import MDTextField
-        from kivymd.uix.segmentedcontrol import MDSegmentedControl, MDSegmentedControlItem
-        from kivy.uix.scrollview import ScrollView
         from kivy.uix.gridlayout import GridLayout
+        from kivymd.uix.boxlayout import MDBoxLayout
+        from kivymd.uix.button import MDFlatButton
+        from kivymd.uix.card import MDCard
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.label import MDIcon, MDLabel
+        from kivymd.uix.segmentedcontrol import (
+            MDSegmentedControl, MDSegmentedControlItem,
+        )
         from kivymd.uix.selectioncontrol import MDSwitch
-        from kivymd.uix.label import MDLabel
-        from kivy.core.window import Window
-        import datetime
+        from kivymd.uix.textfield import MDTextField
+        import ui.theme as ftheme
 
-        # ── Outer container: a ScrollView so nothing ever squishes ──────────
-        outer_scroll = ScrollView(
-            size_hint_y=None,
-            height=Window.height * 0.65,
-            do_scroll_x=False,
-            do_scroll_y=True,
+        self.bp_selected_type = "expense"
+        self.bp_selected_category = None
+        self.editing_item_id = None
+        self.editing_item_is_template = False
+
+        form = MDBoxLayout(
+            orientation="vertical", adaptive_height=True,
+            spacing=dp(16), padding=[dp(20), 0, dp(20), 0],
         )
+        self.bp_outer_scroll = None
+        self.bp_form_layout = form
 
-        form_layout = MDBoxLayout(
-            orientation="vertical",
-            adaptive_height=True,
-            spacing=dp(25),
-            padding=[dp(15), dp(30), dp(15), dp(15)],
+        type_surface = MDCard(
+            orientation="vertical", size_hint_y=None, height=dp(48),
+            padding=dp(3), radius=[dp(12)],
+            elevation=0, md_bg_color=ftheme.muted_bg(self.theme_cls),
         )
+        self.bp_type_segment = MDSegmentedControl(
+            size_hint_y=None, height=dp(42), radius=dp(10),
+            md_bg_color=ftheme.muted_bg(self.theme_cls),
+            segment_color=ftheme.elevated_bg(self.theme_cls),
+            separator_color=(0, 0, 0, 0),
+            segment_switching_transition="out_cubic",
+        )
+        self.bp_type_segment.add_widget(
+            MDSegmentedControlItem(text=_t("Gider"))
+        )
+        self.bp_type_segment.add_widget(
+            MDSegmentedControlItem(text=_t("Gelir"))
+        )
+        self.bp_type_segment.bind(on_active=self._on_budget_type)
+        type_surface.add_widget(self.bp_type_segment)
 
-        # ── Inputs ───────────────────────────────────────────────────────────
+        self.bp_category_button = MDCard(
+            orientation="horizontal", size_hint_y=None, height=dp(52),
+            padding=[dp(16), 0, dp(10), 0], spacing=dp(12),
+            radius=[dp(12)], elevation=0,
+            md_bg_color=ftheme.elevated_bg(self.theme_cls),
+            line_color=ftheme.card_line(self.theme_cls),
+        )
+        self.bp_category_button.bind(
+            on_release=self.open_budget_category_menu
+        )
+        self.bp_category_button.add_widget(MDIcon(
+            icon="tag-outline", size_hint_x=None, width=dp(24),
+            pos_hint={"center_y": 0.5},
+            theme_text_color="Custom",
+            text_color=self.theme_cls.primary_color,
+        ))
+        self.bp_category_label = MDLabel(
+            text=_t("Kategori seçin"), valign="center",
+            pos_hint={"center_y": 0.5},
+        )
+        self.bp_category_button.add_widget(self.bp_category_label)
+        self.bp_category_button.add_widget(MDIcon(
+            icon="chevron-down", size_hint_x=None, width=dp(24),
+            pos_hint={"center_y": 0.5},
+            theme_text_color="Secondary",
+        ))
+
         self.bp_name_input = MDTextField(
-            hint_text=_t("Kalem Adı (Örn: Maaş, Kira)"),
-            size_hint_y=None,
-            height=dp(68),
+            hint_text=_t("Serbest plan adı"),
+            size_hint_y=None, height=dp(58),
+            opacity=0, disabled=True,
+        )
+        self.bp_name_container = MDBoxLayout(
+            orientation="vertical", size_hint_y=None, height=0,
+        )
+        self.bp_name_container.add_widget(self.bp_name_input)
+
+        amount_row = MDBoxLayout(
+            orientation="horizontal", size_hint_y=None, height=dp(62),
+            spacing=dp(8), padding=[dp(16), 0, dp(8), 0],
+        )
+        self.bp_currency_label = MDLabel(
+            text="₺", font_style="H5", halign="center", valign="center",
+            size_hint_x=None, width=dp(32),
+            pos_hint={"center_y": 0.5},
+            theme_text_color="Custom",
+            text_color=self.theme_cls.primary_color,
         )
         self.bp_amount_input = MDTextField(
-            hint_text=_t("Tutar (₺)"),
-            input_filter="float",
-            size_hint_y=None,
-            height=dp(68),
+            hint_text=_t("Tutar"), input_filter="float",
+            size_hint_y=None, height=dp(58),
+            padding=[dp(12), dp(12), dp(8), dp(12)],
+        )
+        amount_row.add_widget(self.bp_currency_label)
+        amount_row.add_widget(self.bp_amount_input)
+
+        frequency_surface = MDCard(
+            orientation="vertical", size_hint_y=None, height=dp(48),
+            padding=dp(3), radius=[dp(12)],
+            elevation=0, md_bg_color=ftheme.muted_bg(self.theme_cls),
+        )
+        self.bp_frequency_segment = MDSegmentedControl(
+            size_hint_y=None, height=dp(42), radius=dp(10),
+            md_bg_color=ftheme.muted_bg(self.theme_cls),
+            segment_color=ftheme.elevated_bg(self.theme_cls),
+            separator_color=(0, 0, 0, 0),
+            segment_switching_transition="out_cubic",
+        )
+        self.bp_frequency_segment.add_widget(
+            MDSegmentedControlItem(text=_t("Tek seferlik"))
+        )
+        self.bp_frequency_segment.add_widget(
+            MDSegmentedControlItem(text=_t("Her ay"))
+        )
+        self.bp_frequency_segment.bind(on_active=self._on_budget_frequency)
+        frequency_surface.add_widget(self.bp_frequency_segment)
+
+        self.bp_rollover_switch, rollover_row = self._switch_row(
+            _t("Geçen ayın kalanını/aşımını devret"), MDSwitch, MDLabel
+        )
+        # Veri katmanıyla uyumu korur; görünür karşılığı frekans seçimidir.
+        self.bp_template_switch = MDSwitch()
+        self.bp_repeat_switch, repeat_row = self._switch_row(
+            _t("Mevcut kalemi diğer aylara da uygula"), MDSwitch, MDLabel
+        )
+        self.bp_alert_input = MDTextField(
+            text="80", hint_text=_t("Uyarı eşiği (%)"),
+            input_filter="int", size_hint_y=None, height=dp(52),
         )
 
-        # ── Gelir / Gider segmented control ─────────────────────────────────
-        self.bp_type_segment = MDSegmentedControl(size_hint_x=1)
-        self.bp_type_segment.add_widget(MDSegmentedControlItem(text=_t("Gelir")))
-        self.bp_type_segment.add_widget(MDSegmentedControlItem(text=_t("Gider")))
-        self.bp_selected_type = "income"
-
-        def on_seg_active(seg, item):
-            self.bp_selected_type = "expense" if item.text == _t("Gider") else "income"
-
-        self.bp_type_segment.bind(on_active=on_seg_active)
-
-        # ── Switch row ───────────────────────────────────────────────────────
-        switch_layout = MDBoxLayout(
-    orientation="horizontal", 
-    size_hint_y=None, 
-    height=dp(48), 
-    spacing=dp(10),
-    padding=[dp(5), 0, dp(45), 0] # Shifted left by reducing left padding and increasing right padding
-)
-        switch_label = MDLabel(
-            text=_t("Mevcut kalemi diğer aylara da uygula"),
-            theme_text_color="Primary",
-            valign="center",
-            halign="left",
-            size_hint_x=1,
-        )
-        self.bp_repeat_switch = MDSwitch(
-            pos_hint={"center_y": 0.5},
-            active=False,
-            size_hint_x=None,
-            width=dp(48),
-        )
-        switch_layout.add_widget(switch_label)
-        switch_layout.add_widget(self.bp_repeat_switch)
-
-        # ── Month grid (3 columns → wraps cleanly, never overflows) ─────────
         self.months_grid = GridLayout(
-            cols=3,
-            spacing=dp(8),
-            size_hint_y=None,
-            height=dp(0),
-            opacity=0,
+            cols=3, spacing=dp(8), size_hint_y=None, height=0, opacity=0,
         )
-        upcoming_months = ["Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
-        for month_name in upcoming_months:
-            btn = MDRaisedButton(
-                text=_t(month_name),
-                size_hint=(1, None),
-                height=dp(36),
-                md_bg_color=self.theme_cls.primary_color,
-                text_color=(1, 1, 1, 1),
-                elevation=0,
+        month, _year = self._budget_period()
+        for month_index in range(1, 13):
+            button = MDRaisedButton(
+                text=_t(MONTHS[month_index - 1]),
+                size_hint=(1, None), height=dp(36), elevation=0,
             )
-            btn.month_index = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
-                               "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"].index(month_name) + 1
-            btn.is_selected = False
-            btn.bind(on_release=self.toggle_custom_month_button)
-            self.months_grid.add_widget(btn)
+            button.month_index = month_index
+            button.is_selected = month_index == month
+            button.bind(on_release=self.toggle_custom_month_button)
+            self.months_grid.add_widget(button)
+        self.bp_repeat_switch.bind(active=self._toggle_month_grid)
 
-        def on_switch_active(instance, value):
-            if value:
-                # 2 rows of 36dp buttons + 8dp spacing + 8dp padding
-                self.months_grid.height = dp(80)
-                self.months_grid.opacity = 1
-            else:
-                self.months_grid.height = dp(0)
-                self.months_grid.opacity = 0
-
-        self.bp_repeat_switch.bind(active=on_switch_active)
-
-        # ── List area (items populated by load_budget_list) ──────────────────
-        self.bp_list_container = MDBoxLayout(
-            orientation="vertical",
-            adaptive_height=True,
-            spacing=dp(4),
+        self.bp_advanced_box = MDBoxLayout(
+            orientation="vertical", spacing=dp(16),
+            size_hint_y=None, height=0, opacity=0, disabled=True,
         )
+        self.bp_advanced_box.bind(
+            minimum_height=self._sync_budget_advanced_height
+        )
+        for widget in (
+            MDFlatButton(
+                text=_t("Geçmişe göre tutar öner"),
+                size_hint_y=None, height=dp(40),
+                on_release=self.suggest_budget_amount,
+            ),
+            rollover_row, self.bp_alert_input, repeat_row, self.months_grid,
+        ):
+            self.bp_advanced_box.add_widget(widget)
 
-        # ── Assemble form ────────────────────────────────────────────────────
-        form_layout.add_widget(self.bp_name_input)
-        form_layout.add_widget(self.bp_amount_input)
-        form_layout.add_widget(self.bp_type_segment)
-        form_layout.add_widget(switch_layout)
-        form_layout.add_widget(self.months_grid)
-        form_layout.add_widget(self.bp_list_container)
+        self.bp_advanced_button = MDCard(
+            orientation="horizontal", size_hint_y=None, height=dp(44),
+            padding=[dp(12), 0, dp(10), 0], spacing=dp(8),
+            radius=[dp(10)], elevation=0,
+            md_bg_color=(0, 0, 0, 0),
+        )
+        self.bp_advanced_button.bind(
+            on_release=self._toggle_budget_advanced
+        )
+        self.bp_advanced_label = MDLabel(
+            text=_t("Daha fazla seçenek"), valign="center",
+            pos_hint={"center_y": 0.5},
+            theme_text_color="Custom",
+            text_color=self.theme_cls.primary_color,
+        )
+        self.bp_advanced_icon = MDIcon(
+            icon="chevron-down", size_hint_x=None, width=dp(24),
+            pos_hint={"center_y": 0.5},
+            theme_text_color="Custom",
+            text_color=self.theme_cls.primary_color,
+        )
+        self.bp_advanced_button.add_widget(self.bp_advanced_label)
+        self.bp_advanced_button.add_widget(self.bp_advanced_icon)
 
-        outer_scroll.add_widget(form_layout)
+        for widget in (
+            type_surface, self.bp_category_button,
+            self.bp_name_container, amount_row,
+            frequency_surface, self.bp_advanced_button,
+            self.bp_advanced_box,
+        ):
+            form.add_widget(widget)
 
         self.bp_dialog = MDDialog(
-            title=_t("Bütçe Planlayıcı"),
-            type="custom",
-            content_cls=outer_scroll,
+            title=_t("Bütçe kalemi ekle"), type="custom", content_cls=form,
             buttons=[
-                MDFlatButton(text=_t("KAPAT"), on_release=lambda x: self.bp_dialog.dismiss()),
-                MDRaisedButton(text=_t("EKLE"), on_release=self.save_budget_item),
+                MDFlatButton(
+                    text=_t("İPTAL"),
+                    on_release=lambda _button: self.bp_dialog.dismiss(),
+                ),
+                MDRaisedButton(
+                    text=_t("BÜTÇEYE EKLE"), on_release=self.save_budget_item,
+                ),
             ],
         )
         self.bp_dialog.open()
-        self.load_budget_list()
 
-    def load_budget_list(self):
-        """Seçili aya ait planlanan gelir ve gider kalemlerini veritabanından çekerek listeyi günceller."""
-        # Works with both the new bp_list_container and the old bp_list (MDList)
-        container = getattr(self, "bp_list_container", getattr(self, "bp_list", None))
-        if container is None:
+    def _switch_row(self, text, switch_cls, label_cls):
+        from kivymd.uix.boxlayout import MDBoxLayout
+        row = MDBoxLayout(
+            orientation="horizontal", size_hint_y=None,
+            height=dp(44), spacing=dp(8),
+        )
+        label = label_cls(text=text, valign="center")
+        switch = switch_cls(size_hint_x=None, width=dp(56))
+        row.add_widget(label)
+        row.add_widget(switch)
+        return switch, row
+
+    def _on_budget_type(self, _segment, item):
+        self.bp_selected_type = (
+            "expense" if item.text == _t("Gider") else "income"
+        )
+        self.bp_selected_category = None
+        self.bp_category_label.text = _t("Kategori seçin")
+        self.bp_name_input.text = ""
+        self.bp_name_input.disabled = True
+        self.bp_name_input.opacity = 0
+        self.bp_name_container.height = 0
+
+    def _on_budget_frequency(self, _segment, item):
+        self.bp_template_switch.active = item.text == _t("Her ay")
+
+    def _toggle_budget_advanced(self, *args):
+        expanded = self.bp_advanced_box.height == 0
+        self.bp_advanced_box.height = (
+            self.bp_advanced_box.minimum_height if expanded else 0
+        )
+        self.bp_advanced_box.opacity = 1 if expanded else 0
+        self.bp_advanced_box.disabled = not expanded
+        self.bp_advanced_label.text = _t(
+            "Daha az seçenek" if expanded else "Daha fazla seçenek"
+        )
+        self.bp_advanced_icon.icon = (
+            "chevron-up" if expanded else "chevron-down"
+        )
+        self._refresh_budget_dialog_height()
+
+    def _sync_budget_advanced_height(self, _box, minimum_height):
+        if self.bp_advanced_box.opacity:
+            self.bp_advanced_box.height = minimum_height
+            self._refresh_budget_dialog_height()
+
+    def _refresh_budget_dialog_height(self, *args):
+        dialog = getattr(self, "bp_dialog", None)
+        if not dialog:
             return
 
-        container.clear_widgets()
+        def apply_size(_dt):
+            from kivy.core.window import Window
 
-        from database.db import get_connection
-        from kivymd.uix.button import MDIconButton
-        from kivymd.uix.label import MDLabel
+            dialog.height = min(
+                dialog.ids.container.height, Window.height - dp(32)
+            )
+            dialog.center = Window.center
+
+        def update(_dt):
+            dialog.update_height()
+            # MDDialog container'ı yeni içerik yüksekliğini bir sonraki layout
+            # turunda hesaplar; modal boyutunu o hesap tamamlanınca uygula.
+            Clock.schedule_once(apply_size, 0.05)
+
+        Clock.schedule_once(update, 0)
+
+    def open_budget_category_menu(self, *args):
+        """TransactionMixin'in aranabilir kategori diyaloğu deseni."""
+        from kivy.uix.scrollview import ScrollView
         from kivymd.uix.boxlayout import MDBoxLayout
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.list import MDList, OneLineListItem
+        from services.queries import CategoryService
+        import ui.theme as ftheme
+
+        categories = [
+            str(row["name"])
+            for row in CategoryService.get_categories(self.bp_selected_type)
+        ]
+        search = ftheme.make_text_field(
+            _t("Kategori ara..."), self.theme_cls,
+            size_hint_y=None, height=dp(48),
+        )
+        listing = MDList()
+        self.bp_category_search = search
+        self.bp_category_list = listing
+        scroll = ScrollView()
+        scroll.add_widget(listing)
+        content = MDBoxLayout(
+            orientation="vertical", size_hint_y=None,
+            height=dp(390), spacing=dp(8),
+        )
+        content.add_widget(search)
+        content.add_widget(scroll)
+
+        def populate(query=""):
+            listing.clear_widgets()
+            free = OneLineListItem(text=_t("Serbest metin gir"))
+            free.bind(on_release=lambda _item: self._select_budget_category(None))
+            listing.add_widget(free)
+            needle = query.strip().casefold()
+            for category in categories:
+                if needle and needle not in category.casefold() and needle not in _t(category).casefold():
+                    continue
+                item = OneLineListItem(text=_t(category))
+                item.bind(
+                    on_release=lambda _item, value=category:
+                        self._select_budget_category(value)
+                )
+                listing.add_widget(item)
+
+        search.bind(text=lambda _field, value: populate(value))
+        populate()
+        self.bp_category_dialog = MDDialog(
+            title=_t("Kategori Seç"), type="custom", content_cls=content,
+        )
+        self.bp_category_dialog.open()
+
+    def _select_budget_category(self, category):
+        self.bp_selected_category = category
+        if category is None:
+            self.bp_category_label.text = _t("Serbest metin gir")
+            self.bp_name_input.disabled = False
+            self.bp_name_input.opacity = 1
+            self.bp_name_container.height = dp(58)
+        else:
+            self.bp_category_label.text = _t(category)
+            self.bp_name_input.text = category
+            self.bp_name_input.disabled = True
+            self.bp_name_input.opacity = 0
+            self.bp_name_container.height = 0
+        self._refresh_budget_dialog_height()
+        if getattr(self, "bp_category_dialog", None):
+            self.bp_category_dialog.dismiss()
+
+    def suggest_budget_amount(self, *args):
+        category = getattr(self, "bp_selected_category", None)
+        if not category:
+            toast(_t("Öneri için önce kategori seçin."))
+            return
+        from services.budget_service import suggest_category_budget
+
+        def worker():
+            value = suggest_category_budget(category)
+            Clock.schedule_once(lambda _dt: self._apply_budget_suggestion(value), 0)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _apply_budget_suggestion(self, value):
+        if value is None:
+            toast(_t("Bu kategori için yeterli geçmiş yok."))
+            return
+        self.bp_amount_input.text = f"{value:.2f}"
+
+    def _toggle_month_grid(self, _switch, active):
+        self.months_grid.height = dp(164) if active else 0
+        self.months_grid.opacity = 1 if active else 0
+        self._refresh_budget_dialog_height()
+
+    # ── Liste ────────────────────────────────────────────────────────────────
+    def load_budget_list(self):
+        container = getattr(self, "bp_list_container", None)
+        if container is None:
+            return
+        container.clear_widgets()
         from kivy.uix.widget import Widget
-        import datetime
+        from kivymd.uix.boxlayout import MDBoxLayout
+        from kivymd.uix.button import MDFlatButton, MDIconButton
+        from kivymd.uix.label import MDLabel
+        from kivymd.uix.progressbar import MDProgressBar
+        from services.budget_service import (
+            get_category_budget_progress, get_effective_limit,
+            get_effective_plan_items, get_reserved_recurring_items,
+        )
 
-        target_month = getattr(self, "active_budget_month", datetime.datetime.now().month)
+        month, year = self._budget_period()
+        recurring = get_reserved_recurring_items(month, year)
+        self._section_title(container, "Sabit Giderler (Abonelikler)")
+        if recurring:
+            for payment in recurring:
+                row = MDBoxLayout(
+                    orientation="horizontal", size_hint_y=None, height=dp(48),
+                )
+                row.add_widget(MDLabel(
+                    text=f"{payment['name']} · {_fmt(payment['reserved_amount'])}",
+                    font_style="Body2",
+                ))
+                row.add_widget(MDFlatButton(
+                    text=_t("YÖNET"), size_hint_x=None, width=dp(85),
+                    on_release=lambda _button: self.open_subscription_management(),
+                ))
+                container.add_widget(row)
+        else:
+            container.add_widget(MDLabel(
+                text=_t("Bu ay için ayrılmış abonelik gideri yok."),
+                font_style="Caption", theme_text_color="Secondary",
+                size_hint_y=None, height=dp(34),
+            ))
 
-        conn = get_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute(
-                "SELECT id, type, name, amount FROM monthly_budget_plan WHERE target_month = ?",
-                (target_month,),
-            )
-        except Exception:
-            cursor.execute("SELECT id, type, name, amount FROM monthly_budget_plan")
+        self._section_title(container, "Planlanan Kalemler")
+        progress_map = {
+            item["category"]: item
+            for item in get_category_budget_progress(month, year)
+        }
+        rows = get_effective_plan_items(month, year)
+        if not rows:
+            container.add_widget(MDLabel(
+                text=_t("Henüz planlanan kalem yok."),
+                font_style="Caption", theme_text_color="Secondary",
+                size_hint_y=None, height=dp(34),
+            ))
+            return
 
-        rows = cursor.fetchall()
-        conn.close()
-
-        for item_id, item_type, name, amount in rows:
-            type_tr = _t("Gelir" if item_type == "income" else "Gider")
-            amount_str = f"{amount:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
-
-            # ── Row: [icon | text column | spacer | edit btn | delete btn] ──
+        for item in rows:
+            category = item.get("category_name")
+            progress = progress_map.get(category) if category else None
+            height = dp(92 if progress else 60)
             row = MDBoxLayout(
-                orientation="horizontal",
-                adaptive_height=True,
-                spacing=dp(8),
-                padding=[dp(12), dp(8), dp(8), dp(8)],
-                size_hint_y=None,
-                height=dp(56),
+                orientation="horizontal", size_hint_y=None, height=height,
+                spacing=dp(6), padding=[dp(8), dp(5), dp(4), dp(5)],
             )
-
-            # Left icon
-            left_icon = MDIconButton(
-                icon="cash" if item_type == "income" else "cart",
-                theme_text_color="Custom",
-                text_color=(0.12, 0.53, 0.53, 1),
-                pos_hint={"center_y": 0.5},
-                size_hint=(None, None),
-                size=(dp(40), dp(40)),
-            )
-
-            # Text column
             text_col = MDBoxLayout(
-                orientation="vertical",
-                adaptive_height=True,
-                size_hint_x=1,
-                pos_hint={"center_y": 0.5},
+                orientation="vertical", size_hint_x=1,
             )
-            name_lbl = MDLabel(
-                text=name,
-                adaptive_height=True,
-                font_style="Body1",
-            )
-            sub_lbl = MDLabel(
-                text=f"{type_tr} | {amount_str}",
-                adaptive_height=True,
-                font_style="Caption",
-                theme_text_color="Secondary",
-            )
-            text_col.add_widget(name_lbl)
-            text_col.add_widget(sub_lbl)
-
-            # Edit button
-            edit_btn = MDIconButton(
-                icon="pencil",
-                pos_hint={"center_y": 0.5},
-                size_hint=(None, None),
-                size=(dp(36), dp(36)),
-                on_release=lambda x, iid=item_id: self.edit_budget_item(iid),
-            )
-
-            # Delete button
-            delete_btn = MDIconButton(
-                icon="trash-can",
-                theme_text_color="Custom",
-                text_color=(0.9, 0.2, 0.2, 1),
-                pos_hint={"center_y": 0.5},
-                size_hint=(None, None),
-                size=(dp(36), dp(36)),
-                on_release=lambda x, iid=item_id: self.delete_budget_item(iid),
-            )
-
-            row.add_widget(left_icon)
+            text_col.add_widget(MDLabel(
+                text=item["name"], font_style="Body1",
+                size_hint_y=None, height=dp(24),
+            ))
+            text_col.add_widget(MDLabel(
+                text=f"{_t('Gelir' if item['type'] == 'income' else 'Gider')} · {_fmt(item['amount'])}"
+                     + (_t(" · Şablon") if item.get("is_template") else ""),
+                font_style="Caption", theme_text_color="Secondary",
+                size_hint_y=None, height=dp(20),
+            ))
+            if progress:
+                effective = get_effective_limit(category, month, year)
+                carry = effective - progress["planned"]
+                pct = (
+                    progress["actual"] / effective * 100
+                    if effective else None
+                )
+                threshold = int(item.get("alert_threshold_pct") or 80)
+                color = GREEN if pct is not None and pct < threshold else (
+                    AMBER if pct is not None and pct < 100 else RED
+                )
+                carry_text = (
+                    f" ({carry:+.2f} TL {_t('geçen aydan devir')})"
+                    if carry else ""
+                )
+                text_col.add_widget(MDLabel(
+                    text=(
+                        f"{_t('Gerçekleşen')}: {_fmt(progress['actual'])} / "
+                        f"{_fmt(effective)}{carry_text}"
+                    ),
+                    font_style="Caption", size_hint_y=None, height=dp(20),
+                    theme_text_color="Custom", text_color=color,
+                ))
+                bar = MDProgressBar(
+                    value=min(100, max(0, pct or 0)),
+                    color=color, size_hint_y=None, height=dp(6),
+                )
+                text_col.add_widget(bar)
             row.add_widget(text_col)
-            row.add_widget(edit_btn)
-            row.add_widget(delete_btn)
-
+            row.add_widget(MDIconButton(
+                icon="pencil", size_hint=(None, None), size=(dp(38), dp(38)),
+                on_release=lambda _button, iid=item["id"]:
+                    self.edit_budget_item(iid),
+            ))
+            row.add_widget(MDIconButton(
+                icon="trash-can", theme_text_color="Custom", text_color=RED,
+                size_hint=(None, None), size=(dp(38), dp(38)),
+                on_release=lambda _button, iid=item["id"]:
+                    self.delete_budget_item(iid),
+            ))
             container.add_widget(row)
-            # Simple separator line compatible with KivyMD 1.2.0
-            sep = Widget(size_hint_y=None, height=dp(1))
-            container.add_widget(sep)
+            container.add_widget(Widget(size_hint_y=None, height=dp(1)))
 
+    def _section_title(self, container, text):
+        from kivymd.uix.label import MDLabel
+        container.add_widget(MDLabel(
+            text=_t(text), bold=True, font_style="Subtitle2",
+            size_hint_y=None, height=dp(34),
+        ))
+
+    def open_subscription_management(self):
+        if getattr(self, "bp_dialog", None):
+            self.bp_dialog.dismiss()
+        toast(_t("Aktif abonelikler ana sayfadaki karttan yönetilebilir."))
+
+    # ── CRUD ─────────────────────────────────────────────────────────────────
     def save_budget_item(self, *args):
-        """Diyalogdan girilen verileri (yeni kalem veya düzenleme) veritabanına kaydeder.
-        'Diğer aylara da uygula' açıksa, seçili aylara da kopyalar.
-        """
-        # Strip ALL invisible characters — prevents the Admin[] artifact
-        name = self.bp_name_input.text.strip().replace('\n', '').replace('\r', '')
+        category = getattr(self, "bp_selected_category", None)
+        name = (
+            category or self.bp_name_input.text.strip()
+        )
         if not name:
             toast(_t("Kalem adı boş olamaz!"))
             return
         try:
             amount = float(self.bp_amount_input.text)
+            threshold = int(self.bp_alert_input.text or 80)
+            if amount <= 0 or not 1 <= threshold <= 100:
+                raise ValueError
         except ValueError:
-            toast(_t("Geçerli bir tutar girin!"))
+            toast(_t("Tutar pozitif, uyarı eşiği 1-100 arasında olmalıdır."))
             return
 
-        is_propagate_active = self.bp_repeat_switch.active
-        target_month = getattr(self, "active_budget_month", datetime.datetime.now().month)
+        month, year = self._budget_period()
+        template = bool(self.bp_template_switch.active)
+        propagate = bool(self.bp_repeat_switch.active)
+        if template and propagate:
+            toast(_t("Şablon seçildi; belirli aylara kopyalama uygulanmadı."))
+            propagate = False
 
+        values = (
+            self.bp_selected_type, name, amount, month, year, category,
+            int(self.bp_rollover_switch.active), int(template), threshold,
+        )
         from database.db import get_connection
         conn = get_connection()
-        cursor = conn.cursor()
-
         try:
-            cursor.execute("ALTER TABLE monthly_budget_plan ADD COLUMN target_month INTEGER DEFAULT 1")
-        except Exception:
-            pass
-
-        if getattr(self, "editing_item_id", None):
-            cursor.execute(
-                """UPDATE monthly_budget_plan
-                   SET type = ?, name = ?, amount = ?, target_month = ?
-                   WHERE id = ?""",
-                (self.bp_selected_type, name, amount, target_month, self.editing_item_id),
-            )
-            self.editing_item_id = None
-        else:
-            cursor.execute(
-                """INSERT INTO monthly_budget_plan (type, name, amount, target_month)
-                   VALUES (?, ?, ?, ?)""",
-                (self.bp_selected_type, name, amount, target_month),
-            )
-
-        # Propagate to selected months
-        if is_propagate_active:
-            MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
-                      "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
-            for child in self.months_grid.children:
-                if isinstance(child, MDRaisedButton) and getattr(child, "is_selected", False):
-                    m_int = getattr(child, "month_index", None)
-                    if m_int is None:
+            editing_id = getattr(self, "editing_item_id", None)
+            if editing_id and not getattr(self, "editing_item_is_template", False):
+                conn.execute(
+                    """UPDATE monthly_budget_plan SET
+                       type=?, name=?, amount=?, target_month=?, target_year=?,
+                       category_name=?, rollover_enabled=?, is_template=?,
+                       alert_threshold_pct=?
+                       WHERE id=? AND target_month=? AND target_year=?""",
+                    values + (editing_id, month, year),
+                )
+            else:
+                # Kalıtılmış şablon düzenleniyorsa bu aya somut override yaz.
+                insert_values = list(values)
+                if editing_id and getattr(self, "editing_item_is_template", False):
+                    insert_values[7] = 0
+                conn.execute(
+                    """INSERT INTO monthly_budget_plan
+                       (type,name,amount,target_month,target_year,category_name,
+                        rollover_enabled,is_template,alert_threshold_pct)
+                       VALUES (?,?,?,?,?,?,?,?,?)""",
+                    tuple(insert_values),
+                )
+            if propagate:
+                for child in self.months_grid.children:
+                    if not getattr(child, "is_selected", False):
                         continue
-                    cursor.execute(
-                        """INSERT INTO monthly_budget_plan (type, name, amount, target_month)
-                           VALUES (?, ?, ?, ?)""",
-                        (self.bp_selected_type, name, amount, m_int),
+                    target = int(child.month_index)
+                    if target == month:
+                        continue
+                    copied = list(values)
+                    copied[3] = target
+                    copied[7] = 0
+                    conn.execute(
+                        """INSERT INTO monthly_budget_plan
+                           (type,name,amount,target_month,target_year,category_name,
+                            rollover_enabled,is_template,alert_threshold_pct)
+                           VALUES (?,?,?,?,?,?,?,?,?)""",
+                        tuple(copied),
                     )
-
-        conn.commit()
-        conn.close()
-
-        self.bp_name_input.text = ""
+            conn.commit()
+        finally:
+            conn.close()
+        self.editing_item_id = None
+        self.editing_item_is_template = False
         self.bp_amount_input.text = ""
+        if category is None:
+            self.bp_name_input.text = ""
         self.load_budget_list()
         self.generate_next_month_projection()
-        
-    def toggle_custom_month_button(self, btn):
-        """Çoklu ay seçimi sırasında (kalem kopyalarken) ay butonlarının basılı/basılmamış durumunu değiştirir."""
-        if not getattr(btn, 'is_selected', False):
-            btn.is_selected = True
-            btn.md_bg_color = self.theme_cls.primary_dark  # seçili: temanın koyu tonu
-        else:
-            btn.is_selected = False
-            btn.md_bg_color = self.theme_cls.primary_color  # seçili değil
+
+    def toggle_custom_month_button(self, button):
+        button.is_selected = not getattr(button, "is_selected", False)
+        button.opacity = 1 if button.is_selected else 0.55
 
     def delete_budget_item(self, item_id):
-        """Verilen ID'ye sahip bütçe kalemini siler ve listeyi/projeksiyonu günceller."""
         from database.db import get_connection
+        month, year = self._budget_period()
         conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM monthly_budget_plan WHERE id = ?", (item_id,))
+        conn.execute(
+            "DELETE FROM monthly_budget_plan "
+            "WHERE id = ? AND (is_template = 1 OR "
+            "(target_month = ? AND target_year = ?))",
+            (item_id, month, year),
+        )
         conn.commit()
         conn.close()
         self.load_budget_list()
@@ -453,17 +706,66 @@ class BudgetMixin:
         toast(_t("Kalem silindi."))
 
     def edit_budget_item(self, item_id):
-        """Silme işleminin yanındaki düzenle butonuna tıklandığında,
-        seçili bütçe kaleminin bilgilerini form alanlarına doldurur."""
         from database.db import get_connection
+        month, year = self._budget_period()
         conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT type, name, amount FROM monthly_budget_plan WHERE id = ?", (item_id,))
-        row = cursor.fetchone()
+        row = conn.execute(
+            "SELECT * FROM monthly_budget_plan "
+            "WHERE id = ? AND (is_template = 1 OR "
+            "(target_month = ? AND target_year = ?))",
+            (item_id, month, year),
+        ).fetchone()
         conn.close()
-        
-        if row:
-            self.editing_item_id = item_id
-            self.bp_selected_type = row[0]
-            self.bp_name_input.text = row[1]
-            self.bp_amount_input.text = str(row[2])
+        if not row:
+            return
+        self.editing_item_id = item_id
+        self.editing_item_is_template = bool(row["is_template"])
+        self.bp_selected_type = row["type"]
+        self._select_budget_category(row["category_name"])
+        self.bp_name_input.text = row["name"]
+        self.bp_amount_input.text = str(row["amount"])
+        self.bp_rollover_switch.active = bool(row["rollover_enabled"])
+        self.bp_template_switch.active = bool(row["is_template"])
+        self.bp_alert_input.text = str(row["alert_threshold_pct"] or 80)
+
+    # ── Trend ────────────────────────────────────────────────────────────────
+    def show_budget_trend(self, *args):
+        from kivymd.uix.boxlayout import MDBoxLayout
+        from kivymd.uix.button import MDFlatButton
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.label import MDLabel
+        from services.budget_service import get_budget_trend
+        from ui.charts import ScenarioComparisonChart
+
+        data = get_budget_trend(6)
+        content = MDBoxLayout(
+            orientation="vertical", spacing=dp(8),
+            size_hint_y=None, height=dp(300),
+        )
+        chart = ScenarioComparisonChart(size_hint_y=None, height=dp(220))
+        chart.set_series(
+            [(index, item["planned"]) for index, item in enumerate(data)],
+            [(index, item["actual"]) for index, item in enumerate(data)],
+        )
+        labels = MDLabel(
+            text="   ".join(item["label"] for item in data),
+            font_style="Caption", halign="center",
+            size_hint_y=None, height=dp(35),
+        )
+        legend = MDLabel(
+            text=_t("Gri: Planlanan · Renkli: Gerçekleşen"),
+            font_style="Caption", halign="center",
+            size_hint_y=None, height=dp(30),
+        )
+        content.add_widget(chart)
+        content.add_widget(labels)
+        content.add_widget(legend)
+        self.budget_trend_dialog = MDDialog(
+            title=_t("6 Aylık Bütçe Trendi"),
+            type="custom", content_cls=content,
+            buttons=[MDFlatButton(
+                text=_t("KAPAT"),
+                on_release=lambda _button: self.budget_trend_dialog.dismiss(),
+            )],
+        )
+        self.budget_trend_dialog.open()

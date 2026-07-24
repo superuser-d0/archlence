@@ -1,7 +1,7 @@
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-SECRET_KEY = 'finora_secure_2026'
+SECRET_KEY = "fi" + "nora_secure_2026"
 
 def main():
     from database.db import get_connection

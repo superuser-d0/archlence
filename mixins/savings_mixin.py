@@ -1,7 +1,7 @@
 """Birikim hedefleri (savings goals) mixin'i.
 
 Hedef ekleme/hesaplama diyalogları, hedef kartlarının dashboard'da çizimi,
-renk döngüsü ve hedefe para ekleme akışı. main.py'deki FinoraApp gövdesinden
+renk döngüsü ve hedefe para ekleme akışı. main.py'deki ArchlenceApp gövdesinden
 taşındı; hedef verisi self.savings_goals listesinde tutulur ve self.store
 (JsonStore) üzerinden savings_goals.json'a kalıcılaştırılır.
 """

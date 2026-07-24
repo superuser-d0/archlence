@@ -27,11 +27,11 @@ jobs:
           pip install pyinstaller kivy_deps.sdl2 kivy_deps.glew kivy_deps.angle
 
       - name: PyInstaller ile derle
-        run: pyinstaller finora.spec
+        run: pyinstaller archlence.spec
 
       - name: .exe'yi artifact olarak yükle
         uses: actions/upload-artifact@v4
         with:
-          name: Finora-Windows
-          path: dist/Finora/
+          name: Archlence-Windows
+          path: dist/Archlence/
           if-no-files-found: error

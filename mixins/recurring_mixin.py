@@ -128,6 +128,8 @@ class RecurringMixin:
                 deactivate_recurring_payment(payment_id)
                 Clock.schedule_once(lambda dt: toast(_t("Tekrarlanan ödeme durduruldu.")), 0)
                 Clock.schedule_once(lambda dt: self.load_upcoming_recurring(), 0)
+                if hasattr(self, "refresh_insights"):
+                    Clock.schedule_once(lambda dt: self.refresh_insights(), 0)
             except Exception as e:
                 print("Error deactivating recurring payment:", e)
 

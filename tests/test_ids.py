@@ -22,13 +22,17 @@ def main():
             return None
 
         admin_logout = apply_theme = change_home_filter = check_login = _noop
+        setup_pin = _noop
         confirm_delete_all_data = contact_us = load_categories = _noop
         load_recent_transactions = on_accounts_tab_enter = _noop
         on_assets_tab_enter = open_add_account_dialog = open_calculator = _noop
         open_language_dialog = open_scenario_sandbox = refresh_asset_prices = _noop
         show_add_asset_dialog = show_add_dialog = show_balance_history_dialog = _noop
-        show_budget_planner = show_data_privacy_dialog = toggle_theme = _noop
+        show_budget_planner = show_budget_trend = show_data_privacy_dialog = toggle_theme = _noop
         toggle_wealth_visibility = update_category_importance = _noop
+
+        def authentication_screen(self):
+            return "pin_setup"
 
         def build(self):
             return Builder.load_file("ui/dashboard.kv")

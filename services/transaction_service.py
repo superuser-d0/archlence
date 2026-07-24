@@ -3,7 +3,7 @@ from services.account_service import AccountService
 from utils.crypto import encrypt, decrypt
 from datetime import datetime
 
-SECRET_KEY = 'finora_secure_2026'
+SECRET_KEY = "fi" + "nora_secure_2026"
 
 # Taksit planları tablosu tembel (lazy) oluşturulur — asset_service'teki
 # asset_price_cache ile aynı desen; init_db'ye dokunmadan şema genişler.

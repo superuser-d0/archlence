@@ -97,7 +97,7 @@ istedi. Yapılanlar:
   aslında çift çizgiydi, bu artık tekile indi — kasıtlı, görünüşte fark yaratmıyor).
   `asset_history_list` boşken gösterilen "Henüz varlık işlemi bulunmuyor." mesajı
   artık statik `asset_history_empty_label` id'li MDLabel (height/opacity toggle).
-- Gerçek uygulama çalıştırılıp (`FinoraApp` + gerçek veritabanı) ekran görüntüsüyle
+- Gerçek uygulama çalıştırılıp (`ArchlenceApp` + gerçek veritabanı) ekran görüntüsüyle
   doğrulandı: ikon renkleri, yuvarlatılmış logo köşeleri (12dp), K/Z markup
   renklendirmesi, kart yükseklik hesaplaması (`rv.parent` — artık `rv.parent.parent`
   değil, ScrollView katmanı kalktığı için) hepsi orijinaliyle birebir eşleşiyor.

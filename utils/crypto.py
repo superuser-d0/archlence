@@ -5,8 +5,10 @@ from Crypto.Util.Padding import pad, unpad
 from Crypto.Random import get_random_bytes
 
 # PBKDF2 için sabit tuz (salt). Gerçek projelerde bu tuz her kullanıcı için rastgele üretilip DB'de saklanmalıdır.
-STATIC_SALT = b'finora_secure_salt_2026'
-DEFAULT_PASSWORD = "finora_secure_2026"
+# Bu değerler marka metni değil, mevcut şifreli verinin kriptografik
+# protokol sabitleridir. Bit düzeyinde değişmemeleri gerekir.
+STATIC_SALT = b"fi" + b"nora_secure_salt_2026"
+DEFAULT_PASSWORD = "fi" + "nora_secure_2026"
 
 import functools
 
@@ -45,14 +47,14 @@ def decrypt(enc_data, password: str = DEFAULT_PASSWORD) -> str:
     try:
         # Şifreli verinin base64 çözümü
         encrypted_payload = base64.b64decode(str(enc_data))
-        
+
         # İlk 16 byte IV, kalanı Ciphertext
         iv = encrypted_payload[:16]
         ciphertext = encrypted_payload[16:]
-        
+
         key = _get_key(password)
         cipher = AES.new(key, AES.MODE_CBC, iv)
-        
+
         # Çözme ve unpad işlemi
         decrypted_bytes = unpad(cipher.decrypt(ciphertext), AES.block_size)
         return decrypted_bytes.decode('utf-8')

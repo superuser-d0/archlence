@@ -12,7 +12,7 @@ import threading
 def main():
     output_path = sys.argv[1]
     assets = json.loads(sys.stdin.read() or "[]")
-    os.environ["FINORA_ASSET_PRICE_CHILD"] = "1"
+    os.environ["ARCHLENCE_ASSET_PRICE_CHILD"] = "1"
 
     result = []
     done = threading.Event()

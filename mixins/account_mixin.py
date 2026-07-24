@@ -722,7 +722,7 @@ class AccountMixin:
             removed_account_id = int(removed_account_id)
             for container in (container_cards, container_accounts):
                 for child in list(container.children):
-                    if getattr(child, "_finora_account_id", None) == removed_account_id:
+                    if getattr(child, "_archlence_account_id", None) == removed_account_id:
                         # Premium kartın canvas teardown'u pahalıdır. Görsel ve
                         # etkileşimsel state'i hemen kapat, fiziksel sökümü
                         # diyalog kapandıktan sonraki sakin frame'e ertele.
@@ -733,11 +733,11 @@ class AccountMixin:
                                                   parent=container):
                             if widget in parent.children:
                                 parent.remove_widget(widget)
-                            widget._finora_detach_event = None
+                            widget._archlence_detach_event = None
 
                         from kivy.clock import Clock
-                        if getattr(child, "_finora_detach_event", None) is None:
-                            child._finora_detach_event = Clock.schedule_once(
+                        if getattr(child, "_archlence_detach_event", None) is None:
+                            child._archlence_detach_event = Clock.schedule_once(
                                 detach_deleted_widget, 0.35
                             )
             self._update_account_summary(_asset_data_cache["summary"])
@@ -748,7 +748,7 @@ class AccountMixin:
             # bir frame daha kalmasın. İlk açılışta bu döngüler zaten boştur.
             for container in (container_cards, container_accounts):
                 for child in list(container.children):
-                    if getattr(child, "_finora_account_id", None) is not None:
+                    if getattr(child, "_archlence_account_id", None) is not None:
                         container.remove_widget(child)
 
             from kivymd.uix.boxlayout import MDBoxLayout
@@ -767,9 +767,9 @@ class AccountMixin:
             loading.add_widget(MDLabel(
                 text=_t("Önbellek hazırlanıyor…"), font_style="Caption", theme_text_color="Secondary", halign="center"
             ))
-            if not any(getattr(child, "_finora_loading", False)
+            if not any(getattr(child, "_archlence_loading", False)
                        for child in container_accounts.children):
-                loading._finora_loading = True
+                loading._archlence_loading = True
                 container_accounts.add_widget(loading)
             
             if getattr(self, "_accounts_cache_poll_event", None) is None:
@@ -796,12 +796,12 @@ class AccountMixin:
         # Keep the existing widget tree. Rebuilding KivyMD cards is much more
         # expensive than updating their String/Numeric properties.
         existing = {
-            getattr(child, "_finora_account_id", None): child
+            getattr(child, "_archlence_account_id", None): child
             for child in list(container_cards.children) + list(container_accounts.children)
-            if getattr(child, "_finora_account_id", None) is not None
+            if getattr(child, "_archlence_account_id", None) is not None
         }
         for child in list(container_accounts.children):
-            if getattr(child, "_finora_loading", False):
+            if getattr(child, "_archlence_loading", False):
                 container_accounts.remove_widget(child)
 
         self._update_account_summary(summary)
@@ -844,7 +844,7 @@ class AccountMixin:
                 acc, container_cards, container_accounts,
                 recent.get(acc["id"], []), current,
             )
-            widget._finora_account_id = acc["id"]
+            widget._archlence_account_id = acc["id"]
 
         for account_id, widget in existing.items():
             if account_id not in wanted_ids and widget.parent is not None:
@@ -860,7 +860,7 @@ class AccountMixin:
                 acc, container_cards, container_accounts,
                 recent.get(acc["id"], []), None,
             )
-            widget._finora_account_id = acc["id"]
+            widget._archlence_account_id = acc["id"]
             from kivy.clock import Clock
             Clock.schedule_once(lambda dt: add_next(index + 1), 0)
 
@@ -904,9 +904,9 @@ class AccountMixin:
             card.available_limit = _fmt(acc["available_limit"])
             card.current_debt = _fmt(acc["debt"])
             signature = repr(recent_items)
-            if getattr(card, "_finora_recent_signature", None) != signature:
+            if getattr(card, "_archlence_recent_signature", None) != signature:
                 self._fill_card_recent(card, acc["id"], recent_items)
-                card._finora_recent_signature = signature
+                card._archlence_recent_signature = signature
             return card
         elif has_card:
             card = existing if isinstance(existing, PremiumDebitCardWidget) else None
@@ -918,9 +918,9 @@ class AccountMixin:
             card.network_logo = acc.get("network_logo", "")
             card.balance = _fmt(acc["balance"])
             signature = repr(recent_items)
-            if getattr(card, "_finora_recent_signature", None) != signature:
+            if getattr(card, "_archlence_recent_signature", None) != signature:
                 self._fill_card_recent(card, acc["id"], recent_items)
-                card._finora_recent_signature = signature
+                card._archlence_recent_signature = signature
             return card
         else:
             widget = existing if isinstance(existing, BentoAccountWidget) else None

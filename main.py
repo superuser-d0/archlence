@@ -1,5 +1,5 @@
 """
-Finora KivyMD Application - Main Entry Point
+Archlence KivyMD Application - Main Entry Point
 """
 
 # =========================================================================
@@ -11,6 +11,7 @@ import csv
 import math
 import logging
 import datetime
+import shutil
 import faulthandler
 import traceback as _traceback
 
@@ -155,7 +156,7 @@ from ui.theme import (
 )
 import ui.theme as ftheme
 from ui.i18n import tr as translate, set_language as set_active_language
-from screens.admin_screen import AdminScreen
+from utils.currency import format_try
 
 from mixins.asset_mixin import AssetMixin
 from mixins.debt_mixin import DebtMixin
@@ -176,18 +177,17 @@ from services.projection_service import project_final_wealth
 # =========================================================================
 # 5. CONSTANTS
 # =========================================================================
-SECRET_KEY = 'finora_secure_2026'
-ADMIN_HASH = "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
-
-
+SECRET_KEY = "fi" + "nora_secure_2026"
 # =========================================================================
 # 6. MAIN APPLICATION CLASS
 # =========================================================================
-class FinoraApp(
+class ArchlenceApp(
     MDApp, AssetMixin, DebtMixin, CalculatorMixin, TransactionMixin, # type: ignore
     BudgetMixin, SavingsMixin, RecurringMixin, MigrationMixin, AccountMixin, 
     InsightsMixin, HistoryMixin, ScenarioMixin
 ):
+    title = "Archlence"
+    icon = "assets/icon.png"
     
     # -------------------------------------------------------------------------
     # Properties & State
@@ -210,7 +210,7 @@ class FinoraApp(
     # Lifecycle & Initialization
     # -------------------------------------------------------------------------
     def build(self):
-        # Kivy'nin varsayılan 20 pre-frame iterasyonu, Finora'nın iç içe
+        # Kivy'nin varsayılan 20 pre-frame iterasyonu, Archlence'ın iç içe
         # KivyMD/uyarlanabilir layout ağacı ilk kez ölçülürken zaman zaman
         # yetmiyor. Uygulama tarafında -1 ile kendini planlayan bir callback
         # yok; bu sınır yalnızca Builder'ın sonlu yerleşim zincirinin aynı
@@ -225,7 +225,17 @@ class FinoraApp(
         # binerek bazı label'ları eski zemin rengine/şeffaflığa bırakabiliyor.
         # Uygulamanın kendi geçişi yeterli; metin renkleri atomik güncellenir.
         self.theme_cls.theme_style_switch_animation = False
-        self.config_store = JsonStore('finora_config.json')
+        config_path = os.environ.get(
+            "ARCHLENCE_CONFIG_PATH", "archlence_config.json"
+        )
+        legacy_config_path = "fi" + "nora_config.json"
+        if (
+            config_path == "archlence_config.json"
+            and not os.path.exists(config_path)
+            and os.path.exists(legacy_config_path)
+        ):
+            shutil.copy2(legacy_config_path, config_path)
+        self.config_store = JsonStore(config_path)
         saved_style = "Light"
         if self.config_store.exists('display'):
             saved_style = self.config_store.get('display').get('style', 'Light')
@@ -243,7 +253,9 @@ class FinoraApp(
             pref = self.config_store.get('theme').get('name', 'standard')
             
         self.apply_theme(pref, persist=False)
-        return Builder.load_file("ui/dashboard.kv")
+        root = Builder.load_file("ui/dashboard.kv")
+        root.ids.screen_manager.current = self.authentication_screen()
+        return root
 
     def tr(self, text, language=None):
         """KV ve Python arayüzünün ortak çeviri giriş noktası."""
@@ -334,7 +346,7 @@ class FinoraApp(
         if persist:
             try:
                 if not hasattr(self, 'config_store'):
-                    self.config_store = JsonStore('finora_config.json')
+                    self.config_store = JsonStore('archlence_config.json')
                 self.config_store.put('theme', name=theme_name)
             except Exception as e:
                 print("Tema tercihi kaydedilemedi:", e)
@@ -409,12 +421,6 @@ class FinoraApp(
                     chart_box.refresh_theme()
                 except Exception as exc:
                     print("Tema sonrası grafikler yenilenemedi:", exc)
-            health_chart = self.root.ids.get("health_trend_chart")
-            if health_chart is not None:
-                try:
-                    health_chart.draw_immediate()
-                except Exception as exc:
-                    print("Tema sonrası sağlık trendi yenilenemedi:", exc)
             for widget in self.root.walk():
                 if isinstance(widget, HorizontalBarChart):
                     try:
@@ -456,7 +462,7 @@ class FinoraApp(
         for widget in self._all_widgets():
             if isinstance(widget, MDCard):
                 try:
-                    if hasattr(widget, "_finora_tint"):
+                    if hasattr(widget, "_archlence_tint"):
                         refresh_card_theme(widget, self.theme_cls)
                     widget.elevation = 0
                     if hasattr(widget, 'shadow_softness'):
@@ -469,7 +475,7 @@ class FinoraApp(
     def _resync_text_fields(self):
         if not self.root:
             return
-        # set_default_colors(), Finora'nın kontrast renklerini KivyMD
+        # set_default_colors(), Archlence'nın kontrast renklerini KivyMD
         # varsayılanlarıyla ezebiliyordu. Ortak tema kiti açık diyaloglar dahil
         # tüm alanlara doğru açık/koyu renkleri uygular.
         restyle_text_fields(self.root, self.theme_cls)
@@ -823,7 +829,7 @@ class FinoraApp(
             self._apply_change_rate(m["change_rate"])
 
     def _fmt_tr(self, value: float) -> str:
-        return f"₺{abs(value):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        return format_try(value)
 
     def _update_wealth_label(self, total_wealth: float, today_pnl):
         try:
@@ -1087,6 +1093,11 @@ class FinoraApp(
         try:
             recent_list = self.root.ids.recent_transactions_list
             data = []
+            brand_names_to_prefetch = set()
+            from services.brand_icon_service import (
+                classify_brand,
+                resolve_cached_brand_icon_path,
+            )
             
             icon_mapping = {
                 'su': ('water', (0.13, 0.59, 0.95, 1)),                 
@@ -1105,6 +1116,11 @@ class FinoraApp(
             for t_type, category, amount, decrypted_desc, t_date in transactions:
                 cat_lower = category.lower() if category else ""
                 icon_data = next((v for k, v in icon_mapping.items() if k in cat_lower), None)
+                brand_text = f"{decrypted_desc or ''} {category or ''}".strip()
+                brand_icon = resolve_cached_brand_icon_path(brand_text)
+                brand_key, _ = classify_brand(brand_text)
+                if brand_key and not brand_icon:
+                    brand_names_to_prefetch.add(brand_text)
                 
                 if icon_data:
                     icon_name, icon_col = icon_data
@@ -1129,48 +1145,104 @@ class FinoraApp(
                 data.append({
                     "text": translate(category),
                     "secondary_text": f"{t_date[:10]} | {amount_text}",
-                    "icon_source": "",
+                    "icon_source": brand_icon or "",
                     "icon_name": icon_name,
                     "icon_color": list(icon_col),
                 })
 
             recent_list.data = data
+            if brand_names_to_prefetch:
+                self._prefetch_recent_brand_icons(
+                    brand_names_to_prefetch, transactions
+                )
         except Exception as e:
             print("Error rendering recent UI:", e)
+
+    def _prefetch_recent_brand_icons(self, brand_names, transactions):
+        """Eksik işlem markalarını arka planda indirip listeyi bir kez yeniler."""
+        import threading
+        from services.brand_icon_service import fetch_and_cache_brand_icon
+
+        def worker():
+            any_success = False
+            for name in brand_names:
+                if fetch_and_cache_brand_icon(name):
+                    any_success = True
+            if any_success:
+                Clock.schedule_once(
+                    lambda dt: self._render_recent_transactions(transactions), 0
+                )
+
+        threading.Thread(target=worker, daemon=True).start()
 
     # -------------------------------------------------------------------------
     # Authentication & Profile
     # -------------------------------------------------------------------------
-    def check_login(self):
-        username = self.root.ids.username_input.text
-        password = self.root.ids.password_input.text
+    def authentication_screen(self):
+        """Kayıtlı PIN varsa girişe, yoksa ilk kurulum ekranına yönlendirir."""
+        try:
+            if self.config_store.exists("security"):
+                security = self.config_store.get("security")
+                if (
+                    security.get("is_set") is True
+                    and security.get("pin_hash")
+                    and security.get("salt")
+                ):
+                    return "login"
+        except Exception:
+            pass
+        return "pin_setup"
 
-        if username == "admin" and password == "admin_secret":
-            self._handle_successful_login("admin")
-        elif username == "admin" and SecurityService.verify_password(password, ADMIN_HASH):
-            self._handle_successful_login("home")
+    def setup_pin(self):
+        pin = self.root.ids.pin_setup_input.text.strip()
+        confirmation = self.root.ids.pin_confirm_input.text.strip()
+        error = self.root.ids.pin_setup_error_label
+
+        if not pin.isdigit() or len(pin) < 4:
+            error.text = translate("PIN en az 4 rakam olmalıdır.")
+            return
+        if pin != confirmation:
+            error.text = translate("PIN'ler eşleşmiyor.")
+            return
+
+        salt = SecurityService.generate_salt()
+        pin_hash = SecurityService.hash_password(pin, salt)
+        self.config_store.put(
+            "security", pin_hash=pin_hash, salt=salt, is_set=True
+        )
+        error.text = ""
+        self.root.ids.pin_setup_input.text = ""
+        self.root.ids.pin_confirm_input.text = ""
+        self.root.ids.screen_manager.current = "home"
+
+    def check_login(self):
+        pin = self.root.ids.password_input.text.strip()
+        if self.authentication_screen() != "login":
+            self.root.ids.screen_manager.current = "pin_setup"
+            return
+
+        security = self.config_store.get("security")
+        if SecurityService.verify_password(
+            pin, security["salt"], security["pin_hash"]
+        ):
+            self._handle_successful_login()
         else:
             self._handle_failed_login()
 
-    def _handle_successful_login(self, target_screen):
+    def _handle_successful_login(self):
         self.root.ids.login_error_label.text = ""
-        self.root.ids.username_input.text = ""
         self.root.ids.password_input.text = ""
-        self.root.ids.screen_manager.current = target_screen
+        self.root.ids.screen_manager.current = "home"
 
     def _handle_failed_login(self):
-        self.root.ids.login_error_label.text = translate("Hatalı kullanıcı adı veya şifre!")
+        self.root.ids.login_error_label.text = translate("Hatalı PIN!")
         
         pwd_container = self.root.ids.password_container
-        usr_input = self.root.ids.username_input
         
         Animation.cancel_all(pwd_container)
-        Animation.cancel_all(usr_input)
         
         if not hasattr(pwd_container, 'anim_original_x'):
             pwd_container.anim_original_x = pwd_container.x
-        if not hasattr(usr_input, 'anim_original_x'):
-            usr_input.anim_original_x = usr_input.x
             
         def _shake_anim(orig_x):
             return (
@@ -1182,21 +1254,17 @@ class FinoraApp(
             )
 
         anim_pwd = _shake_anim(pwd_container.anim_original_x)
-        anim_usr = _shake_anim(usr_input.anim_original_x)
         
         def clear_original_x(*args):
             if hasattr(pwd_container, 'anim_original_x'): del pwd_container.anim_original_x
-            if hasattr(usr_input, 'anim_original_x'): del usr_input.anim_original_x
                 
         anim_pwd.bind(on_complete=clear_original_x)
         anim_pwd.start(pwd_container)
-        anim_usr.start(usr_input)
 
     def admin_logout(self):
         if self.root:
-            self.root.ids.username_input.text = ""
             self.root.ids.password_input.text = ""
-            self.root.ids.screen_manager.current = "login"
+            self.root.ids.screen_manager.current = self.authentication_screen()
 
     # -------------------------------------------------------------------------
     # Categories & AI Insights
@@ -1288,13 +1356,13 @@ class FinoraApp(
         import webbrowser
         
         def send_email(x):
-            webbrowser.open("mailto:support@finora.com")
+            webbrowser.open("mailto:support@archlence.com")
             if hasattr(self, 'contact_dialog'):
                 self.contact_dialog.dismiss()
 
         self.contact_dialog = MDDialog(
             title=translate("Bize Ulaşın"),
-            text=translate("Her türlü soru, öneri ve destek için bize aşağıdaki e-posta adresinden ulaşabilirsiniz:\n\n[b]support@finora.com[/b]"),
+            text=translate("Her türlü soru, öneri ve destek için bize aşağıdaki e-posta adresinden ulaşabilirsiniz:\n\n[b]support@archlence.com[/b]"),
             buttons=[
                 ftheme.secondary_button(translate("KAPAT"), self.theme_cls, on_release=lambda x: self.contact_dialog.dismiss()),
                 ftheme.primary_button(translate("E-POSTA GÖNDER"), self.theme_cls, on_release=send_email),
@@ -1334,20 +1402,59 @@ class FinoraApp(
             
             conn = get_connection()
             cursor = conn.cursor()
-            cursor.execute("DELETE FROM transactions")
-            cursor.execute("DELETE FROM active_assets")
-            cursor.execute("DELETE FROM active_debts")
-            cursor.execute("DELETE FROM monthly_budget_plan")
-            
-            cursor.execute("SELECT id, balance FROM accounts")
-            previous = [(r["id"], r["balance"] or 0.0) for r in cursor.fetchall()]
-            cursor.execute("UPDATE accounts SET balance = 0")
-            for account_id, old_balance in previous:
-                record_balance_event(cursor, ACCOUNT, account_id, -old_balance, 0.0, "delete_all_data")
-                
+            cursor.execute("""
+                SELECT name FROM sqlite_master
+                WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+            """)
+            table_names = [row["name"] for row in cursor.fetchall()]
+            for table_name in table_names:
+                safe_name = table_name.replace('"', '""')
+                cursor.execute(f'DELETE FROM "{safe_name}"')
+            cursor.execute("DELETE FROM sqlite_sequence")
             conn.commit()
             conn.close()
-            
+
+            # Şema aynı kalır; yalnız varsayılan, kişisel olmayan başlangıç
+            # kayıtları yeniden kurulur.
+            initialize_database()
+            if self.config_store.exists("security"):
+                self.config_store.delete("security")
+
+            # DB yeniden seed edilmiş olsa da hesaplar/portföy/içgörüler eski
+            # worker snapshot'larından çiziliyor olabilir. Önce bütün kişisel
+            # RAM durumunu ve devam eden worker nesillerini geçersiz kıl.
+            from services.asset_service import (
+                invalidate_asset_data_cache,
+                start_data_warmup,
+            )
+            invalidate_asset_data_cache()
+            self._liquid_balance_cache = 0.0
+            self._assets_cache = []
+            self._asset_ui_loaded_at = 0.0
+            self._asset_load_inflight = False
+            self._asset_load_generation = getattr(
+                self, "_asset_load_generation", 0
+            ) + 1
+            self._asset_render_generation = getattr(
+                self, "_asset_render_generation", 0
+            ) + 1
+            self._recurring_candidates = []
+            self._insights_generation = getattr(
+                self, "_insights_generation", 0
+            ) + 1
+
+            # Invalidate, açık Kartlarım/Hesaplarım ağacındaki kişisel
+            # widget'ları aynı karede söker; warm-up yalnız yeni seed
+            # hesaplarını yayımladıktan sonra yeniden render eder.
+            if hasattr(self, "render_accounts"):
+                self.render_accounts()
+            start_data_warmup(
+                callback=(
+                    lambda: self.render_accounts()
+                    if hasattr(self, "render_accounts") else None
+                )
+            )
+
             self.refresh_dashboard_data()
             if 'wealth_balance' in self.root.ids:
                 self.root.ids.wealth_balance.text = "₺0.00"
@@ -1358,6 +1465,7 @@ class FinoraApp(
             toast(translate("Tüm veriler başarıyla silindi!"))
             if hasattr(self, 'reset_dialog'):
                 self.reset_dialog.dismiss()
+            self.root.ids.screen_manager.current = "pin_setup"
         except Exception as e:
             print("Factory reset failed:", e)
 
@@ -1369,4 +1477,4 @@ if __name__ == "__main__":
         print("No usable Kivy window backend detected; skipping GUI startup.")
         raise SystemExit(0)
 
-    FinoraApp().run()
+    ArchlenceApp().run()

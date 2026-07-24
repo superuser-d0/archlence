@@ -1,4 +1,4 @@
-"""Finora'nın hafif, yerel ve bağımlılıksız çeviri katmanı.
+"""Archlence'ın hafif, yerel ve bağımlılıksız çeviri katmanı.
 
 Türkçe metinler kaynak anahtar olarak kullanılır. Bu yaklaşım mevcut arayüzü
 parça parça taşımayı kolaylaştırırken eksik bir çeviride kullanıcıya anlamsız
@@ -10,24 +10,23 @@ _language = "tr"
 
 
 EN = {
-    "Sistem Yönetimi (Admin)": "System Administration (Admin)",
-    "Veritabanı Durumu": "Database Status",
-    "Toplam İşlem Kaydı: ...\nToplam Bütçe Kalemi: ...": "Total Transactions: ...\nTotal Budget Items: ...",
-    "Veritabanını Dışa Aktar (CSV)": "Export Database (CSV)",
-    "Sistemi Sıfırla (Factory Reset)": "Factory Reset",
     "Güvenli Giriş": "Secure Sign In",
-    "Kullanıcı Adı": "Username",
-    "Şifre": "Password",
-    "Şifreni mi unuttun?": "Forgot your password?",
+    "Yerel PIN'ini Belirle": "Set Your Local PIN",
+    "PIN": "PIN",
+    "PIN Tekrar": "Confirm PIN",
+    "PIN OLUŞTUR": "CREATE PIN",
+    "PIN yalnızca bu cihazda saklanır; Archlence verilerinizi bir sunucuya göndermez.": "Your PIN is stored only on this device; Archlence does not send your data to a server.",
+    "PIN en az 4 rakam olmalıdır.": "PIN must contain at least 4 digits.",
+    "PIN'ler eşleşmiyor.": "PINs do not match.",
+    "Hatalı PIN!": "Incorrect PIN!",
+    "PIN'ini unuttun mu? Sağ üstteki Ayarlar > PIN ve Verileri Sıfırla yolunu kullanabilirsin. Tüm yerel finans verilerin silinir.": "Forgot your PIN? Use Settings > Reset PIN and Data in the top-right corner. All local financial data will be deleted.",
+    "PIN ve Verileri Sıfırla": "Reset PIN and Data",
+    "PIN dahil tüm yerel finans verilerini kalıcı olarak siler": "Permanently deletes the PIN and all local financial data",
     "GİRİŞ YAP": "SIGN IN",
-    "Finora'da yeni misin? Hemen bir hesap oluştur.": "New to Finora? Create an account now.",
-    "Şifre Sıfırlama": "Reset Password",
-    "Finora hesabınıza bağlı olan\ne-posta adresini giriniz.": "Enter the email address linked to\nyour Finora account.",
-    "ŞİFRE AL": "GET PASSWORD",
     "Ayarlar": "Settings",
     "Karanlık Mod": "Dark Mode",
     "Ana Sayfa": "Home",
-    "Finora'da ara...": "Search in Finora...",
+    "Archlence'ta ara...": "Search in Archlence...",
     "Cüzdanım": "My Wallet",
     "Toplam Bakiye": "Total Balance",
     "Aylık Gider Değişimi": "Monthly Expense Change",
@@ -43,7 +42,45 @@ EN = {
     "Finansal Sağlık Skoru": "Financial Health Score",
     "Hesaplanıyor...": "Calculating...",
     "Tasarruf oranı, borç/gelir ve gider oynaklığı birlikte değerlendirilir.": "Savings rate, debt-to-income ratio, and spending volatility are evaluated together.",
-    "Abonelik Radarı": "Subscription Radar",
+    "Aktif Aboneliklerim": "My Active Subscriptions",
+    "Aktif aboneliğiniz bulunmuyor.": "You have no active subscriptions.",
+    "Sonraki ödeme:": "Next payment:",
+    "Her Ayın Hangi Günü Ödenecek? (1-31)": "Which Day of Each Month? (1-31)",
+    "Ödeme günü 1 ile 31 arasında olmalıdır.": "Payment day must be between 1 and 31.",
+    "Ayrılmış abonelik gideri:": "Reserved subscription expense:",
+    "Harcama limitiniz:": "Spending limit:",
+    "Kategori seçin": "Select a category",
+    "Tutar": "Amount",
+    "Tek seferlik": "One-time",
+    "Her ay": "Every month",
+    "Daha fazla seçenek": "More options",
+    "Daha az seçenek": "Fewer options",
+    "Geçmişe göre tutar öner": "Suggest an amount from history",
+    "Bütçe kalemi ekle": "Add budget item",
+    "BÜTÇEYE EKLE": "ADD TO BUDGET",
+    "Kategori veya serbest metin seç": "Choose a category or free text",
+    "Serbest plan adı": "Custom plan name",
+    "Serbest metin gir": "Enter free text",
+    "Geçen ayın kalanını/aşımını devret": "Carry over last month's remainder/overrun",
+    "Her ay otomatik tekrarla (şablon)": "Repeat automatically every month (template)",
+    "Uyarı eşiği (%)": "Alert threshold (%)",
+    "ÖNER": "SUGGEST",
+    "Öneri için önce kategori seçin.": "Select a category before requesting a suggestion.",
+    "Bu kategori için yeterli geçmiş yok.": "There is not enough history for this category.",
+    "Sabit Giderler (Abonelikler)": "Fixed Expenses (Subscriptions)",
+    "Planlanan Kalemler": "Planned Items",
+    "Bu ay için ayrılmış abonelik gideri yok.": "No subscription expense is reserved for this month.",
+    "Henüz planlanan kalem yok.": "No planned items yet.",
+    "YÖNET": "MANAGE",
+    "Şablon": "Template",
+    "Gerçekleşen": "Actual",
+    "geçen aydan devir": "carried over from last month",
+    "Aktif abonelikler ana sayfadaki karttan yönetilebilir.": "Active subscriptions can be managed from the card on the home screen.",
+    "Tutar pozitif, uyarı eşiği 1-100 arasında olmalıdır.": "Amount must be positive and the alert threshold must be between 1 and 100.",
+    "Şablon seçildi; belirli aylara kopyalama uygulanmadı.": "Template selected; copying to specific months was skipped.",
+    "Geçmiş / Trend": "History / Trend",
+    "Gri: Planlanan · Renkli: Gerçekleşen": "Gray: Planned · Colored: Actual",
+    "6 Aylık Bütçe Trendi": "6-Month Budget Trend",
     "Olağandışı Harcamalar": "Unusual Spending",
     "Tespit edilen gizli abonelik yok.": "No hidden subscriptions detected.",
     "Olağandışı harcama tespit edilmedi.": "No unusual spending detected.",
@@ -141,7 +178,8 @@ EN = {
     "gün sonra": "days later",
     "Taban senaryoya göre": "Compared with the baseline",
     "\nDikkat: Bu senaryoda varlık negatife düşüyor.": "\nWarning: wealth becomes negative in this scenario.",
-    "Henüz yeterli geçmiş yok; birkaç gün kullanınca trend burada görünecek.": "Not enough history yet; your trend will appear here after a few days.",
+    "Yeterli veri yok": "Not enough data",
+    "Skor hesaplamak için henüz yeterli veri yok. Birkaç işlem ekleyince burada görünecek.": "There is not enough data to calculate a score yet. It will appear here after you add a few transactions.",
     "0'dan büyük bir tutar girin!": "Enter an amount greater than zero!",
     "ABONELİĞE EKLE": "ADD SUBSCRIPTION",
     "Aktif Varlık hesabı salt okunurdur ve ödeme yöntemi olamaz.": "The Active Assets account is read-only and cannot be used as a payment method.",
@@ -182,6 +220,9 @@ EN = {
     "Dışa aktarılacak kayıt bulunamadı.": "No records available to export.",
     "Fiyat alınıyor…": "Fetching price…",
     "Fiyatlar anlık olarak güncelleniyor...": "Updating live prices...",
+    "Son Güncelleme: —": "Last updated: —",
+    "Son Güncelleme: ": "Last updated: ",
+    "Manuel Yenile": "Refresh manually",
     "Gelecek Ödemeler": "Future Payments",
     "Gelişmiş": "Advanced",
     "Geçerli bir sayı girin!": "Enter a valid number!",
@@ -195,7 +236,7 @@ EN = {
     "Hedef Miktar (₺)": "Target Amount (₺)",
     "Hedef tutar 0'dan büyük olmalıdır!": "The target amount must be greater than zero!",
     "Henüz hesap eklenmedi — yukarıdaki butondan ekleyebilirsin.": "No accounts yet — use the button above to add one.",
-    "Her türlü soru, öneri ve destek için bize aşağıdaki e-posta adresinden ulaşabilirsiniz:\n\n[b]support@finora.com[/b]": "For questions, feedback, or support, contact us at:\n\n[b]support@finora.com[/b]",
+    "Her türlü soru, öneri ve destek için bize aşağıdaki e-posta adresinden ulaşabilirsiniz:\n\n[b]support@archlence.com[/b]": "For questions, feedback, or support, contact us at:\n\n[b]support@archlence.com[/b]",
     "Hisse eklendi! Fiyatlar güncelleniyor…": "Stock added! Updating prices…",
     "Hisse eklenirken hata oluştu!": "Could not add the stock!",
     "Kalem Adı (Örn: Maaş, Kira)": "Item Name (e.g. Salary, Rent)",
@@ -469,6 +510,7 @@ EN = {
     "Emlak Vergisi": "Property Tax", "Ev Bakım/Onarım": "Home Maintenance", "Ev Eşyası": "Household Items",
     "Elektrik": "Electricity", "Su": "Water", "Doğalgaz": "Natural Gas", "İnternet": "Internet",
     "Cep Telefonu": "Mobile Phone", "Dijital Platformlar": "Streaming Services",
+    "Dijital Abonelik": "Digital Subscription",
     "Akaryakıt": "Fuel", "Toplu Taşıma": "Public Transport", "Taksi": "Taxi",
     "Araç Bakım": "Vehicle Maintenance", "MTV": "Motor Vehicle Tax", "Sigorta/Kasko": "Insurance",
     "Otopark/Köprü": "Parking/Tolls", "Süpermarket": "Groceries", "Pazaryeri": "Marketplace",
@@ -605,6 +647,14 @@ EN = {
     "Aralık": "December",
 }
 
+# Bu iki kaynak anahtar, tarihsel olarak çağrı noktalarında İngilizce tutuluyor.
+# KV/Python literal eşleşmesini bozmadan Türkçe arayüzde gerçek karşılıklarını
+# göstermek için dar kapsamlı bir kaynak-dil override tablosu kullanılır.
+TR = {
+    "What-If\nSandbox": "Varsayım\nAlanı",
+    "What-If Sandbox": "Varsayım Alanı",
+}
+
 
 def set_language(code):
     """Aktif dili ayarlar ve normalize edilmiş kodu döndürür."""
@@ -624,7 +674,7 @@ def tr(text: str | None, language: str | None = None) -> str:
     code = language if language in SUPPORTED_LANGUAGES else _language
     source = text
     if code != "en":
-        return source
+        return TR.get(source, source)
     exact = EN.get(source)
     if exact is not None:
         return exact

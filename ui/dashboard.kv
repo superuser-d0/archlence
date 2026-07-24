@@ -1,7 +1,6 @@
 #:import FadeTransition kivy.uix.screenmanager.FadeTransition
 #:import Window kivy.core.window.Window
 #:import LiquidWaveWidget ui.charts.LiquidWaveWidget
-#:import HealthScoreSparkline ui.charts.HealthScoreSparkline
 #:import RecycleListRow ui.components.RecycleListRow
 #:import ftheme ui.theme
 
@@ -61,59 +60,6 @@
         theme_text_color: "Custom"
         text_color: ftheme.accent(app.theme_cls.theme_style, 'green' if "Gelir" in root.secondary_text else 'red')
 
-<AdminScreen@MDScreen>:
-    MDBoxLayout:
-        orientation: "vertical"
-        MDTopAppBar:
-            title: app.tr("Sistem Yönetimi (Admin)", app.language)
-            left_action_items: [["logout", lambda x: app.admin_logout()]]
-            elevation: 4
-        
-        ScrollView:
-            MDBoxLayout:
-                orientation: "vertical"
-                padding: "20dp"
-                spacing: "20dp"
-                adaptive_height: True
-
-                MDCard:
-                    elevation: 0
-                    line_color: ftheme.card_line(app.theme_cls.theme_style)
-                    orientation: "vertical"
-                    padding: "16dp"
-                    spacing: "10dp"
-                    size_hint_y: None
-                    height: "120dp"
-                    radius: [24]
-                    
-                    MDLabel:
-                        text: app.tr("Veritabanı Durumu", app.language)
-                        font_style: "H6"
-                        bold: True
-                    
-                    MDLabel:
-                        id: stats_label
-                        text: app.tr("Toplam İşlem Kaydı: ...\nToplam Bütçe Kalemi: ...", app.language)
-                        theme_text_color: "Secondary"
-                
-                MDRaisedButton:
-                    text: app.tr("Veritabanını Dışa Aktar (CSV)", app.language)
-                    icon: "export"
-                    size_hint_x: 1
-                    md_bg_color: app.theme_cls.primary_color
-                    on_release: root.export_to_csv()
-                
-                MDRaisedButton:
-                    text: app.tr("Sistemi Sıfırla (Factory Reset)", app.language)
-                    icon: "delete-forever"
-                    size_hint_x: 1
-                    md_bg_color: ftheme.danger_bg(app.theme_cls.theme_style)
-                    theme_text_color: "Custom"
-                    text_color: ftheme.on_primary(app.theme_cls.theme_style)
-                    on_release: root.confirm_factory_reset()
-
-        Widget:
-
 # --- 2. ANA ARAYÜZ İSKELETİ ---
 MDScreen:
     md_bg_color: app.theme_cls.bg_normal
@@ -121,6 +67,83 @@ MDScreen:
     MDScreenManager:
         id: screen_manager
         transition: FadeTransition(duration=0.2)
+
+        # --- İLK AÇILIŞ: YEREL PIN OLUŞTURMA ---
+        MDScreen:
+            name: "pin_setup"
+            MDFloatLayout:
+                MDIconButton:
+                    icon: "cog"
+                    pos_hint: {"top": 0.98, "right": 0.98}
+                    theme_text_color: "Hint"
+                    on_release: screen_manager.current = "pre_login_settings"
+
+                MDBoxLayout:
+                    orientation: "vertical"
+                    padding: "40dp"
+                    spacing: "18dp"
+                    pos_hint: {"center_x": .5, "center_y": .5}
+                    size_hint_y: None
+                    height: "440dp"
+
+                    MDLabel:
+                        text: app.tr("ARCHLENCE", app.language)
+                        font_style: "H3"
+                        halign: "center"
+                        theme_text_color: "Primary"
+                        bold: True
+
+                    MDLabel:
+                        text: app.tr("Yerel PIN'ini Belirle", app.language)
+                        font_style: "Subtitle1"
+                        halign: "center"
+                        theme_text_color: "Secondary"
+
+                    MDTextField:
+                        id: pin_setup_input
+                        hint_text: app.tr("PIN", app.language)
+                        password: True
+                        input_filter: "int"
+                        max_text_length: 12
+                        size_hint_x: 0.8
+                        pos_hint: {"center_x": .5}
+                        multiline: False
+
+                    MDTextField:
+                        id: pin_confirm_input
+                        hint_text: app.tr("PIN Tekrar", app.language)
+                        password: True
+                        input_filter: "int"
+                        max_text_length: 12
+                        size_hint_x: 0.8
+                        pos_hint: {"center_x": .5}
+                        multiline: False
+                        on_text_validate: app.setup_pin()
+
+                    MDLabel:
+                        id: pin_setup_error_label
+                        text: app.tr("", app.language)
+                        theme_text_color: "Error"
+                        halign: "center"
+                        size_hint_y: None
+                        height: "28dp"
+
+                    MDRaisedButton:
+                        text: app.tr("PIN OLUŞTUR", app.language)
+                        size_hint_x: 0.5
+                        pos_hint: {"center_x": .5}
+                        on_release: app.setup_pin()
+
+                    MDLabel:
+                        text: app.tr("PIN yalnızca bu cihazda saklanır; Archlence verilerinizi bir sunucuya göndermez.", app.language)
+                        font_style: "Caption"
+                        theme_text_color: "Hint"
+                        halign: "center"
+                        size_hint_x: 0.8
+                        pos_hint: {"center_x": .5}
+                        text_size: self.width, None
+                        size_hint_y: None
+                        height: self.texture_size[1]
 
         # --- GİRİŞ EKRANI ---
         MDScreen:
@@ -138,10 +161,10 @@ MDScreen:
                     spacing: "20dp"
                     pos_hint: {"center_x": .5, "center_y": .5}
                     size_hint_y: None
-                    height: "480dp"
+                    height: "420dp"
 
                     MDLabel:
-                        text: app.tr("FINORA", app.language)
+                        text: app.tr("ARCHLENCE", app.language)
                         font_style: "H3"
                         halign: "center"
                         theme_text_color: "Primary"
@@ -153,15 +176,6 @@ MDScreen:
                         halign: "center"
                         theme_text_color: "Secondary"
 
-                    MDTextField:
-                        id: username_input
-                        hint_text: app.tr("Kullanıcı Adı", app.language)
-                        icon_right: "account"
-                        size_hint_x: 0.8
-                        pos_hint: {"center_x": .5}
-                        multiline: False
-                        write_tab: False
-
                     MDRelativeLayout:
                         id: password_container
                         size_hint_x: 0.8
@@ -171,8 +185,10 @@ MDScreen:
 
                         MDTextField:
                             id: password_input
-                            hint_text: app.tr("Şifre", app.language)
+                            hint_text: app.tr("PIN", app.language)
                             password: True
+                            input_filter: "int"
+                            max_text_length: 12
                             multiline: False
                             write_tab: False
                             on_text_validate: app.check_login()
@@ -185,12 +201,6 @@ MDScreen:
                             on_release:
                                 self.icon = "eye" if self.icon == "eye-off" else "eye-off"
                                 password_input.password = False if password_input.password is True else True
-
-                    MDTextButton:
-                        text: app.tr("Şifreni mi unuttun?", app.language)
-                        theme_text_color: "Hint"
-                        pos_hint: {"center_x": .5}
-                        on_release: screen_manager.current = "forgot_password"
 
                     MDLabel:
                         id: login_error_label
@@ -205,52 +215,17 @@ MDScreen:
                         size_hint_x: 0.5
                         pos_hint: {"center_x": .5}
                         on_release: app.check_login()
-                        
-                    MDTextButton:
-                        text: app.tr("Finora'da yeni misin? Hemen bir hesap oluştur.", app.language)
-                        theme_text_color: "Primary"
-                        pos_hint: {"center_x": .5}
-
-                    Widget:
-
-        # --- ŞİFREMİ UNUTTUM EKRANI ---
-        MDScreen:
-            name: "forgot_password"
-            MDBoxLayout:
-                orientation: "vertical"
-                MDTopAppBar:
-                    title: app.tr("Şifre Sıfırlama", app.language)
-                    left_action_items: [["arrow-left", lambda x: setattr(screen_manager, 'current', 'login')]]
-                    elevation: 4
-                
-                MDBoxLayout:
-                    orientation: "vertical"
-                    padding: "40dp"
-                    spacing: "30dp"
-                    pos_hint: {"center_x": .5, "center_y": .6}
-                    size_hint_y: None
-                    height: "350dp"
 
                     MDLabel:
-                        text: app.tr("Finora hesabınıza bağlı olan\ne-posta adresini giriniz.", app.language)
+                        text: app.tr("PIN'ini unuttun mu? Sağ üstteki Ayarlar > PIN ve Verileri Sıfırla yolunu kullanabilirsin. Tüm yerel finans verilerin silinir.", app.language)
                         halign: "center"
-                        font_style: "Subtitle1"
-                        theme_text_color: "Primary"
-
-                    MDTextField:
-                        hint_text: app.tr("ornek@finora.com", app.language)
-                        icon_right: "email"
+                        font_style: "Caption"
+                        theme_text_color: "Hint"
                         size_hint_x: 0.8
                         pos_hint: {"center_x": .5}
-                        mode: "rectangle"
-
-                    MDRaisedButton:
-                        text: app.tr("ŞİFRE AL", app.language)
-                        size_hint_x: 0.5
-                        pos_hint: {"center_x": .5}
-
-                    Widget:
-                Widget:
+                        text_size: self.width, None
+                        size_hint_y: None
+                        height: self.texture_size[1]
 
         # --- GİRİŞ ÖNCESİ AYARLAR EKRANI ---
         MDScreen:
@@ -259,7 +234,7 @@ MDScreen:
                 orientation: "vertical"
                 MDTopAppBar:
                     title: app.tr("Ayarlar", app.language)
-                    left_action_items: [["arrow-left", lambda x: setattr(screen_manager, 'current', 'login')]]
+                    left_action_items: [["arrow-left", lambda x: setattr(screen_manager, 'current', app.authentication_screen())]]
                     elevation: 4
                 
                 ScrollView:
@@ -323,11 +298,37 @@ MDScreen:
                                 active: True if app.theme_cls.theme_style == "Dark" else False
                                 on_active: app.toggle_theme(self.active)
                         MDSeparator:
-                Widget:
 
-        # --- YÖNETİCİ EKRANI ---
-        AdminScreen:
-            name: "admin"
+                        ClickableSettingsRow:
+                            orientation: "horizontal"
+                            size_hint_y: None
+                            height: "72dp"
+                            padding: ["20dp", 0, "20dp", 0]
+                            spacing: "20dp"
+                            on_release: app.confirm_delete_all_data()
+                            MDIcon:
+                                icon: "delete-forever"
+                                size_hint_x: None
+                                width: "36dp"
+                                halign: "center"
+                                pos_hint: {"center_y": .5}
+                                theme_text_color: "Error"
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                MDLabel:
+                                    text: app.tr("PIN ve Verileri Sıfırla", app.language)
+                                    theme_text_color: "Error"
+                                MDLabel:
+                                    text: app.tr("PIN dahil tüm yerel finans verilerini kalıcı olarak siler", app.language)
+                                    font_style: "Caption"
+                                    theme_text_color: "Secondary"
+                            MDIcon:
+                                icon: "chevron-right"
+                                pos_hint: {"center_y": .5}
+                                theme_text_color: "Hint"
+
+                        MDSeparator:
+                Widget:
 
         # --- ANA UYGULAMA (SABİT ALT SEKMELER - BOTTOM NAVIGATION) ---
         MDScreen:
@@ -365,7 +366,7 @@ MDScreen:
                                 on_release: bottom_nav.switch_tab("settings_tab")
                                 
                             MDTextField:
-                                hint_text: app.tr("Finora'da ara...", app.language)
+                                hint_text: app.tr("Archlence'ta ara...", app.language)
                                 icon_left: "magnify"
                                 mode: "round"
                                 size_hint_y: None
@@ -395,7 +396,10 @@ MDScreen:
                                     spacing: "8dp"
                                     
                                     MDIcon:
+                                        id: wallet_icon
                                         icon: "wallet"
+                                        size_hint_x: None
+                                        width: "28dp"
                                         theme_text_color: "Secondary"
                                         pos_hint: {"center_y": .5}
                                     MDLabel:
@@ -406,6 +410,8 @@ MDScreen:
                                         pos_hint: {"center_y": .5}
                                     MDIcon:
                                         icon: "chevron-down"
+                                        size_hint_x: None
+                                        width: "28dp"
                                         theme_text_color: "Secondary"
                                         pos_hint: {"center_y": .5}
 
@@ -598,7 +604,7 @@ MDScreen:
                                     elevation: 0
                                     line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     size_hint_y: None
-                                    height: "212dp"
+                                    height: "150dp"
                                     padding: "16dp"
                                     spacing: "10dp"
                                     radius: [24]
@@ -657,23 +663,6 @@ MDScreen:
                                         font_style: "Caption"
                                         theme_text_color: "Secondary"
 
-                                    MDFloatLayout:
-                                        size_hint_y: None
-                                        height: "52dp"
-
-                                        HealthScoreSparkline:
-                                            id: health_trend_chart
-                                            opacity: 0
-
-                                        MDLabel:
-                                            id: health_trend_empty
-                                            text: app.tr("Henüz yeterli geçmiş yok; birkaç gün kullanınca trend burada görünecek.", app.language)
-                                            font_style: "Caption"
-                                            theme_text_color: "Hint"
-                                            halign: "center"
-                                            valign: "middle"
-                                            text_size: self.size
-
                                 # FAZ 1: ABONELİK RADARI ("sessiz sızıntı")
                                 MDCard:
                                     elevation: 0
@@ -697,7 +686,7 @@ MDScreen:
                                             size_hint_x: None
                                             width: "24dp"
                                         MDLabel:
-                                            text: app.tr("Abonelik Radarı", app.language)
+                                            text: app.tr("Aktif Aboneliklerim", app.language)
                                             font_style: "Subtitle1"
                                             bold: True
                                             theme_text_color: "Primary"
@@ -765,6 +754,8 @@ MDScreen:
                                         MDIcon:
                                             id: projection_icon
                                             icon: "calendar-month"
+                                            size_hint_x: None
+                                            width: "28dp"
                                             theme_text_color: "Custom"
                                             text_color: app.theme_cls.primary_color
                                             font_size: "24sp"
@@ -773,7 +764,16 @@ MDScreen:
                                             font_style: "H6"
                                             bold: True
                                         MDIconButton:
+                                            icon: "chart-timeline-variant"
+                                            size_hint_x: None
+                                            width: "48dp"
+                                            tooltip_text: app.tr("Geçmiş / Trend", app.language)
+                                            pos_hint: {"center_y": .5}
+                                            on_release: app.show_budget_trend()
+                                        MDIconButton:
                                             icon: "pencil-outline"
+                                            size_hint_x: None
+                                            width: "48dp"
                                             pos_hint: {"center_y": .5}
                                             on_release: app.show_budget_planner()
 
@@ -1198,6 +1198,8 @@ MDScreen:
                                                         spacing: "10dp"
                                                         MDIcon:
                                                             icon: "chart-line"
+                                                            size_hint_x: None
+                                                            width: "28dp"
                                                             theme_text_color: "Custom"
                                                             text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
                                                             font_size: "24sp"
@@ -1207,9 +1209,16 @@ MDScreen:
                                                             font_style: "H6"
                                                             bold: True
                                                             pos_hint: {"center_y": .5}
-                                                        Widget:
+                                                        MDLabel:
+                                                            id: asset_prices_updated_label
+                                                            text: app.tr("Son Güncelleme: —", app.language)
+                                                            font_style: "Caption"
+                                                            theme_text_color: "Secondary"
+                                                            halign: "right"
+                                                            pos_hint: {"center_y": .5}
                                                         MDIconButton:
                                                             icon: "refresh"
+                                                            tooltip_text: app.tr("Manuel Yenile", app.language)
                                                             theme_text_color: "Custom"
                                                             text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
                                                             icon_size: "28dp"

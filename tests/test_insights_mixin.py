@@ -106,47 +106,41 @@ class InsightsMixinActionTest(unittest.TestCase):
         )
         self.host.refresh_insights.assert_called_once_with()
 
-    def test_render_health_trend_reverses_history_for_chart(self):
-        chart = mock.Mock()
-        chart.chart_data = []
-        empty_label = mock.Mock()
+    def test_render_health_score_shows_insufficient_data_state(self):
+        score_value = mock.Mock()
+        score_label = mock.Mock()
+        score_bar = mock.Mock()
+        breakdown = mock.Mock()
         self.host.root.ids = types.SimpleNamespace(
-            health_trend_chart=chart,
-            health_trend_empty=empty_label,
+            health_score_value=score_value,
+            health_score_label=score_label,
+            health_score_bar=score_bar,
+            health_breakdown_text=breakdown,
         )
-        history = [
-            {"date": "2026-07-23 18:00:00", "score": 72.0},
-            {"date": "2026-07-22 09:00:00", "score": 61.0},
-            {"date": "2026-07-21 09:00:00", "score": 55.0},
-        ]
-
-        InsightsMixin.render_health_trend(self.host, history)
-
-        self.assertEqual(chart.chart_data, [
-            {"date": "2026-07-21", "score": 55.0},
-            {"date": "2026-07-22", "score": 61.0},
-            {"date": "2026-07-23", "score": 72.0},
-        ])
-        self.assertEqual(chart.opacity, 1)
-        self.assertEqual(empty_label.opacity, 0)
-        chart.request_redraw.assert_called_once_with()
-
-    def test_render_health_trend_shows_empty_state_for_one_day(self):
-        chart = mock.Mock()
-        chart.chart_data = []
-        empty_label = mock.Mock()
-        self.host.root.ids = types.SimpleNamespace(
-            health_trend_chart=chart,
-            health_trend_empty=empty_label,
+        self.host.theme_cls.theme_style = "Light"
+        self.host.render_health_insufficient_data = types.MethodType(
+            InsightsMixin.render_health_insufficient_data, self.host
         )
 
-        InsightsMixin.render_health_trend(
-            self.host, [{"date": "2026-07-23 18:00:00", "score": 72.0}],
+        InsightsMixin.render_health_score(
+            self.host,
+            {
+                "score": None,
+                "breakdown": {},
+                "insufficient_data": True,
+                "computed_at": "2026-07-23 12:00:00",
+            },
         )
 
-        self.assertEqual(chart.opacity, 0)
-        self.assertEqual(empty_label.opacity, 1)
-        chart.draw_immediate.assert_called_once_with()
+        self.assertEqual(score_value.text, "--")
+        self.assertEqual(score_label.text, "Yeterli veri yok")
+        self.assertEqual(
+            breakdown.text,
+            "Skor hesaplamak için henüz yeterli veri yok. "
+            "Birkaç işlem ekleyince burada görünecek.",
+        )
+        self.assertEqual(score_bar.value, 0)
+        self.assertEqual(score_bar.opacity, 0)
 
 
 if __name__ == "__main__":

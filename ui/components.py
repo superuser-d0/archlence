@@ -256,7 +256,7 @@ Builder.load_string('''
                 radius: [dp(16)]
                 
         MDLabel:
-            text: "Finora"
+            text: "Archlence"
             theme_text_color: "Custom"
             text_color: ftheme.bank_card_text(app.theme_cls.theme_style)
             font_style: "H6"
@@ -509,7 +509,7 @@ Builder.load_string('''
                 radius: [dp(16)]
                 
         MDLabel:
-            text: "Finora"
+            text: "Archlence"
             theme_text_color: "Custom"
             text_color: ftheme.bank_card_text(app.theme_cls.theme_style)
             font_style: "H6"

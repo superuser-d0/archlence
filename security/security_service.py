@@ -7,16 +7,25 @@ kullanılıyor ve açıklamaları çözemiyordu. Tek şifreleme sistemi kalması
 Fernet kısmı kaldırıldı (bkz. utils/crypto.py).
 """
 import hashlib
+import hmac
+import secrets
 
 
 class SecurityService:
 
     @staticmethod
-    def hash_password(password):
-        """Parolayı SHA-256 ile hash'ler (düz metin parola hiçbir yerde saklanmaz)."""
-        return hashlib.sha256(password.encode('utf-8')).hexdigest()
+    def generate_salt():
+        """Her yerel profil için kriptografik olarak güvenli bir tuz üretir."""
+        return secrets.token_hex(16)
 
     @staticmethod
-    def verify_password(plain_password, hashed_password):
-        """Girilen parolanın hash'ini kayıtlı hash ile karşılaştırır."""
-        return hashlib.sha256(plain_password.encode('utf-8')).hexdigest() == hashed_password
+    def hash_password(password, salt):
+        """PIN'i profil tuzuyla SHA-256 hash'ler; düz PIN hiçbir zaman saklanmaz."""
+        payload = (str(salt) + str(password)).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
+
+    @staticmethod
+    def verify_password(plain_password, salt, hashed_password):
+        """Girilen PIN'i sabit zamanlı karşılaştırmayla doğrular."""
+        candidate = SecurityService.hash_password(plain_password, salt)
+        return hmac.compare_digest(candidate, str(hashed_password))

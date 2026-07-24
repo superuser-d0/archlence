@@ -9,7 +9,7 @@ def main():
     from kivy.clock import Clock
     import main as app_module
 
-    app = app_module.FinoraApp()
+    app = app_module.ArchlenceApp()
 
     def switch_tab(dt):
         app.root.ids.bottom_nav.switch_tab("assets_tab")

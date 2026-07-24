@@ -231,7 +231,7 @@ geçilirse Kivy bağımlılığı kuramaz ve tema değişiminde renk donar.
       iki gerçek kusur giderildi: `apply_premium_theme`/`apply_standard_theme`
       artık `theme_style`'ı **"Light"e zorlamıyor**, yani karanlık moddayken
       palet değiştirince ekran beyaza patlamıyor; ve `colors["Dark"]` token'ları
-      Finora yüzey merdiveniyle eziliyor (`apply_dark_surface_tokens`).
+      Archlence yüzey merdiveniyle eziliyor (`apply_dark_surface_tokens`).
 - [x] **2. Diyaloglarda okunmayan hint/placeholder metinleri.**
       `ui/dashboard.kv`'ye global `<MDTextField>` kuralı eklendi;
       `hint_text_color_*`, `helper_text_color_*`, `text_color_*`,
@@ -262,7 +262,7 @@ geçilirse Kivy bağımlılığı kuramaz ve tema değişiminde renk donar.
 
 `ScreenManager` yalnızca GÖRÜNEN ekranı `children` içinde tutuyor, diyaloglar da
 root'a değil Window'a bağlanıyor; bu yüzden `root.walk()` tek başına yetmiyor ve
-`FinoraApp._all_widgets()` eklendi (`_normalize_card_shadows` eskiden bu yüzden
+`ArchlenceApp._all_widgets()` eklendi (`_normalize_card_shadows` eskiden bu yüzden
 yalnızca aktif ekranı düzeltiyordu).
 
 | Karanlık temada | Önce | Sonra |
@@ -279,6 +279,6 @@ kalmaya devam ediyor — dokunulmadı.
 
 ### Açık kalan (Tur 4)
 - Karanlık mod tercihi **kalıcı değil**: `theme_name` (standart/premium)
-  `finora_config.json`'a yazılıyor ama `theme_style` yazılmıyor, uygulama her
+  `archlence_config.json`'a yazılıyor ama `theme_style` yazılmıyor, uygulama her
   açılışta açık temayla başlıyor.
 - `ui/charts.py` içindeki grafik renkleri bu turda incelenmedi.

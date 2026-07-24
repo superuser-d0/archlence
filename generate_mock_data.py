@@ -1,5 +1,5 @@
 """
-generate_mock_data.py — Finora stres testi için 1 yıllık gerçekçi kullanım verisi üretir.
+generate_mock_data.py — Archlence stres testi için 1 yıllık gerçekçi kullanım verisi üretir.
 
 Çalıştırma:  .venv/bin/python generate_mock_data.py
 
