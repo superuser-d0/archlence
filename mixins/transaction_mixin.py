@@ -64,6 +64,39 @@ class TransactionMixin:
             size_hint_y=None, height=dp(44), on_release=self.open_category_menu,
         )
 
+        # ── İşlem tarihi ────────────────────────────────────────────────────
+        # Varsayılan bugün; kullanıcı geçmiş (unutulmuş harcama) ya da gelecek
+        # (maaş/fatura günü) bir tarih seçebilir. Gelecek tarih seçilirse işlem
+        # bakiyeye HEMEN yansımaz, bekleyenler listesine düşer — bunu kullanıcı
+        # kaydetmeden önce bilmeli, o yüzden altta canlı bir ibare gösteriyoruz.
+        import datetime as _datetime
+        self.selected_transaction_date = _datetime.date.today()
+        self.date_button = ftheme.secondary_button(
+            self._transaction_date_label(), self.theme_cls,
+            size_hint_x=1, size_hint_y=None, height=dp(44),
+            on_release=self.open_transaction_date_picker,
+        )
+        # Boş MDLabel yer kaplamasın: yalnız gelecek tarihte açılır
+        # (height/opacity toggle — MDLabel bu deseni destekliyor, MDTextField
+        # ve MDSegmentedControl kendi yüksekliğini ezdiği için desteklemiyor).
+        self.date_hint_label = MDLabel(
+            text="",
+            font_style="Caption",
+            theme_text_color="Custom",
+            text_color=ftheme.accent(self.theme_cls.theme_style, "amber"),
+            size_hint_y=None,
+            height=0,
+            opacity=0,
+        )
+        self.date_hint_label.bind(
+            size=self.date_hint_label.setter("text_size"))
+        self._date_box = MDBoxLayout(
+            orientation="vertical", size_hint_y=None, adaptive_height=True,
+            spacing=dp(4),
+        )
+        self._date_box.add_widget(self.date_button)
+        self._date_box.add_widget(self.date_hint_label)
+
         # Ödeme yöntemi: işlemin HANGİ hesaptan/karttan geçeceği.
         # Buradan seçilen hesabın id'si add_transaction'a gider; kredi kartı
         # seçilirse tutar aynı commit içinde karta borç olarak işlenir
@@ -179,6 +212,7 @@ class TransactionMixin:
         dialog_layout.add_widget(self.amount_input)
         dialog_layout.add_widget(self.type_segment)
         dialog_layout.add_widget(self.category_button)
+        dialog_layout.add_widget(self._date_box)
         dialog_layout.add_widget(self.account_button)
         dialog_layout.add_widget(self._below_payment_box)
         dialog_layout.add_widget(recurring_row)
@@ -206,6 +240,61 @@ class TransactionMixin:
         self.dialog.open()
         # Varsayılan seçili ödeme yöntemini mini kartta göster.
         self._update_mini_card_preview()
+
+    # ─── İşlem tarihi ────────────────────────────────────────────────────────
+
+    def _transaction_date_label(self):
+        """Tarih butonunun metni: bugün için 'Bugün', diğerlerinde ISO tarih."""
+        import datetime
+        selected = getattr(self, "selected_transaction_date", None)
+        if selected is None:
+            selected = datetime.date.today()
+        if selected == datetime.date.today():
+            return _t("Tarih: Bugün")
+        return _t(f"Tarih: {selected.isoformat()}")
+
+    def open_transaction_date_picker(self, *args):
+        """İşlem tarihi için takvimi açar (geçmiş ve gelecek serbest)."""
+        import datetime
+        initial = getattr(
+            self, "selected_transaction_date", datetime.date.today())
+
+        def on_save(_picker, selected_date, _range):
+            self.selected_transaction_date = selected_date
+            self._refresh_transaction_date_ui()
+
+        # HistoryMixin'deki seçici, Kivy 2.3.1'in Python 3.14'te ihtiyaç duyduğu
+        # ast.Str yamasını ve TR/EN başlıkları zaten kuruyor; kopyalamak o yamayı
+        # iki yere dağıtırdı.
+        self._open_date_picker(initial, on_save)
+
+    def _refresh_transaction_date_ui(self):
+        """Buton metnini ve gelecek tarih ibaresini seçime göre günceller."""
+        import datetime
+        selected = getattr(
+            self, "selected_transaction_date", datetime.date.today())
+
+        button = getattr(self, "date_button", None)
+        if button is not None:
+            button.text = self._transaction_date_label()
+
+        hint = getattr(self, "date_hint_label", None)
+        if hint is None:
+            return
+
+        if selected > datetime.date.today():
+            hint.text = _t(
+                "Bu işlem bekleyenler listesine eklenecek; tarihi geldiğinde "
+                "bakiyeye yansıyacak."
+            )
+            hint.height = dp(34)
+            hint.opacity = 1
+        else:
+            # Geçmiş/bugün: uyarıya gerek yok, satırı tamamen kapat.
+            hint.text = ""
+            hint.height = 0
+            hint.opacity = 0
+        self._reflow_dialog()
 
     # ─── Aşamalı gösterim (progressive disclosure) ───────────────────────────
 
@@ -681,6 +770,10 @@ class TransactionMixin:
                 and getattr(self, "selected_installments", 1) >= 2):
             use_installments = self.selected_installments
 
+        import threading
+        import datetime
+        from kivy.clock import Clock
+
         # Worker başladıktan sonra form yeniden açılır/değişirse self üzerindeki
         # alanlar başka dialoga ait olabilir. DB işi ve başarı callback'i bu
         # gönderime ait değişmez değerleri ve dialog örneğini kullanmalı.
@@ -688,6 +781,13 @@ class TransactionMixin:
         submitted_account_id = self.selected_account_id
         submitted_type = self.selected_type
         submitted_category = self.selected_category
+        # Seçilen tarih de gönderime ait değişmez bir değer: worker çalışırken
+        # kullanıcı formu yeniden açarsa self.selected_transaction_date başka
+        # bir diyaloga ait olabilir.
+        submitted_date = getattr(self, "selected_transaction_date", None)
+        submitted_is_future = bool(
+            submitted_date and submitted_date > datetime.date.today()
+        )
 
         if is_recurring and self.selected_type == "expense":
             # Abonelik Duplikasyonu koruması: aynı isimle (harf duyarsız)
@@ -698,10 +798,6 @@ class TransactionMixin:
                 return
 
         toast(_t("İşlem şifreleniyor..."))
-
-        import threading
-        import datetime
-        from kivy.clock import Clock
 
         def success_callback(dt):
             try:
@@ -719,7 +815,21 @@ class TransactionMixin:
                     self.render_accounts()
                 except Exception as e:
                     print("Kart listesi tazelenemedi:", e)
-            toast(_t("İşlem başarıyla eklendi!"))
+            # İleri tarihli işlem bakiyeye yansımadı; kullanıcı "kaydettim ama
+            # bakiyem değişmedi" diye tereddüt etmesin, mesaj bunu söylesin ve
+            # bekleyenler paneli anında güncellensin.
+            if submitted_is_future:
+                if hasattr(self, "load_pending_transactions"):
+                    try:
+                        self.load_pending_transactions()
+                    except Exception as e:
+                        print("Bekleyen özeti tazelenemedi:", e)
+                toast(_t(
+                    f"İşlem {submitted_date.isoformat()} tarihine planlandı; "
+                    "bekleyenler listesinde."
+                ))
+            else:
+                toast(_t("İşlem başarıyla eklendi!"))
 
         # Kredi kartı limit aşımı gibi kullanıcıya anlamlı gelen hatalarda genel
         # "bir hata oluştu" yerine gerçek sebebi göstermek için mesaj taşınır.
@@ -746,12 +856,27 @@ class TransactionMixin:
                 description = submitted_category
                 if use_installments:
                     description = f"{submitted_category} ({use_installments} Taksit)"
+                # Tarih seçilmediyse None geçilir ve servis "şu an"ı kullanır
+                # (eski davranış). Seçildiyse saat bileşeni EKLENİR: ui/charts.py
+                # zaman kovaları tam zaman damgası bekliyor, tarih-only bir satır
+                # tüm zaman grafiğini sessizce çizilmez hâle getiriyor.
+                submitted_timestamp = None
+                if submitted_date is not None:
+                    if submitted_date == datetime.date.today():
+                        # Bugün için gerçek saati koru; gün içi sıralama ve
+                        # 'Bugün' filtresindeki saat kovaları buna dayanıyor.
+                        submitted_timestamp = datetime.datetime.now().strftime(
+                            "%Y-%m-%d %H:%M:%S")
+                    else:
+                        submitted_timestamp = f"{submitted_date.isoformat()} 09:00:00"
+
                 TransactionService.add_transaction(
                     account_id=account_id,
                     amount=user_amount,
                     transaction_type=submitted_type,
                     category=submitted_category,
                     description=description,
+                    transaction_date=submitted_timestamp,
                     installments=use_installments,
                 )
                 # render_accounts ön-ısıtılmış snapshot okur. DB yazımından

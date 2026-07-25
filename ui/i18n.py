@@ -529,6 +529,13 @@ EN = {
     "Bütçeniz dengede.": "Your budget is balanced.",
     "Dikkat: Planlanan giderler, gelirlerinizi aşıyor. Bütçeniz eksiye düşecek!": "Warning: Planned expenses exceed your income. Your budget will run a deficit!",
     "Dikkat: Gelir ve gideriniz başa baş. Bütçenizde hiç esneme payı yok.": "Warning: Your income and expenses break even. Your budget has no buffer.",
+    # --- İşlem tarihi seçici (ileri/geçmiş tarihli işlem) ---
+    "Tarih: Bugün": "Date: Today",
+    "Tarih:": "Date:",
+    "Bu işlem bekleyenler listesine eklenecek; tarihi geldiğinde bakiyeye yansıyacak.": "This transaction goes to the pending list and will hit your balance on its date.",
+    "İşlem": "Transaction",
+    "tarihine planlandı; bekleyenler listesinde.": "— scheduled; it is in the pending list.",
+
     # --- Bekleyen (ileri tarihli) işlemler paneli ---
     "Bekleyen İşlemler": "Pending Transactions",
     "BEKLEYENLERİ YÖNET": "MANAGE PENDING",
