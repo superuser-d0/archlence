@@ -259,6 +259,9 @@ class ArchlenceApp(
             pref = self.config_store.get('theme').get('name', 'standard')
             
         self.apply_theme(pref, persist=False)
+        # tools.kv ÖNCE yüklenir: dashboard.kv içinde BudgetPlannerPanel ve
+        # BudgetSummaryCard örnekleniyor, kuralları önceden tanımlı olmalı.
+        Builder.load_file("ui/tools.kv")
         root = Builder.load_file("ui/dashboard.kv")
         root.ids.screen_manager.current = self.authentication_screen()
         return root
@@ -327,6 +330,9 @@ class ArchlenceApp(
         
         self.write_daily_balance_snapshot()
         self.setup_dynamic_months()
+        # Ana sayfadaki bütçe özet kartı planlayıcı hiç açılmadan da dolu
+        # gelmeli; köprünün açılış tarafı bu çağrı.
+        self.refresh_budget_summary()
         self.safe_refresh_charts()
         self.load_recent_transactions("Günlük")
         self.generate_financial_advice()

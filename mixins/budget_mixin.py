@@ -29,11 +29,41 @@ def _fmt(value):
 
 
 class BudgetMixin:
+    def _planner_ids(self):
+        """Planlayıcı bileşeninin id sözlüğünü döndürür.
+
+        Panel artık ui/tools.kv'de `<BudgetPlannerPanel@MDCard>` olarak
+        tanımlı. Dinamik sınıf kuralı içindeki id'ler PANELİN KENDİ `ids`
+        sözlüğünde yaşar, uygulamanın `root.ids`'inde değil — bu yüzden eski
+        `self.root.ids.projection_label` erişimleri buradan geçiyor.
+
+        Panel bulunamazsa `root.ids`'e döner: hem paneli KV'de geri taşımak
+        isteyen biri için hem de widget ağacı kurulmadan çağrılan testler için
+        güvenli davranış.
+        """
+        root = getattr(self, "root", None)
+        if root is None:
+            return {}
+        root_ids = getattr(root, "ids", {}) or {}
+        panel = root_ids.get("budget_planner_panel") if hasattr(root_ids, "get") else None
+        if panel is not None:
+            return getattr(panel, "ids", {}) or {}
+        return root_ids
+
+    def _summary_ids(self):
+        """Ana sayfadaki BudgetSummaryCard'ın id sözlüğü (veri köprüsü hedefi)."""
+        root = getattr(self, "root", None)
+        if root is None:
+            return {}
+        root_ids = getattr(root, "ids", {}) or {}
+        card = root_ids.get("budget_summary_card") if hasattr(root_ids, "get") else None
+        return getattr(card, "ids", {}) or {} if card is not None else {}
+
     def setup_dynamic_months(self):
         now = datetime.date.today()
         self.active_budget_month = now.month
         self.active_budget_year = now.year
-        container = getattr(self.root.ids, "month_selector_container", None)
+        container = self._planner_ids().get("month_selector_container")
         if not container:
             return
         container.clear_widgets()
@@ -54,6 +84,61 @@ class BudgetMixin:
             self.active_budget_year = datetime.date.today().year
         self.load_budget_list()
         self.generate_next_month_projection()
+
+    # ─── Veri köprüsü: planlayıcı -> ana sayfa özet kartı ────────────────────
+
+    @staticmethod
+    def compute_budget_summary(month, year):
+        """Özet kart için (harcanan, limit, yüzde) üçlüsünü hesaplar.
+
+        Widget'a DOKUNMAZ: saf veri üretir ki Kivy ağacı kurmadan test
+        edilebilsin. Limit = planlanan gider + ayrılmış abonelik gideri;
+        harcanan = o ay gerçekleşen (bakiyeye işlenmiş) giderler.
+        """
+        from services.budget_service import (
+            calculate_monthly_budget, get_category_budget_progress,
+        )
+        totals = calculate_monthly_budget(month, year)
+        limit = float(totals["planned_expense"]) + float(
+            totals["reserved_recurring"])
+        spent = sum(
+            float(item["actual"])
+            for item in get_category_budget_progress(month, year)
+        )
+        percent = (spent / limit * 100.0) if limit > 0 else 0.0
+        return spent, limit, max(0.0, min(100.0, percent))
+
+    def refresh_budget_summary(self, *args):
+        """Ana sayfadaki BudgetSummaryCard'ı güncel bütçe verisiyle doldurur.
+
+        Planlayıcıda kaydetme/silme/ay değişimi sonrası çağrılır. Kart yoksa
+        (KV değişmiş ya da test ortamı) sessizce çıkar.
+        """
+        ids = self._summary_ids()
+        text_label = ids.get("budget_summary_text")
+        bar = ids.get("budget_summary_bar")
+        if text_label is None and bar is None:
+            return
+
+        month, year = self._budget_period()
+        try:
+            spent, limit, percent = self.compute_budget_summary(month, year)
+        except Exception as exc:
+            print("Bütçe özeti hesaplanamadı:", exc)
+            return
+
+        if bar is not None:
+            bar.value = percent
+        if text_label is not None:
+            if limit <= 0:
+                # GEMINI: bu metinlerin i18n anahtarları raporda listelendi.
+                text_label.text = _t(
+                    "Bu ay için bütçe planı yok. Planlayıcıdan limit ekleyin.")
+            else:
+                text_label.text = _t(
+                    f"{_t(MONTHS[month - 1])} · {_fmt(spent)} / {_fmt(limit)}"
+                    f"  (%{percent:.0f})"
+                )
 
     def _budget_period(self):
         today = datetime.date.today()
@@ -79,18 +164,26 @@ class BudgetMixin:
                 _t("Dikkat: Gelir ve gideriniz başa baş. Bütçenizde hiç esneme payı yok."),
                 "alert", AMBER,
             )
-        if hasattr(self.root.ids, "projection_label"):
+        planner_ids = self._planner_ids()
+        projection_label = planner_ids.get("projection_label")
+        if projection_label is not None:
             reserved_text = (
                 f"\n{_t('Ayrılmış abonelik gideri:')} {_fmt(reserved)}"
                 if reserved else ""
             )
-            self.root.ids.projection_label.text = (
+            projection_label.text = (
                 f"{_t(MONTHS[month - 1])} {year} · "
                 f"{_t('Harcama limitiniz:')} {_fmt(remaining)}"
                 f"{reserved_text}\n\n{advice}"
             )
-            self.root.ids.projection_icon.icon = icon
-            self.root.ids.projection_icon.text_color = color
+            projection_icon = planner_ids.get("projection_icon")
+            if projection_icon is not None:
+                projection_icon.icon = icon
+                projection_icon.text_color = color
+
+        # VERİ KÖPRÜSÜ: planlayıcıda her hesaplama sonrası ana sayfadaki özet
+        # kart da tazelenir, böylece Araçlar'da yapılan ayar anında görünür.
+        self.refresh_budget_summary()
         return {
             "harcanabilir_limit": remaining,
             "ayrilmis_abonelik_gideri": reserved,
@@ -699,13 +792,43 @@ class BudgetMixin:
         threading.Thread(target=db_task, daemon=True).start()
 
     def on_save_success(self, category):
+        """Kayıt sonrası formu sıfırlar ve listeyi/özeti tazeler.
+
+        DONMA KORUMASI: hafif state sıfırlama hemen yapılır, AĞIR iş (kalem
+        listesinin baştan çizilmesi + projeksiyon + özet kartı) sonraki
+        karelere dağıtılır. Hepsi tek karede koşarsa kullanıcı formu hızlıca
+        kapatıp yeniden açtığında Kivy ana thread'i bir kare boyunca bloklanıp
+        tıklamalara tepkisiz kalıyordu.
+
+        Widget'lar diyalog kapandıysa artık başka bir forma ait olabilir, o
+        yüzden her erişim tolere edilir.
+        """
         self.editing_item_id = None
         self.editing_item_is_template = False
-        self.bp_amount_input.text = ""
-        if category is None:
-            self.bp_name_input.text = ""
-        self.load_budget_list()
-        self.generate_next_month_projection()
+        for field_name in ("bp_amount_input", "bp_name_input"):
+            if field_name == "bp_name_input" and category is not None:
+                continue
+            field = getattr(self, field_name, None)
+            if field is not None:
+                try:
+                    field.text = ""
+                except Exception:
+                    pass
+
+        def rebuild_list(_dt):
+            try:
+                self.load_budget_list()
+            except Exception as exc:
+                print("Bütçe listesi tazelenemedi:", exc)
+
+        def rebuild_projection(_dt):
+            try:
+                self.generate_next_month_projection()
+            except Exception as exc:
+                print("Bütçe projeksiyonu tazelenemedi:", exc)
+
+        Clock.schedule_once(rebuild_list, 0)
+        Clock.schedule_once(rebuild_projection, 0.05)
 
     def toggle_custom_month_button(self, button):
         button.is_selected = not getattr(button, "is_selected", False)

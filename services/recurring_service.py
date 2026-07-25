@@ -18,6 +18,23 @@ from utils.crypto import decrypt, encrypt
 
 SUBSCRIPTION_CATEGORY = "Dijital Abonelik"
 
+# Aboneliğe işaret eden kategoriler. SUBSCRIPTION_CATEGORY kullanıcının açıkça
+# "bu bir abonelik" dediği kategori; diğerleri kredi kartından geçen tipik
+# abonelik kalemleri.
+SUBSCRIPTION_CATEGORIES = {
+    SUBSCRIPTION_CATEGORY,
+    "Dijital Platformlar",
+}
+
+# Açıklamadan marka tanıma listesi.
+# GEMINI DOLDURACAK: Netflix, Spotify, YouTube Premium, BluTV, Exxen, Amazon
+# Prime, Disney+, Apple Music/TV+, Mubi, Deezer, Gain, TOD, Tabii, Blu TV,
+# Storytel, Audible, Adobe, Microsoft 365, iCloud, Google One, ChatGPT Plus...
+# (yazım hatası toleransı için normalize edilmiş adlar; bkz.
+# services/brand_icon_service.py::_BRANDS zaten benzer bir liste tutuyor ve
+# örnek alınabilir.)
+KNOWN_BRANDS = []  # GEMINI DOLDURACAK
+
 
 def apply_category_trigger(category, recurring_switch) -> bool:
     """Dijital abonelik seçildiyse switch'i bir kez açar.
@@ -41,6 +58,80 @@ def next_due_for_recurrence(
     advanced = date.fromisoformat(_advance_due_date(source.isoformat(), frequency))
     valid_day = min(day, calendar.monthrange(advanced.year, advanced.month)[1])
     return advanced.replace(day=valid_day).isoformat()
+
+
+def looks_like_subscription(category, description="", is_credit_card=False):
+    """İşlem tekrar eden bir abonelik gibi mi görünüyor?
+
+    Üç sinyal aranır (herhangi biri yeterli):
+      1. Kategori açıkça abonelik kategorilerinden biri.
+      2. Açıklamada tanınan bir marka adı geçiyor (KNOWN_BRANDS).
+      3. Kredi kartından geçen ve kategorisi abonelik olan harcama.
+
+    Kredi kartı sinyali TEK BAŞINA yeterli DEĞİL: karttan yapılan her market
+    alışverişi abonelik sayılırsa radar çöp dolar. Kart yalnızca kategori/marka
+    sinyalini güçlendirir.
+    """
+    normalized_category = str(category or "").strip()
+    if normalized_category in SUBSCRIPTION_CATEGORIES:
+        return True
+
+    if KNOWN_BRANDS:
+        haystack = f"{description or ''} {normalized_category}".casefold()
+        for brand in KNOWN_BRANDS:
+            if str(brand).casefold() in haystack:
+                return True
+
+    # is_credit_card şu an yalnız yukarıdaki sinyallerle birlikte anlamlı;
+    # imzada tutuluyor çünkü çağıran taraf bu bilgiyi zaten hesaplıyor ve
+    # GEMINI marka listesini doldurduğunda kural buradan genişletilecek.
+    return False
+
+
+def register_subscription_from_transaction(
+        account_id, amount, category, description, frequency="monthly",
+        recurrence_day=None, transaction_date=None, is_credit_card=False):
+    """Abonelik gibi görünen işlemi `recurring_payments` radarına yazar.
+
+    İşlem defterine (transactions) yazma işini ÇAĞIRAN yapar; bu fonksiyon
+    yalnızca "Aktif Aboneliklerim" kaydını ekler. Böylece bir işlem hem normal
+    gider olarak görünür hem de radara düşer.
+
+    Aynı isimde aktif bir abonelik varsa hiçbir şey yapmaz (idempotent) —
+    kullanıcı aynı aboneliği her ay elle girse bile radar tek kayıt tutar.
+
+    Kaydedildiyse yeni satırın id'sini, atlandıysa None döner.
+    """
+    from database.db import (
+        get_active_recurring_payments, has_active_recurring_payment,
+        insert_recurring_payment,
+    )
+
+    if not looks_like_subscription(category, description, is_credit_card):
+        return None
+
+    name = (description or category or "").strip()
+    if not name:
+        return None
+    if has_active_recurring_payment(name):
+        return None
+
+    reference = (
+        date.fromisoformat(str(transaction_date)[:10])
+        if transaction_date else date.today()
+    )
+    day = int(recurrence_day or reference.day)
+    next_due = next_due_for_recurrence(reference, frequency, day)
+
+    insert_recurring_payment(
+        name, float(amount), category, frequency, next_due,
+        auto_deduct=0, account_id=account_id, recurrence_day=day,
+    )
+    match = [
+        payment for payment in get_active_recurring_payments()
+        if payment["name"] == name
+    ]
+    return match[0]["id"] if match else None
 
 
 def _get_payment(cursor, payment_id):

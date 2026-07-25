@@ -31,7 +31,7 @@ class TransactionService:
     @staticmethod
     def add_transaction(account_id, amount, transaction_type, category, description,
                         transaction_date=None, enforce_credit_limit=True,
-                        installments=None):
+                        installments=None, detect_subscription=True):
         """transaction_date verilmezse şu an kullanılır; CSV içe aktarımı gibi
         geçmiş tarihli kayıtlar tarihi açıkça geçer — bakiye senkronu dahil
         aynı atomik yoldan geçmiş olurlar.
@@ -123,6 +123,31 @@ class TransactionService:
             conn.commit()
         finally:
             conn.close()
+
+        # ── ABONELİK INTERCEPTOR ────────────────────────────────────────────
+        # İşlem defterine yazıldıktan SONRA çalışır: abonelik gibi görünen bir
+        # gider ayrıca "Aktif Aboneliklerim" radarına da kaydedilir. İşlemin
+        # kendi commit'inin dışında tutuluyor, çünkü radar kaydı yardımcı bir
+        # kolaylık — orada çıkan bir hata kullanıcının gerçek harcamasının
+        # kaydedilmesini ASLA geri almamalı.
+        if detect_subscription and transaction_type in ("expense", "Gider"):
+            try:
+                from services.recurring_service import (
+                    register_subscription_from_transaction,
+                )
+                account = AccountService.get_account(account_id)
+                is_credit_card = bool(
+                    account and account.get("account_type") == "credit_card")
+                register_subscription_from_transaction(
+                    account_id=account_id,
+                    amount=amount,
+                    category=category,
+                    description=description,
+                    transaction_date=date_now,
+                    is_credit_card=is_credit_card,
+                )
+            except Exception as exc:
+                print("Abonelik radarına yazılamadı:", exc)
 
     @staticmethod
     def settle_due_transactions(today=None):

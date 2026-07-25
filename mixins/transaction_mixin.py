@@ -245,6 +245,35 @@ class TransactionMixin:
         self.dialog.open()
         # Varsayılan seçili ödeme yöntemini mini kartta göster.
         self._update_mini_card_preview()
+        self._rebuild_focus_chain()
+
+    # ─── Klavye navigasyonu ──────────────────────────────────────────────────
+
+    def _rebuild_focus_chain(self):
+        """İşlem formundaki alanların TAB sırasını (yeniden) kurar.
+
+        Abonelik alanları aşamalı gösterimle ağaca eklenip çıkarıldığı için
+        zincir SABİT olamaz: gizli bir alana TAB ile geçilirse odak görünmeyen
+        bir yere gider ve kullanıcı klavyeyi kaybeder. Bu yüzden görünürlük her
+        değiştiğinde zincir baştan kurulur.
+
+        `write_tab=False` TAB'ın metne sekme yazmasını engeller; odağın NEREYE
+        gideceğini `focus_next` belirler — ikisi birlikte olmadan TAB hiçbir şey
+        yapmaz (ilk hatanın sebebi buydu).
+        """
+        chain = [getattr(self, "amount_input", None)]
+        if getattr(self, "_recurring_visible", False):
+            chain.append(getattr(self, "recurring_name_input", None))
+            chain.append(getattr(self, "recurrence_day_input", None))
+        fields = [field for field in chain if field is not None]
+        if not fields:
+            return
+
+        for index, field in enumerate(fields):
+            field.write_tab = False
+            # Son alandan sonra başa dön: odak formdan dışarı kaçmasın.
+            field.focus_next = fields[(index + 1) % len(fields)]
+            field.focus_previous = fields[(index - 1) % len(fields)]
 
     # ─── İşlem tarihi ────────────────────────────────────────────────────────
 
@@ -320,6 +349,9 @@ class TransactionMixin:
             if self._recurring_box.parent is not None:
                 layout.remove_widget(self._recurring_box)
         self._recurring_visible = active
+        # Zincir görünürlükle birlikte yenilenir: gizli bir alana TAB ile
+        # geçilirse odak görünmeyen bir yere gider.
+        self._rebuild_focus_chain()
         self._reflow_dialog()
         if active:
             Clock.schedule_once(
@@ -887,6 +919,10 @@ class TransactionMixin:
                     description=description,
                     transaction_date=submitted_timestamp,
                     installments=use_installments,
+                    # Kullanıcı "Tekrarlanan Ödeme" switch'ini açtıysa abonelik
+                    # kaydını aşağıda BU akış yazıyor; interceptor'ı da
+                    # çalıştırmak aynı aboneliği iki kez eklerdi.
+                    detect_subscription=not is_recurring,
                 )
                 # render_accounts ön-ısıtılmış snapshot okur. DB yazımından
                 # hemen sonra snapshot'ı bu worker içinde yenilemezsek başarı

@@ -35,6 +35,10 @@ def main():
             return "pin_setup"
 
         def build(self):
+            # tools.kv ÖNCE: dashboard.kv BudgetPlannerPanel ve
+            # BudgetSummaryCard örnekliyor, kuralları önceden tanımlı olmalı
+            # (main.py::build ile aynı sıra).
+            Builder.load_file("ui/tools.kv")
             return Builder.load_file("ui/dashboard.kv")
 
         def on_start(self):

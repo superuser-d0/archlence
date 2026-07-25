@@ -108,7 +108,11 @@ MDScreen:
                         size_hint_x: 0.8
                         pos_hint: {"center_x": .5}
                         multiline: False
+                        # write_tab TAB'ın metne sekme YAZMASINI engeller;
+                        # odağın nereye gideceğini ise focus_next belirler.
+                        # İkisi birlikte olmadan TAB hiçbir şey yapmıyordu.
                         write_tab: False
+                        focus_next: pin_confirm_input
                         on_text_validate: pin_confirm_input.focus = True
 
                     MDTextField:
@@ -121,6 +125,9 @@ MDScreen:
                         pos_hint: {"center_x": .5}
                         multiline: False
                         write_tab: False
+                        # Son alan: TAB döngüsü başa dönsün, odak kaybolmasın.
+                        focus_next: pin_setup_input
+                        focus_previous: pin_setup_input
                         on_text_validate: app.setup_pin()
 
                     MDLabel:
@@ -190,6 +197,7 @@ MDScreen:
                         pos_hint: {"center_x": .5}
                         multiline: False
                         write_tab: False
+                        focus_next: first_account_balance_input
                         on_text_validate: first_account_balance_input.focus = True
 
                     MDTextField:
@@ -201,6 +209,8 @@ MDScreen:
                         pos_hint: {"center_x": .5}
                         multiline: False
                         write_tab: False
+                        focus_next: first_account_name_input
+                        focus_previous: first_account_name_input
                         on_text_validate: app.create_first_account()
 
                     MDLabel:
@@ -884,6 +894,15 @@ MDScreen:
                                                 theme_text_color: "Secondary"
                                                 font_style: "Body2"
                                                 halign: "center"
+
+                                # BÜTÇE ÖZET KARTI (minimal — ayrıntılı planlayıcı
+                                # Araçlar sekmesindeki BudgetPlannerPanel'de).
+                                # Metin/oran BudgetMixin.refresh_budget_summary
+                                # tarafından doldurulur; buradaki değerler yalnız
+                                # veri gelmeden önceki geçici gösterimdir.
+                                # GEMINI: renk/padding/font cilalaması burada.
+                                BudgetSummaryCard:
+                                    id: budget_summary_card
 
                                 # BEKLEYEN (İLERİ TARİHLİ) İŞLEMLER KARTI
                                 # Bekleyen işlem yokken kart tamamen gizlenir
@@ -1637,79 +1656,12 @@ MDScreen:
                                 padding: '20dp'
                                 adaptive_height: True
                                 # YENİ: AYLIK BÜTÇE PLANI KARTI
-                                MDCard:
-                                    elevation: 0
-                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
-                                    orientation: "vertical"
-                                    padding: "16dp"
-                                    spacing: "10dp"
-                                    size_hint_y: None
-                                    height: "400dp"
-                                    radius: [24, 24, 24, 24]
-                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
-
-                                    MDBoxLayout:
-                                        size_hint_y: None
-                                        height: "30dp"
-                                        spacing: "10dp"
-                                        MDIcon:
-                                            id: projection_icon
-                                            icon: "calendar-month"
-                                            size_hint_x: None
-                                            width: "28dp"
-                                            theme_text_color: "Custom"
-                                            text_color: app.theme_cls.primary_color
-                                            font_size: "24sp"
-                                        MDLabel:
-                                            text: app.tr("Aylık Bütçe Planı", app.language)
-                                            font_style: "H6"
-                                            bold: True
-                                        MDIconButton:
-                                            icon: "chart-timeline-variant"
-                                            size_hint_x: None
-                                            width: "48dp"
-                                            tooltip_text: app.tr("Geçmiş / Trend", app.language)
-                                            pos_hint: {"center_y": .5}
-                                            on_release: app.show_budget_trend()
-                                        MDIconButton:
-                                            icon: "pencil-outline"
-                                            size_hint_x: None
-                                            width: "48dp"
-                                            pos_hint: {"center_y": .5}
-                                            on_release: app.show_budget_planner()
-
-                                    # YENİ: Yatay Ay Seçici
-                                    ScrollView:
-                                        do_scroll_y: False
-                                        do_scroll_x: True
-                                        size_hint_y: None
-                                        height: "40dp"
-
-                                        MDBoxLayout:
-                                            id: month_selector_container
-                                            orientation: "horizontal"
-                                            adaptive_width: True
-                                            spacing: "10dp"
-
-                                            # Dinamik Olarak Python Tarafından Doldurulacak
-
-                                    MDLabel:
-                                        id: projection_label
-                                        text: app.tr("Ay seçin ve plan oluşturun...", app.language)
-                                        theme_text_color: "Secondary"
-                                        font_style: "Body2"
-                                        halign: "left"
-                                        valign: "top"
-                                        text_size: self.width, None
-
-                                    # DETAYLI LİSTE ALANI
-                                    ScrollView:
-                                        size_hint_y: 1
-                                        MDBoxLayout:
-                                            id: budget_detailed_list
-                                            orientation: 'vertical'
-                                            adaptive_height: True
-                                            spacing: '5dp'
+                                # Aylık Bütçe Planı paneli ui/tools.kv'de
+                                # (<BudgetPlannerPanel@MDCard>) tanımlıdır.
+                                # id'leri panelin kendi ids'inde yaşar; bkz.
+                                # BudgetMixin._planner_ids().
+                                BudgetPlannerPanel:
+                                    id: budget_planner_panel
                                 MDGridLayout:
                                     cols: 2
                                     padding: "20dp"
