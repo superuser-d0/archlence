@@ -245,6 +245,12 @@ class RecurringMixin:
                         Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
                         
                 Clock.schedule_once(lambda dt: self.load_upcoming_recurring(), 0)
+                # Bekleyen özeti bu thread bittikten SONRA okunmalı: burada
+                # uzlaştırılan ileri tarihli işlemler artık bekleyen değil,
+                # açılışta paralel okunsa listede hayalet kayıt görünürdü.
+                if hasattr(self, "load_pending_transactions"):
+                    Clock.schedule_once(
+                        lambda dt: self.load_pending_transactions(), 0)
             except Exception as e:
                 print("Error processing auto deductions:", e)
 

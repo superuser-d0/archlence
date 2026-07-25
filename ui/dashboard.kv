@@ -885,6 +885,53 @@ MDScreen:
                                                 font_style: "Body2"
                                                 halign: "center"
 
+                                # BEKLEYEN (İLERİ TARİHLİ) İŞLEMLER KARTI
+                                # Bekleyen işlem yokken kart tamamen gizlenir
+                                # (height/opacity 0): boş bir "hiç yok" kartı
+                                # dashboard'da yer israfı olurdu. Görünürlüğü
+                                # PendingMixin.render_pending_summary yönetir.
+                                MDCard:
+                                    id: pending_tx_card
+                                    elevation: 0
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
+                                    orientation: "vertical"
+                                    padding: "16dp"
+                                    spacing: "10dp"
+                                    size_hint_y: None
+                                    height: 0
+                                    opacity: 0
+                                    disabled: True
+                                    radius: [24, 24, 24, 24]
+                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+
+                                    MDBoxLayout:
+                                        size_hint_y: None
+                                        height: "30dp"
+                                        spacing: "10dp"
+                                        MDIcon:
+                                            icon: "clock-outline"
+                                            theme_text_color: "Custom"
+                                            text_color: app.theme_cls.primary_color
+                                            font_size: "24sp"
+                                        MDLabel:
+                                            text: app.tr("Bekleyen İşlemler", app.language)
+                                            font_style: "H6"
+                                            bold: True
+
+                                    MDLabel:
+                                        id: pending_tx_summary
+                                        text: ""
+                                        theme_text_color: "Secondary"
+                                        font_style: "Body2"
+                                        size_hint_y: None
+                                        height: "40dp"
+                                        text_size: self.width, None
+
+                                    MDRaisedButton:
+                                        text: app.tr("BEKLEYENLERİ YÖNET", app.language)
+                                        pos_hint: {"center_x": .5}
+                                        elevation: 0
+                                        on_release: app.open_pending_transactions()
 
                                 # YENİ: SON İŞLEMLER LİSTESİ VE FİLTRESİ
                                 MDBoxLayout:

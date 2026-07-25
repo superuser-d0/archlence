@@ -260,6 +260,11 @@ class TransactionService:
         """
         day = str(new_date)[:10]
         datetime.strptime(day, "%Y-%m-%d")  # biçim doğrulaması
+        # Saat bileşeni KORUNUR: transaction_date'i tarih-only yazmak
+        # ui/charts.py'nin zaman kovalarını bozuyordu (tek bir tarih-only satır
+        # tüm zaman grafiğini sessizce çizilmez hâle getiriyor). Projedeki
+        # konvansiyon her zaman "%Y-%m-%d %H:%M:%S".
+        stamp = f"{day} 09:00:00"
 
         conn = get_connection()
         try:
@@ -267,7 +272,7 @@ class TransactionService:
             cursor.execute(
                 "UPDATE transactions SET transaction_date = ?, execution_date = ?"
                 " WHERE id = ? AND status = 'pending'",
-                (day, day, int(transaction_id)),
+                (stamp, stamp, int(transaction_id)),
             )
             updated = cursor.rowcount
             conn.commit()

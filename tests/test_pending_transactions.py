@@ -211,6 +211,37 @@ class PendingTransactionTestCase(unittest.TestCase):
         self.assertEqual(TransactionService.settle_due_transactions(), 1)
         self.assertAlmostEqual(self._balance(), 2500.0, places=2)
 
+    def test_reschedule_keeps_full_timestamp_format(self):
+        """transaction_date tarih-only yazılmamalı.
+
+        ui/charts.py zaman kovalarını kurarken tam zaman damgası bekliyor;
+        tek bir tarih-only satır TÜM zaman grafiğinin sessizce çizilmemesine
+        yol açıyordu.
+        """
+        from datetime import datetime
+        from services.transaction_service import TransactionService
+        from database.db import get_connection
+        self._add(300.0, "income", day_offset=4)
+        pending_id = TransactionService.get_pending_transactions()[0]["id"]
+        target = (date.today() + timedelta(days=12)).isoformat()
+
+        TransactionService.reschedule_pending_transaction(pending_id, target)
+
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT transaction_date, execution_date FROM transactions"
+                " WHERE id = ?", (pending_id,)
+            ).fetchone()
+        finally:
+            conn.close()
+
+        for column in ("transaction_date", "execution_date"):
+            with self.subTest(column=column):
+                # Hata fırlatmadan tam biçimde parse edilebilmeli.
+                datetime.strptime(row[column], "%Y-%m-%d %H:%M:%S")
+                self.assertTrue(row[column].startswith(target))
+
     def test_settle_writes_balance_event_ledger(self):
         """Bakiyeye dokunan her akış gibi settle da defter satırı yazmalı."""
         from services.transaction_service import TransactionService

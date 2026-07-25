@@ -762,6 +762,26 @@ class DashboardChartManager(MDBoxLayout):
         # getir — kullanıcı ham/boş grafiği hiç görmez.
         Clock.schedule_once(lambda dt: self._set_charts_loading(False), 0)
 
+    @staticmethod
+    def _parse_tx_datetime(raw):
+        """`transaction_date`'i hem tam zaman damgası hem yalnız tarih olarak okur.
+
+        Kayıtlar iki biçimde bulunabiliyor: normal akış
+        "%Y-%m-%d %H:%M:%S" yazar, CSV içe aktarımı ve yeniden planlama gibi
+        yollar yalnız "%Y-%m-%d" üretebiliyor (services/insights_service.py
+        ::_parse_date de aynı iki biçimi kabul ediyor). Katı tek biçim
+        beklemek, tek bir tarih-only satır yüzünden TÜM zaman grafiğinin
+        sessizce çizilmemesine yol açıyordu.
+        """
+        import datetime
+        text = str(raw or "").strip()
+        for fmt, width in (("%Y-%m-%d %H:%M:%S", 19), ("%Y-%m-%d", 10)):
+            try:
+                return datetime.datetime.strptime(text[:width], fmt)
+            except ValueError:
+                continue
+        raise ValueError(f"Tanınmayan işlem tarihi: {raw!r}")
+
     def _build_time_buckets(self, raw_data, filter_text):
         """Return list of {label, income, expense} dicts for the chosen period."""
         import datetime
@@ -771,7 +791,7 @@ class DashboardChartManager(MDBoxLayout):
         if filter_text == 'Bugün':
             hour_map = {}
             for tx in raw_data:
-                dt = datetime.datetime.strptime(tx['transaction_date'], '%Y-%m-%d %H:%M:%S')
+                dt = self._parse_tx_datetime(tx['transaction_date'])
                 if dt.date() == now.date():
                     h = f'{dt.hour:02d}'
                     hour_map.setdefault(h, {'inc': 0, 'exp': 0})
@@ -790,7 +810,7 @@ class DashboardChartManager(MDBoxLayout):
             start_dt = now - datetime.timedelta(days=days - 1)
             day_map = {}
             for tx in raw_data:
-                dt = datetime.datetime.strptime(tx['transaction_date'], '%Y-%m-%d %H:%M:%S')
+                dt = self._parse_tx_datetime(tx['transaction_date'])
                 if dt.date() >= start_dt.date():
                     k = dt.strftime('%Y-%m-%d')
                     day_map.setdefault(k, {'inc': 0, 'exp': 0})
@@ -809,7 +829,7 @@ class DashboardChartManager(MDBoxLayout):
             start_dt = now - datetime.timedelta(days=364)
             month_map = {}
             for tx in raw_data:
-                dt = datetime.datetime.strptime(tx['transaction_date'], '%Y-%m-%d %H:%M:%S')
+                dt = self._parse_tx_datetime(tx['transaction_date'])
                 if dt.date() >= start_dt.date():
                     k = dt.strftime('%Y-%m')
                     month_map.setdefault(k, {'inc': 0, 'exp': 0})
@@ -830,7 +850,7 @@ class DashboardChartManager(MDBoxLayout):
         elif filter_text == 'Hayat Boyu':
             year_map = {}
             for tx in raw_data:
-                dt = datetime.datetime.strptime(tx['transaction_date'], '%Y-%m-%d %H:%M:%S')
+                dt = self._parse_tx_datetime(tx['transaction_date'])
                 k = dt.strftime('%Y')
                 year_map.setdefault(k, {'inc': 0, 'exp': 0})
                 if tx['type'] == 'income': year_map[k]['inc'] += tx['amount']

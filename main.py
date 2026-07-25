@@ -174,6 +174,7 @@ from mixins.insights_mixin import InsightsMixin
 from mixins.history_mixin import HistoryMixin
 from mixins.scenario_mixin import ScenarioMixin
 from mixins.subscription_mixin import SubscriptionMixin
+from mixins.pending_mixin import PendingMixin
 from security.security_service import SecurityService
 from services.history_service import write_daily_snapshot
 from services.projection_service import project_final_wealth
@@ -188,7 +189,8 @@ SECRET_KEY = "fi" + "nora_secure_2026"
 class ArchlenceApp(
     MDApp, AssetMixin, DebtMixin, CalculatorMixin, TransactionMixin, # type: ignore
     BudgetMixin, SavingsMixin, RecurringMixin, MigrationMixin, AccountMixin, 
-    InsightsMixin, HistoryMixin, ScenarioMixin, SubscriptionMixin
+    InsightsMixin, HistoryMixin, ScenarioMixin, SubscriptionMixin,
+    PendingMixin
 ):
     title = "Archlence"
     icon = "assets/icon.png"
@@ -331,6 +333,9 @@ class ArchlenceApp(
         self.load_active_debts()
         self.load_active_assets()
         self.load_asset_history()
+        # Bekleyen özeti burada ayrıca çağrılmaz: process_due_auto_deductions
+        # vadesi geleni bakiyeye işledikten SONRA kendisi tetikliyor, yoksa
+        # paralel okuma uzlaştırılmış kayıtları hâlâ bekleyen gösterebilirdi.
         self.process_due_auto_deductions()
 
     # -------------------------------------------------------------------------
