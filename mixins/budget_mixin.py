@@ -9,6 +9,7 @@ from kivymd.toast import toast
 from kivymd.uix.button import MDRaisedButton
 
 from ui.i18n import tr as _t
+from utils.formatters import attach_amount_mask, read_amount, set_amount
 
 
 GREEN = (0.18, 0.8, 0.25, 1)
@@ -195,11 +196,13 @@ class BudgetMixin:
             theme_text_color="Custom",
             text_color=self.theme_cls.primary_color,
         )
-        self.bp_amount_input = MDTextField(
-            hint_text=_t("Tutar"), input_filter="float",
+        # input_filter maskeleme tarafından kurulur; Kivy'nin "float" filtresi
+        # binlik ayraç noktalarıyla çakışıyor (bkz. utils/formatters).
+        self.bp_amount_input = attach_amount_mask(MDTextField(
+            hint_text=_t("Tutar"),
             size_hint_y=None, height=dp(58),
             padding=[dp(12), dp(12), dp(8), dp(12)],
-        )
+        ))
         amount_row.bind(on_release=lambda *args: setattr(self.bp_amount_input, 'focus', True))
         amount_row.add_widget(self.bp_currency_label)
         amount_row.add_widget(self.bp_amount_input)
@@ -470,7 +473,8 @@ class BudgetMixin:
         if value is None:
             toast(_t("Bu kategori için yeterli geçmiş yok."))
             return
-        self.bp_amount_input.text = f"{value:.2f}"
+        # set_amount ZORUNLU: ham "1500.00" yazmak maskede "150.000" olurdu.
+        set_amount(self.bp_amount_input, value)
 
     def _toggle_month_grid(self, _switch, active):
         self.months_grid.height = dp(164) if active else 0
@@ -617,11 +621,13 @@ class BudgetMixin:
             toast(_t("Kalem adı boş olamaz!"))
             return
         try:
-            amount = float(self.bp_amount_input.text)
+            # read_amount kanonik değeri okur; maskelenmiş "1.500" metnini
+            # float() 1.5 diye okurdu.
+            amount = read_amount(self.bp_amount_input)
             threshold = int(self.bp_alert_input.text or 80)
             if amount <= 0 or not 1 <= threshold <= 100:
                 raise ValueError
-        except ValueError:
+        except (ValueError, TypeError):
             toast(_t("Tutar pozitif, uyarı eşiği 1-100 arasında olmalıdır."))
             return
 
@@ -739,7 +745,7 @@ class BudgetMixin:
         self.bp_selected_type = row["type"]
         self._select_budget_category(row["category_name"])
         self.bp_name_input.text = row["name"]
-        self.bp_amount_input.text = str(row["amount"])
+        set_amount(self.bp_amount_input, row["amount"])
         self.bp_rollover_switch.active = bool(row["rollover_enabled"])
         self.bp_template_switch.active = bool(row["is_template"])
         self.bp_alert_input.text = str(row["alert_threshold_pct"] or 80)

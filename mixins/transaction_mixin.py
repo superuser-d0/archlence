@@ -11,6 +11,7 @@ from services.queries import CategoryService
 import ui.theme as ftheme
 from ui.components import is_read_only_asset_account, MiniCardPreviewWidget
 from ui.i18n import tr as _t
+from utils.formatters import attach_amount_mask, read_amount
 
 
 def _fmt(value):
@@ -47,10 +48,14 @@ class TransactionMixin:
             size_hint_y=None, adaptive_height=True,
             padding=[dp(16), dp(4), dp(16), dp(4)],
         )
-        self.amount_input = ftheme.make_text_field(
-            _t("Miktar (₺)"), self.theme_cls, filter="float",
+        # filter="float" VERİLMEZ: maskeleme '.'yi binlik ayraç olarak ekliyor,
+        # Kivy'nin float filtresi ise onu ondalık nokta sayıp ikincisini
+        # reddediyor — ikisi birlikte çalışmaz. attach_amount_mask kendi
+        # filtresini kurar (yalnız rakam + tek ondalık ayraç).
+        self.amount_input = attach_amount_mask(ftheme.make_text_field(
+            _t("Miktar (₺)"), self.theme_cls,
             size_hint_y=None, height=dp(48),
-        )
+        ))
 
         # Segment ve butonlara açık yükseklik: adaptive konteynerde her çocuğun
         # size_hint_y=None + net height olmalı, yoksa kutu doğru ölçülmez.
@@ -737,13 +742,17 @@ class TransactionMixin:
             toast(_t("Lütfen bir kategori seçin!"))
             return 
             
+        # read_amount, maskelemenin widget üzerinde tuttuğu KANONİK değeri okur.
+        # Doğrudan float(self.amount_input.text) çağırmak felaket olurdu:
+        # maskelenmiş "250.000" metnini float() 250.0 diye okur, yani 250 bin
+        # lira sessizce 250 liraya dönerdi.
         try:
-            user_amount = float(self.amount_input.text)
-            if user_amount <= 0:
-                toast(_t("Miktar 0'dan büyük olmalıdır!"))
-                return
-        except ValueError:
-            toast(_t("Lütfen geçerli bir sayı girin!"))
+            user_amount = read_amount(self.amount_input)
+        except (ValueError, TypeError):
+            toast(_t("Geçersiz tutar"))
+            return
+        if user_amount <= 0:
+            toast(_t("Miktar 0'dan büyük olmalıdır!"))
             return
 
         is_recurring = self.recurring_switch.active

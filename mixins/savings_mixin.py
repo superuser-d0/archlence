@@ -15,6 +15,7 @@ from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDRaisedButton, MDFlatButton
 from kivymd.uix.dialog import MDDialog
 from ui.i18n import tr as _t
+from utils.formatters import attach_amount_mask, read_amount
 from kivymd.uix.label import MDLabel
 from kivymd.uix.textfield import MDTextField
 from kivymd.uix.menu import MDDropdownMenu
@@ -155,9 +156,11 @@ class SavingsMixin:
             return
 
         selected_account_id = checking_accounts[0]["id"]
-        amount_field = ftheme.make_text_field(
-            _t("Yatırılacak Tutar (\u20ba)"), self.theme_cls, filter="float"
-        )
+        # filter="float" YOK: maskeleme kendi filtresini kurar (binlik ayraç
+        # noktası Kivy'nin float filtresiyle çakışıyor).
+        amount_field = attach_amount_mask(ftheme.make_text_field(
+            _t("Yatırılacak Tutar (\u20ba)"), self.theme_cls
+        ))
         account_btn = MDRaisedButton(
             size_hint_x=1,
             elevation=0 if self.theme_cls.theme_style == "Light" else 1,
@@ -239,7 +242,7 @@ class SavingsMixin:
 
         def _do_add(instance):
             try:
-                amount = float(amount_field.text)
+                amount = read_amount(amount_field)
                 if amount <= 0:
                     toast(_t("0'dan b\u00fcy\u00fck bir tutar girin!"))
                     return

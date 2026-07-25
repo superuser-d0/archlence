@@ -529,6 +529,8 @@ EN = {
     "Bütçeniz dengede.": "Your budget is balanced.",
     "Dikkat: Planlanan giderler, gelirlerinizi aşıyor. Bütçeniz eksiye düşecek!": "Warning: Planned expenses exceed your income. Your budget will run a deficit!",
     "Dikkat: Gelir ve gideriniz başa baş. Bütçenizde hiç esneme payı yok.": "Warning: Your income and expenses break even. Your budget has no buffer.",
+    "Geçersiz tutar": "Invalid amount",
+
     # --- İşlem tarihi seçici (ileri/geçmiş tarihli işlem) ---
     "Tarih: Bugün": "Date: Today",
     "Tarih:": "Date:",

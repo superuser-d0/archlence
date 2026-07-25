@@ -12,6 +12,7 @@ from kivymd.uix.slider import MDSlider
 import ui.theme as ftheme
 from ui.components import is_read_only_asset_account
 from ui.i18n import tr as _t
+from utils.formatters import attach_amount_mask, read_amount, set_amount
 
 class DebtMixin:
     """Borç/kredi takibi: hesaplanan krediyi borç olarak kaydetme, aktif borç
@@ -311,11 +312,13 @@ class DebtMixin:
 
         content = MDBoxLayout(orientation="vertical", spacing="14dp", size_hint_y=None, height="120dp")
 
-        amount_input = ftheme.make_text_field(
+        # Maskeleme kendi input_filter'ını kurar; mevcut borç set_amount ile
+        # yazılır çünkü ham "3500.0" metni maskede "35.000" olurdu.
+        amount_input = attach_amount_mask(ftheme.make_text_field(
             _t("Ödenecek Tutar (₺)"), self.theme_cls,
-            filter="float",
-            text=str(card["debt"]) if card["debt"] > 0 else ""
-        )
+        ))
+        if card["debt"] > 0:
+            set_amount(amount_input, card["debt"])
         content.add_widget(amount_input)
 
         selected_account_id = checking_accounts[0]["id"]
@@ -363,13 +366,14 @@ class DebtMixin:
         account_btn.on_release = open_menu
 
         def confirm(*args):
-            amount_text = amount_input.text.strip()
-            if not amount_text:
+            if not amount_input.text.strip():
                 toast(_t("Lütfen tutar giriniz."))
                 return
             try:
-                amount = float(amount_text)
-            except ValueError:
+                # read_amount kanonik değeri okur; maskelenmiş "3.500" metnini
+                # float() 3.5 diye okurdu.
+                amount = read_amount(amount_input)
+            except (ValueError, TypeError):
                 toast(_t("Geçersiz tutar."))
                 return
 

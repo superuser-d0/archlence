@@ -23,6 +23,7 @@ from kivymd.uix.textfield import MDTextField
 
 import ui.theme as ftheme
 from ui.i18n import tr as _t
+from utils.formatters import attach_amount_mask, read_amount, set_amount
 
 
 def _fmt(value):
@@ -141,19 +142,20 @@ class SubscriptionMixin:
 
     def open_subscription_price_dialog(self, payment):
         """Abonelik ücretini silip yeniden kurmadan güncellemeyi sağlar."""
-        amount_field = ftheme.make_text_field(
-            _t("Yeni Aylık Ücret (₺)"), self.theme_cls, filter="float",
-            text=f"{payment['amount']:.2f}",
-        )
+        # Maskeleme kendi input_filter'ını kurar; mevcut ücret set_amount ile
+        # yazılır çünkü ham "149.99" metni maskede "14.999" olurdu.
+        amount_field = attach_amount_mask(ftheme.make_text_field(
+            _t("Yeni Aylık Ücret (₺)"), self.theme_cls,
+        ))
+        set_amount(amount_field, payment["amount"])
         content = MDBoxLayout(
             orientation="vertical", size_hint_y=None, height=dp(80))
         content.add_widget(amount_field)
 
         def save(_button):
-            raw = (amount_field.text or "").strip().replace(",", ".")
             try:
-                new_amount = float(raw)
-            except ValueError:
+                new_amount = read_amount(amount_field)
+            except (ValueError, TypeError):
                 toast(_t("Geçerli bir tutar girin!"))
                 return
             self._dismiss_dialog("subscription_price_dialog")
