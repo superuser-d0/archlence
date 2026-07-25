@@ -46,7 +46,6 @@ The repository is public to support transparent development, technical review, a
 
 The dashboard combines current balance, period comparisons, algorithmic projections, a financial health score, active subscriptions, upcoming obligations, and recent activity.
 
-![Dashboard and financial health](docs/screenshots/dashboard.png)
 
 ### Portfolio overview
 
