@@ -208,21 +208,13 @@ def initialize_database():
         cursor.execute(ASSET_PRICE_CACHE_SCHEMA)
 
 
-    # 7. Abonelikler Tablosu
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS subscriptions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            amount REAL NOT NULL,
-            currency TEXT DEFAULT 'TRY',
-            billing_cycle TEXT DEFAULT 'monthly',
-            next_billing_date TEXT,
-            status TEXT DEFAULT 'active',
-            logo_url TEXT,
-            cancellation_date TEXT,
-            refund_amount REAL DEFAULT 0
-        )
-    ''')
+    # NOT: Bir ara ayrı bir `subscriptions` tablosu oluşturuluyordu ama hiçbir
+    # yerden okunmuyor/yazılmıyordu. Abonelikler `recurring_payments` üzerinde
+    # yaşıyor (arayüz, radar ve vade motoru hep onu okuyor); ikinci bir boş
+    # tablo tutmak "hangisi doğru?" sorusunu ve sessiz tutarsızlık riskini
+    # getiriyordu, o yüzden kaldırıldı. Var olan kurulumlardaki boş tabloyu da
+    # temizliyoruz — içinde hiç veri üretilmemişti.
+    cursor.execute("DROP TABLE IF EXISTS subscriptions")
 
 
     # 7. Tekrarlanan Ödemeler Tablosu (Kira, Netflix, Spotify vb.)

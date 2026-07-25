@@ -355,14 +355,24 @@ class InsightsMixin:
             font_style="Caption",
             theme_text_color="Secondary",
         ))
+        # Tek "DURDUR" yerine yönetim akışı: spec iptalde iki seçenek (sadece
+        # bu ay / kalıcı) ve ardından iade sorusu istiyor. Zam için de düzenleme
+        # gerekiyor; ikisi de SubscriptionMixin'de tek yerde duruyor.
         detail_row.add_widget(MDFlatButton(
-            text=_t("DURDUR"),
+            text=_t("DÜZENLE"),
+            theme_text_color="Custom",
+            text_color=self.theme_cls.primary_color,
+            on_release=lambda _button, p=payment:
+                self.open_subscription_price_dialog(p),
+        ))
+        detail_row.add_widget(MDFlatButton(
+            text=_t("KALDIR"),
             theme_text_color="Custom",
             text_color=ftheme.accent(
                 self.theme_cls.theme_style, "muted"
             ),
-            on_release=lambda _button, pid=payment["id"]:
-                self.deactivate_recurring(pid),
+            on_release=lambda _button, p=payment:
+                self.open_subscription_cancel_dialog(p),
         ))
         card.add_widget(detail_row)
         return card

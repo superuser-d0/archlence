@@ -173,6 +173,7 @@ from mixins.account_mixin import AccountMixin
 from mixins.insights_mixin import InsightsMixin
 from mixins.history_mixin import HistoryMixin
 from mixins.scenario_mixin import ScenarioMixin
+from mixins.subscription_mixin import SubscriptionMixin
 from security.security_service import SecurityService
 from services.history_service import write_daily_snapshot
 from services.projection_service import project_final_wealth
@@ -187,7 +188,7 @@ SECRET_KEY = "fi" + "nora_secure_2026"
 class ArchlenceApp(
     MDApp, AssetMixin, DebtMixin, CalculatorMixin, TransactionMixin, # type: ignore
     BudgetMixin, SavingsMixin, RecurringMixin, MigrationMixin, AccountMixin, 
-    InsightsMixin, HistoryMixin, ScenarioMixin
+    InsightsMixin, HistoryMixin, ScenarioMixin, SubscriptionMixin
 ):
     title = "Archlence"
     icon = "assets/icon.png"

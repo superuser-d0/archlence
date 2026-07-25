@@ -602,10 +602,10 @@ class BudgetMixin:
             size_hint_y=None, height=dp(34),
         ))
 
-    def open_subscription_management(self):
-        if getattr(self, "bp_dialog", None):
-            self.bp_dialog.dismiss()
-        toast(_t("Aktif abonelikler ana sayfadaki karttan yönetilebilir."))
+    # `open_subscription_management` artık mixins/subscription_mixin.py'de
+    # gerçek bir yönetim diyaloğu olarak yaşıyor (iptal/iade/zam). Buradaki
+    # yalnız toast gösteren stub kaldırıldı; MRO'da BudgetMixin önce geldiği
+    # için burada durması gerçek uygulamayı gölgeliyordu.
 
     # ── CRUD ─────────────────────────────────────────────────────────────────
     def save_budget_item(self, *args):
