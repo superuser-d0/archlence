@@ -23,3 +23,7 @@ Archlence is currently integrating advanced LLM capabilities to act as a persona
 * **Natural Language to SQL:** Querying local financial data conversationally (e.g., *"How much did I spend on digital subscriptions in the last 3 months?"*).
 * **Algorithmic Foresight:** Projecting future balances and offering 50-30-20 rule optimizations based on historical spending behavior.
 * **Receipt Parsing:** Local OCR combined with LLM parsing to instantly categorize and input transactions via JSON.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
