@@ -54,7 +54,10 @@
             size_hint_x: None
             width: "48dp"
             pos_hint: {"center_y": .5}
-            on_release: app.show_budget_planner()
+            # Kalem ekleme formu ayrı bir diyalog; show_budget_planner artık bu
+            # paneli AÇAN metod, kalem formunu değil (yoksa panel kendini
+            # sonsuz açardı).
+            on_release: app.open_budget_item_form()
 
     # YENİ: Yatay Ay Seçici
     ScrollView:
@@ -88,60 +91,3 @@
             orientation: 'vertical'
             adaptive_height: True
             spacing: '5dp'
-
-
-# ANA SAYFA BÜTÇE ÖZET KARTI (minimal iskelet)
-#
-# Ayrıntılı planlayıcı Araçlar sekmesinde; ana sayfa yalnız "bu ay ne kadarını
-# harcadım" sorusunu tek bakışta yanıtlar. Değerler
-# BudgetMixin.refresh_budget_summary tarafından yazılır (veri köprüsü).
-# GEMINI: görsel cilalama (renk paleti, padding, font boyutu) bu kuralda.
-<BudgetSummaryCard@MDCard>:
-    elevation: 0
-    line_color: ftheme.card_line(app.theme_cls.theme_style)
-    orientation: "vertical"
-    padding: "16dp", "16dp", "16dp", "16dp"
-    spacing: "12dp"
-    size_hint_y: None
-    height: "165dp"
-    radius: [24, 24, 24, 24]
-    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
-
-    MDBoxLayout:
-        size_hint_y: None
-        height: "30dp"
-        spacing: "10dp"
-        MDIcon:
-            icon: "wallet-outline"
-            theme_text_color: "Custom"
-            text_color: app.theme_cls.primary_color
-            font_size: "24sp"
-        MDLabel:
-            text: app.tr("Aylık Bütçe", app.language)
-            font_style: "H6"
-            bold: True
-
-    MDLabel:
-        id: budget_summary_text
-        text: app.tr("Bütçe planı hazırlanıyor...", app.language)
-        theme_text_color: "Secondary"
-        font_style: "Subtitle2"
-        bold: True
-        markup: True
-        size_hint_y: None
-        height: "44dp"
-        text_size: self.width, None
-
-    MDProgressBar:
-        id: budget_summary_bar
-        value: 0
-        max: 100
-        size_hint_y: None
-        height: "10dp"
-
-    MDFlatButton:
-        text: app.tr("PLANLAYICIYI AÇ", app.language)
-        pos_hint: {"center_x": .5}
-        theme_text_color: "Custom"
-        text_color: app.theme_cls.primary_color
-        on_release: app.show_budget_planner()

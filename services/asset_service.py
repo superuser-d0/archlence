@@ -537,12 +537,27 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
             try:
                 env = dict(os.environ)
                 env["ARCHLENCE_ASSET_PRICE_CHILD"] = "1"
-                subprocess.run(
+                # cwd=proje kökü ŞART: `-m services.asset_price_worker` modülü
+                # bulmak için proje kökünün sys.path'te olmasını ister. Uygulama
+                # başka bir dizinden başlatılırsa (ya da paketlenmişse) alt süreç
+                # ModuleNotFoundError ile ölüyordu — DEVNULL bunu gizliyordu.
+                project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                proc = subprocess.run(
                     [sys.executable, "-m", "services.asset_price_worker", output_path],
                     input=json.dumps(assets, ensure_ascii=False), text=True,
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                    timeout=70, check=False, env=env,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                    timeout=70, check=False, env=env, cwd=project_root,
                 )
+                # Sessiz ölümü artık logluyoruz: dönüş kodu 0 değilse veya
+                # stderr doluysa neden görünür olsun (eskiden hiç iz kalmıyordu).
+                if proc.returncode != 0:
+                    print(
+                        "Fiyat worker'ı hata kodu",
+                        proc.returncode, "ile döndü:",
+                        (proc.stderr or "").strip()[:500],
+                    )
+                elif proc.stderr and proc.stderr.strip():
+                    print("Fiyat worker uyarısı:", proc.stderr.strip()[:500])
                 try:
                     with open(output_path, "r", encoding="utf-8") as stream:
                         enriched = json.load(stream)
@@ -603,18 +618,38 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
         if needs_gold_gram:
             unique_tickers.add("GC=F")
 
+        def _last_close(close_obj, sym):
+            """yf.download çıktısından sembolün son geçerli kapanışını çeker.
+
+            yfinance 1.4.x TEK sembolde de MultiIndex sütun döndürüyor
+            (('Close','THYAO.IS')), bu yüzden hist['Close'] bir Series değil
+            DataFrame olabilir — eski kod float(Series) ile TypeError alıp
+            fiyatı sessizce düşürüyordu (tüm portföyün ₺0,00 kalmasının kök
+            nedeni). Hem düz hem MultiIndex biçimi güvenle ele alınır.
+            """
+            if close_obj is None:
+                return None
+            series = close_obj[sym] if hasattr(close_obj, "columns") else close_obj
+            try:
+                valid = series.dropna()
+            except AttributeError:
+                return None
+            if len(valid) == 0:
+                return None
+            price = float(valid.iloc[-1])
+            if math.isnan(price) or math.isinf(price):
+                return None
+            return price
+
         raw_prices = {}  # yfinance sembolü -> ham kapanış fiyatı (USD veya doğrudan ₺)
         if unique_tickers:
             try:
                 if len(unique_tickers) == 1:
-                    # Tek sembolde yf.download düz (MultiIndex olmayan) bir
-                    # DataFrame döner; çoklu-sembol dalındaki data["Close"][sym]
-                    # erişimi bu durumda çalışmaz, ayrı ele alınması gerekir.
                     sym = next(iter(unique_tickers))
                     hist = yf.download(sym, period="5d", progress=False)
                     if not hist.empty:
-                        price = float(hist["Close"].dropna().iloc[-1])
-                        if not math.isnan(price) and not math.isinf(price):
+                        price = _last_close(hist["Close"], sym)
+                        if price is not None:
                             raw_prices[sym] = price
                 else:
                     data = yf.download(
@@ -625,12 +660,9 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                     )
                     close_df = data["Close"]
                     for sym in unique_tickers:
-                        try:
-                            price = float(close_df[sym].dropna().iloc[-1])
-                            if not math.isnan(price) and not math.isinf(price):
-                                raw_prices[sym] = price
-                        except Exception:
-                            pass
+                        price = _last_close(close_df, sym)
+                        if price is not None:
+                            raw_prices[sym] = price
             except Exception as e:
                 print("Portföy fiyat çekme hatası:", e)
 

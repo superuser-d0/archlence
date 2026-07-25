@@ -942,11 +942,20 @@ class AccountMixin:
         asset_count = int(result.get("asset_count") or 0)
         priced_count = int(result.get("priced_count") or 0)
         cached_count = int(result.get("cached_count") or 0)
-        
+
         if total is None:
             current.status_text = _t("Canlı fiyatlara ulaşılamadı")
             return
-            
+
+        # Açık bir hata sinyali (ağ/işlem istisnası) sessizce ₺0,00 olarak
+        # yutulmasın; kullanıcı fiyatların GELMEDİĞİNİ görmeli. Soğuk önbellekle
+        # gelen geçici 0 (priced_count 0 ama hata yok) yanlış alarm olmasın diye
+        # yalnız gerçek error alanında bu mesaj gösterilir.
+        if result.get("error"):
+            current.balance = _fmt(total)
+            current.status_text = _t("Fiyatlar alınamadı")
+            return
+
         current.balance = _fmt(total)
         if cached_count:
             current.status_text = _t(f"{priced_count}/{asset_count} varlık • Son bilinen fiyat")

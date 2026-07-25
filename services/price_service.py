@@ -171,7 +171,15 @@ def get_price(
 def _extract_last_close(data, ticker: str, single: bool) -> float | None:
     try:
         close = data["Close"]
-        series = close if single else close[ticker]
+        # yfinance 1.4.x TEK sembolde de MultiIndex sütun döndürüyor, yani
+        # data["Close"] bir Series değil DataFrame olabilir. `single` olsa bile
+        # sütunlu ise ticker'ı (yoksa ilk sütunu) seç; float(DataFrame) aksi
+        # halde TypeError verip fiyatı sessizce düşürüyordu (tek varlıklı
+        # portföyde "Aktif Varlıklarım ₺0,00" kalmasının kök nedeni).
+        if hasattr(close, "columns"):
+            series = close[ticker] if ticker in close.columns else close.iloc[:, 0]
+        else:
+            series = close
         value = float(series.dropna().iloc[-1])
         return value if math.isfinite(value) and value > 0 else None
     except (KeyError, IndexError, TypeError, ValueError):

@@ -30,14 +30,39 @@ SUBSCRIPTION_CATEGORIES = {
     "Bağış (Düzenli)",
 }
 
-# Açıklamadan marka tanıma listesi.
-# GEMINI DOLDURACAK: Netflix, Spotify, YouTube Premium, BluTV, Exxen, Amazon
-# Prime, Disney+, Apple Music/TV+, Mubi, Deezer, Gain, TOD, Tabii, Blu TV,
-# Storytel, Audible, Adobe, Microsoft 365, iCloud, Google One, ChatGPT Plus...
-# (yazım hatası toleransı için normalize edilmiş adlar; bkz.
-# services/brand_icon_service.py::_BRANDS zaten benzer bir liste tutuyor ve
-# örnek alınabilir.)
-KNOWN_BRANDS = []  # GEMINI DOLDURACAK
+# Açıklamada geçince harcamayı abonelik sayan marka adları. Küçük harfe
+# duyarsız ALT DİZE olarak aranır (bkz. looks_like_subscription): "NETFLIX.COM
+# 12/2026" içinde "netflix" bulunur. Adlar normalize (küçük harf, sade) tutulur;
+# marka LOGOSU ayrı bir sistemdir (services/brand_icon_service.py::_BRANDS) ve
+# oradaki alias'lar bu listeye örnek alındı.
+# DİKKAT: eşleşme düz alt dizedir (kelime sınırı yok). Bu yüzden kısa/yaygın
+# tokenler (tod, gain, calm, steam, fitness...) BİLEREK dışarıda bırakıldı;
+# "again"/"bargain"/"steamed" gibi masum metinlerde yanlış pozitif üretirlerdi.
+# Yalnız ayırt edici (≈5+ harf) adlar listelenir. Kategori sinyali zaten
+# "Dijital Platformlar" gibi durumları kapsıyor; bu liste ikincil bir sinyal.
+KNOWN_BRANDS = [
+    # Video / müzik / içerik platformları
+    "netflix", "spotify", "youtube premium", "youtube music", "amazon prime",
+    "prime video", "disney+", "disney plus", "blutv", "exxen", "mubi",
+    "deezer", "tabii", "hbo max", "apple music", "apple tv", "apple one",
+    "twitch",
+    # Kitap / sesli kitap
+    "storytel", "audible", "kindle unlimited", "blinkist",
+    # Yazılım / lisans / bulut
+    "adobe", "creative cloud", "microsoft 365", "office 365", "icloud",
+    "google one", "dropbox", "notion", "figma", "canva", "jetbrains",
+    "github", "1password", "lastpass", "nordvpn", "expressvpn",
+    "chatgpt", "openai", "claude", "anthropic", "gemini advanced",
+    # Eğitim / kurs
+    "udemy", "coursera", "duolingo", "skillshare",
+    # Spor / sağlık / üyelik
+    "macfit", "sporium", "strava", "headspace", "spotify premium",
+    # Bağış / üyelik
+    "patreon", "wikipedia",
+    # Oyun
+    "playstation plus", "ps plus", "xbox game pass", "game pass",
+    "nintendo online",
+]
 
 
 def apply_category_trigger(category, recurring_switch) -> bool:

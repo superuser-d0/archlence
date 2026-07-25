@@ -329,10 +329,9 @@ class ArchlenceApp(
         start_data_warmup()
         
         self.write_daily_balance_snapshot()
+        # Aktif ay/yıl state'ini kur. Panel açılışta ızgarada olmadığından ay
+        # butonları burada çizilmez; planlayıcı diyaloğu açılınca kurulur.
         self.setup_dynamic_months()
-        # Ana sayfadaki bütçe özet kartı planlayıcı hiç açılmadan da dolu
-        # gelmeli; köprünün açılış tarafı bu çağrı.
-        self.refresh_budget_summary()
         self.safe_refresh_charts()
         self.load_recent_transactions("Günlük")
         self.generate_financial_advice()

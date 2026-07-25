@@ -10,10 +10,8 @@ _language = "tr"
 
 
 EN = {
-    "Aylık Bütçe": "Monthly Budget",
-    "Bu ay için bütçe planı yok. Planlayıcıdan limit ekleyin.": "No budget plan for this month. Add a limit from the planner.",
-    "Bütçe planı hazırlanıyor...": "Preparing budget plan...",
-    "PLANLAYICIYI AÇ": "OPEN PLANNER",
+    # Araçlar ızgarasındaki bütçe karesi (iki satır, diğer kareler gibi).
+    "Aylık\nBütçe": "Monthly\nBudget",
     "Güvenli Giriş": "Secure Sign In",
     "Yerel PIN'ini Belirle": "Set Your Local PIN",
     "PIN": "PIN",
@@ -477,6 +475,7 @@ EN = {
     "Canlı veri bekleniyor…": "Waiting for live data…",
     "Hesaplanamadı": "Could Not Calculate",
     "Canlı fiyatlara ulaşılamadı": "Live prices are unavailable",
+    "Fiyatlar alınamadı": "Prices could not be fetched",
     "Veri Yok": "No Data",
     "₺0\nVeri Yok": "₺0\nNo Data",
     "Yatırım[/color]": "Investment[/color]",

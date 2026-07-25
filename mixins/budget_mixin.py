@@ -32,32 +32,27 @@ class BudgetMixin:
     def _planner_ids(self):
         """Planlayıcı bileşeninin id sözlüğünü döndürür.
 
-        Panel artık ui/tools.kv'de `<BudgetPlannerPanel@MDCard>` olarak
-        tanımlı. Dinamik sınıf kuralı içindeki id'ler PANELİN KENDİ `ids`
-        sözlüğünde yaşar, uygulamanın `root.ids`'inde değil — bu yüzden eski
-        `self.root.ids.projection_label` erişimleri buradan geçiyor.
+        Panel artık ızgarada sabit durmuyor; `show_budget_planner` her açılışta
+        yeni bir `<BudgetPlannerPanel@MDCard>` (ui/tools.kv) örnekleyip
+        `self._budget_planner_panel`'e koyuyor. Dinamik sınıf kuralı içindeki
+        id'ler PANELİN KENDİ `ids` sözlüğünde yaşar, uygulamanın `root.ids`'inde
+        değil — bu yüzden `projection_label` gibi erişimler buradan geçer.
 
-        Panel bulunamazsa `root.ids`'e döner: hem paneli KV'de geri taşımak
-        isteyen biri için hem de widget ağacı kurulmadan çağrılan testler için
-        güvenli davranış.
+        Önce canlı panel referansına, sonra (paneli KV'de sabit geri taşımak
+        isteyen biri için) `root.ids`'e bakar; hiçbiri yoksa boş sözlük döner —
+        widget ağacı kurulmadan çağrılan testlerde güvenli davranış.
         """
-        root = getattr(self, "root", None)
-        if root is None:
-            return {}
-        root_ids = getattr(root, "ids", {}) or {}
-        panel = root_ids.get("budget_planner_panel") if hasattr(root_ids, "get") else None
+        panel = getattr(self, "_budget_planner_panel", None)
         if panel is not None:
             return getattr(panel, "ids", {}) or {}
-        return root_ids
-
-    def _summary_ids(self):
-        """Ana sayfadaki BudgetSummaryCard'ın id sözlüğü (veri köprüsü hedefi)."""
         root = getattr(self, "root", None)
         if root is None:
             return {}
         root_ids = getattr(root, "ids", {}) or {}
-        card = root_ids.get("budget_summary_card") if hasattr(root_ids, "get") else None
-        return getattr(card, "ids", {}) or {} if card is not None else {}
+        stray = root_ids.get("budget_planner_panel") if hasattr(root_ids, "get") else None
+        if stray is not None:
+            return getattr(stray, "ids", {}) or {}
+        return root_ids
 
     def setup_dynamic_months(self):
         now = datetime.date.today()
@@ -85,15 +80,19 @@ class BudgetMixin:
         self.load_budget_list()
         self.generate_next_month_projection()
 
-    # ─── Veri köprüsü: planlayıcı -> ana sayfa özet kartı ────────────────────
+    # ─── Bütçe özeti (saf hesap) ─────────────────────────────────────────────
 
     @staticmethod
     def compute_budget_summary(month, year):
-        """Özet kart için (harcanan, limit, yüzde) üçlüsünü hesaplar.
+        """(harcanan, limit, yüzde) üçlüsünü hesaplar.
 
         Widget'a DOKUNMAZ: saf veri üretir ki Kivy ağacı kurmadan test
         edilebilsin. Limit = planlanan gider + ayrılmış abonelik gideri;
-        harcanan = o ay gerçekleşen (bakiyeye işlenmiş) giderler.
+        harcanan = o ay gerçekleşen (bakiyeye işlenmiş) giderler. Yüzde 100'ü
+        aşabilir (aşımı gizlememek için); sıkıştırma çağırana bırakılır.
+
+        Araçlar ızgarasındaki bütçe karesine küçük bir "%X kullanıldı" alt
+        satırı eklemek istenirse veri kaynağı budur.
         """
         from services.budget_service import (
             calculate_monthly_budget, get_category_budget_progress,
@@ -105,54 +104,8 @@ class BudgetMixin:
             float(item["actual"])
             for item in get_category_budget_progress(month, year)
         )
-        # GERÇEK yüzde döndürülür (100'ü aşabilir): bütçesini %125 aşan
-        # kullanıcıya "%100" göstermek aşımı gizler. Sıkıştırma yalnız progress
-        # bar'a uygulanır, çünkü orada 100 üstü değerin görsel karşılığı yok.
         percent = (spent / limit * 100.0) if limit > 0 else 0.0
         return spent, limit, max(0.0, percent)
-
-    def refresh_budget_summary(self, *args):
-        """Ana sayfadaki BudgetSummaryCard'ı güncel bütçe verisiyle doldurur.
-
-        Planlayıcıda kaydetme/silme/ay değişimi sonrası çağrılır. Kart yoksa
-        (KV değişmiş ya da test ortamı) sessizce çıkar.
-        """
-        ids = self._summary_ids()
-        text_label = ids.get("budget_summary_text")
-        bar = ids.get("budget_summary_bar")
-        if text_label is None and bar is None:
-            return
-
-        month, year = self._budget_period()
-        try:
-            spent, limit, percent = self.compute_budget_summary(month, year)
-        except Exception as exc:
-            print("Bütçe özeti hesaplanamadı:", exc)
-            return
-
-        if bar is not None:
-            # Bar 0-100 aralığında; aşım metinde gerçek yüzdeyle gösterilir.
-            bar.value = min(100.0, percent)
-            from kivy.app import App
-            app = App.get_running_app()
-            theme = getattr(app, "theme_cls", None)
-            if theme is not None:
-                if percent >= 100.0:
-                    bar.color = theme.error_color
-                elif percent >= 80.0:
-                    bar.color = (1, 0.75, 0, 1)
-                else:
-                    bar.color = theme.primary_color
-        if text_label is not None:
-            if limit <= 0:
-                # GEMINI: bu metinlerin i18n anahtarları raporda listelendi.
-                text_label.text = _t(
-                    "Bu ay için bütçe planı yok. Planlayıcıdan limit ekleyin.")
-            else:
-                text_label.text = _t(
-                    f"{_t(MONTHS[month - 1])} · {_fmt(spent)} / {_fmt(limit)}"
-                    f"  (%{percent:.0f})"
-                )
 
     def _budget_period(self):
         today = datetime.date.today()
@@ -194,10 +147,6 @@ class BudgetMixin:
             if projection_icon is not None:
                 projection_icon.icon = icon
                 projection_icon.text_color = color
-
-        # VERİ KÖPRÜSÜ: planlayıcıda her hesaplama sonrası ana sayfadaki özet
-        # kart da tazelenir, böylece Araçlar'da yapılan ayar anında görünür.
-        self.refresh_budget_summary()
         return {
             "harcanabilir_limit": remaining,
             "ayrilmis_abonelik_gideri": reserved,
@@ -205,8 +154,61 @@ class BudgetMixin:
             "tavsiye_ikonu": icon,
         }
 
-    # ── Planlayıcı formu ────────────────────────────────────────────────────
+    # ── Planlayıcı görünümü (Araçlar karesinden açılan diyalog) ──────────────
     def show_budget_planner(self):
+        """Bütçe planlayıcı panelini bir diyalog içinde açar.
+
+        Araçlar ızgarasındaki "Aylık Bütçe" karesi ile panelin trend butonu
+        buraya gelir. Panel artık ızgarada sabit durmuyor; her açılışta
+        ui/tools.kv'deki `<BudgetPlannerPanel@MDCard>` yeniden örneklenir ve
+        `self._budget_planner_panel`'e konur (bkz. _planner_ids). Ay seçici,
+        projeksiyon ve kalem listesi panel kurulduktan SONRA doldurulur —
+        aksi halde diyalog boş ay seçiciyle açılırdı.
+        """
+        from kivy.factory import Factory
+        from kivymd.uix.button import MDFlatButton
+        from kivymd.uix.dialog import MDDialog
+
+        old = getattr(self, "bp_planner_dialog", None)
+        if old is not None:
+            try:
+                old.dismiss()
+            except Exception:
+                pass
+
+        panel = Factory.BudgetPlannerPanel()
+        self._budget_planner_panel = panel
+        # Panelin detay listesini load_budget_list'e bağla (bu bağ olmadan
+        # liste hiç dolmuyordu — bp_list_container hiçbir yerde atanmıyordu).
+        self.bp_list_container = panel.ids.get("budget_detailed_list")
+
+        self.bp_planner_dialog = MDDialog(
+            type="custom", content_cls=panel,
+            buttons=[MDFlatButton(
+                text=_t("KAPAT"),
+                on_release=lambda _b: self.bp_planner_dialog.dismiss(),
+            )],
+        )
+
+        def _clear_panel_ref(*_args):
+            # Diyalog kapanınca canlı panel referansı bayatlar; _planner_ids
+            # kapalı bir panele yazmaya çalışmasın.
+            if getattr(self, "_budget_planner_panel", None) is panel:
+                self._budget_planner_panel = None
+                self.bp_list_container = None
+
+        self.bp_planner_dialog.bind(on_dismiss=_clear_panel_ref)
+        self.bp_planner_dialog.open()
+
+        # Panel ağaca girdikten sonra doldur (ids şimdi erişilebilir).
+        self.setup_dynamic_months()
+        self.change_budget_month(
+            getattr(self, "active_budget_month", datetime.date.today().month),
+            getattr(self, "active_budget_year", datetime.date.today().year),
+        )
+
+    # ── Kalem ekleme formu ──────────────────────────────────────────────────
+    def open_budget_item_form(self):
         from kivy.uix.gridlayout import GridLayout
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivymd.uix.button import MDFlatButton
