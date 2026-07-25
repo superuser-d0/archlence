@@ -1,59 +1,25 @@
-# Archlence
+# Archlence 📊
 
-Kişisel finans takibi için **yerel-öncelikli (local-first)**, Python + SQLite
-tabanlı bir masaüstü uygulaması. Kivy/KivyMD ile inşa edilmiş, sıradan bir
-harcama takip aracının ötesinde **"premium bankacılık"** hissiyatını
-hedefleyen bir arayüze sahip.
+Archlence is a local-first, privacy-centric personal finance and portfolio management application built with Python and Kivy. Designed with engineering rigor, it features a robust double-entry ledger system, automated subscription tracking, and real-time asset pricing.
 
-> 🚧 Aktif geliştirme aşamasında. Kaynak kod şu an **özel (private)**
-> tutuluyor — bu repo projenin vitrin/tanıtım sayfasıdır.
->
+## 🚀 Key Features
 
-## Öne Çıkan Özellikler
+* **Robust Ledger Architecture:** Built on a `SAVEPOINT`-backed reconciliation engine (`settle_due_transactions`) to guarantee data integrity and prevent orphan transactions.
+* **Smart Dynamic TTL Caching:** A non-blocking, asynchronous price-fetching service. Automatically adjusts caching TTL based on asset type and market hours (e.g., 3 mins for Crypto, 5 mins for active Stock markets, infinite during closed hours) ensuring 60 FPS UI performance.
+* **Subscription Radar & Interceptor:** Automatically detects recurring payments and known brands from credit card transactions, placing them into an active subscription management flow with automated budget synchronization.
+* **Local-First & Privacy Focused:** Your financial data belongs to you. Archlence runs locally entirely on SQLite without phoning home to third-party tracking servers.
+* **Production-Ready:** Covered by a comprehensive test suite with 270+ passing unit and E2E tests, ensuring zero regressions on core financial logic.
 
-- **Yerel-öncelikli mimari** — verileriniz cihazınızdan çıkmaz; bulut yok,
-  üçüncü taraf sunucu yok.
-- **Şifreli veri katmanı** — hassas alanlar AES-256-CBC ile şifrelenir.
-- **Kredi kartı mantığı** — borç, işaretli (negatif) bakiye konvansiyonuyla
-  modellenir; net servet hesaplaması tek bir `SUM` ile doğru çıkar.
-- **İzole birikim hedefleri** — hedefe ayrılan para, ana hesaptan atomik
-  olarak izole edilir; harcama olarak görünmez.
-- **RK4 (4. derece Runge-Kutta) servet projeksiyonu** — mevcut gelir/gider
-  ivmenize göre 30 günlük bir ODE simülasyonuyla varlık tahmini üretir.
-- **What-if senaryo sandbox'ı** — gelir/gider yüzde değişimi ve özel ufuk
-  parametreleriyle taban senaryoya karşı karşılaştırmalı projeksiyon.
-- **Bakiye zaman makinesi** — point-in-time geçmiş bakiye sorgusu ve iki
-  tarih arası diff/karşılaştırma.
-- **Premium / Standart tema sistemi** — açık/koyu mod ve özel Indigo
-  "Premium Banking" paleti arasında dinamik geçiş, tercih kalıcı.
-- **Otomatik abonelik radarı** — tekrarlayan işlemleri istatistiksel olarak
-  tespit edip "sessiz sızıntı" adaylarını yüzeye çıkarır; haftalık/iki
-  haftalık/aylık/üç aylık/yıllık periyotları otomatik takibe alabilir.
-- **İstatistiksel anomali tespiti** — z-skoru tabanlı harcama sapması
-  uyarıları, kalıcı olarak gizlenebilir.
-- **Finansal Sağlık Skoru** — tasarruf oranı, borç oranı ve oynaklık
-  bileşenlerinden hesaplanan, geçmişi saklanan ve trend grafiğiyle
-  gösterilen bir skor.
-- **Çoklu dil (TR/EN)** — yerel i18n katmanı ile arayüz dili değiştirilebilir.
+## 🛠️ Tech Stack
 
-## Yol Haritası
+* **Core:** Python
+* **UI Framework:** Kivy / KivyMD (Modular Mixin Architecture)
+* **Database:** SQLite (Relational structure with Pragma validations)
+* **Testing:** `unittest` (Headless Xvfb / SDL2 environment compatibility)
 
-- [x] Otomatik abonelik radarı ve istatistiksel anomali tespiti
-- [x] Finansal Sağlık Skoru (hesaplama, kalıcılık, trend grafiği)
-- [x] Bakiye zaman makinesi (point-in-time geçmiş & diff)
-- [x] What-if senaryo sandbox'ı
-- [ ] Windows paket dağıtımının tamamlanması (build pipeline var, ikon ve
-      smoke test ekleniyor)
-- [ ] Linux paketleme (AppImage)
+## 🧠 AI / LLM Vision (Upcoming)
 
-## Ekran Görüntüleri
-
-_(yakında eklenecek)_
-
-## Teknoloji
-
-Python · SQLite · Kivy / KivyMD
-
-## İletişim
-
-Sorularınız veya ilginiz için: **support@archlence.com**
+Archlence is currently integrating advanced LLM capabilities to act as a personal, privacy-first financial advisor. Planned features include:
+* **Natural Language to SQL:** Querying local financial data conversationally (e.g., *"How much did I spend on digital subscriptions in the last 3 months?"*).
+* **Algorithmic Foresight:** Projecting future balances and offering 50-30-20 rule optimizations based on historical spending behavior.
+* **Receipt Parsing:** Local OCR combined with LLM parsing to instantly categorize and input transactions via JSON.

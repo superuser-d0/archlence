@@ -1444,8 +1444,33 @@ class ArchlenceApp(
             self.root.ids.advice_icon.text_color = ftheme.accent(self.theme_cls, "blue")
 
     # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Dialogs & Reset Functionality
     # -------------------------------------------------------------------------
+    def show_calendar_view(self):
+        from kivymd.uix.pickers import MDDatePicker
+        date_dialog = MDDatePicker(primary_color=self.theme_cls.primary_color)
+        date_dialog.bind(on_save=self.on_calendar_date_save, on_cancel=lambda *args: None)
+        date_dialog.open()
+
+    def on_calendar_date_save(self, instance, value, date_range):
+        # value is a datetime.date object
+        import datetime
+        from kivymd.toast import toast
+        from services.transaction_service import get_connection
+        
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) as cnt FROM transactions WHERE date(transaction_date) = ?",
+            (value.strftime("%Y-%m-%d"),)
+        )
+        count = cursor.fetchone()["cnt"]
+        conn.close()
+        
+        msg = f"{value.strftime('%d.%m.%Y')} - " + self.tr(f"{count} işlem bulundu.", self.language)
+        toast(msg)
+
     def contact_us(self):
         import webbrowser
         

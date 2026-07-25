@@ -56,12 +56,26 @@ class TransactionMixin:
             _t("Miktar (₺)"), self.theme_cls,
             size_hint_y=None, height=dp(48),
         ))
+        
+        from kivymd.uix.card import MDCard
+        self.amount_card = MDCard(
+            size_hint_y=None, height=dp(56),
+            padding=[dp(12), dp(4), dp(12), dp(4)],
+            ripple_behavior=True,
+            radius=[dp(8)],
+        )
+        self.amount_card.md_bg_color = self.theme_cls.bg_dark if self.theme_cls.theme_style == "Dark" else self.theme_cls.bg_light
+        self.amount_card.add_widget(self.amount_input)
+        self.amount_card.bind(on_release=lambda *args: setattr(self.amount_input, 'focus', True))
 
         # Segment ve butonlara açık yükseklik: adaptive konteynerde her çocuğun
         # size_hint_y=None + net height olmalı, yoksa kutu doğru ölçülmez.
-        self.type_segment = MDSegmentedControl(size_hint_x=1, size_hint_y=None, height="48dp")
-        self.type_segment.add_widget(MDSegmentedControlItem(text=_t("Gelir")))
+        self.type_segment = MDSegmentedControl(
+            size_hint_x=1, size_hint_y=None, height="48dp",
+            segment_color=self.theme_cls.primary_color,
+        )
         self.type_segment.add_widget(MDSegmentedControlItem(text=_t("Gider")))
+        self.type_segment.add_widget(MDSegmentedControlItem(text=_t("Gelir")))
         self.type_segment.bind(on_active=self.on_segment_active)
 
         self.category_button = ftheme.primary_button(
@@ -151,7 +165,10 @@ class TransactionMixin:
         )
         self.recurrence_day_input.text = str(datetime.date.today().day)
 
-        self.recurring_freq_segment = MDSegmentedControl(size_hint_x=1, size_hint_y=None, height="48dp")
+        self.recurring_freq_segment = MDSegmentedControl(
+            size_hint_x=1, size_hint_y=None, height="48dp",
+            segment_color=self.theme_cls.primary_color,
+        )
         self.recurring_freq_segment.add_widget(MDSegmentedControlItem(text=_t("Aylık")))
         self.recurring_freq_segment.add_widget(MDSegmentedControlItem(text=_t("Yıllık")))
         self.recurring_freq_segment.bind(on_active=self.on_recurring_freq_active)
@@ -192,7 +209,10 @@ class TransactionMixin:
             text=_t("Ödeme Tipi"), font_style="Caption", theme_text_color="Secondary",
             size_hint_y=None, height=dp(18),
         )
-        self.installment_segment = MDSegmentedControl(size_hint_x=1, size_hint_y=None, height="48dp")
+        self.installment_segment = MDSegmentedControl(
+            size_hint_x=1, size_hint_y=None, height="48dp",
+            segment_color=self.theme_cls.primary_color,
+        )
         self.installment_segment.add_widget(MDSegmentedControlItem(text=_t("Tek Çekim")))
         self.installment_segment.add_widget(MDSegmentedControlItem(text=_t("Taksitli")))
         self.installment_segment.bind(on_active=self._on_installment_mode_active)
@@ -214,7 +234,7 @@ class TransactionMixin:
         self._installment_box.add_widget(self.installment_segment)
         # _installment_count_box başta EKLENMEZ: Tek Çekim varsayılandır.
 
-        dialog_layout.add_widget(self.amount_input)
+        dialog_layout.add_widget(self.amount_card)
         dialog_layout.add_widget(self.type_segment)
         dialog_layout.add_widget(self.category_button)
         dialog_layout.add_widget(self._date_box)

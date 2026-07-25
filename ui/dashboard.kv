@@ -1703,6 +1703,40 @@ MDScreen:
                                         padding: "20dp"
                                         spacing: "10dp"
                                         ripple_behavior: True
+                                        on_release: app.show_calendar_view()
+                                        MDFloatLayout:
+                                            size_hint: None, None
+                                            size: "48dp", "48dp"
+                                            canvas.before:
+                                                Color:
+                                                    rgba: (0.1, 0.6, 0.9, 0.15)
+                                                RoundedRectangle:
+                                                    pos: self.pos
+                                                    size: self.size
+                                                    radius: [24]
+                                            MDIcon:
+                                                icon: "calendar-search"
+                                                font_size: "24sp"
+                                                theme_text_color: "Custom"
+                                                text_color: ftheme.accent(app.theme_cls.theme_style, 'blue')
+                                                pos_hint: {"center_x": .5, "center_y": .5}
+                                        Widget:
+                                        MDLabel:
+                                            text: app.tr("Takvim", app.language)
+                                            font_style: "Subtitle1"
+                                            bold: True
+
+                                    MDCard:
+                                        elevation: 0
+                                        line_color: ftheme.card_line(app.theme_cls.theme_style)
+                                        size_hint_y: None
+                                        height: "140dp"
+                                        radius: [24]
+                                        md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+                                        orientation: "vertical"
+                                        padding: "20dp"
+                                        spacing: "10dp"
+                                        ripple_behavior: True
                                         on_release: app.open_calculator("basic")
                                         MDFloatLayout:
                                             size_hint: None, None

@@ -62,6 +62,8 @@ EN = {
     "BÜTÇEYE EKLE": "ADD TO BUDGET",
     "Kategori veya serbest metin seç": "Choose a category or free text",
     "Serbest plan adı": "Custom plan name",
+    "Takvim": "Calendar",
+    "{} işlem bulundu.": "{} transaction(s) found.",
     "Serbest metin gir": "Enter free text",
     "Geçen ayın kalanını/aşımını devret": "Carry over last month's remainder/overrun",
     "Her ay otomatik tekrarla (şablon)": "Repeat automatically every month (template)",

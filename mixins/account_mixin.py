@@ -97,6 +97,7 @@ class AccountMixin:
         type_control = MDSegmentedControl(
             pos_hint={"center_x": 0.5},
             segment_panel_height=SEG_H,
+            segment_color=self.theme_cls.primary_color,
         )
         type_checking = MDSegmentedControlItem(text=_t("Nakit / Vadesiz"))
         type_credit = MDSegmentedControlItem(text=_t("Kredi Kartı"))

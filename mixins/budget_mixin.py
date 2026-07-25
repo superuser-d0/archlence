@@ -315,7 +315,7 @@ class BudgetMixin:
         self.bp_type_segment = MDSegmentedControl(
             size_hint_y=None, height=dp(42), radius=dp(10),
             md_bg_color=ftheme.muted_bg(self.theme_cls),
-            segment_color=ftheme.elevated_bg(self.theme_cls),
+            segment_color=self.theme_cls.primary_color,
             separator_color=(0, 0, 0, 0),
             segment_switching_transition="out_cubic",
         )
@@ -397,7 +397,7 @@ class BudgetMixin:
         self.bp_frequency_segment = MDSegmentedControl(
             size_hint_y=None, height=dp(42), radius=dp(10),
             md_bg_color=ftheme.muted_bg(self.theme_cls),
-            segment_color=ftheme.elevated_bg(self.theme_cls),
+            segment_color=self.theme_cls.primary_color,
             separator_color=(0, 0, 0, 0),
             segment_switching_transition="out_cubic",
         )
