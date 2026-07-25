@@ -60,6 +60,15 @@ def initialize_database():
         )
     """)
 
+
+    cursor.execute("PRAGMA table_info(transactions)")
+    existing_trans_cols = {row[1] for row in cursor.fetchall()}
+    if "status" not in existing_trans_cols:
+        cursor.execute("ALTER TABLE transactions ADD COLUMN status TEXT DEFAULT 'completed'")
+    if "execution_date" not in existing_trans_cols:
+        cursor.execute("ALTER TABLE transactions ADD COLUMN execution_date TEXT")
+
+
     # 3. Kategoriler Tablosu
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS categories (
@@ -197,6 +206,24 @@ def initialize_database():
             cursor.execute("DROP TABLE asset_price_cache_legacy")
     else:
         cursor.execute(ASSET_PRICE_CACHE_SCHEMA)
+
+
+    # 7. Abonelikler Tablosu
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            amount REAL NOT NULL,
+            currency TEXT DEFAULT 'TRY',
+            billing_cycle TEXT DEFAULT 'monthly',
+            next_billing_date TEXT,
+            status TEXT DEFAULT 'active',
+            logo_url TEXT,
+            cancellation_date TEXT,
+            refund_amount REAL DEFAULT 0
+        )
+    ''')
+
 
     # 7. Tekrarlanan Ödemeler Tablosu (Kira, Netflix, Spotify vb.)
     cursor.execute("""
@@ -431,19 +458,8 @@ def initialize_database():
     # 4. Varsayılan Hesapları Ekle
     cursor.execute("SELECT COUNT(*) FROM accounts")
     if cursor.fetchone()[0] == 0:
-        # balance İŞARETLİ tutulur: kredi kartı borcu NEGATİF bakiyedir
-        # (bkz. database/db.py::adjust_account_balance docstring'i).
-        accounts = [
-            ("Nakit", "cash", 2500, "checking", 0, None),
-            ("Banka", "bank", 15000, "checking", 0, None),
-            ("Kredi Kartı", "credit", -3500, "credit_card", 20000, 15),
-        ]
-        cursor.executemany(
-            "INSERT INTO accounts(name,type,balance,account_type,credit_limit,statement_date)"
-            " VALUES(?,?,?,?,?,?)",
-            accounts,
-        )
-        conn.commit()
+        # Dummy veriler kaldırıldı, başlangıçta hesap oluşturulmayacak.
+        pass
 
     # 5. Kapsamlı Varsayılan Kategorileri Ekle (importance verisiyle birlikte)
     cursor.execute("SELECT COUNT(*) FROM categories")

@@ -1,4 +1,6 @@
-from database.db import get_connection, adjust_account_balance
+from database.db import (
+    COMPLETED_TX, COMPLETED_TX_T, get_connection, adjust_account_balance,
+)
 from services.account_service import AccountService
 from utils.crypto import encrypt, decrypt
 from datetime import datetime
@@ -57,6 +59,16 @@ class TransactionService:
             if not allowed:
                 raise ValueError(reason)
 
+        # Hesabın varlığını burada doğrula: ileri tarihli (pending) kayıtlar
+        # adjust_account_balance'ı HİÇ çağırmaz, dolayısıyla oradaki koruma bu
+        # yolu kapsamaz. Kontrol olmasa sahipsiz bir pending satırı yazılır ve
+        # vadesi geldiğinde settle sırasında sessizce başarısız olurdu.
+        if not AccountService.account_exists(account_id):
+            raise ValueError(
+                f"Hesap bulunamadı (id={account_id}); işlem kaydedilemedi. "
+                "Önce bir hesap oluşturulmalı."
+            )
+
         conn = get_connection()
         try:
             cursor = conn.cursor()
@@ -73,14 +85,22 @@ class TransactionService:
             # saat diliminde kalır.
             date_now = transaction_date or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+            # Check if transaction is in the future
+            from datetime import datetime as dt
+            parsed_date = dt.strptime(date_now[:10], "%Y-%m-%d") if len(date_now) >= 10 else dt.now()
+            is_future = parsed_date.date() > dt.now().date()
+            status = 'pending' if is_future else 'completed'
+
             cursor.execute("""
-                INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (account_id, encrypted_amount, transaction_type, category, encrypted_description, date_now))
+                INSERT INTO transactions (account_id, amount, type, category, description, transaction_date, status, execution_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (account_id, encrypted_amount, transaction_type, category, encrypted_description, date_now, status, date_now))
 
             # Hesaplar Kopuk düzeltmesi: accounts.balance işlemle aynı commit'te
             # senkron güncellenir (gelir artırır, gider azaltır).
-            adjust_account_balance(cursor, account_id, transaction_type, amount)
+            # SADECE geçmiş veya bugüne ait işlemler bakiyeye etki eder!
+            if not is_future:
+                adjust_account_balance(cursor, account_id, transaction_type, amount)
 
             if installments:
                 # Taksit planı işlemle AYNI commit'te yazılır (atomiklik).
@@ -103,6 +123,157 @@ class TransactionService:
             conn.commit()
         finally:
             conn.close()
+
+    @staticmethod
+    def settle_due_transactions(today=None):
+        """Vadesi gelmiş ileri tarihli işlemleri bakiyeye işler.
+
+        add_transaction ileri tarihli bir kaydı status='pending' yazar ve
+        bakiyeye DOKUNMAZ (bankacılık davranışı: para tarih gelmeden hesapta
+        görünmez). Bu metod o kayıtları vadesi geldiğinde 'completed'e çevirip
+        bakiyeyi uygular; çağrılmazsa ileri tarihli gelir/gider bakiyeye hiç
+        yansımaz.
+
+        Her satır kendi SAVEPOINT'inde işlenir: tutarı çözülemeyen bozuk tek
+        bir kayıt, vadesi gelen diğer işlemleri bloklamaz. Sorgu 'pending'e
+        göre filtrelediği ve satırı 'completed' yaptığı için tekrar çağrılmak
+        güvenlidir (idempotent) — aynı işlem iki kez bakiyeye işlenmez.
+
+        Kredi limiti burada YENİDEN kontrol edilmez: vadesi gelen bir fatura
+        gerçek hayatta da limit dolu diye "işlenmemiş" sayılmaz, karta borç
+        olarak düşer. Limit kontrolü kaydın oluşturulduğu anda yapılmıştır.
+
+        Bakiyeye işlenen işlem sayısını döndürür.
+        """
+        reference_day = today or datetime.now().strftime("%Y-%m-%d")
+
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, account_id, amount, type FROM transactions"
+                " WHERE status = 'pending' AND date(execution_date) <= date(?)"
+                " ORDER BY date(execution_date), id",
+                (reference_day,),
+            )
+            due_rows = cursor.fetchall()
+
+            settled = 0
+            for row in due_rows:
+                try:
+                    amount = float(decrypt(str(row["amount"]), SECRET_KEY))
+                except Exception:
+                    # Tutar çözülemiyorsa bakiyeye körlemesine dokunmaktansa
+                    # kaydı pending bırak; kullanıcı veriyi düzeltebilir.
+                    continue
+
+                cursor.execute("SAVEPOINT settle_tx")
+                try:
+                    adjust_account_balance(
+                        cursor, row["account_id"], row["type"], amount,
+                        ref_id=row["id"],
+                    )
+                    cursor.execute(
+                        "UPDATE transactions SET status = 'completed' WHERE id = ?",
+                        (row["id"],),
+                    )
+                except Exception:
+                    cursor.execute("ROLLBACK TO SAVEPOINT settle_tx")
+                else:
+                    cursor.execute("RELEASE SAVEPOINT settle_tx")
+                    settled += 1
+
+            conn.commit()
+        finally:
+            conn.close()
+
+        return settled
+
+    @staticmethod
+    def get_pending_transactions():
+        """Henüz vadesi gelmemiş (bakiyeye işlenmemiş) işlemleri döndürür.
+
+        "Bekleyen İşlemler" panelinin veri kaynağı. Tutar/açıklama şifreli
+        olduğu için Python'da çözülür; sıralama düz kolon üzerinden SQL'de.
+        """
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, account_id, amount, type, category, description,"
+                " execution_date FROM transactions WHERE status = 'pending'"
+                " ORDER BY date(execution_date), id"
+            )
+            rows = cursor.fetchall()
+        finally:
+            conn.close()
+
+        items = []
+        for r in rows:
+            try:
+                amount = float(decrypt(str(r["amount"]), SECRET_KEY))
+            except Exception:
+                amount = 0.0
+            try:
+                description = decrypt(str(r["description"]), SECRET_KEY) or ""
+            except Exception:
+                description = ""
+            items.append({
+                "id": r["id"],
+                "account_id": r["account_id"],
+                "amount": amount,
+                "type": r["type"],
+                "category": r["category"] or "",
+                "description": description.strip() or (r["category"] or "İşlem"),
+                "execution_date": (r["execution_date"] or "")[:10],
+            })
+        return items
+
+    @staticmethod
+    def cancel_pending_transaction(transaction_id):
+        """Bekleyen bir işlemi siler.
+
+        Yalnızca status='pending' satırları silinir; bakiyeye işlenmiş bir
+        kaydın buradan sessizce yok edilmesi bakiye ile defteri ayrıştırırdı.
+        Silindiyse True döner.
+        """
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM transactions WHERE id = ? AND status = 'pending'",
+                (int(transaction_id),),
+            )
+            deleted = cursor.rowcount
+            conn.commit()
+        finally:
+            conn.close()
+        return deleted > 0
+
+    @staticmethod
+    def reschedule_pending_transaction(transaction_id, new_date):
+        """Bekleyen bir işlemin vadesini değiştirir.
+
+        Yeni tarih bugüne çekilirse kayıt bir sonraki settle turunda
+        kendiliğinden bakiyeye işlenir — burada ayrıca bakiye uygulanmaz ki
+        işleme mantığı tek yerde (settle_due_transactions) kalsın.
+        """
+        day = str(new_date)[:10]
+        datetime.strptime(day, "%Y-%m-%d")  # biçim doğrulaması
+
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE transactions SET transaction_date = ?, execution_date = ?"
+                " WHERE id = ? AND status = 'pending'",
+                (day, day, int(transaction_id)),
+            )
+            updated = cursor.rowcount
+            conn.commit()
+        finally:
+            conn.close()
+        return updated > 0
 
     @staticmethod
     def get_installment_plans(account_id):
@@ -173,11 +344,15 @@ class TransactionService:
         else:
             date_cond = "= date('now', 'localtime')"
             
+        # status filtresi: ileri tarihli (pending) işlemler bakiyeye
+        # işlenmediği için raporlanan gelir/gider/tasarruf metriklerine de
+        # girmemeli — yoksa bakiye ile dashboard birbirini tutmaz.
         cursor.execute(f"""
-            SELECT t.amount, t.type, t.category, t.transaction_date, c.importance 
-            FROM transactions t 
-            LEFT JOIN categories c ON t.category = c.name 
+            SELECT t.amount, t.type, t.category, t.transaction_date, c.importance
+            FROM transactions t
+            LEFT JOIN categories c ON t.category = c.name
             WHERE date(t.transaction_date) {date_cond}
+              AND {COMPLETED_TX_T}
         """)
         rows = cursor.fetchall()
         conn.close()
@@ -216,6 +391,7 @@ class TransactionService:
             sql = (
                 "SELECT amount, type, category, description, transaction_date"
                 " FROM transactions WHERE account_id = ?"
+                f" AND {COMPLETED_TX}"
                 " ORDER BY transaction_date DESC, id DESC"
             )
             params = [int(account_id)]

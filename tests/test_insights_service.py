@@ -19,7 +19,10 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-class InsightsServiceTestCase(unittest.TestCase):
+from tests.fixtures import AccountFixtureMixin
+
+
+class InsightsServiceTestCase(AccountFixtureMixin, unittest.TestCase):
 
     def setUp(self):
         fd, self.db_path = tempfile.mkstemp(suffix=".db")
@@ -30,6 +33,17 @@ class InsightsServiceTestCase(unittest.TestCase):
 
         from database.init_db import initialize_database
         initialize_database()
+        # initialize_database varsayılan hesap açmıyor. Tekrarlanan ödemenin
+        # gerçekten yazıldığını doğrulayan test bakiyeye dokunduğu için
+        # DEFAULT_ACCOUNT_ID'ye karşılık gelen bir hesap kurulmalı.
+        from database.db import DEFAULT_ACCOUNT_ID
+        self.account_id = self.create_test_account(
+            name="İçgörü Testi Vadesiz", balance=100_000.0)
+        self.assertEqual(
+            self.account_id, DEFAULT_ACCOUNT_ID,
+            "Fixture hesabı DEFAULT_ACCOUNT_ID ile aynı id'yi almalı;"
+            " insert_recurring_payment varsayılan hesabı kullanıyor.",
+        )
 
     def tearDown(self):
         self._patcher.stop()

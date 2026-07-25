@@ -22,7 +22,7 @@ import json
 import statistics
 from datetime import datetime, timedelta
 
-from database.db import get_connection, SECRET_KEY
+from database.db import COMPLETED_TX, get_connection, SECRET_KEY
 from utils.crypto import decrypt
 
 # ── Ayarlanabilir eşikler ──────────────────────────────────────────────────
@@ -121,12 +121,15 @@ def _load_transactions(lookback_days, types):
     conn = get_connection()
     cursor = conn.cursor()
     placeholders = ",".join("?" for _ in types)
+    # Abonelik radarı ve anomali tespiti gerçekleşmiş harcama davranışına
+    # bakar; ileri tarihli (pending) kayıtlar henüz olmamış harcamalardır.
     cursor.execute(
         f"""
         SELECT id, amount, type, category, description, transaction_date
         FROM transactions
         WHERE type IN ({placeholders})
           AND date(transaction_date) >= date('now', ?, 'localtime')
+          AND {COMPLETED_TX}
         ORDER BY transaction_date ASC
         """,
         (*types, f"-{int(lookback_days)} days"),

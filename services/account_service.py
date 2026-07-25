@@ -210,6 +210,33 @@ class AccountService:
         return AccountService._to_dict(row) if row else None
 
     @staticmethod
+    def account_exists(account_id):
+        """Hesap var mı? (Tüm satırı çözmeye gerek olmayan hızlı kontrol.)
+
+        İşlem yazan akışlar bunu ön koşul olarak kullanır: varsayılan hesap
+        seed'i kaldırıldığından DEFAULT_ACCOUNT_ID taze kurulumda hiçbir satıra
+        denk gelmiyor ve kontrol edilmezse sahipsiz kayıt oluşuyordu.
+        """
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT 1 FROM accounts WHERE id = ?", (account_id,)
+            ).fetchone()
+        finally:
+            conn.close()
+        return row is not None
+
+    @staticmethod
+    def has_any_account():
+        """Kullanıcı hiç hesap oluşturmuş mu? Onboarding kapısının koşulu."""
+        conn = get_connection()
+        try:
+            row = conn.execute("SELECT 1 FROM accounts LIMIT 1").fetchone()
+        finally:
+            conn.close()
+        return row is not None
+
+    @staticmethod
     def get_net_worth():
         """Net serveti bileşenleriyle birlikte döndürür.
 

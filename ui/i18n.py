@@ -529,6 +529,13 @@ EN = {
     "Bütçeniz dengede.": "Your budget is balanced.",
     "Dikkat: Planlanan giderler, gelirlerinizi aşıyor. Bütçeniz eksiye düşecek!": "Warning: Planned expenses exceed your income. Your budget will run a deficit!",
     "Dikkat: Gelir ve gideriniz başa baş. Bütçenizde hiç esneme payı yok.": "Warning: Your income and expenses break even. Your budget has no buffer.",
+    # --- Onboarding: zorunlu ilk hesap oluşturma ekranı ---
+    "İlk Hesabını Oluştur": "Create Your First Account",
+    "Gelir ve giderlerin bir hesaba işlenmesi gerekir. Dilediğin zaman Kartlarım sekmesinden yeni hesap veya kart ekleyebilirsin.": "Income and expenses must post to an account. You can add more accounts or cards any time from the My Cards tab.",
+    "Hesap Adı (Örn: Nakit Cüzdanım)": "Account Name (e.g. My Cash Wallet)",
+    "Nakit Cüzdanım": "My Cash Wallet",
+    "HESABI OLUŞTUR": "CREATE ACCOUNT",
+
     # --- 2026-07-23: çeviri katmanından geçmeyen dizeler taraması ---
     "Anapara": "Principal",
     "Ay": "Month",

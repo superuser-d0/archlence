@@ -108,6 +108,8 @@ MDScreen:
                         size_hint_x: 0.8
                         pos_hint: {"center_x": .5}
                         multiline: False
+                        write_tab: False
+                        on_text_validate: pin_confirm_input.focus = True
 
                     MDTextField:
                         id: pin_confirm_input
@@ -118,6 +120,7 @@ MDScreen:
                         size_hint_x: 0.8
                         pos_hint: {"center_x": .5}
                         multiline: False
+                        write_tab: False
                         on_text_validate: app.setup_pin()
 
                     MDLabel:
@@ -144,6 +147,75 @@ MDScreen:
                         text_size: self.width, None
                         size_hint_y: None
                         height: self.texture_size[1]
+
+        # --- İLK AÇILIŞ: ZORUNLU İLK HESAP OLUŞTURMA ---
+        # Varsayılan hesap seed'i kaldırıldığı için taze kurulumda hiç hesap
+        # yoktur. İşlem yazan her akış bir hesap id'si gerektirdiğinden, hesap
+        # oluşturulmadan dashboard'a geçilmesine izin verilmez (bkz.
+        # app.route_after_auth / app.create_first_account).
+        MDScreen:
+            name: "account_setup"
+            MDFloatLayout:
+                MDBoxLayout:
+                    orientation: "vertical"
+                    padding: "40dp"
+                    spacing: "18dp"
+                    pos_hint: {"center_x": .5, "center_y": .5}
+                    size_hint_y: None
+                    height: "420dp"
+
+                    MDLabel:
+                        text: app.tr("İlk Hesabını Oluştur", app.language)
+                        font_style: "H5"
+                        halign: "center"
+                        theme_text_color: "Primary"
+                        bold: True
+
+                    MDLabel:
+                        text: app.tr("Gelir ve giderlerin bir hesaba işlenmesi gerekir. Dilediğin zaman Kartlarım sekmesinden yeni hesap veya kart ekleyebilirsin.", app.language)
+                        font_style: "Caption"
+                        theme_text_color: "Secondary"
+                        halign: "center"
+                        size_hint_x: 0.85
+                        pos_hint: {"center_x": .5}
+                        text_size: self.width, None
+                        size_hint_y: None
+                        height: self.texture_size[1]
+
+                    MDTextField:
+                        id: first_account_name_input
+                        hint_text: app.tr("Hesap Adı (Örn: Nakit Cüzdanım)", app.language)
+                        text: app.tr("Nakit Cüzdanım", app.language)
+                        size_hint_x: 0.8
+                        pos_hint: {"center_x": .5}
+                        multiline: False
+                        write_tab: False
+                        on_text_validate: first_account_balance_input.focus = True
+
+                    MDTextField:
+                        id: first_account_balance_input
+                        hint_text: app.tr("Başlangıç Bakiyesi (₺)", app.language)
+                        text: "0"
+                        input_filter: "float"
+                        size_hint_x: 0.8
+                        pos_hint: {"center_x": .5}
+                        multiline: False
+                        write_tab: False
+                        on_text_validate: app.create_first_account()
+
+                    MDLabel:
+                        id: first_account_error_label
+                        text: ""
+                        theme_text_color: "Error"
+                        halign: "center"
+                        size_hint_y: None
+                        height: "28dp"
+
+                    MDRaisedButton:
+                        text: app.tr("HESABI OLUŞTUR", app.language)
+                        size_hint_x: 0.6
+                        pos_hint: {"center_x": .5}
+                        on_release: app.create_first_account()
 
         # --- GİRİŞ EKRANI ---
         MDScreen:
@@ -734,72 +806,6 @@ MDScreen:
                                         spacing: "10dp"
 
 
-
-                                # YENİ: AYLIK BÜTÇE PLANI KARTI
-                                MDCard:
-                                    elevation: 0
-                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
-                                    orientation: "vertical"
-                                    padding: "16dp"
-                                    spacing: "10dp"
-                                    size_hint_y: None
-                                    height: "240dp"
-                                    radius: [24, 24, 24, 24]
-                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
-
-                                    MDBoxLayout:
-                                        size_hint_y: None
-                                        height: "30dp"
-                                        spacing: "10dp"
-                                        MDIcon:
-                                            id: projection_icon
-                                            icon: "calendar-month"
-                                            size_hint_x: None
-                                            width: "28dp"
-                                            theme_text_color: "Custom"
-                                            text_color: app.theme_cls.primary_color
-                                            font_size: "24sp"
-                                        MDLabel:
-                                            text: app.tr("Aylık Bütçe Planı", app.language)
-                                            font_style: "H6"
-                                            bold: True
-                                        MDIconButton:
-                                            icon: "chart-timeline-variant"
-                                            size_hint_x: None
-                                            width: "48dp"
-                                            tooltip_text: app.tr("Geçmiş / Trend", app.language)
-                                            pos_hint: {"center_y": .5}
-                                            on_release: app.show_budget_trend()
-                                        MDIconButton:
-                                            icon: "pencil-outline"
-                                            size_hint_x: None
-                                            width: "48dp"
-                                            pos_hint: {"center_y": .5}
-                                            on_release: app.show_budget_planner()
-
-                                    # YENİ: Yatay Ay Seçici
-                                    ScrollView:
-                                        do_scroll_y: False
-                                        do_scroll_x: True
-                                        size_hint_y: None
-                                        height: "40dp"
-                                        
-                                        MDBoxLayout:
-                                            id: month_selector_container
-                                            orientation: "horizontal"
-                                            adaptive_width: True
-                                            spacing: "10dp"
-                                            
-                                            # Dinamik Olarak Python Tarafından Doldurulacak
-
-                                    MDLabel:
-                                        id: projection_label
-                                        text: app.tr("Ay seçin ve plan oluşturun...", app.language)
-                                        theme_text_color: "Secondary"
-                                        font_style: "Body2"
-                                        halign: "left"
-                                        valign: "top"
-                                        text_size: self.width, None
 
                                 # YENİ: AKTİF BORÇLARIM KARTI
                                 MDCard:
@@ -1578,250 +1584,329 @@ MDScreen:
                             elevation: 4
                         
                         ScrollView:
-                            MDGridLayout:
-                                cols: 2
-                                padding: "20dp"
-                                spacing: "20dp"
-                                size_hint_y: None
-                                height: self.minimum_height
-                                
+                            MDBoxLayout:
+                                orientation: 'vertical'
+                                spacing: '20dp'
+                                padding: '20dp'
+                                adaptive_height: True
+                                # YENİ: AYLIK BÜTÇE PLANI KARTI
                                 MDCard:
                                     elevation: 0
                                     line_color: ftheme.card_line(app.theme_cls.theme_style)
-                                    size_hint_y: None
-                                    height: "140dp"
-                                    radius: [24]
-                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
                                     orientation: "vertical"
-                                    padding: "20dp"
+                                    padding: "16dp"
                                     spacing: "10dp"
-                                    ripple_behavior: True
-                                    on_release: app.open_calculator("basic")
-                                    MDFloatLayout:
-                                        size_hint: None, None
-                                        size: "48dp", "48dp"
-                                        canvas.before:
-                                            Color:
-                                                rgba: (0.18, 0.8, 0.25, 0.15)
-                                            RoundedRectangle:
-                                                pos: self.pos
-                                                size: self.size
-                                                radius: [24]
-                                        MDIcon:
-                                            icon: "calculator-variant"
-                                            font_size: "24sp"
-                                            theme_text_color: "Custom"
-                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
-                                            pos_hint: {"center_x": .5, "center_y": .5}
-                                    Widget:
-                                    MDLabel:
-                                        text: app.tr("Hesap\nMakinesi", app.language)
-                                        font_style: "Subtitle1"
-                                        bold: True
-                                
-                                MDCard:
-                                    elevation: 0
-                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     size_hint_y: None
-                                    height: "140dp"
-                                    radius: [24]
+                                    height: "400dp"
+                                    radius: [24, 24, 24, 24]
                                     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
-                                    orientation: "vertical"
-                                    padding: "20dp"
-                                    spacing: "10dp"
-                                    ripple_behavior: True
-                                    on_release: app.open_calculator("interest")
-                                    MDFloatLayout:
-                                        size_hint: None, None
-                                        size: "48dp", "48dp"
-                                        canvas.before:
-                                            Color:
-                                                rgba: (0.13, 0.59, 0.95, 0.15)
-                                            RoundedRectangle:
-                                                pos: self.pos
-                                                size: self.size
-                                                radius: [24]
-                                        MDIcon:
-                                            icon: "percent-outline"
-                                            font_size: "24sp"
-                                            theme_text_color: "Custom"
-                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'blue')
-                                            pos_hint: {"center_x": .5, "center_y": .5}
-                                    Widget:
-                                    MDLabel:
-                                        text: app.tr("Faiz\nGetirisi", app.language)
-                                        font_style: "Subtitle1"
-                                        bold: True
 
-                                MDCard:
-                                    elevation: 0
-                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
-                                    size_hint_y: None
-                                    height: "140dp"
-                                    radius: [24]
-                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
-                                    orientation: "vertical"
-                                    padding: "20dp"
-                                    spacing: "10dp"
-                                    ripple_behavior: True
-                                    on_release: app.open_calculator("compound")
-                                    MDFloatLayout:
-                                        size_hint: None, None
-                                        size: "48dp", "48dp"
-                                        canvas.before:
-                                            Color:
-                                                rgba: (0.6, 0.2, 0.8, 0.15)
-                                            RoundedRectangle:
-                                                pos: self.pos
-                                                size: self.size
-                                                radius: [24]
+                                    MDBoxLayout:
+                                        size_hint_y: None
+                                        height: "30dp"
+                                        spacing: "10dp"
                                         MDIcon:
-                                            icon: "trending-up"
-                                            font_size: "24sp"
+                                            id: projection_icon
+                                            icon: "calendar-month"
+                                            size_hint_x: None
+                                            width: "28dp"
                                             theme_text_color: "Custom"
-                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'purple')
-                                            pos_hint: {"center_x": .5, "center_y": .5}
-                                    Widget:
-                                    MDLabel:
-                                        text: app.tr("Bileşik\nFaiz", app.language)
-                                        font_style: "Subtitle1"
-                                        bold: True
-
-                                MDCard:
-                                    elevation: 0
-                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
-                                    size_hint_y: None
-                                    height: "140dp"
-                                    radius: [24]
-                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
-                                    orientation: "vertical"
-                                    padding: "20dp"
-                                    spacing: "10dp"
-                                    ripple_behavior: True
-                                    on_release: app.open_calculator("loan")
-                                    MDFloatLayout:
-                                        size_hint: None, None
-                                        size: "48dp", "48dp"
-                                        canvas.before:
-                                            Color:
-                                                rgba: (0.9, 0.2, 0.3, 0.15)
-                                            RoundedRectangle:
-                                                pos: self.pos
-                                                size: self.size
-                                                radius: [24]
-                                        MDIcon:
-                                            icon: "bank"
+                                            text_color: app.theme_cls.primary_color
                                             font_size: "24sp"
-                                            theme_text_color: "Custom"
-                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'red')
-                                            pos_hint: {"center_x": .5, "center_y": .5}
-                                    Widget:
-                                    MDLabel:
-                                        text: app.tr("Kredi\nHesaplama", app.language)
-                                        font_style: "Subtitle1"
-                                        bold: True
-
-                                MDCard:
-                                    elevation: 0
-                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
-                                    size_hint_y: None
-                                    height: "140dp"
-                                    radius: [24]
-                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
-                                    orientation: "vertical"
-                                    padding: "20dp"
-                                    spacing: "10dp"
-                                    ripple_behavior: True
-                                    on_release: app.open_calculator("savings_goal")
-                                    MDFloatLayout:
-                                        size_hint: None, None
-                                        size: "48dp", "48dp"
-                                        canvas.before:
-                                            Color:
-                                                rgba: (0.95, 0.6, 0.1, 0.15)
-                                            RoundedRectangle:
-                                                pos: self.pos
-                                                size: self.size
-                                                radius: [24]
-                                        MDIcon:
-                                            icon: "bullseye-arrow"
-                                            font_size: "24sp"
-                                            theme_text_color: "Custom"
-                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'amber')
-                                            pos_hint: {"center_x": .5, "center_y": .5}
-                                    Widget:
-                                    MDLabel:
-                                        text: app.tr("Birikim\nHedefi", app.language)
-                                        font_style: "Subtitle1"
-                                        bold: True
-
-                                MDCard:
-                                    elevation: 0
-                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
-                                    size_hint_y: None
-                                    height: "140dp"
-                                    radius: [24]
-                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
-                                    orientation: "vertical"
-                                    padding: "20dp"
-                                    spacing: "10dp"
-                                    ripple_behavior: True
-                                    on_release: app.open_scenario_sandbox()
-                                    MDFloatLayout:
-                                        size_hint: None, None
-                                        size: "48dp", "48dp"
-                                        canvas.before:
-                                            Color:
-                                                rgba: (0.13, 0.59, 0.95, 0.15)
-                                            RoundedRectangle:
-                                                pos: self.pos
-                                                size: self.size
-                                                radius: [24]
-                                        MDIcon:
+                                        MDLabel:
+                                            text: app.tr("Aylık Bütçe Planı", app.language)
+                                            font_style: "H6"
+                                            bold: True
+                                        MDIconButton:
                                             icon: "chart-timeline-variant"
-                                            font_size: "24sp"
-                                            theme_text_color: "Custom"
-                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'blue')
-                                            pos_hint: {"center_x": .5, "center_y": .5}
-                                    Widget:
-                                    MDLabel:
-                                        text: app.tr("What-If\nSandbox", app.language)
-                                        font_style: "Subtitle1"
-                                        bold: True
+                                            size_hint_x: None
+                                            width: "48dp"
+                                            tooltip_text: app.tr("Geçmiş / Trend", app.language)
+                                            pos_hint: {"center_y": .5}
+                                            on_release: app.show_budget_trend()
+                                        MDIconButton:
+                                            icon: "pencil-outline"
+                                            size_hint_x: None
+                                            width: "48dp"
+                                            pos_hint: {"center_y": .5}
+                                            on_release: app.show_budget_planner()
 
-                                MDCard:
-                                    elevation: 0
-                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
-                                    size_hint_y: None
-                                    height: "140dp"
-                                    radius: [24]
-                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
-                                    orientation: "vertical"
-                                    padding: "20dp"
-                                    spacing: "10dp"
-                                    ripple_behavior: True
-                                    on_release: app.confirm_delete_all_data()
-                                    MDFloatLayout:
-                                        size_hint: None, None
-                                        size: "48dp", "48dp"
-                                        canvas.before:
-                                            Color:
-                                                rgba: (0.9, 0.2, 0.2, 0.15)
-                                            RoundedRectangle:
-                                                pos: self.pos
-                                                size: self.size
-                                                radius: [24]
-                                        MDIcon:
-                                            icon: "delete-alert-outline"
-                                            font_size: "24sp"
-                                            theme_text_color: "Custom"
-                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'red')
-                                            pos_hint: {"center_x": .5, "center_y": .5}
-                                    Widget:
+                                    # YENİ: Yatay Ay Seçici
+                                    ScrollView:
+                                        do_scroll_y: False
+                                        do_scroll_x: True
+                                        size_hint_y: None
+                                        height: "40dp"
+
+                                        MDBoxLayout:
+                                            id: month_selector_container
+                                            orientation: "horizontal"
+                                            adaptive_width: True
+                                            spacing: "10dp"
+
+                                            # Dinamik Olarak Python Tarafından Doldurulacak
+
                                     MDLabel:
-                                        text: app.tr("Verileri\nSıfırla", app.language)
-                                        font_style: "Subtitle1"
-                                        bold: True
+                                        id: projection_label
+                                        text: app.tr("Ay seçin ve plan oluşturun...", app.language)
+                                        theme_text_color: "Secondary"
+                                        font_style: "Body2"
+                                        halign: "left"
+                                        valign: "top"
+                                        text_size: self.width, None
+
+                                    # DETAYLI LİSTE ALANI
+                                    ScrollView:
+                                        size_hint_y: 1
+                                        MDBoxLayout:
+                                            id: budget_detailed_list
+                                            orientation: 'vertical'
+                                            adaptive_height: True
+                                            spacing: '5dp'
+                                MDGridLayout:
+                                    cols: 2
+                                    padding: "20dp"
+                                    spacing: "20dp"
+                                    size_hint_y: None
+                                    height: self.minimum_height
+
+                                    MDCard:
+                                        elevation: 0
+                                        line_color: ftheme.card_line(app.theme_cls.theme_style)
+                                        size_hint_y: None
+                                        height: "140dp"
+                                        radius: [24]
+                                        md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+                                        orientation: "vertical"
+                                        padding: "20dp"
+                                        spacing: "10dp"
+                                        ripple_behavior: True
+                                        on_release: app.open_calculator("basic")
+                                        MDFloatLayout:
+                                            size_hint: None, None
+                                            size: "48dp", "48dp"
+                                            canvas.before:
+                                                Color:
+                                                    rgba: (0.18, 0.8, 0.25, 0.15)
+                                                RoundedRectangle:
+                                                    pos: self.pos
+                                                    size: self.size
+                                                    radius: [24]
+                                            MDIcon:
+                                                icon: "calculator-variant"
+                                                font_size: "24sp"
+                                                theme_text_color: "Custom"
+                                                text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
+                                                pos_hint: {"center_x": .5, "center_y": .5}
+                                        Widget:
+                                        MDLabel:
+                                            text: app.tr("Hesap\nMakinesi", app.language)
+                                            font_style: "Subtitle1"
+                                            bold: True
+
+                                    MDCard:
+                                        elevation: 0
+                                        line_color: ftheme.card_line(app.theme_cls.theme_style)
+                                        size_hint_y: None
+                                        height: "140dp"
+                                        radius: [24]
+                                        md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+                                        orientation: "vertical"
+                                        padding: "20dp"
+                                        spacing: "10dp"
+                                        ripple_behavior: True
+                                        on_release: app.open_calculator("interest")
+                                        MDFloatLayout:
+                                            size_hint: None, None
+                                            size: "48dp", "48dp"
+                                            canvas.before:
+                                                Color:
+                                                    rgba: (0.13, 0.59, 0.95, 0.15)
+                                                RoundedRectangle:
+                                                    pos: self.pos
+                                                    size: self.size
+                                                    radius: [24]
+                                            MDIcon:
+                                                icon: "percent-outline"
+                                                font_size: "24sp"
+                                                theme_text_color: "Custom"
+                                                text_color: ftheme.accent(app.theme_cls.theme_style, 'blue')
+                                                pos_hint: {"center_x": .5, "center_y": .5}
+                                        Widget:
+                                        MDLabel:
+                                            text: app.tr("Faiz\nGetirisi", app.language)
+                                            font_style: "Subtitle1"
+                                            bold: True
+
+                                    MDCard:
+                                        elevation: 0
+                                        line_color: ftheme.card_line(app.theme_cls.theme_style)
+                                        size_hint_y: None
+                                        height: "140dp"
+                                        radius: [24]
+                                        md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+                                        orientation: "vertical"
+                                        padding: "20dp"
+                                        spacing: "10dp"
+                                        ripple_behavior: True
+                                        on_release: app.open_calculator("compound")
+                                        MDFloatLayout:
+                                            size_hint: None, None
+                                            size: "48dp", "48dp"
+                                            canvas.before:
+                                                Color:
+                                                    rgba: (0.6, 0.2, 0.8, 0.15)
+                                                RoundedRectangle:
+                                                    pos: self.pos
+                                                    size: self.size
+                                                    radius: [24]
+                                            MDIcon:
+                                                icon: "trending-up"
+                                                font_size: "24sp"
+                                                theme_text_color: "Custom"
+                                                text_color: ftheme.accent(app.theme_cls.theme_style, 'purple')
+                                                pos_hint: {"center_x": .5, "center_y": .5}
+                                        Widget:
+                                        MDLabel:
+                                            text: app.tr("Bileşik\nFaiz", app.language)
+                                            font_style: "Subtitle1"
+                                            bold: True
+
+                                    MDCard:
+                                        elevation: 0
+                                        line_color: ftheme.card_line(app.theme_cls.theme_style)
+                                        size_hint_y: None
+                                        height: "140dp"
+                                        radius: [24]
+                                        md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+                                        orientation: "vertical"
+                                        padding: "20dp"
+                                        spacing: "10dp"
+                                        ripple_behavior: True
+                                        on_release: app.open_calculator("loan")
+                                        MDFloatLayout:
+                                            size_hint: None, None
+                                            size: "48dp", "48dp"
+                                            canvas.before:
+                                                Color:
+                                                    rgba: (0.9, 0.2, 0.3, 0.15)
+                                                RoundedRectangle:
+                                                    pos: self.pos
+                                                    size: self.size
+                                                    radius: [24]
+                                            MDIcon:
+                                                icon: "bank"
+                                                font_size: "24sp"
+                                                theme_text_color: "Custom"
+                                                text_color: ftheme.accent(app.theme_cls.theme_style, 'red')
+                                                pos_hint: {"center_x": .5, "center_y": .5}
+                                        Widget:
+                                        MDLabel:
+                                            text: app.tr("Kredi\nHesaplama", app.language)
+                                            font_style: "Subtitle1"
+                                            bold: True
+
+                                    MDCard:
+                                        elevation: 0
+                                        line_color: ftheme.card_line(app.theme_cls.theme_style)
+                                        size_hint_y: None
+                                        height: "140dp"
+                                        radius: [24]
+                                        md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+                                        orientation: "vertical"
+                                        padding: "20dp"
+                                        spacing: "10dp"
+                                        ripple_behavior: True
+                                        on_release: app.open_calculator("savings_goal")
+                                        MDFloatLayout:
+                                            size_hint: None, None
+                                            size: "48dp", "48dp"
+                                            canvas.before:
+                                                Color:
+                                                    rgba: (0.95, 0.6, 0.1, 0.15)
+                                                RoundedRectangle:
+                                                    pos: self.pos
+                                                    size: self.size
+                                                    radius: [24]
+                                            MDIcon:
+                                                icon: "bullseye-arrow"
+                                                font_size: "24sp"
+                                                theme_text_color: "Custom"
+                                                text_color: ftheme.accent(app.theme_cls.theme_style, 'amber')
+                                                pos_hint: {"center_x": .5, "center_y": .5}
+                                        Widget:
+                                        MDLabel:
+                                            text: app.tr("Birikim\nHedefi", app.language)
+                                            font_style: "Subtitle1"
+                                            bold: True
+
+                                    MDCard:
+                                        elevation: 0
+                                        line_color: ftheme.card_line(app.theme_cls.theme_style)
+                                        size_hint_y: None
+                                        height: "140dp"
+                                        radius: [24]
+                                        md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+                                        orientation: "vertical"
+                                        padding: "20dp"
+                                        spacing: "10dp"
+                                        ripple_behavior: True
+                                        on_release: app.open_scenario_sandbox()
+                                        MDFloatLayout:
+                                            size_hint: None, None
+                                            size: "48dp", "48dp"
+                                            canvas.before:
+                                                Color:
+                                                    rgba: (0.13, 0.59, 0.95, 0.15)
+                                                RoundedRectangle:
+                                                    pos: self.pos
+                                                    size: self.size
+                                                    radius: [24]
+                                            MDIcon:
+                                                icon: "chart-timeline-variant"
+                                                font_size: "24sp"
+                                                theme_text_color: "Custom"
+                                                text_color: ftheme.accent(app.theme_cls.theme_style, 'blue')
+                                                pos_hint: {"center_x": .5, "center_y": .5}
+                                        Widget:
+                                        MDLabel:
+                                            text: app.tr("What-If\nSandbox", app.language)
+                                            font_style: "Subtitle1"
+                                            bold: True
+
+                                    MDCard:
+                                        elevation: 0
+                                        line_color: ftheme.card_line(app.theme_cls.theme_style)
+                                        size_hint_y: None
+                                        height: "140dp"
+                                        radius: [24]
+                                        md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+                                        orientation: "vertical"
+                                        padding: "20dp"
+                                        spacing: "10dp"
+                                        ripple_behavior: True
+                                        on_release: app.confirm_delete_all_data()
+                                        MDFloatLayout:
+                                            size_hint: None, None
+                                            size: "48dp", "48dp"
+                                            canvas.before:
+                                                Color:
+                                                    rgba: (0.9, 0.2, 0.2, 0.15)
+                                                RoundedRectangle:
+                                                    pos: self.pos
+                                                    size: self.size
+                                                    radius: [24]
+                                            MDIcon:
+                                                icon: "delete-alert-outline"
+                                                font_size: "24sp"
+                                                theme_text_color: "Custom"
+                                                text_color: ftheme.accent(app.theme_cls.theme_style, 'red')
+                                                pos_hint: {"center_x": .5, "center_y": .5}
+                                        Widget:
+                                        MDLabel:
+                                            text: app.tr("Verileri\nSıfırla", app.language)
+                                            font_style: "Subtitle1"
+                                            bold: True
 
                 # ==== 4. SEKME: AYARLAR ====
                 MDBottomNavigationItem:

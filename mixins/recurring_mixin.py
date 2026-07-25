@@ -145,9 +145,25 @@ class RecurringMixin:
 
         def process():
             try:
+                from services.account_service import AccountService
+                # Hiç hesap yoksa (onboarding tamamlanmamış) yazılacak bir yer
+                # de yok; denemek yalnızca "hesap bulunamadı" hatası üretirdi.
+                if not AccountService.has_any_account():
+                    return
+
                 today = datetime.date.today()
                 ui_needs_refresh = False
-                
+
+                # 0. VADESİ GELEN İLERİ TARİHLİ İŞLEMLER
+                # Kullanıcının ileri tarih seçerek girdiği maaş/fatura kayıtları
+                # o güne kadar bakiyeye işlenmez; vadesi gelenler burada
+                # bakiyeye aktarılır. İdempotent, her açılışta güvenle çağrılır.
+                try:
+                    if TransactionService.settle_due_transactions():
+                        ui_needs_refresh = True
+                except Exception as exc:
+                    print("Bekleyen işlemler işlenemedi:", exc)
+
                 # 1. MEVCUT TEKRARLANAN ÖDEMELER (Kira, Faturalar vb.)
                 payments = get_active_recurring_payments()
                 due_auto = [

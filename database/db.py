@@ -19,6 +19,17 @@ NETWORK_LOGOS = {
     "Troy": "assets/troy.png",
 }
 
+# İleri tarihli (status='pending') işlemler bakiyeye HENÜZ işlenmemiştir
+# (bkz. TransactionService.settle_due_transactions). Bu yüzden bakiyeyi
+# yansıtan her raporlama sorgusu — gelir/gider metrikleri, tasarruf oranı,
+# trend, kategori toplamları, "Son İşlemler" — bu koşulu eklemek ZORUNDA;
+# yoksa dashboard bakiyeden fazlasını gösterir ve ikisi birbirini tutmaz.
+# COALESCE, status kolonu eklenmeden önce yazılmış eski satırları kapsar.
+# İstisna: veri dökümü/migration ve "Bekleyen İşlemler" paneli tüm
+# satırları görmek ister, onlar bu koşulu kullanmaz.
+COMPLETED_TX = "COALESCE(status, 'completed') = 'completed'"
+COMPLETED_TX_T = "COALESCE(t.status, 'completed') = 'completed'"
+
 def get_connection():
     conn = sqlite3.connect(DB_NAME, check_same_thread=False, timeout=10)
     conn.row_factory = sqlite3.Row
@@ -101,6 +112,17 @@ def adjust_account_balance(cursor, account_id, transaction_type, amount,
         "UPDATE accounts SET balance = balance + ? WHERE id = ?",
         (delta, account_id),
     )
+    # Var olmayan bir hesaba yazmak SQLite'ta hata değildir; UPDATE sessizce 0
+    # satır etkiler ve para hiçbir yere gitmemiş olur. Bu, varsayılan hesap
+    # seed'i kaldırıldıktan sonra gerçek bir veri kaybı yoluydu: DEFAULT_ACCOUNT_ID
+    # artık taze kurulumda hiçbir satıra denk gelmiyor. Sessiz kaybı gürültülü
+    # hataya çeviriyoruz — çağıranın commit'i çalışmayacağı için işlem satırı da
+    # yazılmaz, yani yarım kayıt kalmaz (atomik geri alma).
+    if cursor.rowcount == 0:
+        raise ValueError(
+            f"Hesap bulunamadı (id={account_id}); işlem bakiyeye yazılamadı. "
+            "Önce bir hesap oluşturulmalı."
+        )
     # [Faz 2 · defter 1/6] Aynı cursor, aynı commit.
     record_balance_event(
         cursor, ACCOUNT, account_id, delta,

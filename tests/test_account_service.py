@@ -14,7 +14,10 @@ import unittest
 from unittest import mock
 
 
-class AccountServiceTestCase(unittest.TestCase):
+from tests.fixtures import AccountFixtureMixin
+
+
+class AccountServiceTestCase(AccountFixtureMixin, unittest.TestCase):
 
     def setUp(self):
         fd, self.db_path = tempfile.mkstemp(suffix=".db")
@@ -27,6 +30,9 @@ class AccountServiceTestCase(unittest.TestCase):
 
         from database.init_db import initialize_database
         initialize_database()
+        # initialize_database varsayılan hesap açmıyor; bu paket eskiden onun
+        # seed'ine bel bağlıyordu, artık kendi hesaplarını kuruyor.
+        self.seed_account_ids = self.create_legacy_seed_accounts()
 
     def tearDown(self):
         self._patcher.stop()
@@ -42,7 +48,14 @@ class AccountServiceTestCase(unittest.TestCase):
     # ─── Şema / migration ────────────────────────────────────────────────────
 
     def test_schema_has_new_columns(self):
-        cols = set(self._raw_accounts()[0].keys())
+        # Şemayı satır üzerinden değil PRAGMA ile okur: bu bir şema testi,
+        # tabloda veri bulunmasına bağlı olmamalı (eskiden seed hesabın
+        # varlığına bel bağlıyordu ve seed kalkınca çökmüştü).
+        conn = sqlite3.connect(self.db_path)
+        try:
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(accounts)")}
+        finally:
+            conn.close()
         self.assertIn("account_type", cols)
         self.assertIn("credit_limit", cols)
         self.assertIn("statement_date", cols)

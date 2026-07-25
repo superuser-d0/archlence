@@ -6,7 +6,10 @@ from datetime import date
 from unittest import mock
 
 
-class BudgetTrackingServiceTest(unittest.TestCase):
+from tests.fixtures import AccountFixtureMixin
+
+
+class BudgetTrackingServiceTest(AccountFixtureMixin, unittest.TestCase):
     def setUp(self):
         fd, self.db_path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
@@ -14,6 +17,10 @@ class BudgetTrackingServiceTest(unittest.TestCase):
         self.db_patch.start()
         from database.init_db import initialize_database
         initialize_database()
+        # İşlem yazan yardımcılar (_expense) bir hesap gerektirir; varsayılan
+        # hesap seed'i kaldırıldığı için testin kendi hesabını kurması gerekir.
+        self.account_id = self.create_test_account(
+            name="Bütçe Testi Vadesiz", balance=1_000_000.0)
 
     def tearDown(self):
         self.db_patch.stop()
@@ -42,7 +49,7 @@ class BudgetTrackingServiceTest(unittest.TestCase):
     def _expense(self, category, amount, when):
         from services.transaction_service import TransactionService
         TransactionService.add_transaction(
-            account_id=1,
+            account_id=self.account_id,
             amount=amount,
             transaction_type="expense",
             category=category,

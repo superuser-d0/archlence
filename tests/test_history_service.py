@@ -23,7 +23,17 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-class _LedgerTestBase(unittest.TestCase):
+from tests.fixtures import AccountFixtureMixin, LEGACY_SEED_TOTAL
+
+
+class _LedgerTestBase(AccountFixtureMixin, unittest.TestCase):
+    """Defter testlerinin ortak iskeleti.
+
+    `initialize_database()` artık varsayılan hesap açmadığı için (kullanıcı
+    kendi eklemediği bakiyeyi görmesin diye seed kaldırıldı), hesaplara ihtiyaç
+    duyan testler bunları fixture ile AÇIKÇA kurar; böylece üretim seed'i
+    değişse bile bu paket kırılmaz.
+    """
 
     def setUp(self):
         fd, self.db_path = tempfile.mkstemp(suffix=".db")
@@ -32,6 +42,9 @@ class _LedgerTestBase(unittest.TestCase):
         self._patcher.start()
         from database.init_db import initialize_database
         initialize_database()
+        # Eski seed'in üç hesabı (net 14000.0) — defter/replay testleri gerçek
+        # accounts.balance toplamıyla karşılaştırma yaptığı için gerekli.
+        self.seed_account_ids = self.create_legacy_seed_accounts()
 
     def tearDown(self):
         self._patcher.stop()

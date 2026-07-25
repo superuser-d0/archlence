@@ -185,16 +185,20 @@ def _download_batch(tickers: list[str]) -> dict[str, float]:
         return {}
     import yfinance as yf
 
-    data = yf.download(
-        tickers[0] if len(tickers) == 1 else tickers,
-        period="5d", progress=False, threads=True,
-    )
-    return {
-        ticker: price
-        for ticker in tickers
-        if (price := _extract_last_close(data, ticker, len(tickers) == 1))
-        is not None
-    }
+    try:
+        data = yf.download(
+            tickers[0] if len(tickers) == 1 else tickers,
+            period="5d", progress=False, threads=True, timeout=10,
+        )
+        return {
+            ticker: price
+            for ticker in tickers
+            if (price := _extract_last_close(data, ticker, len(tickers) == 1))
+            is not None
+        }
+    except Exception as e:
+        logger.error(f"Fiyat çekme hatası (timeout/ağ): {e}")
+        return {}
 
 
 def _schedule_callback(callback, prices) -> None:

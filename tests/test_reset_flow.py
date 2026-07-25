@@ -122,13 +122,13 @@ class ResetFlowTest(unittest.TestCase):
 
         self.assertEqual(ready_states, [False])
         self.assertTrue(asset_service._asset_data_cache["ready"])
+        # Sıfırlama artık TEMİZ SAYFA bırakır: initialize_database varsayılan
+        # hesap seed'lemediği için ("kullanıcının eklemediği 2500 TL nakit"
+        # şikayeti) yeniden ısıtılan cache boş gelmelidir. İlk hesabı kullanıcı
+        # onboarding ekranında oluşturur (bkz. main.py::route_after_auth).
         self.assertEqual(
             {row["name"] for row in asset_service._asset_data_cache["accounts"]},
-            {"Nakit", "Banka", "Kredi Kartı"},
-        )
-        self.assertNotIn(
-            "Yapıkredi",
-            {row["name"] for row in asset_service._asset_data_cache["accounts"]},
+            set(),
         )
         self.assertEqual(app._assets_cache, [])
         self.assertEqual(app._liquid_balance_cache, 0.0)

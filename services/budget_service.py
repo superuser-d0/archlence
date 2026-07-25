@@ -7,7 +7,9 @@ yapılmaz; tüm parasal toplamlar Python'da çözülüp hesaplanır.
 from collections import defaultdict
 from datetime import date
 
-from database.db import get_active_recurring_payments, get_connection
+from database.db import (
+    COMPLETED_TX, get_active_recurring_payments, get_connection,
+)
 from utils.crypto import decrypt
 
 SECRET_KEY = "fi" + "nora_secure_2026"
@@ -146,11 +148,14 @@ def calculate_monthly_budget(target_month, target_year=None):
 def _actual_category_totals(target_month, target_year):
     conn = get_connection()
     try:
+        # "Gerçekleşen" harcama = bakiyeye işlenmiş harcama. İleri tarihli
+        # (pending) kayıt henüz para çıkışı değil, bütçe ilerlemesini şişirmemeli.
         rows = conn.execute(
             "SELECT category, amount FROM transactions "
             "WHERE type IN ('expense', 'Gider') "
             "AND strftime('%m', transaction_date) = ? "
-            "AND strftime('%Y', transaction_date) = ?",
+            "AND strftime('%Y', transaction_date) = ? "
+            f"AND {COMPLETED_TX}",
             (f"{int(target_month):02d}", str(int(target_year))),
         ).fetchall()
     finally:

@@ -182,9 +182,11 @@ class BudgetMixin:
         )
         self.bp_name_container.add_widget(self.bp_name_input)
 
-        amount_row = MDBoxLayout(
+        amount_row = MDCard(
             orientation="horizontal", size_hint_y=None, height=dp(62),
             spacing=dp(8), padding=[dp(16), 0, dp(8), 0],
+            radius=[dp(10)], elevation=0, md_bg_color=(0, 0, 0, 0),
+            ripple_behavior=True,
         )
         self.bp_currency_label = MDLabel(
             text="₺", font_style="H5", halign="center", valign="center",
@@ -198,6 +200,7 @@ class BudgetMixin:
             size_hint_y=None, height=dp(58),
             padding=[dp(12), dp(12), dp(8), dp(12)],
         )
+        amount_row.bind(on_release=lambda *args: setattr(self.bp_amount_input, 'focus', True))
         amount_row.add_widget(self.bp_currency_label)
         amount_row.add_widget(self.bp_amount_input)
 
@@ -272,6 +275,7 @@ class BudgetMixin:
             padding=[dp(12), 0, dp(10), 0], spacing=dp(8),
             radius=[dp(10)], elevation=0,
             md_bg_color=(0, 0, 0, 0),
+            ripple_behavior=True,
         )
         self.bp_advanced_button.bind(
             on_release=self._toggle_budget_advanced
@@ -632,51 +636,63 @@ class BudgetMixin:
             self.bp_selected_type, name, amount, month, year, category,
             int(self.bp_rollover_switch.active), int(template), threshold,
         )
-        from database.db import get_connection
-        conn = get_connection()
-        try:
-            editing_id = getattr(self, "editing_item_id", None)
-            if editing_id and not getattr(self, "editing_item_is_template", False):
-                conn.execute(
-                    """UPDATE monthly_budget_plan SET
-                       type=?, name=?, amount=?, target_month=?, target_year=?,
-                       category_name=?, rollover_enabled=?, is_template=?,
-                       alert_threshold_pct=?
-                       WHERE id=? AND target_month=? AND target_year=?""",
-                    values + (editing_id, month, year),
-                )
-            else:
-                # Kalıtılmış şablon düzenleniyorsa bu aya somut override yaz.
-                insert_values = list(values)
-                if editing_id and getattr(self, "editing_item_is_template", False):
-                    insert_values[7] = 0
-                conn.execute(
-                    """INSERT INTO monthly_budget_plan
-                       (type,name,amount,target_month,target_year,category_name,
-                        rollover_enabled,is_template,alert_threshold_pct)
-                       VALUES (?,?,?,?,?,?,?,?,?)""",
-                    tuple(insert_values),
-                )
-            if propagate:
-                for child in self.months_grid.children:
-                    if not getattr(child, "is_selected", False):
-                        continue
-                    target = int(child.month_index)
-                    if target == month:
-                        continue
-                    copied = list(values)
-                    copied[3] = target
-                    copied[7] = 0
+
+        editing_id = getattr(self, "editing_item_id", None)
+        editing_item_is_template = getattr(self, "editing_item_is_template", False)
+
+        propagate_targets = []
+        if propagate:
+            for child in self.months_grid.children:
+                if getattr(child, "is_selected", False) and int(child.month_index) != month:
+                    propagate_targets.append(int(child.month_index))
+
+        def db_task():
+            from database.db import get_connection
+            conn = get_connection()
+            try:
+                if editing_id and not editing_item_is_template:
+                    conn.execute(
+                        """UPDATE monthly_budget_plan SET
+                           type=?, name=?, amount=?, target_month=?, target_year=?,
+                           category_name=?, rollover_enabled=?, is_template=?,
+                           alert_threshold_pct=?
+                           WHERE id=? AND target_month=? AND target_year=?""",
+                        values + (editing_id, month, year),
+                    )
+                else:
+                    insert_values = list(values)
+                    if editing_id and editing_item_is_template:
+                        insert_values[7] = 0
                     conn.execute(
                         """INSERT INTO monthly_budget_plan
                            (type,name,amount,target_month,target_year,category_name,
                             rollover_enabled,is_template,alert_threshold_pct)
                            VALUES (?,?,?,?,?,?,?,?,?)""",
-                        tuple(copied),
+                        tuple(insert_values),
                     )
-            conn.commit()
-        finally:
-            conn.close()
+                if propagate:
+                    for target in propagate_targets:
+                        copied = list(values)
+                        copied[3] = target
+                        copied[7] = 0
+                        conn.execute(
+                            """INSERT INTO monthly_budget_plan
+                               (type,name,amount,target_month,target_year,category_name,
+                                rollover_enabled,is_template,alert_threshold_pct)
+                               VALUES (?,?,?,?,?,?,?,?,?)""",
+                            tuple(copied),
+                        )
+                conn.commit()
+            finally:
+                conn.close()
+
+            from kivy.clock import Clock
+            Clock.schedule_once(lambda dt: self.on_save_success(category))
+
+        import threading
+        threading.Thread(target=db_task, daemon=True).start()
+
+    def on_save_success(self, category):
         self.editing_item_id = None
         self.editing_item_is_template = False
         self.bp_amount_input.text = ""

@@ -141,7 +141,10 @@ except BaseException as exc:
 # =========================================================================
 from utils.crypto import encrypt, decrypt
 from database.init_db import initialize_database
-from database.db import get_connection, ACCOUNT, record_balance_event
+from database.db import (
+    get_connection, ACCOUNT, record_balance_event,
+    COMPLETED_TX, COMPLETED_TX_T,
+)
 from services.transaction_service import TransactionService
 from services.queries import CategoryService
 
@@ -567,10 +570,11 @@ class ArchlenceApp(
         """Yalnızca veri üretir, hiçbir widget'a dokunmaz (thread güvenli)."""
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT t.amount, t.type, IFNULL(c.importance, 'extra') 
+        cursor.execute(f"""
+            SELECT t.amount, t.type, IFNULL(c.importance, 'extra')
             FROM transactions t
             LEFT JOIN categories c ON t.category = c.name
+            WHERE {COMPLETED_TX_T}
         """)
         rows = cursor.fetchall()
         conn.close()
@@ -612,7 +616,10 @@ class ArchlenceApp(
             else:
                 date_cond = "= date('now', 'localtime')"
 
-            cursor2.execute(f"SELECT amount, type FROM transactions WHERE date(transaction_date) {date_cond}")
+            cursor2.execute(
+                f"SELECT amount, type FROM transactions"
+                f" WHERE date(transaction_date) {date_cond} AND {COMPLETED_TX}"
+            )
             for t_amt, t_typ in cursor2.fetchall():
                 try:
                     val = float(decrypt(str(t_amt), SECRET_KEY))
@@ -634,10 +641,11 @@ class ArchlenceApp(
         try:
             conn_pred = get_connection()
             cursor_pred = conn_pred.cursor()
-            cursor_pred.execute("""
+            cursor_pred.execute(f"""
                 SELECT type, amount
                 FROM transactions
                 WHERE date(transaction_date) >= date('now', '-30 days', 'localtime')
+                  AND {COMPLETED_TX}
             """)
             rows = cursor_pred.fetchall()
             conn_pred.close()
@@ -873,7 +881,8 @@ class ArchlenceApp(
         cur_t  = conn_t.cursor()
         cur_t.execute(
             "SELECT amount, type FROM transactions "
-            "WHERE date(transaction_date) = date('now', 'localtime')"
+            "WHERE date(transaction_date) = date('now', 'localtime') "
+            f"AND {COMPLETED_TX}"
         )
         for t_amt, t_typ in cur_t.fetchall():
             try:
@@ -936,7 +945,10 @@ class ArchlenceApp(
 
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT amount, type, transaction_date FROM transactions")
+        cursor.execute(
+            "SELECT amount, type, transaction_date FROM transactions"
+            f" WHERE {COMPLETED_TX}"
+        )
         rows = cursor.fetchall()
         conn.close()
         
@@ -1055,16 +1067,30 @@ class ArchlenceApp(
                 conn = get_connection()
                 cursor = conn.cursor()
                 
-                queries = {
-                    "Günlük": "SELECT type, category, amount, description, strftime('%d/%m %H:%M', transaction_date) FROM transactions WHERE date(transaction_date) = date('now', 'localtime') ORDER BY id DESC LIMIT 15",
-                    "Bugün": "SELECT type, category, amount, description, strftime('%d/%m %H:%M', transaction_date) FROM transactions WHERE date(transaction_date) = date('now', 'localtime') ORDER BY id DESC LIMIT 15",
-                    "1 Hafta": "SELECT type, category, amount, description, strftime('%d/%m %H:%M', transaction_date) FROM transactions WHERE date(transaction_date) >= date('now', '-7 days', 'localtime') ORDER BY id DESC LIMIT 15",
-                    "Haftalık": "SELECT type, category, amount, description, strftime('%d/%m %H:%M', transaction_date) FROM transactions WHERE date(transaction_date) >= date('now', '-7 days', 'localtime') ORDER BY id DESC LIMIT 15",
-                    "1 Ay": "SELECT type, category, amount, description, strftime('%d/%m %H:%M', transaction_date) FROM transactions WHERE strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime') ORDER BY id DESC LIMIT 15",
-                    "Aylık": "SELECT type, category, amount, description, strftime('%d/%m %H:%M', transaction_date) FROM transactions WHERE strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime') ORDER BY id DESC LIMIT 15"
+                # Tek gövde + filtreye özel tarih koşulu: aynı SELECT'i altı kez
+                # tekrarlamak, birine status filtresi eklemeyi unutmayı çok
+                # kolaylaştırıyordu. "Bekleyen İşlemler" ayrı panelde gösterilir,
+                # bu liste yalnızca bakiyeye işlenmiş kayıtları gösterir.
+                select_body = (
+                    "SELECT type, category, amount, description,"
+                    " strftime('%d/%m %H:%M', transaction_date) FROM transactions"
+                )
+                date_conds = {
+                    "Günlük": "date(transaction_date) = date('now', 'localtime')",
+                    "Bugün": "date(transaction_date) = date('now', 'localtime')",
+                    "1 Hafta": "date(transaction_date) >= date('now', '-7 days', 'localtime')",
+                    "Haftalık": "date(transaction_date) >= date('now', '-7 days', 'localtime')",
+                    "1 Ay": "strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime')",
+                    "Aylık": "strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime')",
                 }
-                
-                query = queries.get(list_filter, "SELECT type, category, amount, description, strftime('%d/%m %H:%M', transaction_date) FROM transactions ORDER BY id DESC LIMIT 15")
+                where_parts = [COMPLETED_TX]
+                date_cond = date_conds.get(list_filter)
+                if date_cond:
+                    where_parts.insert(0, date_cond)
+                query = (
+                    f"{select_body} WHERE {' AND '.join(where_parts)}"
+                    " ORDER BY id DESC LIMIT 15"
+                )
                 cursor.execute(query)
                 transactions_raw = cursor.fetchall()
                 conn.close()
@@ -1193,6 +1219,55 @@ class ArchlenceApp(
             pass
         return "pin_setup"
 
+    def route_after_auth(self):
+        """Kimlik doğrulama sonrası gidilecek ekran: 'account_setup' ya da 'home'.
+
+        Varsayılan hesap seed'i kaldırıldığından taze kurulumda hiç hesap
+        olmayabilir. İşlem yazan her akış geçerli bir hesap id'si gerektirir
+        (bkz. database/db.py::adjust_account_balance içindeki koruma), bu yüzden
+        hesap oluşturulmadan dashboard'a geçilmesine izin verilmez — aksi halde
+        kullanıcı gelir/gider girip hata mesajlarıyla karşılaşırdı.
+        """
+        try:
+            from services.account_service import AccountService
+            if not AccountService.has_any_account():
+                return "account_setup"
+        except Exception as exc:
+            # Kontrol edilemiyorsa kullanıcıyı kilitlemektense dashboard'a al.
+            print("Hesap kontrolü yapılamadı:", exc)
+        return "home"
+
+    def create_first_account(self):
+        """Onboarding ekranından ilk vadesiz/nakit hesabı oluşturur."""
+        from services.account_service import AccountService, CHECKING
+
+        name_field = self.root.ids.first_account_name_input
+        balance_field = self.root.ids.first_account_balance_input
+        error = self.root.ids.first_account_error_label
+
+        raw_balance = (balance_field.text or "0").strip().replace(",", ".")
+        try:
+            initial_balance = float(raw_balance or 0)
+        except ValueError:
+            error.text = translate("Geçerli bir tutar girin!")
+            return
+
+        try:
+            AccountService.create_account(
+                name=name_field.text,
+                account_type=CHECKING,
+                initial_balance=initial_balance,
+            )
+        except ValueError as exc:
+            error.text = translate(str(exc))
+            return
+
+        error.text = ""
+        self.root.ids.screen_manager.current = "home"
+        # Hesap yokken atlanan ilk yükleme adımlarını şimdi çalıştır.
+        Clock.schedule_once(lambda dt: self.render_accounts(), 0)
+        Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0.05)
+
     def setup_pin(self):
         pin = self.root.ids.pin_setup_input.text.strip()
         confirmation = self.root.ids.pin_confirm_input.text.strip()
@@ -1213,7 +1288,7 @@ class ArchlenceApp(
         error.text = ""
         self.root.ids.pin_setup_input.text = ""
         self.root.ids.pin_confirm_input.text = ""
-        self.root.ids.screen_manager.current = "home"
+        self.root.ids.screen_manager.current = self.route_after_auth()
 
     def check_login(self):
         pin = self.root.ids.password_input.text.strip()
@@ -1232,7 +1307,9 @@ class ArchlenceApp(
     def _handle_successful_login(self):
         self.root.ids.login_error_label.text = ""
         self.root.ids.password_input.text = ""
-        self.root.ids.screen_manager.current = "home"
+        # PIN'i olan mevcut kullanıcı da hesapsız kalabilir (verileri sıfırlarsa
+        # tüm tablolar boşalır), o yüzden giriş de aynı kapıdan geçer.
+        self.root.ids.screen_manager.current = self.route_after_auth()
 
     def _handle_failed_login(self):
         self.root.ids.login_error_label.text = translate("Hatalı PIN!")
@@ -1302,7 +1379,7 @@ class ArchlenceApp(
         conn = get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("SELECT category, amount FROM transactions WHERE type='expense' AND strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime')")
+        cursor.execute(f"SELECT category, amount FROM transactions WHERE type='expense' AND strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime') AND {COMPLETED_TX}")
         expense_rows_this_month = cursor.fetchall()
         
         cat_sums, this_month_exp = {}, 0.0
@@ -1314,10 +1391,10 @@ class ArchlenceApp(
             
         highest_cat_name = max(cat_sums, key=lambda k: cat_sums[k]) if cat_sums else "Yok"
         
-        cursor.execute("SELECT amount FROM transactions WHERE type='expense' AND strftime('%m', transaction_date) = strftime('%m', 'now', '-1 month', 'localtime')")
+        cursor.execute(f"SELECT amount FROM transactions WHERE type='expense' AND strftime('%m', transaction_date) = strftime('%m', 'now', '-1 month', 'localtime') AND {COMPLETED_TX}")
         last_month_exp = sum(float(decrypt(str(amt[0]), SECRET_KEY)) for amt in cursor.fetchall() if amt[0])
         
-        cursor.execute("SELECT amount FROM transactions WHERE type='income' AND strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime')")
+        cursor.execute(f"SELECT amount FROM transactions WHERE type='income' AND strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime') AND {COMPLETED_TX}")
         this_month_inc = sum(float(decrypt(str(amt[0]), SECRET_KEY)) for amt in cursor.fetchall() if amt[0])
         conn.close()
         
