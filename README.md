@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  Track accounts, transactions, recurring payments, debts, and investments from a single privacy-focused desktop application.
+  Track accounts, transactions, subscriptions, debts, credit cards, and investments from a privacy-focused desktop application.
 </p>
 
 <p align="center">
@@ -13,104 +13,84 @@
   <img alt="Kivy" src="https://img.shields.io/badge/UI-Kivy%20%2F%20KivyMD-5C3EE8">
   <img alt="SQLite" src="https://img.shields.io/badge/Storage-SQLite-003B57?logo=sqlite&logoColor=white">
   <img alt="Tests" src="https://img.shields.io/badge/tests-unittest-brightgreen">
-  <img alt="Local first" src="https://img.shields.io/badge/privacy-local--first-00A896">
+  <img alt="Privacy" src="https://img.shields.io/badge/privacy-local--first-00A896">
+  <img alt="Status" src="https://img.shields.io/badge/status-active%20development-orange">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-yellow">
 </p>
 
 ![Archlence dashboard](docs/screenshots/dashboard.png)
 
-> The screenshots use generated sample data. No real financial information is included.
+> All screenshots use generated sample data. No real financial information is included.
 
-## Why Archlence?
+## About Archlence
 
 Personal finance data should remain useful without becoming somebody else's dataset.
 
-Archlence stores its core financial records locally, combines everyday cash-flow tracking with investment monitoring, and turns transaction history into practical signals such as financial health, unusual spending, and upcoming obligations.
+Archlence is an independently maintained, local-first desktop application for personal finance, cash-flow analysis, recurring payments, debt tracking, credit cards, and portfolio monitoring.
 
-- **One financial overview:** balances, income, expenses, debts, subscriptions, and investments in one interface.
+The repository is public to support transparent development, technical review, and future community contributions. Archlence is still under active development and should not yet be considered production-ready financial infrastructure.
+
+## Why Archlence?
+
+- **One financial overview:** balances, income, expenses, debts, subscriptions, cards, and investments in one interface.
 - **Local-first storage:** core financial records are stored in a local SQLite database.
-- **Actionable insights:** financial health scoring, cash-flow projections, and anomaly detection.
+- **Actionable insights:** financial health scoring, cash-flow projections, and unusual-spending detection.
 - **Automated routines:** recurring-payment tracking, subscription detection, and scheduled deductions.
 - **Portfolio awareness:** stocks, cryptocurrencies, precious metals, and foreign currencies with background price refreshes.
-- **Desktop-focused experience:** dark and light modes with Turkish and English interface options.
+- **Desktop-focused experience:** Turkish and English interface options with dark and light modes.
+- **Open development:** technical debt, security work, and incomplete areas are documented rather than hidden.
 
-## Explore the application
+## Application overview
 
-### Cash-flow dashboard and financial insights
+### Dashboard and financial health
 
-The home screen brings together the current balance, period comparisons, algorithmic projections, and a financial health score.
+The dashboard combines current balance, period comparisons, algorithmic projections, a financial health score, active subscriptions, upcoming obligations, and recent activity.
 
-Archlence also surfaces active subscriptions, unusual expenses, open debts, upcoming payments, and recent transactions without requiring separate reports.
+![Dashboard and financial health](docs/screenshots/dashboard.png)
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/subscriptions.png" alt="Recurring subscriptions and payments"></td>
-    <td width="50%"><img src="docs/screenshots/insights.png" alt="Subscription radar and unusual spending insights"></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Recurring payments</strong><br>Review subscriptions, due dates, and automated payment activity.</td>
-    <td align="center"><strong>Smart insights</strong><br>Spot recurring-payment candidates and spending outside normal patterns.</td>
-  </tr>
-</table>
+### Portfolio overview
 
-### Portfolio tracking
-
-Monitor total wealth and profit or loss across supported asset classes.
-
-The portfolio view combines income and expense trends with allocation data, while the active-assets list keeps purchase price, quantity, and current performance visible. Historical entries preserve the story behind purchases and sales.
+Review income, expenses, allocation, balance trends, and active positions from a unified portfolio workspace.
 
 ![Portfolio overview](docs/screenshots/portfolio-overview.png)
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/active-assets.png" alt="Active investment positions"></td>
-    <td width="50%"><img src="docs/screenshots/asset-history.png" alt="Asset transaction history"></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Active positions</strong><br>Stocks, cryptocurrencies, gold, and currencies in a unified list.</td>
-    <td align="center"><strong>Asset history</strong><br>Trace purchases, sales, and realized outcomes.</td>
-  </tr>
-</table>
-
 Price refreshes run outside the main UI path and use asset-aware caching to keep navigation responsive while avoiding unnecessary requests.
 
-### Accounts, cards, and installment-aware transactions
+### Asset history
+
+Track historical buy and sell activity, review transaction-level outcomes, and preserve the timeline behind portfolio decisions.
+
+![Asset history](docs/screenshots/asset-history.png)
+
+### Accounts and credit cards
 
 Archlence supports cash and checking accounts as well as credit cards.
 
-Account balances contribute to net wealth using a consistent signed-balance model, while credit limits, card debt, statement details, and installment activity remain available in the account layer.
+Card views expose available limits, current debt, statement access, payment actions, and local card controls.
 
-![Accounts and cards](docs/screenshots/accounts.png)
+![Accounts and credit cards](docs/screenshots/mycards.png)
 
-Transaction creation supports:
+### Subscriptions and recurring-payment detection
 
-- income and expense categories;
-- account selection and backdated entries;
-- recurring monthly or yearly payments;
-- automatic deductions;
-- credit-card installments;
-- pending, rescheduled, and settled transactions.
+Review active subscriptions, upcoming renewal dates, monthly costs, and recurring-payment candidates detected from transaction history.
+
+![Subscriptions and recurring-payment detection](docs/screenshots/subscriptions.png)
+
+### Insights, debts, and upcoming payments
+
+Archlence highlights unusual spending, tracks active debts and installment progress, and keeps upcoming automatic payments visible from the same workflow.
+
+![Insights, debts, and upcoming payments](docs/screenshots/debts-and-payments.png)
 
 ### Financial planning tools
 
-The tools workspace groups frequently used planning features, including monthly budgets, a calendar, general and compound-interest calculators, loan planning, savings goals, what-if scenarios, and CSV-based data operations.
+The tools workspace includes monthly budgets, a calendar, general and compound-interest calculators, loan planning, savings goals, what-if scenarios, and local data operations.
 
 ![Financial tools](docs/screenshots/financial-tools.png)
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/loan-calculator.png" alt="Loan calculator"></td>
-    <td width="50%"><img src="docs/screenshots/payment-schedule.png" alt="Loan payment schedule"></td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Loan calculator</strong><br>Compare term, rate, and loan type before committing.</td>
-    <td align="center"><strong>Payment schedule</strong><br>Inspect principal, interest, and remaining balance month by month.</td>
-  </tr>
-</table>
-
 ### Personalization and privacy controls
 
-Choose Turkish or English, switch between light and dark appearances, select a visual theme, inspect balance history, and reset local data from a single settings screen.
+Choose Turkish or English, switch between light and dark appearances, manage categories, review balance history, and access local privacy controls.
 
 ![Settings](docs/screenshots/settings.png)
 
@@ -118,27 +98,28 @@ Choose Turkish or English, switch between light and dark appearances, select a v
 
 | Area | Capabilities |
 | --- | --- |
-| Dashboard | Period summaries, balance trends, projections, health score, and recent activity |
-| Transactions | Income and expense entry, categories, dates, pending items, and installments |
-| Subscriptions | Detection radar, recurring schedules, automatic deductions, price updates, and cancellation |
+| Dashboard | Period summaries, balance trends, projections, health score, subscriptions, debts, and recent activity |
+| Transactions | Income and expense entry, categories, dates, pending items, recurring entries, and installments |
+| Subscriptions | Detection radar, recurring schedules, automatic deductions, updates, and cancellation |
 | Budgeting | Monthly plans, category allocations, recurring-payment reservations, and trend review |
-| Accounts | Checking and cash accounts, credit cards, statements, limits, and available balance |
-| Investments | Multi-asset portfolio, price updates, profit/loss calculations, and asset history |
-| Debt and savings | Debt progress, automatic installments, and savings goals |
-| Data portability | CSV import and export for transactions and other supported financial records |
+| Accounts | Cash and checking accounts, balances, and account-based transaction tracking |
+| Credit cards | Limits, current debt, statements, payment actions, and local card controls |
+| Investments | Multi-asset portfolio, price refreshes, profit/loss calculations, and asset history |
+| Debt and savings | Debt progress, installment tracking, upcoming payments, and savings goals |
+| Data portability | CSV import and export for supported financial records |
 | Experience | Turkish and English localization, dark and light modes, and desktop-oriented navigation |
 
 ## Architecture
 
-Archlence keeps interface, business logic, and persistence responsibilities separated:
+Archlence separates interface, application workflows, business rules, and persistence concerns:
 
 ```text
 main.py
 ├── ui/          Kivy layouts, reusable components, charts, themes, and i18n
 ├── mixins/      Application workflows and screen behavior
-├── services/    Transactions, accounts, pricing, insights, and projections
+├── services/    Transactions, accounts, cards, pricing, insights, and projections
 ├── database/    SQLite schema, migrations, and ledger primitives
-├── security/    Local security and access-control services
+├── security/    Local access-control and security services
 ├── utils/       Formatting, currency, cryptography, and ticker helpers
 └── tests/       Unit, integration, and GUI-oriented regression tests
 ```
@@ -152,21 +133,35 @@ Notable implementation details include:
 - local field-level protection for selected sensitive values;
 - daily balance snapshots and event replay for historical balances.
 
-> The local security and encryption model is under active development. Broader database-level protection and stronger key management are planned.
-
 ## Project status
 
-Archlence is under active development.
+Archlence is an early-stage open-source desktop application under active development.
 
 The current focus is:
 
 - strengthening local encryption and key management;
+- stabilizing credit-card and recurring-payment workflows;
 - expanding automated and regression test coverage;
 - improving packaging and installation;
 - documenting architectural decisions;
-- making the repository easier for outside contributors to understand and extend.
+- making the project easier for outside contributors to understand and extend.
 
-The project should currently be considered an early-stage open-source desktop application rather than production financial infrastructure.
+Some workflows, interface elements, sample-data states, and security components are still being refined.
+
+Archlence should not yet be treated as production financial infrastructure.
+
+## Known limitations
+
+The following areas are actively being improved:
+
+- the local encryption and key-management model;
+- installation and release packaging;
+- consistency of sample-data presentation;
+- selected credit-card and recurring-payment flows;
+- some loading, localization, and UI edge cases;
+- broader contributor and architecture documentation.
+
+Known limitations are tracked openly so that progress can be reviewed over time.
 
 ## Getting started
 
@@ -203,7 +198,7 @@ Activate it on Windows PowerShell:
 .venv\Scripts\Activate.ps1
 ```
 
-Install the dependencies and start the application:
+Install dependencies and start the application:
 
 ```bash
 python -m pip install --upgrade pip
@@ -215,16 +210,7 @@ On first launch, Archlence guides you through creating a local PIN and setting u
 
 ## Tests
 
-The repository currently contains **297 test methods across 34 test modules**, covering areas including:
-
-- ledger and balance integrity;
-- transactions and accounts;
-- subscriptions and recurring payments;
-- asset pricing and caching;
-- budgets and projections;
-- historical balances;
-- local security;
-- user-interface contracts.
+The repository includes automated coverage for the ledger, transactions, accounts, subscriptions, pricing, budgeting, history, projections, security, and UI contracts.
 
 Run the complete test suite with:
 
@@ -247,7 +233,7 @@ Archlence is designed around local data ownership:
 - the application does not include analytics or advertising trackers;
 - CSV export provides a human-readable way to move supported records elsewhere;
 - portfolio price refreshes and some visual metadata features may contact external public data sources;
-- core financial records remain local and are not intentionally uploaded by these features.
+- core financial records remain local and are not intentionally uploaded by those features.
 
 Keep regular backups of your local database.
 
@@ -256,6 +242,8 @@ Archlence is a personal finance management tool. It is not a bank, brokerage ser
 ## Roadmap
 
 - Stronger local encryption and installation-specific key management
+- Improved credit-card reliability and statement workflows
+- More consistent recurring-payment detection and presentation
 - Natural-language queries over local financial history
 - Local receipt parsing and categorization
 - More explainable forecasts and budget recommendations
@@ -267,17 +255,27 @@ Archlence is a personal finance management tool. It is not a bank, brokerage ser
 
 Issues and pull requests are welcome.
 
+The project is still evolving, so opening an issue before a large change is recommended.
+
 For changes to financial logic, include tests that demonstrate balance, ledger, and transaction integrity before and after the operation.
 
 For UI changes, screenshots or short screen recordings are helpful whenever possible.
 
-Before opening a large pull request, consider creating an issue to discuss the proposed change and its expected behavior.
+Useful contribution areas currently include:
+
+- security and key management;
+- test coverage;
+- packaging and release automation;
+- localization;
+- accessibility;
+- documentation;
+- UI edge cases and regression fixes.
 
 ## Security
 
-Please avoid publishing sensitive personal or financial information in issues, screenshots, test fixtures, or pull requests.
+Please do not publish sensitive personal or financial information in issues, screenshots, test fixtures, or pull requests.
 
-For security-related findings, open a private GitHub security advisory when possible instead of creating a public issue.
+For security-related findings, use a private GitHub security advisory when possible instead of creating a public issue.
 
 ## License
 
