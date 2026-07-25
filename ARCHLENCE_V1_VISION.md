@@ -307,6 +307,60 @@ bazlı uyarı, otomatik öneri, şablon ve trend grafiği eklendi.
       de bilinen, zararsız tek bir `ResourceWarning: unclosed database`
       dışında sorun yok.
 
+## Minimal Dashboard mimarisi + Abonelik Interceptor (2026-07-24, ayrı bir tur)
+
+Ana sayfadaki büyük "Aylık Bütçe Planı" kartı, kullanıcının Araçlar
+sekmesindeki diğer araçlarla (Hesap Makinesi, Faiz Getirisi, Bileşik Faiz vb.)
+tutarlı, "Birikim Hedefi" gibi tıklanınca açılan minimal bir kart mimarisine
+taşındı. Aynı turda kredi kartından geçen abonelik benzeri harcamaları
+otomatik olarak "Aktif Aboneliklerim" radarına yazan bir interceptor kuruldu.
+
+- [x] Bütçe planlayıcı `ui/dashboard.kv`'den çıkarılıp `ui/tools.kv` içinde
+      `<BudgetPlannerPanel@MDCard>` olarak tanımlandı; ana sayfada yalnızca
+      minimal `<BudgetSummaryCard@MDCard>` (`ui/dashboard.kv:904`,
+      id: `budget_summary_card`) kaldı — "PLANLAYICIYI AÇ" ile panel açılıyor.
+      Panelin kendi `ids` sözlüğü `root.ids`'ten ayrı tutuluyor
+      (`mixins/budget_mixin.py`, bkz. `_planner_ids()` sözleşmesi).
+- [x] Veri köprüsü: planlayıcıdaki değişiklikler (harcanan/limit) özet karta
+      anında yansıyor; özet kartın tema bulunmayan unit-test ortamında hata
+      vermesi ayrıca engellendi.
+- [x] Abonelik interceptor'ı (`services/recurring_service.py`) — yalnızca
+      kredi kartından geçen ve kategorisi abonelik (`SUBSCRIPTION_CATEGORIES`)
+      olan veya tanınan bir marka adı içeren harcamalarda devreye giriyor;
+      `register_subscription_from_transaction` idempotent şekilde
+      `recurring_payments` tablosuna yazıyor (aynı isim varsa tekrar
+      eklemiyor). Manuel "tekrarlanan ödeme" formuyla otomatik interceptor'ın
+      çift kayıt oluşturması engellendi (interceptor yalnızca kredi kartı
+      sinyaliyle çalışıyor).
+- [x] Marka tanıma listesi bilinçli olarak boş bırakıldı:
+      `services/recurring_service.py:40` — `KNOWN_BRANDS = []` — gerçek marka
+      veri seti henüz doldurulmadı (aşağıda "Kalan İş" olarak işaretli).
+- [x] PIN, hesap oluşturma ve işlem formlarında `write_tab=False` +
+      `focus_next` ile TAB tuşu odak zinciri kuruldu; dinamik recurring
+      alanları açılıp kapandığında zincir yeniden kuruluyor
+      (`mixins/transaction_mixin.py:260-275`).
+- [x] Bütçe formunun ağır yenilemeleri `Clock.schedule_once` ile farklı
+      karelere dağıtılarak UI donması riski azaltıldı.
+- [x] Doğrulama: `tests/test_budget_mixin.py`, `tests/test_subscription_
+      interceptor.py` dahil tam paket **278/278** yeşil
+      (`xvfb-run -a .venv/bin/python -m unittest discover -s tests`).
+
+**Kalan iş (kasıtlı olarak bu turda yapılmadı, ayrı/hafif iş olarak
+bırakıldı):**
+- [ ] `services/recurring_service.py:40` — `KNOWN_BRANDS` listesinin gerçek
+      marka veri setiyle (dijital platform, yazılım lisansı, bulut depolama,
+      eğitim, spor, bağış, üyelik markaları) doldurulması.
+- [ ] `BudgetSummaryCard`/`BudgetPlannerPanel` geçici metinlerinin ("Aylık
+      Bütçe", "Bütçe planı hazırlanıyor...", "PLANLAYICIYI AÇ" vb.) TR/EN
+      i18n karşılıklarının tamamlanması (`ui/i18n.py`).
+- [ ] `ui/tools.kv` içindeki `<BudgetSummaryCard@MDCard>` ve
+      `<BudgetPlannerPanel@MDCard>`'ın salt görsel cilası (renk/kontrast,
+      padding/spacing, font boyutu, progress bar kalınlığı) — backend
+      metotları ve widget ID'leri (`budget_planner_panel`,
+      `budget_summary_card`, `budget_summary_text`, `budget_summary_bar`,
+      `month_selector_container`, `projection_label`, `projection_icon`,
+      `budget_detailed_list`) DEĞİŞMEDEN.
+
 ## Ertelenmeyen / Değişmeyen Kısıtlar
 - Local-first mimari korunacak: veriler cihazdan çıkmayacak, bulut/3. taraf
   sunucu yok.

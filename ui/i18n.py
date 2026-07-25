@@ -10,6 +10,10 @@ _language = "tr"
 
 
 EN = {
+    "Aylık Bütçe": "Monthly Budget",
+    "Bu ay için bütçe planı yok. Planlayıcıdan limit ekleyin.": "No budget plan for this month. Add a limit from the planner.",
+    "Bütçe planı hazırlanıyor...": "Preparing budget plan...",
+    "PLANLAYICIYI AÇ": "OPEN PLANNER",
     "Güvenli Giriş": "Secure Sign In",
     "Yerel PIN'ini Belirle": "Set Your Local PIN",
     "PIN": "PIN",

@@ -105,8 +105,11 @@ class BudgetMixin:
             float(item["actual"])
             for item in get_category_budget_progress(month, year)
         )
+        # GERÇEK yüzde döndürülür (100'ü aşabilir): bütçesini %125 aşan
+        # kullanıcıya "%100" göstermek aşımı gizler. Sıkıştırma yalnız progress
+        # bar'a uygulanır, çünkü orada 100 üstü değerin görsel karşılığı yok.
         percent = (spent / limit * 100.0) if limit > 0 else 0.0
-        return spent, limit, max(0.0, min(100.0, percent))
+        return spent, limit, max(0.0, percent)
 
     def refresh_budget_summary(self, *args):
         """Ana sayfadaki BudgetSummaryCard'ı güncel bütçe verisiyle doldurur.
@@ -128,7 +131,18 @@ class BudgetMixin:
             return
 
         if bar is not None:
-            bar.value = percent
+            # Bar 0-100 aralığında; aşım metinde gerçek yüzdeyle gösterilir.
+            bar.value = min(100.0, percent)
+            from kivy.app import App
+            app = App.get_running_app()
+            theme = getattr(app, "theme_cls", None)
+            if theme is not None:
+                if percent >= 100.0:
+                    bar.color = theme.error_color
+                elif percent >= 80.0:
+                    bar.color = (1, 0.75, 0, 1)
+                else:
+                    bar.color = theme.primary_color
         if text_label is not None:
             if limit <= 0:
                 # GEMINI: bu metinlerin i18n anahtarları raporda listelendi.

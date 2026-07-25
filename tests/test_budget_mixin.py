@@ -141,11 +141,24 @@ class BudgetSummaryBridgeTest(AccountFixtureMixin, unittest.TestCase):
         self.assertAlmostEqual(limit, 2000.0, places=2)
         self.assertAlmostEqual(percent, 25.0, places=1)
 
-    def test_percent_is_clamped_when_over_budget(self):
+    def test_overspend_reports_real_percent_not_clamped(self):
+        """Aşımı gizlemek yanıltıcı olur: %500 harcayan %100 görmemeli.
+
+        Sıkıştırma yalnız progress bar'da (0-100) uygulanır.
+        """
         self._plan_expense(100.0)
         self._spend(500.0)
         _, _, percent = self.app.compute_budget_summary(6, 2026)
-        self.assertEqual(percent, 100.0)
+        self.assertAlmostEqual(percent, 500.0, places=1)
+
+    def test_progress_bar_is_clamped_even_when_overspent(self):
+        self._plan_expense(100.0)
+        self._spend(500.0)
+        self.app.refresh_budget_summary()
+
+        ids = self.app._summary_ids()
+        self.assertEqual(ids["budget_summary_bar"].value, 100.0)
+        self.assertIn("500", ids["budget_summary_text"].text)
 
     def test_refresh_writes_into_summary_card(self):
         """Köprünün asıl işi: hesaplanan veri karta yazılmalı."""

@@ -158,10 +158,11 @@ class InterceptorWiringTest(AccountFixtureMixin, unittest.TestCase):
         self.assertEqual(self._tx_count(), 1)
         self.assertEqual(self._radar(), [])
 
-    def test_checking_account_subscription_also_detected(self):
-        """Kategori sinyali kart dışı hesapta da geçerli (otomatik ödeme talimatı)."""
+    def test_checking_account_is_not_auto_intercepted(self):
+        """Otomatik interceptor yalnız kredi kartı harcamalarını kapsar."""
         self._add(self.checking_id, "Dijital Abonelik", "Mubi", amount=79.0)
-        self.assertEqual(len(self._radar()), 1)
+        self.assertEqual(self._radar(), [])
+        self.assertEqual(self._tx_count(), 1)
 
 
 if __name__ == "__main__":

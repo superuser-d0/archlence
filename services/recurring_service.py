@@ -22,8 +22,12 @@ SUBSCRIPTION_CATEGORY = "Dijital Abonelik"
 # "bu bir abonelik" dediği kategori; diğerleri kredi kartından geçen tipik
 # abonelik kalemleri.
 SUBSCRIPTION_CATEGORIES = {
-    SUBSCRIPTION_CATEGORY,
+    "Dijital Abonelik",
     "Dijital Platformlar",
+    "Yazılım & Lisans",
+    "Eğitim & Kurs",
+    "Spor & Sağlık (Abonelik)",
+    "Bağış (Düzenli)",
 }
 
 # Açıklamadan marka tanıma listesi.
@@ -107,6 +111,11 @@ def register_subscription_from_transaction(
         insert_recurring_payment,
     )
 
+    # Bu interceptor yalnız kredi kartı harcamaları içindir. Kart dışındaki
+    # açıkça tekrarlanan ödemeler formun recurring akışı tarafından kaydedilir;
+    # onları burada da yakalamak iki ayrı kayıt üretirdi.
+    if not is_credit_card:
+        return None
     if not looks_like_subscription(category, description, is_credit_card):
         return None
 

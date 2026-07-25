@@ -18,7 +18,11 @@
     padding: "16dp"
     spacing: "10dp"
     size_hint_y: None
-    height: "400dp"
+    # max(...) ŞART: panelin içindeki detay listesi `size_hint_y: 1` olan bir
+    # ScrollView'da yaşıyor ve minimum_height'a 0 katkı veriyor. Yalnız
+    # minimum_height kullanılırsa kart 172dp'ye çöküp liste alanı kayboluyor.
+    # Taban 400dp; içerik daha uzunsa kart yine büyüyebilir.
+    height: max(dp(400), self.minimum_height + dp(40))
     radius: [24, 24, 24, 24]
     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
 
@@ -96,10 +100,10 @@
     elevation: 0
     line_color: ftheme.card_line(app.theme_cls.theme_style)
     orientation: "vertical"
-    padding: "16dp"
-    spacing: "8dp"
+    padding: "16dp", "16dp", "16dp", "16dp"
+    spacing: "12dp"
     size_hint_y: None
-    height: "150dp"
+    height: "165dp"
     radius: [24, 24, 24, 24]
     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
 
@@ -121,7 +125,9 @@
         id: budget_summary_text
         text: app.tr("Bütçe planı hazırlanıyor...", app.language)
         theme_text_color: "Secondary"
-        font_style: "Body2"
+        font_style: "Subtitle2"
+        bold: True
+        markup: True
         size_hint_y: None
         height: "44dp"
         text_size: self.width, None
@@ -131,7 +137,7 @@
         value: 0
         max: 100
         size_hint_y: None
-        height: "8dp"
+        height: "10dp"
 
     MDFlatButton:
         text: app.tr("PLANLAYICIYI AÇ", app.language)
