@@ -10,7 +10,7 @@ sonra kaldırıldı.
 Not: Bu servisler amount/description kolonlarını çözmeden (şifreli haliyle)
 döndürür; şifre çözme çağıran tarafın sorumluluğundadır (bkz. utils/crypto.py).
 """
-from database.db import get_connection
+from database.db import ACCOUNT, get_connection
 
 
 class CategoryService:
@@ -65,6 +65,38 @@ class DashboardService:
         conn.close()
 
         return round(result["total"] or 0, 2)
+
+    @staticmethod
+    def get_opening_baseline():
+        """Hesapların açılış bakiyelerinin (işaretli) toplamı.
+
+        NEDEN: Ana sayfadaki "Cüzdanım" toplamı işlem defterinden
+        (gelir − gider) besleniyor; oysa bir hesabın açılış bakiyesi doğrudan
+        accounts.balance'a yazılıp balance_events'e 'account_opened' olarak
+        düşülüyor, transactions'a HİÇ girmiyor. Sonuç: açılış bakiyesi
+        "Kartlarım"da görünüp "Cüzdanım"da görünmüyordu (senkronizasyon hatası).
+
+        Bu toplam eksik kalan açılış tabanını verir. Açılış bakiyesini sahte bir
+        "gelir" işlemi olarak yazmak yerine ayrı tutulur; böylece tasarruf oranı,
+        50-30-20 sağlık skoru ve ODE günlük gelir girdisi gibi saf nakit-akışı
+        analizleri açılış bakiyesiyle şişmez.
+
+        Her hesabın tam olarak BİR 'account_opened' olayı vardır (create_account
+        yazar; açılış çizgisi olmayan eski hesaplar için init_db idempotent
+        olarak tamamlar), bu yüzden delta toplamı açılış bakiyelerinin işaretli
+        toplamına eşittir. Kredi kartı borcu negatif işaretli girdiğinden bu
+        toplam otomatik olarak borç kadar azalır.
+        """
+        conn = get_connection()
+        try:
+            result = conn.execute(
+                "SELECT COALESCE(SUM(delta), 0) AS total FROM balance_events"
+                " WHERE entity_type = ? AND source = 'account_opened'",
+                (ACCOUNT,),
+            ).fetchone()
+        finally:
+            conn.close()
+        return round(result["total"] or 0.0, 2)
 
     @staticmethod
     def get_accounts():

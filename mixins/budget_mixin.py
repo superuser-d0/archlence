@@ -28,6 +28,18 @@ def _fmt(value):
     )
 
 
+def planner_month_range(today=None):
+    """Planlama ufku: bulunduğumuz aydan yıl sonuna (Aralık) kadar olan aylar.
+
+    Aşama 2, madde 2.1: "Planlama süreci bulunduğumuz aydan başlayıp yıl sonuna
+    (Aralık) kadar ilerlemeli. (Örn: Ocak ayındaysak tüm aylar listelenmeli)."
+    Geçmiş aylar planlayıcıda gösterilmez — Temmuz'daysak Temmuz–Aralık,
+    Ocak'taysak tüm yıl döner. Saf fonksiyon: widget'a dokunmadan test edilir.
+    """
+    month = (today or datetime.date.today()).month
+    return list(range(month, 13))
+
+
 class BudgetMixin:
     def _planner_ids(self):
         """Planlayıcı bileşeninin id sözlüğünü döndürür.
@@ -63,7 +75,7 @@ class BudgetMixin:
             return
         container.clear_widgets()
         from kivymd.uix.button import MDRoundFlatButton
-        for month in range(1, 13):
+        for month in planner_month_range(now):
             button = MDRoundFlatButton(text=_t(MONTHS[month - 1]))
             button.bind(
                 on_release=lambda _button, value=month:
@@ -206,6 +218,67 @@ class BudgetMixin:
             getattr(self, "active_budget_month", datetime.date.today().month),
             getattr(self, "active_budget_year", datetime.date.today().year),
         )
+
+    # ── "Bunu mevcut planınız olarak kullanmak ister misiniz?" (madde 2.1) ───
+    def confirm_plan_as_current(self, *args):
+        """Kullanıcı sabit gelir/gider/yatırımlarını girdikten sonra planı
+        onaylatır; onaylanırsa bu ayın kalemleri yıl sonuna (Aralık) kadar
+        tüm aylara kopyalanır."""
+        from kivymd.uix.button import MDFlatButton, MDRaisedButton
+        from kivymd.uix.dialog import MDDialog
+
+        month, year = self._budget_period()
+        month_name = _t(MONTHS[month - 1])
+
+        def _confirm(_button):
+            self.plan_confirm_dialog.dismiss()
+            self._apply_plan_as_current(month, year)
+
+        self.plan_confirm_dialog = MDDialog(
+            title=_t("Planı Onayla"),
+            text=_t(
+                "Bunu mevcut planınız olarak kullanmak ister misiniz?"
+            ) + f"\n\n{month_name} " + _t(
+                "ayının kalemleri Aralık'a kadar tüm aylara uygulanacak."
+            ),
+            buttons=[
+                MDFlatButton(
+                    text=_t("VAZGEÇ"),
+                    on_release=lambda _b: self.plan_confirm_dialog.dismiss(),
+                ),
+                MDRaisedButton(text=_t("EVET, UYGULA"), on_release=_confirm),
+            ],
+        )
+        self.plan_confirm_dialog.open()
+
+    def _apply_plan_as_current(self, month, year):
+        from services.budget_service import apply_plan_to_year_end
+
+        def worker():
+            try:
+                count = apply_plan_to_year_end(month, year)
+            except Exception as exc:
+                print("Plan uygulanamadı:", exc)
+                count = None
+            Clock.schedule_once(
+                lambda _dt: self._after_plan_applied(count), 0)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _after_plan_applied(self, count):
+        if count is None:
+            toast(_t("Plan uygulanırken bir hata oluştu."))
+            return
+        if count == 0:
+            toast(_t("Plan zaten güncel; yeni kalem eklenmedi."))
+        else:
+            toast(f"{_t('Plan uygulandı')}: {count} "
+                  + _t("kalem yıl sonuna kadar eklendi."))
+        try:
+            self.load_budget_list()
+            self.generate_next_month_projection()
+        except Exception as exc:
+            print("Liste tazelenemedi:", exc)
 
     # ── Kalem ekleme formu ──────────────────────────────────────────────────
     def open_budget_item_form(self):
@@ -819,6 +892,13 @@ class BudgetMixin:
         Widget'lar diyalog kapandıysa artık başka bir forma ait olabilir, o
         yüzden her erişim tolere edilir.
         """
+        # Başarı bildirimi (Aşama 2, madde 1.9): tek seferlik bütçe kalemi
+        # eklendiğinde/güncellendiğinde kullanıcı hiçbir geri bildirim almıyordu.
+        # editing_item_id sıfırlanmadan ÖNCE okunur; mesaj ekleme/güncelleme
+        # ayrımını yansıtsın.
+        was_edit = getattr(self, "editing_item_id", None) is not None
+        toast(_t("Bütçe kalemi güncellendi!" if was_edit
+                 else "Bütçe kalemi eklendi!"))
         self.editing_item_id = None
         self.editing_item_is_template = False
         for field_name in ("bp_amount_input", "bp_name_input"):

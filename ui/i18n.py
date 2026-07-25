@@ -453,6 +453,21 @@ EN = {
     "HESABA AKTAR VE SİL": "REFUND & DELETE",
     "Hesaplama bekleniyor...": "Waiting for calculation...",
     "Kalem silindi.": "Item deleted.",
+    "Bütçe kalemi eklendi!": "Budget item added!",
+    "Bütçe kalemi güncellendi!": "Budget item updated!",
+    "Planı Onayla": "Confirm Plan",
+    "Bunu mevcut planınız olarak kullanmak ister misiniz?":
+        "Do you want to use this as your current plan?",
+    "ayının kalemleri Aralık'a kadar tüm aylara uygulanacak.":
+        "items will be applied to every month through December.",
+    "EVET, UYGULA": "YES, APPLY",
+    "Bu planı yıl sonuna kadar uygula": "Apply this plan through year-end",
+    "Plan uygulandı": "Plan applied",
+    "kalem yıl sonuna kadar eklendi.": "items added through year-end.",
+    "Plan zaten güncel; yeni kalem eklenmedi.":
+        "Plan already up to date; no new items added.",
+    "Plan uygulanırken bir hata oluştu.":
+        "An error occurred while applying the plan.",
     "Kart Ekstresi": "Card Statement",
     "Kredi Hesaplama": "Loan Calculator",
     "Maksimum 10 masraf ekleyebilirsiniz.": "You can add up to 10 custom expenses.",

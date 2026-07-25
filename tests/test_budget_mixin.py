@@ -210,5 +210,60 @@ class ShowBudgetPlannerTest(unittest.TestCase):
         self.assertIn("open", calls)
 
 
+class BudgetSaveNotificationTest(unittest.TestCase):
+    """Aşama 2, madde 1.9: bütçe kalemi kaydı başarı bildirimi göstermeli."""
+
+    def _app_ready_to_save(self, editing_id):
+        app = _make_app()
+        app.editing_item_id = editing_id
+        app.editing_item_is_template = False
+        app.bp_amount_input = SimpleNamespace(text="1.500")
+        app.bp_name_input = SimpleNamespace(text="")
+        return app
+
+    def test_new_item_shows_added_toast(self):
+        app = self._app_ready_to_save(editing_id=None)
+        with mock.patch("mixins.budget_mixin.toast") as m_toast:
+            app.on_save_success("Market")
+        self.assertTrue(m_toast.called)
+        self.assertIn("eklendi", m_toast.call_args[0][0])
+
+    def test_edited_item_shows_updated_toast(self):
+        app = self._app_ready_to_save(editing_id=7)
+        with mock.patch("mixins.budget_mixin.toast") as m_toast:
+            app.on_save_success("Market")
+        self.assertTrue(m_toast.called)
+        self.assertIn("güncellendi", m_toast.call_args[0][0])
+
+
+class PlanConfirmationFeedbackTest(unittest.TestCase):
+    """Madde 2.1: planı yıl sonuna uygula — sonuç bildirimleri."""
+
+    def _app(self):
+        app = _make_app()
+        # Bildirim odaklı test; liste/projeksiyon tazelemesini nötrle.
+        app.load_budget_list = lambda *a, **k: None
+        app.generate_next_month_projection = lambda *a, **k: None
+        return app
+
+    def test_reports_applied_count(self):
+        app = self._app()
+        with mock.patch("mixins.budget_mixin.toast") as m_toast:
+            app._after_plan_applied(4)
+        self.assertIn("uygulandı", m_toast.call_args[0][0])
+
+    def test_zero_is_already_current_message(self):
+        app = self._app()
+        with mock.patch("mixins.budget_mixin.toast") as m_toast:
+            app._after_plan_applied(0)
+        self.assertIn("güncel", m_toast.call_args[0][0])
+
+    def test_none_is_error_message(self):
+        app = self._app()
+        with mock.patch("mixins.budget_mixin.toast") as m_toast:
+            app._after_plan_applied(None)
+        self.assertIn("hata", m_toast.call_args[0][0])
+
+
 if __name__ == "__main__":
     unittest.main()

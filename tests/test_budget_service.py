@@ -203,6 +203,55 @@ class BudgetTrackingServiceTest(AccountFixtureMixin, unittest.TestCase):
             calculate_monthly_budget(7, 2026)["reserved_recurring"], 0
         )
 
+    # ── Aşama 2, madde 2.1: planı yıl sonuna kadar uygula ────────────────────
+    def test_apply_plan_copies_concrete_items_to_remaining_months(self):
+        from services.budget_service import (
+            apply_plan_to_year_end, get_effective_plan_items,
+        )
+        self._plan(year=2026, month=10, amount=5000, category="Kira")
+        self._plan(year=2026, month=10, amount=1200, category="Market")
+
+        copied = apply_plan_to_year_end(10, 2026)
+        # Ekim → Kasım, Aralık: 2 kalem × 2 ay = 4 kopya.
+        self.assertEqual(copied, 4)
+        for month in (11, 12):
+            cats = {row["category_name"]
+                    for row in get_effective_plan_items(month, 2026)}
+            self.assertIn("Kira", cats)
+            self.assertIn("Market", cats)
+
+    def test_apply_plan_is_idempotent(self):
+        from services.budget_service import apply_plan_to_year_end
+        self._plan(year=2026, month=11, amount=5000, category="Kira")
+        first = apply_plan_to_year_end(11, 2026)
+        second = apply_plan_to_year_end(11, 2026)
+        self.assertEqual(first, 1)   # yalnız Aralık'a kopyalanır
+        self.assertEqual(second, 0)  # ikinci onay kopya üretmez
+
+    def test_apply_plan_skips_existing_identity(self):
+        from services.budget_service import apply_plan_to_year_end
+        self._plan(year=2026, month=11, amount=5000, category="Kira")
+        # Aralık'ta zaten farklı tutarlı bir Kira var; korunmalı, ezilmemeli.
+        self._plan(year=2026, month=12, amount=9999, category="Kira")
+        copied = apply_plan_to_year_end(11, 2026)
+        self.assertEqual(copied, 0)
+
+
+class PlannerMonthRangeTest(unittest.TestCase):
+    """Ay seçici ufku: bulunduğumuz aydan Aralık'a (madde 2.1)."""
+
+    def test_january_lists_all_months(self):
+        from mixins.budget_mixin import planner_month_range
+        self.assertEqual(planner_month_range(date(2026, 1, 15)), list(range(1, 13)))
+
+    def test_july_lists_july_to_december(self):
+        from mixins.budget_mixin import planner_month_range
+        self.assertEqual(planner_month_range(date(2026, 7, 25)), [7, 8, 9, 10, 11, 12])
+
+    def test_december_lists_only_december(self):
+        from mixins.budget_mixin import planner_month_range
+        self.assertEqual(planner_month_range(date(2026, 12, 1)), [12])
+
 
 if __name__ == "__main__":
     unittest.main()

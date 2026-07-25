@@ -145,6 +145,57 @@ def calculate_monthly_budget(target_month, target_year=None):
     }
 
 
+def apply_plan_to_year_end(source_month, source_year):
+    """Bulunduğumuz ayın plan kalemlerini yıl sonuna (Aralık) kadar kopyalar.
+
+    Aşama 2, madde 2.1: kullanıcı sabit gelir/gider/yatırımlarını girip
+    "Bunu mevcut planınız olarak kullanmak ister misiniz?" onayını verince, bu
+    ayın SOMUT (şablon olmayan) kalemleri kalan aylara (source_month+1 … Aralık)
+    taşınır. Şablon (is_template=1) kalemler zaten tüm aylara yansıdığından
+    kopyalanmaz. Hedef ayda aynı kimlikte (kategori ya da ad+tür) bir kalem
+    varsa o kalem atlanır — böylece onayı iki kez vermek kopya üretmez
+    (idempotent). Eklenen toplam kalem sayısını döndürür.
+    """
+    source_month = int(source_month)
+    source_year = int(source_year)
+    conn = get_connection()
+    copied = 0
+    try:
+        cursor = conn.cursor()
+        source_items = cursor.execute(
+            "SELECT * FROM monthly_budget_plan "
+            "WHERE target_month = ? AND target_year = ? AND is_template = 0 "
+            "ORDER BY id",
+            (source_month, source_year),
+        ).fetchall()
+        if not source_items:
+            return 0
+        for target_month in range(source_month + 1, 13):
+            existing = cursor.execute(
+                "SELECT * FROM monthly_budget_plan "
+                "WHERE target_month = ? AND target_year = ? AND is_template = 0",
+                (target_month, source_year),
+            ).fetchall()
+            existing_keys = {_identity(row) for row in existing}
+            for row in source_items:
+                if _identity(row) in existing_keys:
+                    continue
+                cursor.execute(
+                    "INSERT INTO monthly_budget_plan "
+                    "(type, name, amount, target_month, target_year, "
+                    " category_name, rollover_enabled, is_template, "
+                    " alert_threshold_pct) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (row["type"], row["name"], row["amount"], target_month,
+                     source_year, row["category_name"],
+                     row["rollover_enabled"], 0, row["alert_threshold_pct"]),
+                )
+                copied += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return copied
+
+
 def _actual_category_totals(target_month, target_year):
     conn = get_connection()
     try:

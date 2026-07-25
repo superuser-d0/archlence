@@ -607,7 +607,13 @@ class ArchlenceApp(
 
         total_income = ana_gelir + ek_gelir
         total_expense = temel_gider + ekstra_gider
-        total_balance = total_income - total_expense
+        # "Cüzdanım" toplamı, işlem nakit-akışına (gelir − gider) hesapların
+        # AÇILIŞ bakiyelerini de ekler. Açılış bakiyesi transactions'a değil
+        # accounts.balance + balance_events'e yazıldığından, bu taban olmadan
+        # açılış tutarı "Kartlarım"da görünüp "Cüzdanım"da görünmüyordu.
+        from services.queries import DashboardService
+        opening_baseline = DashboardService.get_opening_baseline()
+        total_balance = total_income - total_expense + opening_baseline
 
         filter_text = getattr(self, "home_filter", "Bugün")
 

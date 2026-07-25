@@ -43,6 +43,13 @@
             font_style: "H6"
             bold: True
         MDIconButton:
+            icon: "calendar-check"
+            size_hint_x: None
+            width: "48dp"
+            tooltip_text: app.tr("Bu planı yıl sonuna kadar uygula", app.language)
+            pos_hint: {"center_y": .5}
+            on_release: app.confirm_plan_as_current()
+        MDIconButton:
             icon: "chart-timeline-variant"
             size_hint_x: None
             width: "48dp"
