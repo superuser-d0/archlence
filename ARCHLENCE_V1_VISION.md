@@ -49,14 +49,11 @@ paketleme/çıkışa geçilmeyecek. Çekirdek (hesaplar, işlemler, bakiye matem
 AES-256 şifreleme, UI/tema sistemi) zaten tamamlanmış ve test edilmiş durumda;
 kalan iş bu 5 özellik + teknik borçlar + paketleme.
 
-## Mevcut Durum (referans: README.md, project_assessment.md, ANTIGRAVITY_TASKS*.md)
+## Mevcut Durum (referans: README.md, ANTIGRAVITY_TASKS*.md)
 - ~17.500 satır kod, 3 aylık geliştirme.
 - Çekirdek sistem (DB, servisler, bakiye/net servet hesabı, test altyapısı) oturmuş.
 - UI: Tur 1-4 tamamlandı (Hesaplar/Kartlar sekmesi, diyalog yerleşimi,
   karanlık tema, RecycleView geçişi).
-- İş modeli tavsiyesi (ayrı karar, henüz kesinleşmedi): tek seferlik
-  Freemium/Premium lisans (39-49$), local-first olduğu için SaaS/abonelik
-  modeline GİRİLMEMESİ öneriliyor.
 
 ## Sıralama ve Gerekçe
 
