@@ -33,3 +33,6 @@ graphify-out/
 
 # Varlık Geçmişi için çalışma zamanında indirilen kripto/döviz logoları
 assets/logo_cache/
+
+# Abonelik kartları için çalışma zamanında indirilen marka logoları
+assets/brand_icon_cache/

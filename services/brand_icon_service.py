@@ -41,7 +41,16 @@ def _normalize(text: str) -> str:
 
 
 def classify_brand(text: str):
-    """Metin için ``(cache_key, png_url)`` döndürür; eşleşme yoksa None'lar."""
+    """Metin için ``(cache_key, png_url)`` döndürür; eşleşme yoksa None'lar.
+
+    DÜZELTME: `logo.clearbit.com` artık HİÇBİR DNS sunucusundan (1.1.1.1,
+    8.8.8.8 dahil) çözülmüyor — Clearbit'in ücretsiz logo API'si kapatılmış.
+    Bu yüzden abonelik kartlarında hiçbir marka ikonu hiç görünmüyordu; sessiz
+    ağ hatası (bkz. fetch_and_cache_brand_icon'daki genel except) sorunu
+    maskeliyordu. Google'ın kendi favicon servisine geçirildi: Clearbit gibi
+    aracı bir üçüncü parti olmadan doğrudan Google altyapısından PNG döner,
+    denenen tüm marka alan adları için çalıştığı doğrulandı.
+    """
     normalized = _normalize(text)
     if not normalized:
         return None, None
@@ -50,7 +59,7 @@ def classify_brand(text: str):
         if any(f" {_normalize(alias)} " in padded for alias in aliases):
             return (
                 cache_key,
-                f"https://logo.clearbit.com/{domain}?size=128&format=png",
+                f"https://www.google.com/s2/favicons?domain={domain}&sz=128",
             )
     return None, None
 

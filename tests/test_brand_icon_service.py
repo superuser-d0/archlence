@@ -25,8 +25,11 @@ class BrandIconServiceTest(unittest.TestCase):
             "Aylık NETFLIX.COM üyelik ödemesi"
         )
         self.assertEqual(key, "netflix")
-        self.assertIn("netflix.com", url)
-        self.assertIn("format=png", url)
+        # logo.clearbit.com artık hiçbir DNS sunucusundan çözülmüyor (Clearbit
+        # ücretsiz logo API'sini kapattı) — google favicon servisine geçirildi.
+        self.assertNotIn("clearbit.com", url)
+        self.assertIn("google.com", url)
+        self.assertIn("domain=netflix.com", url)
         self.assertEqual(
             brand_icon_service.classify_brand("Mahalle marketi"),
             (None, None),

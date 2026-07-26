@@ -42,7 +42,10 @@ _stubs = {
         "ui.theme", accent=lambda *args: [0, 0, 0, 1],
         apply_card_theme=lambda card, *args, **kwargs: card,
     ),
-    "ui.i18n": _module("ui.i18n", tr=lambda text: text),
+    "ui.i18n": _module(
+        "ui.i18n", tr=lambda text, language=None: text,
+        get_language=lambda: "tr",
+    ),
 }
 with mock.patch.dict(sys.modules, _stubs):
     import mixins.insights_mixin as insights_module

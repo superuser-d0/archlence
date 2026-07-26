@@ -18,7 +18,7 @@ from kivymd.uix.button import MDFlatButton, MDIconButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
 import ui.theme as ftheme
-from ui.i18n import tr as _t
+from ui.i18n import get_language, tr as _t
 
 
 # Sağlık skoru bandı -> ftheme anlamsal renk adı. Renk doğrudan yazılmaz ki
@@ -40,6 +40,91 @@ def _frequency_label(frequency):
         "quarterly": "üç ayda bir",
         "yearly": "yıllık",
     }.get(frequency, frequency)
+
+
+_MONTH_NAMES = [
+    "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
+]
+# Ay adının kendisine eklenen hal eki (ünsüz sertleşmesi + ünlü uyumu):
+# son harf ötümsüzse (p,ç,t,k,s,ş,h,f) "t", ötümlüyse "d"; son ünlü ön
+# (e,i,ö,ü) ise "e", art (a,ı,o,u) ise "a". Örn. "Ağustos" -> ötümsüz+art ->
+# "ta" ("Ağustos'ta"), "Eylül" -> ötümlü+ön -> "de" ("Eylül'de").
+_MONTH_SUFFIXES = [
+    "ta", "ta", "ta", "da", "ta", "da", "da", "ta", "de", "de", "da", "ta",
+]
+_WEEKDAY_NAMES = [
+    "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar",
+]
+# Türkçe ayın-günü hal eki (ünlü uyumu): son hane okunuşuna göre değişir
+# ("altı" -> "sında", "dokuz" -> "unda" vb.). 10/20/30 kendi okunuşlarıyla
+# (on/yirmi/otuz) ayrı ele alınır, aksi halde "20'ında" gibi yanlış bir ek
+# üretilirdi.
+_DAY_SUFFIX_BY_LAST_DIGIT = {
+    1: "inde", 2: "sinde", 3: "ünde", 4: "ünde", 5: "inde",
+    6: "sında", 7: "sinde", 8: "inde", 9: "unda",
+}
+_DAY_SUFFIX_TENS = {10: "unda", 20: "sinde", 30: "unda"}
+
+
+def _turkish_day_ordinal(day):
+    """'26'sında', '1'inde', '9'unda' gibi doğru hal ekiyle günü yazar."""
+    suffix = _DAY_SUFFIX_TENS.get(day) or _DAY_SUFFIX_BY_LAST_DIGIT[day % 10]
+    return f"{day}'{suffix}"
+
+
+def _english_ordinal(day):
+    """'26th', '1st', '3rd' gibi standart İngilizce sıra sayı eki."""
+    if 11 <= day % 100 <= 13:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+    return f"{day}{suffix}"
+
+
+def _renewal_description(payment):
+    """Abonelik kartındaki 'her ayın X'inde yenilenir' gibi doğal metni üretir.
+
+    DÜZELTME: Eskiden yalnızca 'aylık · Sonraki ödeme: 2026-08-26' gibi ham
+    tarih gösteriliyordu — kullanıcı özellikle aylık abonelikler için
+    'her ayın bilmem kaçında yenilenir' tarzı okunaklı bir ifade istedi.
+
+    Cümle KALIBI dile göre dallanır (Türkçe/İngilizce kelime sırası farklı
+    olduğundan tek bir şablonu `_t()` ile çevirmek mümkün değil); ay/gün adı
+    gibi SABİT parçalar yine `_t()` üzerinden çevrilir ki mevcut i18n
+    sözlüğüyle tutarlı kalsın.
+    """
+    import datetime
+
+    frequency = payment.get("frequency")
+    raw_date = str(payment.get("next_due_date") or "")
+    try:
+        due = datetime.date.fromisoformat(raw_date[:10])
+    except ValueError:
+        return f"{_t(_frequency_label(frequency))}  ·  {_t('Sonraki ödeme:')} {raw_date}"
+
+    day = payment.get("recurrence_day") or due.day
+    month_name = _t(_MONTH_NAMES[due.month - 1])
+    is_en = get_language() == "en"
+
+    if frequency == "monthly":
+        if is_en:
+            return f"Renews on the {_english_ordinal(day)} of each month"
+        return f"Her ayın {_turkish_day_ordinal(day)} yenilenir"
+    if frequency == "yearly":
+        if is_en:
+            return f"Renews every year on {month_name} {_english_ordinal(day)}"
+        month_suffix = _MONTH_SUFFIXES[due.month - 1]
+        return f"Her yıl {day} {month_name}'{month_suffix} yenilenir"
+    if frequency == "weekly":
+        weekday = _t(_WEEKDAY_NAMES[due.weekday()])
+        return f"Renews every {weekday}" if is_en else f"Her {weekday} günü yenilenir"
+    # biweekly / quarterly gibi sabit bir "ayın/haftanın X'i" ifadesine
+    # oturmayan sıklıklar için sıradaki tarih okunaklı biçimde eklenir.
+    freq_label = _t(_frequency_label(frequency))
+    if is_en:
+        return f"{freq_label}  ·  Next: {month_name} {day}"
+    return f"{freq_label}  ·  Sıradaki: {day} {month_name}"
 
 
 def _fmt(value):
@@ -315,24 +400,44 @@ class InsightsMixin:
             tint="green",
         )
         header = MDBoxLayout(
-            orientation="horizontal", spacing="8dp",
-            size_hint_y=None, height="26dp",
+            orientation="horizontal", spacing="10dp",
+            size_hint_y=None, height="32dp",
         )
+        from kivy.metrics import dp
         from services.brand_icon_service import resolve_cached_brand_icon_path
         brand_icon = resolve_cached_brand_icon_path(payment.get("name", ""))
         if brand_icon:
+            # Görsel ağırlık için 24dp'den 32dp'ye büyütüldü ve tam daire
+            # yapıldı (radius = boyutun yarısı) — küçük, köşeli logo "hoş
+            # görünmüyor" şikayetine karşılık.
             from kivymd.uix.fitimage import FitImage
-            from kivy.metrics import dp
             header.add_widget(FitImage(
                 source=brand_icon,
-                radius=[dp(7)] * 4,
+                radius=[dp(16)] * 4,
                 size_hint=(None, None),
-                size=(dp(24), dp(24)),
+                size=(dp(32), dp(32)),
+                pos_hint={"center_y": .5},
+            ))
+        else:
+            # İkon henüz önbelleğe inmemiş (ilk açılış / prefetch sürüyor)
+            # olsa bile AYNI 32dp alanı dolduran nötr bir yer tutucu —
+            # ikon gelince satırın boyu/hizası aniden kaymasın.
+            from kivymd.uix.label import MDIcon
+            header.add_widget(MDIcon(
+                icon="repeat-variant",
+                size_hint=(None, None),
+                size=(dp(32), dp(32)),
+                pos_hint={"center_y": .5},
+                theme_text_color="Custom",
+                text_color=ftheme.accent(self.theme_cls.theme_style, "green"),
+                font_size="20sp",
+                halign="center",
             ))
         header.add_widget(MDLabel(
             text=payment["name"],
             font_style="Subtitle2",
             bold=True,
+            pos_hint={"center_y": .5},
         ))
         header.add_widget(MDLabel(
             text=_fmt(payment["amount"]),
@@ -348,10 +453,7 @@ class InsightsMixin:
             orientation="horizontal", size_hint_y=None, height="34dp",
         )
         detail_row.add_widget(MDLabel(
-            text=_t(
-                f"{_frequency_label(payment['frequency'])}  ·  "
-                f"Sonraki ödeme: {payment['next_due_date']}"
-            ),
+            text=_renewal_description(payment),
             font_style="Caption",
             theme_text_color="Secondary",
         ))
