@@ -215,6 +215,34 @@ class ArchlenceApp(
     # -------------------------------------------------------------------------
     # Lifecycle & Initialization
     # -------------------------------------------------------------------------
+    @staticmethod
+    def _warm_crypto_key_in_background():
+        """PBKDF2 anahtar türetmesini (utils/crypto.py::_get_key) arka planda
+        önceden tetikler.
+
+        DÜZELTME (performans): `encrypt`/`decrypt` her çağrıda 1 milyon
+        iterasyonlu PBKDF2'yi YENİDEN çalıştırmaz — `functools.lru_cache` ile
+        önbelleklenir — ama SÜRECİN İLK çağrısı bu maliyeti (~250ms, ölçüldü)
+        öder. O ilk çağrı hangi thread'den gelirse o thread bloklanıyordu;
+        pratikte neredeyse her zaman ana thread kazanıyordu çünkü `build()`
+        senkron devam ederken arka plan thread'lerinin (varsa) başlaması bir
+        kare gecikiyordu. Bu fonksiyon o yarışı BİLEREK arka plana kaydırır:
+        `build()`'in ilk satırında çağrılır, böylece pencere görünür olana
+        kadar anahtar çoktan ısınmış olur.
+        """
+        import threading
+        from utils.crypto import decrypt, encrypt
+
+        def _warm():
+            try:
+                decrypt(encrypt("archlence-warmup"))
+            except Exception:
+                pass
+
+        thread = threading.Thread(target=_warm, daemon=True)
+        thread.start()
+        return thread
+
     def build(self):
         # Kivy'nin varsayılan 20 pre-frame iterasyonu, Archlence'ın iç içe
         # KivyMD/uyarlanabilir layout ağacı ilk kez ölçülürken zaman zaman
@@ -222,6 +250,7 @@ class ArchlenceApp(
         # yok; bu sınır yalnızca Builder'ın sonlu yerleşim zincirinin aynı
         # karede tamamlanabilmesi için ölçülü biçimde yükseltilir.
         Clock.max_iteration = 50
+        self._warm_crypto_key_in_background()
         initialize_database()
         self.store = JsonStore('savings_goals.json')
         if self.store.exists('goals'):
@@ -533,14 +562,32 @@ class ArchlenceApp(
             print("Purged Kivy logs due to size > 5MB")
 
     def vacuum_database(self):
-        try:
-            conn = get_connection()
-            conn.execute("VACUUM")
-            conn.commit()
-            conn.close()
-            print("Database VACUUM completed.")
-        except Exception as e:
-            print(f"VACUUM failed: {e}")
+        """VACUUM'u arka planda çalıştırır.
+
+        DÜZELTME (performans): eskiden bu, pencere zaten görünür olduktan
+        SONRA (`on_start()` içinde) ana thread'de senkron çalışıyordu.
+        Maliyeti veritabanı dosya boyutuyla orantılı olduğundan (VACUUM tüm
+        dosyayı yeniden yazar) küçük test veritabanında (~20ms) fark
+        edilmiyordu ama aylarca veri biriktirmiş gerçek bir kullanıcıda
+        büyüyebilirdi. Diğer arka plan DB işlemleriyle AYNI eşzamanlılık
+        modelini kullanır (ayrı bağlantı + `get_connection()`'ın kendi
+        `timeout` ayarı kilit çakışmalarını tolere eder).
+        """
+        import threading
+
+        def _work():
+            try:
+                conn = get_connection()
+                conn.execute("VACUUM")
+                conn.commit()
+                conn.close()
+                print("Database VACUUM completed.")
+            except Exception as e:
+                print(f"VACUUM failed: {e}")
+
+        thread = threading.Thread(target=_work, daemon=True)
+        thread.start()
+        return thread
 
     def write_daily_balance_snapshot(self):
         try:
@@ -1393,42 +1440,81 @@ class ArchlenceApp(
         self.safe_refresh_charts()
 
     def generate_financial_advice(self, *args):
+        """3 SQL sorgusu + decrypt döngüsünü arka planda bitirir, sonucu TEK
+        Clock çağrısıyla uygular.
+
+        DÜZELTME (performans): eskiden bu metod ana thread'de senkron
+        çalışıyordu ve HEM açılışta HEM de her başarılı işlem eklemesinde
+        (transaction_mixin.py) çağrılıyordu — yani en sık kullanılan eylemde
+        bile bir donma riski taşıyordu. `update_metrics_and_goals`'ta
+        zaten kullanılan aynı thread+Clock deseni buraya da uygulanır.
+        Ayrıca: decrypt()'in İLK çağrısı ~250ms'lik tek seferlik bir PBKDF2
+        anahtar türetmesi yapıyor (bkz. utils/crypto.py) — bu iş artık hangi
+        thread'de düşerse düşsün ana thread'i bloklamaz.
+        """
+        import threading
+
+        self._advice_generation = getattr(self, "_advice_generation", 0) + 1
+        generation = self._advice_generation
+
+        def _work():
+            try:
+                advice_text = self._compute_financial_advice_text()
+            except Exception as e:
+                print("Finansal tavsiye hesaplanamadı:", e)
+                return
+
+            def _apply(dt):
+                if generation != self._advice_generation:
+                    return  # bayat sonuç — daha yeni bir tazeleme başladı
+                self._apply_financial_advice_text(advice_text)
+
+            Clock.schedule_once(_apply, 0)
+
+        thread = threading.Thread(target=_work, daemon=True)
+        thread.start()
+        return thread
+
+    def _compute_financial_advice_text(self):
+        """Yalnızca veri üretir, hiçbir widget'a dokunmaz (thread güvenli)."""
         conn = get_connection()
         cursor = conn.cursor()
-        
+
         cursor.execute(f"SELECT category, amount FROM transactions WHERE type='expense' AND strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime') AND {COMPLETED_TX}")
         expense_rows_this_month = cursor.fetchall()
-        
+
         cat_sums, this_month_exp = {}, 0.0
         for cat, amount in expense_rows_this_month:
             try: val = float(decrypt(str(amount), SECRET_KEY))
             except: val = 0.0
             cat_sums[cat] = cat_sums.get(cat, 0.0) + val
             this_month_exp += val
-            
+
         highest_cat_name = max(cat_sums, key=lambda k: cat_sums[k]) if cat_sums else "Yok"
-        
+
         cursor.execute(f"SELECT amount FROM transactions WHERE type='expense' AND strftime('%m', transaction_date) = strftime('%m', 'now', '-1 month', 'localtime') AND {COMPLETED_TX}")
         last_month_exp = sum(float(decrypt(str(amt[0]), SECRET_KEY)) for amt in cursor.fetchall() if amt[0])
-        
+
         cursor.execute(f"SELECT amount FROM transactions WHERE type='income' AND strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime') AND {COMPLETED_TX}")
         this_month_inc = sum(float(decrypt(str(amt[0]), SECRET_KEY)) for amt in cursor.fetchall() if amt[0])
         conn.close()
-        
+
         if last_month_exp > 0:
             change_percent = ((this_month_exp - last_month_exp) / last_month_exp) * 100
             change_text = translate(f"%{change_percent:.1f} arttı") if change_percent > 0 else translate(f"%{abs(change_percent):.1f} azaldı")
         else:
             change_text = translate("karşılaştırılacak veri yok")
-            
+
         savings_rate = ((this_month_inc - this_month_exp) / this_month_inc) * 100 if this_month_inc > 0 else 0
 
-        advice_text = translate(
+        return translate(
             f"Bu ay harcamalarınız geçen döneme kıyasla {change_text}.\n"
             f"En çok harcama yapılan alan: {translate(highest_cat_name)}.\n"
             f"Bu ayki net tasarruf oranınız: %{savings_rate:.1f}. Harika birikim dönemi!"
         )
 
+    def _apply_financial_advice_text(self, advice_text):
+        """Ana thread'de çağrılır: yalnızca widget güncellemesi yapar."""
         try:
             app = MDApp.get_running_app()
             if app and app.root and 'prediction_text' in app.root.ids:
@@ -1437,8 +1523,8 @@ class ArchlenceApp(
                 app.root.ids.prediction_icon.text_color = ftheme.accent(app.theme_cls, "blue")
         except Exception:
             pass
-        
-        if 'advice_label' in self.root.ids:
+
+        if self.root and 'advice_label' in self.root.ids:
             self.root.ids.advice_label.text = advice_text
             self.root.ids.advice_icon.icon = "robot-outline"
             self.root.ids.advice_icon.text_color = ftheme.accent(self.theme_cls, "blue")
