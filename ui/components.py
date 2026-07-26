@@ -153,6 +153,7 @@ class LegendWidget(MDBoxLayout):
         'Ek Gelir':     '#2979FF',
         'Temel Gider':  '#FF5252',
         'Ekstra Gider': '#FFD600',
+        'Açılış Bakiyesi': '#00BFA5',
     }
 
     def __init__(self, **kwargs):
@@ -203,7 +204,7 @@ class LegendWidget(MDBoxLayout):
             row.add_widget(dot)
             row.add_widget(lbl)
 
-            if cat in ('Ana Gelir', 'Ek Gelir'):
+            if cat in ('Ana Gelir', 'Ek Gelir', 'Açılış Bakiyesi'):
                 left_box.add_widget(row)
             else:
                 right_box.add_widget(row)

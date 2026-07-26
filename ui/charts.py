@@ -671,7 +671,7 @@ class DashboardChartManager(MDBoxLayout):
         # ~1 sn'lik kare-başına yeniden çizim animasyonu başlatıyordu.)
         empty_totals = {
             'Ana Gelir': 0, 'Ek Gelir': 0,
-            'Temel Gider': 0, 'Ekstra Gider': 0,
+            'Temel Gider': 0, 'Ekstra Gider': 0, 'Açılış Bakiyesi': 0,
         }
         self.pie_widget.data = empty_totals
         self.pie_widget.draw_immediate()
@@ -687,9 +687,21 @@ class DashboardChartManager(MDBoxLayout):
             except Exception as exc:
                 print("Dashboard grafik verisi okunamadı:", exc)
                 raw_data = []
+            try:
+                # Açılış bakiyesi `transactions`'a hiç yazılmaz (bkz.
+                # get_opening_baseline_by_period docstring'i) — yeni açılan
+                # tek hesaplı bir kullanıcı hiç işlem girmeden bu paneli
+                # "Veri Yok" olarak görürdü. Ayrı bir dilim olarak eklenir;
+                # tasarruf oranı/sağlık skoru gibi diğer hesaplara katılmaz.
+                opening_baseline = TransactionService.get_opening_baseline_by_period(period)
+            except Exception as exc:
+                print("Açılış bakiyesi okunamadı:", exc)
+                opening_baseline = 0.0
             # Başarılı veya hatalı her yol ana thread'de loading'i sonlandırır.
             Clock.schedule_once(
-                lambda dt: self._apply_data_safely(raw_data, period, generation), 0
+                lambda dt: self._apply_data_safely(
+                    raw_data, period, generation, opening_baseline
+                ), 0
             )
 
         threading.Thread(target=_load, daemon=True).start()
@@ -707,21 +719,21 @@ class DashboardChartManager(MDBoxLayout):
 
     # ── Internal update (always runs on the main thread) ─────────────────────
 
-    def _apply_data_safely(self, raw_data, period, generation=None):
+    def _apply_data_safely(self, raw_data, period, generation=None, opening_baseline=0.0):
         if generation is not None and generation != getattr(self, "_refresh_generation", 0):
             return  # bayat sonuç — daha yeni bir tazeleme başladı
         try:
-            self._apply_data(raw_data, period)
+            self._apply_data(raw_data, period, opening_baseline)
         except Exception as exc:
             print("Dashboard grafikleri çizilemedi:", exc)
             # Canvas/veri biçimi hatası dahi spinner ve opacity'yi kilitlemez.
             self._set_charts_loading(False)
 
-    def _apply_data(self, raw_data, period):
+    def _apply_data(self, raw_data, period, opening_baseline=0.0):
         # 1. Aggregate 4-category totals for PieChart + Legend
         cat_totals = {
             'Ana Gelir': 0.0, 'Ek Gelir': 0.0,
-            'Temel Gider': 0.0, 'Ekstra Gider': 0.0,
+            'Temel Gider': 0.0, 'Ekstra Gider': 0.0, 'Açılış Bakiyesi': 0.0,
         }
         for tx in raw_data or []:
             t_type = tx.get('type')
@@ -736,6 +748,7 @@ class DashboardChartManager(MDBoxLayout):
             elif t_type == 'expense':
                 if importance == 'main': cat_totals['Temel Gider'] += amount
                 else:                    cat_totals['Ekstra Gider'] += amount
+        cat_totals['Açılış Bakiyesi'] = float(opening_baseline or 0.0)
 
         # Update PieChart
         self.pie_widget.data = cat_totals
@@ -1131,7 +1144,8 @@ class ConfettiWidget(Widget):
 class PieChart(Widget):
     """Ortası boş halka (donut/pie) grafiği çizer. Yüzdelikleri ve dilimleri animasyonlu gösterir.
     Beklenen veri formatı (self.data):
-    {'Ana Gelir': 5000, 'Ek Gelir': 1500, 'Temel Gider': 3000, 'Ekstra Gider': 800} (Dict)
+    {'Ana Gelir': 5000, 'Ek Gelir': 1500, 'Temel Gider': 3000, 'Ekstra Gider': 800,
+     'Açılış Bakiyesi': 22500} (Dict)
     """
     anim_progress = NumericProperty(0)
     selected_targets = []
@@ -1164,7 +1178,8 @@ class PieChart(Widget):
             'Ana Gelir': '#00C853',
             'Ek Gelir': '#2979FF',
             'Temel Gider': '#FF5252',
-            'Ekstra Gider': '#FFD600'
+            'Ekstra Gider': '#FFD600',
+            'Açılış Bakiyesi': '#00BFA5',
         }
         
         from kivy.utils import get_color_from_hex

@@ -12,6 +12,27 @@ SECRET_KEY = "fi" + "nora_secure_2026"
 _INSTALLMENTS_TABLE = "installment_plans"
 
 
+def _period_date_cond(filter_type: str, column: str) -> str:
+    """Dashboard dönem filtresini (Bugün/1 Hafta/...) bir SQL tarih koşuluna
+    çevirir. `get_transactions_by_period` ve açılış bakiyesi sorgusu AYNI
+    dönem tanımını kullanmalı — aksi halde "Bugün" filtresinde işlemler bir
+    tarih aralığından, açılış bakiyesi başka bir aralıktan okunurdu.
+
+    `column` çağıranın SQL'inde zaten var olan bir sütun/ifade olmalı (örn.
+    "t.transaction_date", "ts"); değerler yalnızca bu sabit listeden geldiği
+    için f-string'e gömülmesi güvenlidir (kullanıcı girdisi asla girmez).
+    """
+    if filter_type == "1 Hafta":
+        return f"date({column}) >= date('now', '-7 days', 'localtime')"
+    if filter_type == "1 Ay":
+        return f"date({column}) >= date('now', '-1 month', 'localtime')"
+    if filter_type == "1 Yıl":
+        return f"date({column}) >= date('now', '-1 year', 'localtime')"
+    if filter_type == "Hayat Boyu":
+        return f"date({column}) IS NOT NULL"
+    return f"date({column}) = date('now', 'localtime')"
+
+
 def _ensure_installments_table(cursor) -> None:
     """Tutarlar diğer tablolardaki gibi şifreli TEXT tutulur (SQL'de toplanmaz,
     Python'da çözülür); taksit sayaçları sorgulanabilir düz INTEGER kalır."""
@@ -360,20 +381,9 @@ class TransactionService:
     def get_transactions_by_period(filter_type):
         conn = get_connection()
         cursor = conn.cursor()
-        
-        # date_cond f-string ile SQL'e gömülüyor ama güvenli: değerler yalnızca
-        # buradaki sabit listeden gelir, kullanıcı girdisi asla doğrudan girmez.
-        if filter_type == "1 Hafta":
-            date_cond = ">= date('now', '-7 days', 'localtime')"
-        elif filter_type == "1 Ay":
-            date_cond = ">= date('now', '-1 month', 'localtime')"
-        elif filter_type == "1 Yıl":
-            date_cond = ">= date('now', '-1 year', 'localtime')"
-        elif filter_type == "Hayat Boyu":
-            date_cond = "IS NOT NULL"
-        else:
-            date_cond = "= date('now', 'localtime')"
-            
+
+        date_cond = _period_date_cond(filter_type, "t.transaction_date")
+
         # status filtresi: ileri tarihli (pending) işlemler bakiyeye
         # işlenmediği için raporlanan gelir/gider/tasarruf metriklerine de
         # girmemeli — yoksa bakiye ile dashboard birbirini tutmaz.
@@ -381,7 +391,7 @@ class TransactionService:
             SELECT t.amount, t.type, t.category, t.transaction_date, c.importance
             FROM transactions t
             LEFT JOIN categories c ON t.category = c.name
-            WHERE date(t.transaction_date) {date_cond}
+            WHERE {date_cond}
               AND {COMPLETED_TX_T}
         """)
         rows = cursor.fetchall()
@@ -402,6 +412,40 @@ class TransactionService:
                 'importance': r[4] if r[4] else 'extra'
             })
         return data
+
+    @staticmethod
+    def get_opening_baseline_by_period(filter_type):
+        """Seçili dönemde açılan hesapların (pozitif) açılış bakiyeleri toplamı.
+
+        NEDEN: Hesap açılış bakiyesi `transactions` tablosuna hiç yazılmaz
+        (yalnızca accounts.balance + balance_events('account_opened') —
+        bkz. AccountService.create_account). Bu yüzden Varlıklarım
+        sekmesindeki pasta/çizgi grafiği tamamen `get_transactions_by_period`
+        üzerinden besleniyordu ve YENİ açılan tek hesaplı bir kullanıcı
+        (henüz hiç işlem girmemiş) grafikte "Veri Yok" görüyordu — bakiyesi
+        dolu olsa bile.
+
+        Açılış bakiyesini gerçek bir "Ana Gelir" işlemi olarak YAZMIYORUZ:
+        bilerek `transactions`'a hiç dokunmaz, böylece tasarruf oranı, 50-30-20
+        sağlık skoru ve ODE günlük gelir girdisi gibi nakit-akışı analizleri
+        açılış bakiyesiyle şişmez (bkz. DashboardService.get_opening_baseline,
+        aynı ilke). Yalnızca BU özet için ayrı, görünür bir "Açılış Bakiyesi"
+        dilimi döndürülür.
+
+        Kredi kartı açılış BORCU (negatif delta) hariç tutulur — bir borcun
+        gelir pastasında görünmesi anlamsız olurdu.
+        """
+        conn = get_connection()
+        try:
+            date_cond = _period_date_cond(filter_type, "ts")
+            rows = conn.execute(f"""
+                SELECT delta FROM balance_events
+                WHERE entity_type = 'account' AND source = 'account_opened'
+                  AND {date_cond}
+            """).fetchall()
+        finally:
+            conn.close()
+        return round(sum(r[0] for r in rows if r[0] and r[0] > 0), 2)
 
     @staticmethod
     def get_recent_for_account(account_id, limit=3):

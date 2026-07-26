@@ -517,6 +517,7 @@ EN = {
     "Ek Gelir": "Additional Income",
     "Temel Gider": "Essential Expenses",
     "Ekstra Gider": "Discretionary Expenses",
+    "Açılış Bakiyesi": "Opening Balance",
     "Maaş": "Salary", "Avans": "Advance", "Prim": "Bonus", "Mesai": "Overtime",
     "Kıdem Tazminatı": "Severance Pay", "İhbar Tazminatı": "Notice Pay",
     "Danışmanlık": "Consulting", "Proje Bedeli": "Project Income", "Ürün Satışı": "Product Sales",
