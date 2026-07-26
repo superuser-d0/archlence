@@ -43,7 +43,11 @@ def _label_texture(text, font_size, color, bold=False):
 class CurvedTrendChart(Widget):
     """Zaman içindeki gelir ve gider trendlerini gösteren eğimli alan (area) grafiği çizer.
     Beklenen veri formatı (self.chart_data):
-    [{'label': '01 Eki', 'income': 1500.0, 'expense': 800.0}, ...]
+    [{'label': '01 Eki', 'income': 1500.0, 'expense': 800.0, 'opening': 0.0}, ...]
+
+    `opening` (hesap açılış bakiyesi) isteğe bağlıdır: yalnızca sıfırdan
+    büyük bir değeri olduğunda kendi serisi ve lejant girdisiyle çizilir —
+    her kullanıcıda görünen kalıcı bir sıfır çizgisi eklemez.
     """
 
     anim_progress = NumericProperty(0.0)
@@ -53,6 +57,9 @@ class CurvedTrendChart(Widget):
     COLOR_INCOME_FILL  = (0.16, 0.84, 0.60, 0.20)
     COLOR_EXPENSE_LINE = (0.30, 0.45, 0.95, 1.0)    # blue
     COLOR_EXPENSE_FILL = (0.30, 0.45, 0.95, 0.15)
+    # Pasta grafiğindeki 'Açılış Bakiyesi' dilimiyle AYNI renk (#00BFA5).
+    COLOR_OPENING_LINE = (0.00, 0.75, 0.65, 1.0)
+    COLOR_OPENING_FILL = (0.00, 0.75, 0.65, 0.18)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -170,7 +177,11 @@ class CurvedTrendChart(Widget):
             # ── Nice Y-axis range ───────────────────────────────────────────
             all_inc = [d['income']  for d in data]
             all_exp = [d['expense'] for d in data]
-            raw_max = max(max(all_inc), max(all_exp), 1.0)
+            # 'opening' eski çağıranların sözlüklerinde bulunmayabilir; .get ile
+            # okunur ki üçüncü seri opsiyonel kalsın.
+            all_opn = [d.get('opening', 0) or 0 for d in data]
+            has_opening = any(v > 0 for v in all_opn)
+            raw_max = max(max(all_inc), max(all_exp), max(all_opn), 1.0)
 
             # Round up to a clean step
             mag      = 10 ** (len(str(int(raw_max))) - 1)
@@ -217,7 +228,7 @@ class CurvedTrendChart(Widget):
 
             # ── Series drawing helper ──────────────────────────────────────
             def draw_series(key, line_col, fill_col, dot_r=dp(3.5)):
-                raw_pts  = [(px(i), py(d[key])) for i, d in enumerate(data)]
+                raw_pts  = [(px(i), py(d.get(key, 0) or 0)) for i, d in enumerate(data)]
                 # Clip to animation progress
                 clip_x   = cx0 + cw * p
                 visible  = [(x, y) for x, y in raw_pts if x <= clip_x]
@@ -268,7 +279,7 @@ class CurvedTrendChart(Widget):
                 if p > 0.80 and visible:
                     la = min(1.0, (p - 0.80) * 5)
                     last_idx = min(len(visible) - 1, len(data) - 1)
-                    last_val = data[last_idx][key]
+                    last_val = data[last_idx].get(key, 0) or 0
                     if last_val > 0:
                         vt = _label_texture(self._fmt_k(last_val), dp(11),
                                             (*line_col[:3], 1.0), bold=True)
@@ -281,14 +292,21 @@ class CurvedTrendChart(Widget):
             # Draw expense first (below income)
             draw_series('expense', self.COLOR_EXPENSE_LINE, self.COLOR_EXPENSE_FILL)
             draw_series('income',  self.COLOR_INCOME_LINE,  self.COLOR_INCOME_FILL)
+            # Açılış bakiyesi yalnızca gerçekten varsa çizilir; yoksa her
+            # kullanıcıya kalıcı bir sıfır çizgisi göstermiş olurduk.
+            if has_opening:
+                draw_series('opening', self.COLOR_OPENING_LINE, self.COLOR_OPENING_FILL)
 
             # ── Mini legend top-right ─────────────────────────────────────
             if p > 0.8:
                 leg_alpha = min(1.0, (p - 0.8) * 5.0)
                 leg_y     = cy1 - dp(2)
                 leg_x     = cx1
-                for ltext, lcol in [('Gider', self.COLOR_EXPENSE_LINE),
-                                     ('Gelir', self.COLOR_INCOME_LINE)]:
+                legend_items = [('Gider', self.COLOR_EXPENSE_LINE),
+                                ('Gelir', self.COLOR_INCOME_LINE)]
+                if has_opening:
+                    legend_items.append(('Açılış', self.COLOR_OPENING_LINE))
+                for ltext, lcol in legend_items:
                     lt2 = _label_texture(ltext, dp(11), (*lcol[:3], 1.0), bold=True)
                     sw_w, sw_h = dp(16), dp(3)
                     # text
@@ -689,18 +707,19 @@ class DashboardChartManager(MDBoxLayout):
                 raw_data = []
             try:
                 # Açılış bakiyesi `transactions`'a hiç yazılmaz (bkz.
-                # get_opening_baseline_by_period docstring'i) — yeni açılan
-                # tek hesaplı bir kullanıcı hiç işlem girmeden bu paneli
-                # "Veri Yok" olarak görürdü. Ayrı bir dilim olarak eklenir;
-                # tasarruf oranı/sağlık skoru gibi diğer hesaplara katılmaz.
-                opening_baseline = TransactionService.get_opening_baseline_by_period(period)
+                # get_opening_events_by_period docstring'i) — yeni açılan
+                # tek hesaplı bir kullanıcı hiç işlem girmeden HEM pastayı HEM
+                # zaman grafiğini "Veri Yok" olarak görürdü. Her iki grafikte de
+                # ayrı bir seri olarak çizilir; tasarruf oranı/sağlık skoru gibi
+                # diğer hesaplara katılmaz.
+                opening_events = TransactionService.get_opening_events_by_period(period)
             except Exception as exc:
                 print("Açılış bakiyesi okunamadı:", exc)
-                opening_baseline = 0.0
+                opening_events = []
             # Başarılı veya hatalı her yol ana thread'de loading'i sonlandırır.
             Clock.schedule_once(
                 lambda dt: self._apply_data_safely(
-                    raw_data, period, generation, opening_baseline
+                    raw_data, period, generation, opening_events
                 ), 0
             )
 
@@ -719,18 +738,18 @@ class DashboardChartManager(MDBoxLayout):
 
     # ── Internal update (always runs on the main thread) ─────────────────────
 
-    def _apply_data_safely(self, raw_data, period, generation=None, opening_baseline=0.0):
+    def _apply_data_safely(self, raw_data, period, generation=None, opening_events=None):
         if generation is not None and generation != getattr(self, "_refresh_generation", 0):
             return  # bayat sonuç — daha yeni bir tazeleme başladı
         try:
-            self._apply_data(raw_data, period, opening_baseline)
+            self._apply_data(raw_data, period, opening_events)
         except Exception as exc:
             print("Dashboard grafikleri çizilemedi:", exc)
             # Canvas/veri biçimi hatası dahi spinner ve opacity'yi kilitlemez.
             self._set_charts_loading(False)
 
-    def _apply_data(self, raw_data, period, opening_baseline=0.0):
-        # 1. Aggregate 4-category totals for PieChart + Legend
+    def _apply_data(self, raw_data, period, opening_events=None):
+        # 1. Aggregate 5-category totals for PieChart + Legend
         cat_totals = {
             'Ana Gelir': 0.0, 'Ek Gelir': 0.0,
             'Temel Gider': 0.0, 'Ekstra Gider': 0.0, 'Açılış Bakiyesi': 0.0,
@@ -748,7 +767,9 @@ class DashboardChartManager(MDBoxLayout):
             elif t_type == 'expense':
                 if importance == 'main': cat_totals['Temel Gider'] += amount
                 else:                    cat_totals['Ekstra Gider'] += amount
-        cat_totals['Açılış Bakiyesi'] = float(opening_baseline or 0.0)
+        cat_totals['Açılış Bakiyesi'] = sum(
+            float(event.get('amount') or 0) for event in opening_events or []
+        )
 
         # Update PieChart
         self.pie_widget.data = cat_totals
@@ -759,14 +780,17 @@ class DashboardChartManager(MDBoxLayout):
 
         # 2. Build time-bucketed data for CurvedTrendChart
         try:
-            buckets = self._build_time_buckets(raw_data or [], period)
+            buckets = self._build_time_buckets(
+                raw_data or [], period, opening_events
+            )
         except Exception as exc:
             print("Dashboard zaman grafiği hazırlanamadı:", exc)
             buckets = []
         self.trend_chart.chart_data = buckets
         self.trend_chart.request_redraw()
         has_chart_data = any(cat_totals.values()) or any(
-            row.get("income", 0) or row.get("expense", 0) for row in buckets
+            row.get("income", 0) or row.get("expense", 0) or row.get("opening", 0)
+            for row in buckets
         )
         self._set_chart_empty_state(not has_chart_data)
 
@@ -795,59 +819,78 @@ class DashboardChartManager(MDBoxLayout):
                 continue
         raise ValueError(f"Tanınmayan işlem tarihi: {raw!r}")
 
-    def _build_time_buckets(self, raw_data, filter_text):
-        """Return list of {label, income, expense} dicts for the chosen period."""
+    def _build_time_buckets(self, raw_data, filter_text, opening_events=None):
+        """Return list of {label, income, expense, opening} dicts for the period.
+
+        `opening_events` hesap açılış bakiyeleridir (bkz. TransactionService.
+        get_opening_events_by_period). `transactions` tablosunda bulunmadıkları
+        için ayrı gelir ve grafikte KENDİ serilerinde çizilir — pasta
+        grafiğindeki "Açılış Bakiyesi" dilimiyle aynı ilke: görünür olur ama
+        gerçek gelir sayılmaz.
+
+        Kovalama artık tek bir olay listesi üzerinden yapılıyor: eskiden her
+        dönem dalı işlemleri kendi sözlüğüne ayrı ayrı topluyordu ve açılış
+        olaylarını eklemek dört yerde tekrar gerektirirdi. Ayrıca 'Bugün' ve
+        'Hayat Boyu' dallarında eksen aralığı (min saat / min yıl) yalnızca
+        işlemlerden türetiliyordu; açılış olayı o aralığın dışında kalırsa
+        sessizce çizilmezdi — birleşik liste bunu da çözer.
+        """
         import datetime
         now = datetime.datetime.now()
         result = []
 
-        if filter_text == 'Bugün':
-            hour_map = {}
-            for tx in raw_data:
-                dt = self._parse_tx_datetime(tx['transaction_date'])
-                if dt.date() == now.date():
-                    h = f'{dt.hour:02d}'
-                    hour_map.setdefault(h, {'inc': 0, 'exp': 0})
-                    if tx['type'] == 'income': hour_map[h]['inc'] += tx['amount']
-                    else:                       hour_map[h]['exp'] += tx['amount']
+        def new_bucket():
+            return {'inc': 0.0, 'exp': 0.0, 'opn': 0.0}
 
-            min_h = int(min(hour_map)) if hour_map else max(0, now.hour - 4)
-            max_h = max(int(max(hour_map)), now.hour) if hour_map else now.hour
+        events = []  # (datetime, 'inc'|'exp'|'opn', tutar)
+        for tx in raw_data or []:
+            dt = self._parse_tx_datetime(tx['transaction_date'])
+            kind = 'inc' if tx.get('type') == 'income' else 'exp'
+            events.append((dt, kind, float(tx.get('amount') or 0)))
+        for event in opening_events or []:
+            dt = self._parse_tx_datetime(event['transaction_date'])
+            events.append((dt, 'opn', float(event.get('amount') or 0)))
+
+        buckets = {}
+
+        def add(key, kind, amount):
+            buckets.setdefault(key, new_bucket())[kind] += amount
+
+        def row(label, key):
+            entry = buckets.get(key) or new_bucket()
+            return {
+                'label': label, 'income': entry['inc'],
+                'expense': entry['exp'], 'opening': entry['opn'],
+            }
+
+        if filter_text == 'Bugün':
+            for dt, kind, amount in events:
+                if dt.date() == now.date():
+                    add(f'{dt.hour:02d}', kind, amount)
+
+            hours = sorted(int(k) for k in buckets)
+            min_h = hours[0] if hours else max(0, now.hour - 4)
+            max_h = max(hours[-1], now.hour) if hours else now.hour
             for h in range(min_h, max_h + 1):
-                k = f'{h:02d}'
-                entry = hour_map.get(k, {'inc': 0, 'exp': 0})
-                result.append({'label': f'{k}:00', 'income': entry['inc'], 'expense': entry['exp']})
+                result.append(row(f'{h:02d}:00', f'{h:02d}'))
 
         elif filter_text in ('1 Hafta', '1 Ay'):
             days = 7 if filter_text == '1 Hafta' else 30
             start_dt = now - datetime.timedelta(days=days - 1)
-            day_map = {}
-            for tx in raw_data:
-                dt = self._parse_tx_datetime(tx['transaction_date'])
+            for dt, kind, amount in events:
                 if dt.date() >= start_dt.date():
-                    k = dt.strftime('%Y-%m-%d')
-                    day_map.setdefault(k, {'inc': 0, 'exp': 0})
-                    if tx['type'] == 'income': day_map[k]['inc'] += tx['amount']
-                    else:                       day_map[k]['exp'] += tx['amount']
+                    add(dt.strftime('%Y-%m-%d'), kind, amount)
 
             for d in range(days):
-                dt  = start_dt + datetime.timedelta(days=d)
-                k   = dt.strftime('%Y-%m-%d')
-                lbl = dt.strftime('%d %b')
-                entry = day_map.get(k, {'inc': 0, 'exp': 0})
-                result.append({'label': lbl, 'income': entry['inc'], 'expense': entry['exp']})
+                dt = start_dt + datetime.timedelta(days=d)
+                result.append(row(dt.strftime('%d %b'), dt.strftime('%Y-%m-%d')))
 
         elif filter_text == '1 Yıl':
             month_names = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara']
             start_dt = now - datetime.timedelta(days=364)
-            month_map = {}
-            for tx in raw_data:
-                dt = self._parse_tx_datetime(tx['transaction_date'])
+            for dt, kind, amount in events:
                 if dt.date() >= start_dt.date():
-                    k = dt.strftime('%Y-%m')
-                    month_map.setdefault(k, {'inc': 0, 'exp': 0})
-                    if tx['type'] == 'income': month_map[k]['inc'] += tx['amount']
-                    else:                       month_map[k]['exp'] += tx['amount']
+                    add(dt.strftime('%Y-%m'), kind, amount)
 
             for i in range(11, -1, -1):
                 m = now.month - i
@@ -855,30 +898,24 @@ class DashboardChartManager(MDBoxLayout):
                 while m < 1:
                     m += 12
                     y -= 1
-                k   = f'{y}-{m:02d}'
-                lbl = f"{month_names[m-1]} '{str(y)[2:]}"
-                entry = month_map.get(k, {'inc': 0, 'exp': 0})
-                result.append({'label': lbl, 'income': entry['inc'], 'expense': entry['exp']})
+                result.append(
+                    row(f"{month_names[m-1]} '{str(y)[2:]}", f'{y}-{m:02d}')
+                )
 
         elif filter_text == 'Hayat Boyu':
-            year_map = {}
-            for tx in raw_data:
-                dt = self._parse_tx_datetime(tx['transaction_date'])
-                k = dt.strftime('%Y')
-                year_map.setdefault(k, {'inc': 0, 'exp': 0})
-                if tx['type'] == 'income': year_map[k]['inc'] += tx['amount']
-                else:                       year_map[k]['exp'] += tx['amount']
-            
-            if year_map:
-                min_year = int(min(year_map.keys()))
-                max_year = now.year
-                for y in range(min_year, max_year + 1):
-                    k = str(y)
-                    entry = year_map.get(k, {'inc': 0, 'exp': 0})
-                    result.append({'label': k, 'income': entry['inc'], 'expense': entry['exp']})
+            for dt, kind, amount in events:
+                add(dt.strftime('%Y'), kind, amount)
+
+            if buckets:
+                min_year = int(min(buckets))
+                for y in range(min_year, now.year + 1):
+                    result.append(row(str(y), str(y)))
 
         # Filter out all-zero rows only when ALL rows are zero (keep axis visible)
-        any_data = any(r['income'] > 0 or r['expense'] > 0 for r in result)
+        any_data = any(
+            r['income'] > 0 or r['expense'] > 0 or r['opening'] > 0
+            for r in result
+        )
         if not any_data:
             return []   # empty → chart shows "Bu dönemde veri yok"
         return result

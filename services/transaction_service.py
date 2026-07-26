@@ -435,17 +435,41 @@ class TransactionService:
         Kredi kartı açılış BORCU (negatif delta) hariç tutulur — bir borcun
         gelir pastasında görünmesi anlamsız olurdu.
         """
+        return round(
+            sum(
+                event["amount"]
+                for event in TransactionService.get_opening_events_by_period(
+                    filter_type)
+            ),
+            2,
+        )
+
+    @staticmethod
+    def get_opening_events_by_period(filter_type):
+        """Açılış bakiyelerini ZAMAN DAMGASIYLA döndürür (grafik kovaları için).
+
+        `get_opening_baseline_by_period` yalnız toplamı verir; zaman grafiği
+        (CurvedTrendChart) ise her olayı kendi saat/gün/ay kovasına koymak
+        zorunda olduğundan tarihe de ihtiyaç duyar. İşlem sözlükleriyle AYNI
+        alan adları (`amount`, `transaction_date`) kullanılır ki
+        `_build_time_buckets` iki kaynağı tek bir döngüde işleyebilsin.
+        """
         conn = get_connection()
         try:
             date_cond = _period_date_cond(filter_type, "ts")
             rows = conn.execute(f"""
-                SELECT delta FROM balance_events
+                SELECT ts, delta FROM balance_events
                 WHERE entity_type = 'account' AND source = 'account_opened'
                   AND {date_cond}
+                ORDER BY ts
             """).fetchall()
         finally:
             conn.close()
-        return round(sum(r[0] for r in rows if r[0] and r[0] > 0), 2)
+        return [
+            {"amount": float(row[1]), "transaction_date": row[0]}
+            for row in rows
+            if row[1] and row[1] > 0
+        ]
 
     @staticmethod
     def get_recent_for_account(account_id, limit=3):
