@@ -196,6 +196,24 @@ def muted_bg(style):
     return [0.93, 0.93, 0.95, 1]
 
 
+def segment_track_line(style):
+    """Segmented control'ü (Gider/Gelir, Tek seferlik/Her ay gibi) saran
+    kartın kenarlığı.
+
+    DÜZELTME (Aşama 2, madde 1.5): karanlık temada `muted_bg` (#262626) ile
+    diyaloğun kendi zemini (#1E1E1E) arasındaki fark yalnızca 8 birim —
+    gözle neredeyse ayrışmıyor. Sonuç: SEÇİLİ OLMAYAN segment hiçbir sınırı
+    olmayan düz bir metin gibi görünüyor, kullanıcı orada da tıklanabilir
+    ikinci bir seçenek olduğunu fark edemiyordu. `card_line`burada
+    kullanılmaz — o kartlar için bilerek karanlıkta şeffaftır (bkz. kendi
+    docstring'i); segmented control'ün spesifik belirsizliği için amaca özel,
+    görünür ama göz yormayan ince bir kenarlık.
+    """
+    if _is_dark(style):
+        return [1, 1, 1, 0.18]
+    return [0, 0, 0, 0.10]
+
+
 def bank_card_bg(style):
     """Premium kartın temadan bağımsız gece mavisi fiziksel kart yüzeyi."""
     return get_color_from_hex(ARCHLENCE_BANK_CARD_HEX)
@@ -288,6 +306,33 @@ def restyle_text_fields(root, theme_cls):
                     setattr(widget, key, value)
                 except Exception:
                     pass
+
+
+def bind_card_tap(card, callback):
+    """Ham bir `MDCard`'ı gerçekten tıklanabilir yapar.
+
+    HATA (Aşama 2, madde 1.6/1.7): `MDCard.bind(on_release=...)` SESSİZCE
+    hiçbir zaman ateşlenmiyordu — "Daha fazla seçenek" butonu tepki
+    vermiyor, tutar alanının genişletilmiş tıklama kartı işe yaramıyordu.
+    Kök neden: MDCard'ın `ripple_behavior=True`'sı yalnızca GÖRSEL dalga
+    efektini sağlayan `RectangularRippleBehavior`'dan gelir; bu davranış
+    `ButtonBehavior`'ı MİRAS ALMAZ ve `on_press`/`on_release` olaylarını
+    HİÇ dispatch etmez (doğrulandı: `'on_release' in MDCard.__events__`
+    → `False`). KivyMD'nin resmi `ripple_behavior` örneği de sadece görsel
+    efekti gösterir, tıklama olayı vermez.
+
+    Bunun yerine `on_touch_up` + `collide_point` ile gerçek bir dokunuş
+    algılaması kurulur — `MDRaisedButton`/`MDFlatButton` gibi gerçek
+    `ButtonBehavior` tabanlı widget'lara ihtiyaç duymadan, karmaşık iç
+    yerleşimli (ikon+etiket+chevron) kartları tıklanabilir yapar.
+    """
+    def _on_touch_up(widget, touch):
+        if widget.disabled:
+            return False
+        if widget.collide_point(*touch.pos):
+            callback()
+        return False
+    card.bind(on_touch_up=_on_touch_up)
 
 
 def primary_button(text, theme_cls, **kwargs):

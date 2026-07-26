@@ -1448,10 +1448,19 @@ class ArchlenceApp(
     # Dialogs & Reset Functionality
     # -------------------------------------------------------------------------
     def show_calendar_view(self):
-        from kivymd.uix.pickers import MDDatePicker
-        date_dialog = MDDatePicker(primary_color=self.theme_cls.primary_color)
-        date_dialog.bind(on_save=self.on_calendar_date_save, on_cancel=lambda *args: None)
-        date_dialog.open()
+        # DÜZELTME (çökme): burada doğrudan `from kivymd.uix.pickers import
+        # MDDatePicker` çağrılıyordu. Kivy 2.3.1'in .kv ayrıştırıcısı,
+        # Python 3.14'te kaldırılan `ast.Str` API'sini hâlâ kullanıyor;
+        # MDDatePicker'ın renk seçici alt modülü ilk kez burada import
+        # edildiğinde ayrıştırıcı patlayıp UYGULAMAYI ÇÖKERTİYORDU (Araçlar >
+        # Takvim karesine her tıklamada). HistoryMixin._open_date_picker
+        # (bkz. mixins/history_mixin.py) aynı importtan önce dar kapsamlı bir
+        # `ast.Str = ast.Constant` yaması kuruyor ve TransactionMixin/
+        # PendingMixin zaten bu ortak yoldan geçiyor; burası da aynı yola
+        # geçirilir — yamayı ikinci kez kopyalamak yerine.
+        import datetime
+        self._open_date_picker(
+            datetime.date.today(), self.on_calendar_date_save)
 
     def on_calendar_date_save(self, instance, value, date_range):
         # value is a datetime.date object

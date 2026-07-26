@@ -66,7 +66,16 @@ class TransactionMixin:
         )
         self.amount_card.md_bg_color = self.theme_cls.bg_dark if self.theme_cls.theme_style == "Dark" else self.theme_cls.bg_light
         self.amount_card.add_widget(self.amount_input)
-        self.amount_card.bind(on_release=lambda *args: setattr(self.amount_input, 'focus', True))
+        # DÜZELTME (Aşama 2, madde 1.6 — "ince çizgiye basmadıkça yazamıyorum"):
+        # MDCard'ın `on_release` olayı yok (ripple_behavior yalnız görsel
+        # efekt verir; ButtonBehavior'dan gelmez) — bind(on_release=...)
+        # sessizce hiç ateşlenmiyordu, dolayısıyla tıklanabilir alan asla
+        # MDTextField'ın kendi dar sınırlarının ÖTESİNE genişlemiyordu.
+        # bkz. ui/theme.py::bind_card_tap.
+        ftheme.bind_card_tap(
+            self.amount_card,
+            lambda: setattr(self.amount_input, 'focus', True),
+        )
 
         # Segment ve butonlara açık yükseklik: adaptive konteynerde her çocuğun
         # size_hint_y=None + net height olmalı, yoksa kutu doğru ölçülmez.

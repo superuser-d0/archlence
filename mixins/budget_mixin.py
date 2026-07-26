@@ -311,6 +311,10 @@ class BudgetMixin:
             orientation="vertical", size_hint_y=None, height=dp(48),
             padding=dp(3), radius=[dp(12)],
             elevation=0, md_bg_color=ftheme.muted_bg(self.theme_cls),
+            # DÜZELTME (madde 1.5): karanlık temada seçili olmayan segment
+            # (Gider/Gelir) sınırsız düz metne benziyordu. bkz.
+            # ui/theme.py::segment_track_line.
+            line_color=ftheme.segment_track_line(self.theme_cls),
         )
         self.bp_type_segment = MDSegmentedControl(
             size_hint_y=None, height=dp(42), radius=dp(10),
@@ -335,8 +339,11 @@ class BudgetMixin:
             md_bg_color=ftheme.elevated_bg(self.theme_cls),
             line_color=ftheme.card_line(self.theme_cls),
         )
-        self.bp_category_button.bind(
-            on_release=self.open_budget_category_menu
+        # DÜZELTME: MDCard'ın `on_release` olayı yok (ripple_behavior yalnız
+        # görsel efekt verir) — bind(on_release=...) sessizce hiç ateşlenmiyordu.
+        # bkz. ui/theme.py::bind_card_tap.
+        ftheme.bind_card_tap(
+            self.bp_category_button, self.open_budget_category_menu
         )
         self.bp_category_button.add_widget(MDIcon(
             icon="tag-outline", size_hint_x=None, width=dp(24),
@@ -385,7 +392,13 @@ class BudgetMixin:
             size_hint_y=None, height=dp(58),
             padding=[dp(12), dp(12), dp(8), dp(12)],
         ))
-        amount_row.bind(on_release=lambda *args: setattr(self.bp_amount_input, 'focus', True))
+        # DÜZELTME (madde 1.6): aynı `on_release`-yok sorunu — bkz.
+        # ui/theme.py::bind_card_tap. Bu satır olmadan tıklama alanı yalnız
+        # MDTextField'ın kendi (dar) sınırlarına iniyordu.
+        ftheme.bind_card_tap(
+            amount_row,
+            lambda: setattr(self.bp_amount_input, 'focus', True),
+        )
         amount_row.add_widget(self.bp_currency_label)
         amount_row.add_widget(self.bp_amount_input)
 
@@ -393,6 +406,7 @@ class BudgetMixin:
             orientation="vertical", size_hint_y=None, height=dp(48),
             padding=dp(3), radius=[dp(12)],
             elevation=0, md_bg_color=ftheme.muted_bg(self.theme_cls),
+            line_color=ftheme.segment_track_line(self.theme_cls),
         )
         self.bp_frequency_segment = MDSegmentedControl(
             size_hint_y=None, height=dp(42), radius=dp(10),
@@ -462,8 +476,10 @@ class BudgetMixin:
             md_bg_color=(0, 0, 0, 0),
             ripple_behavior=True,
         )
-        self.bp_advanced_button.bind(
-            on_release=self._toggle_budget_advanced
+        # DÜZELTME (madde 1.7 — "Daha fazla seçenek" tepki vermiyordu): aynı
+        # `on_release`-yok sorunu — bkz. ui/theme.py::bind_card_tap.
+        ftheme.bind_card_tap(
+            self.bp_advanced_button, self._toggle_budget_advanced
         )
         self.bp_advanced_label = MDLabel(
             text=_t("Daha fazla seçenek"), valign="center",

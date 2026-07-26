@@ -876,13 +876,30 @@ class AssetMixin:
 
         is_gold = self._asset_selected_type == "Altın"
         quick_picks = self._get_quick_picks(self._asset_selected_type)
-        extra_row_height = 44 if (is_gold or quick_picks) else 0
+        # DÜZELTME (Aşama 2, madde 1.3): önceden burada elle hesaplanmış sabit
+        # bir yükseklik ("320 + extra_row_height"dp) veriliyordu. MDTextField
+        # kendi yüksekliğini `minimum_height`'a göre belirler (bkz.
+        # kivymd/textfield.kv) — özellikle sembol alanının
+        # `helper_text_mode="persistent"` olması onu tek satırlık bir alandan
+        # daha uzun yapar. Döviz/Kripto'da ayrıca hızlı seçim satırı da
+        # eklenince gerçek toplam yükseklik sabit tahminden fazla oluyor;
+        # BoxLayout çocukları kutunun sınırlarını taşıp diyaloğun altına
+        # kayıyordu (bildirilen "resim/düzen saçma sapan kayıyor" hatası).
+        # `adaptive_height` zaten `open_budget_item_form`'da kullanılan aynı
+        # deseni burada da uygular: kutu, içindeki alanların GERÇEK toplam
+        # yüksekliğine göre büyür.
         content = MDBoxLayout(
             orientation="vertical",
             spacing="12dp",
             size_hint_y=None,
-            height=f"{320 + extra_row_height}dp",
-            padding=["0dp", "8dp", "0dp", "0dp"]
+            adaptive_height=True,
+            # DÜZELTME (Aşama 2, madde 1.3 — "resim kayması"): üst dolgu
+            # eskiden 8dp'ydi; logo/bayrak görseli diyaloğun başlık metnine
+            # neredeyse yapışık duruyordu (statik MDI ikonuyla göze
+            # batmıyordu, ama Döviz/Kripto'da uzaktan çekilen renkli
+            # FitImage ile başlığın üstüne bindiği görülüyordu). 24dp net
+            # bir ayrım bırakır.
+            padding=["0dp", "24dp", "0dp", "8dp"]
         )
 
         self._type_logo_slot = MDBoxLayout(
@@ -1034,6 +1051,41 @@ class AssetMixin:
         )
         self._bind_fitimage_error(image, lambda *a: self._reset_type_logo_icon())
         slot.add_widget(image)
+        self._refresh_asset_dialog_height()
+
+    def _refresh_asset_dialog_height(self, *args):
+        """MDDialog'u logo değişiminden sonra yeniden ölçüp ortalar.
+
+        DÜZELTME (Aşama 2, madde 1.3 — "resim kayması"): `content` içeriği
+        `adaptive_height=True` (bkz. `_show_other_asset_dialog`), ama
+        FitImage'ın iç görseli `_late_init` ile bir sonraki Clock karesinde
+        geç eklenir (bkz. `_bind_fitimage_error` yorumu). MDDialog başlığını
+        diyalog AÇILIRKEN mevcut içerik yüksekliğine göre bir kez konumlar;
+        logo statik ikondan uzak FitImage'a değiştiğinde içerik yüksekliği
+        sonradan (aynı karede değil) küçük bir miktar kayar ve MDDialog bunu
+        otomatik yeniden hesaplamaz — başlık ile içeriğin İLK satırı (logo
+        slotu) üst üste binmiş gibi görünür. `budget_mixin.py::
+        _refresh_budget_dialog_height` ile AYNI iki adımlı desen: önce
+        `update_height()` yeni minimum_height'ı hesaplasın, bir kare sonra
+        modal boyutu/merkezini uygula.
+        """
+        dialog = getattr(self, "asset_dialog", None)
+        if not dialog:
+            return
+
+        def apply_size(_dt):
+            from kivy.core.window import Window
+            from kivy.metrics import dp
+            dialog.height = min(
+                dialog.ids.container.height, Window.height - dp(32)
+            )
+            dialog.center = Window.center
+
+        def update(_dt):
+            dialog.update_height()
+            Clock.schedule_once(apply_size, 0.05)
+
+        Clock.schedule_once(update, 0)
 
     def _bind_fitimage_error(self, fit_image, on_error):
         """FitImage'ın iç AsyncImage'ı (_container.image) bir sonraki Clock
@@ -1062,6 +1114,7 @@ class AssetMixin:
             return
         slot.clear_widgets()
         slot.add_widget(self._make_type_fallback_icon())
+        self._refresh_asset_dialog_height()
 
     # Tür başına hızlı seçim çipleri: (buton metni, yfinance sembolü, dostane isim)
     _QUICK_PICKS = {
