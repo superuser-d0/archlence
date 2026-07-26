@@ -178,15 +178,19 @@ class AccountMixin:
             card_number_full = self.acc_card_number_field.text.strip() or None
             expiry_date = self.acc_expiry_field.text.strip() or None
 
-            if is_credit:
-                initial_balance = float(self.acc_debt_field.text or 0)
-                credit_limit = float(self.acc_limit_field.text or 0)
-                cvc_code = self.acc_cvc_field.text.strip() or None
-            else:
-                initial_balance = float(self.acc_initial_balance_field.text or 0)
-                credit_limit = 0.0
-                # CVC yalnızca kredi kartı formunda soruluyor.
-                cvc_code = None
+            try:
+                if is_credit:
+                    initial_balance = float(self.acc_debt_field.text.replace(",", ".") or 0)
+                    credit_limit = float(self.acc_limit_field.text.replace(",", ".") or 0)
+                    cvc_code = self.acc_cvc_field.text.strip() or None
+                else:
+                    initial_balance = float(self.acc_initial_balance_field.text.replace(",", ".") or 0)
+                    credit_limit = 0.0
+                    # CVC yalnızca kredi kartı formunda soruluyor.
+                    cvc_code = None
+            except ValueError:
+                toast(_t("Lütfen tutarları geçerli bir sayı olarak girin."))
+                return
 
             statement_date = self.acc_statement_field.text or None
             

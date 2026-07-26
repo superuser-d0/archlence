@@ -65,6 +65,7 @@ EN = {
     "Takvim": "Calendar",
     "{} işlem bulundu.": "{} transaction(s) found.",
     "Serbest metin gir": "Enter free text",
+    "Lütfen tutarları geçerli bir sayı olarak girin.": "Please enter amounts as a valid number.",
     "Geçen ayın kalanını/aşımını devret": "Carry over last month's remainder/overrun",
     "Her ay otomatik tekrarla (şablon)": "Repeat automatically every month (template)",
     "Uyarı eşiği (%)": "Alert threshold (%)",
