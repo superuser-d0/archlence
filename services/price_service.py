@@ -247,10 +247,20 @@ def fetch_prices_async(
     now = _now()
     due = {}
     for symbol, asset_type in requested.items():
+        row = cached.get(symbol)
         ttl = get_ttl_minutes(asset_type, symbol, now=now)
         if ttl == INFINITE_TTL:
+            # Sonsuz TTL "piyasa kapalı" demek — normalde gereksiz isteği
+            # önlemek için atlanır. AMA hiç cache'i olmayan (row is None) bir
+            # varlık için bu atlama, kullanıcıyı "Canlı veri bekleniyor…"
+            # durumunda SONSUZA KADAR bırakırdı (hafta sonu eklenen bir
+            # hisse/altın/döviz asla ilk fiyatını alamaz, oysa kripto TTL'i
+            # hep sonlu olduğundan bu sorunu hiç yaşamaz). Piyasa kapalıyken
+            # bile son kapanış fiyatı, hiç fiyat olmamasından iyidir — bu
+            # yüzden İLK çekim için istisna tanınır.
+            if row is None:
+                due[symbol] = asset_type
             continue
-        row = cached.get(symbol)
         expired = (
             row is None
             or (now - row.updated_at).total_seconds() >= ttl * 60

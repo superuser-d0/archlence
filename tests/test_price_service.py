@@ -44,6 +44,50 @@ class PriceServiceTest(unittest.TestCase):
         self.assertEqual(value, 245.5)
         download.assert_not_called()
 
+    def test_never_cached_symbol_fetches_even_when_market_closed(self):
+        """Hafta sonu eklenen bir hisse/altın/döviz sonsuza kadar 'Canlı veri
+        bekleniyor…' durumunda kalmamalı — ilk çekim piyasa kapalıyken de
+        denenmeli (bkz. fetch_prices_async'teki INFINITE_TTL istisnası)."""
+        from services import price_service
+
+        sunday = datetime(2026, 7, 26, 12, 0, tzinfo=ISTANBUL)
+        with (
+            mock.patch.object(price_service, "_now", return_value=sunday),
+            mock.patch.object(
+                price_service, "_download_batch",
+                return_value={"SISE.IS": 43.42},
+            ) as download,
+        ):
+            thread = price_service.fetch_prices_async(
+                [("SISE", "STOCK")], None,
+            )
+            self.assertIsNotNone(thread)
+            thread.join(2)
+        download.assert_called_once()
+        self.assertEqual(
+            price_service.get_cached_price("SISE"), 43.42
+        )
+
+    def test_already_cached_symbol_still_skips_closed_market(self):
+        """Fix, MEVCUT davranışı bozmamalı: cache'i olan bir sembol piyasa
+        kapalıyken hâlâ atlanmalı (gereksiz istek göndermez)."""
+        from services import price_service
+
+        sunday = datetime(2026, 7, 26, 12, 0, tzinfo=ISTANBUL)
+        price_service._store_cache(
+            {"ASELS": 380.25}, {"ASELS": "STOCK"},
+            updated_at=sunday - timedelta(days=2),
+        )
+        with (
+            mock.patch.object(price_service, "_now", return_value=sunday),
+            mock.patch.object(price_service, "_download_batch") as download,
+        ):
+            thread = price_service.fetch_prices_async(
+                [("ASELS", "STOCK")], None,
+            )
+        self.assertIsNone(thread)
+        download.assert_not_called()
+
     def test_ticker_mapper_normalizes_app_symbols(self):
         from utils.ticker_mapper import to_api_ticker
 
