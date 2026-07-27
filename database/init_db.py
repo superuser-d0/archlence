@@ -46,6 +46,54 @@ def initialize_database():
     if "cvc_code" not in existing_account_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN cvc_code TEXT")
 
+    # card_number_full/expiry_date/cvc_code artık YAZILMIYOR (bkz.
+    # AccountService.create_account, docs/ROADMAP.md Faz 1 madde 1). CVC ve
+    # son kullanma tarihinin uygulamada hiçbir tüketicisi yoktu — saklamanın
+    # ürünsel bir karşılığı olmadan risk taşıyordu. Tam kart numarası ise
+    # yalnızca son-4-hane + kart ağı GÖSTERİMİ için kullanılıyordu; bu ikisi
+    # artık hesap oluşturulduğu ANDA türetilip ayrı, hassas olmayan
+    # sütunlarda (masked_number, network_logo) saklanıyor — çözülecek ham
+    # numara bir daha diske hiç yazılmıyor.
+    if "masked_number" not in existing_account_cols:
+        cursor.execute("ALTER TABLE accounts ADD COLUMN masked_number TEXT")
+    if "network_logo" not in existing_account_cols:
+        cursor.execute("ALTER TABLE accounts ADD COLUMN network_logo TEXT")
+
+    # Tek seferlik geri dolgu + temizlik migration'ı. Idempotent: ikinci
+    # çalıştırmada `card_number_full IS NOT NULL` koşulunu karşılayan satır
+    # kalmaz. Önce MEVCUT şifreli kart numarasından masked_number/
+    # network_logo türetilir (kullanıcı kartını yeniden girmek zorunda
+    # kalmasın), SONRA ham PAN/SKT/CVC null'lanır — sıra önemli, tersi
+    # türetmeden önce veriyi kaybederdi.
+    cursor.execute(
+        "SELECT id, card_number_full FROM accounts WHERE card_number_full IS NOT NULL"
+    )
+    rows_to_migrate = cursor.fetchall()
+    if rows_to_migrate:
+        from utils.crypto import decrypt
+        from database.db import SECRET_KEY
+        from services.account_service import AccountService
+
+        for row in rows_to_migrate:
+            account_id, enc_number = row[0], row[1]
+            try:
+                dec_num = decrypt(enc_number, SECRET_KEY)
+                network_logo = AccountService.check_card_network(dec_num)
+                last4 = dec_num[-4:] if len(dec_num) >= 4 else dec_num
+                masked_number = f"**** **** **** {last4}"
+            except Exception:
+                # Çözülemeyen/bozuk bir kayıt bile ham veriyi diskte
+                # bırakmamalı; yalnızca görüntüleme bilgisi kaybolur.
+                masked_number, network_logo = None, None
+            cursor.execute(
+                "UPDATE accounts SET masked_number = ?, network_logo = ? WHERE id = ?",
+                (masked_number, network_logo, account_id),
+            )
+    cursor.execute(
+        "UPDATE accounts SET card_number_full = NULL, expiry_date = NULL, cvc_code = NULL "
+        "WHERE card_number_full IS NOT NULL OR expiry_date IS NOT NULL OR cvc_code IS NOT NULL"
+    )
+
     # 2. İşlemler Tablosu
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS transactions (

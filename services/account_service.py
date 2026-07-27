@@ -35,12 +35,21 @@ class AccountService:
     @staticmethod
     def create_account(name, account_type, initial_balance=0.0,
                        credit_limit=0.0, statement_date=None,
-                       card_number_full=None, expiry_date=None, cvc_code=None):
+                       card_number_full=None):
         """Yeni hesap/kart oluşturur ve eklenen satırın id'sini döndürür.
 
         Kredi kartı için `initial_balance` MEVCUT BORÇ olarak (pozitif sayı)
         beklenir ve DB'ye negatif bakiye olarak yazılır — çağıranın işaret
         çevirmesi gerekmez, kullanıcı "5000 TL borcum var" der, biz -5000 yazarız.
+
+        `card_number_full` YALNIZCA bu fonksiyonun ömrü boyunca ham hâliyle
+        var olur — son-4-hane + kart ağını türetmek için burada kullanılır
+        ve diske hiçbir zaman şifrelenip yazılmaz (bkz. docs/ROADMAP.md
+        Faz 1 madde 1). Eskiden tam kart numarası, son kullanma tarihi ve
+        CVC şifrelenip kalıcı sütunlarda saklanıyordu — arayüz zaten yalnızca
+        son-4-hane + kart ağı gösteriyordu, saklamanın ürünsel bir karşılığı
+        yoktu. `expiry_date`/`cvc_code` parametreleri tamamen kaldırıldı;
+        hiçbir tüketicileri yoktu.
 
         ValueError fırlatır: boş ad, negatif tutar, kredi kartında limitsiz veya
         limitten büyük başlangıç borcu, geçersiz kesim günü.
@@ -83,19 +92,24 @@ class AccountService:
             statement_date = None
             legacy_type = "bank"
             
-        from utils.crypto import encrypt
-        from database.db import SECRET_KEY
-        enc_card_number = encrypt(card_number_full, SECRET_KEY) if card_number_full else None
-        enc_expiry = encrypt(expiry_date, SECRET_KEY) if expiry_date else None
-        enc_cvc = encrypt(cvc_code, SECRET_KEY) if cvc_code else None
+        # Ham numara YALNIZCA türetim için tutulur, hiçbir zaman şifrelenip
+        # INSERT'e geçmez. Boş bırakılan/tanınmayan bir numara sessizce
+        # None'a düşer — arayüz zaten "**** **** **** 0000" göstermeye
+        # hazırdı, bu davranış değişmedi.
+        masked_number = None
+        network_logo = None
+        if card_number_full:
+            network_logo = AccountService.check_card_network(card_number_full)
+            last4 = card_number_full[-4:] if len(card_number_full) >= 4 else card_number_full
+            masked_number = f"**** **** **** {last4}"
 
         conn = get_connection()
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO accounts (name, type, balance, account_type, credit_limit, statement_date, card_number_full, expiry_date, cvc_code)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (name, legacy_type, balance, account_type, credit_limit, statement_date, enc_card_number, enc_expiry, enc_cvc))
+                INSERT INTO accounts (name, type, balance, account_type, credit_limit, statement_date, masked_number, network_logo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (name, legacy_type, balance, account_type, credit_limit, statement_date, masked_number, network_logo))
             account_id = cursor.lastrowid
             record_balance_event(cursor, ACCOUNT, account_id, balance, balance,
                                  "account_opened")
@@ -138,22 +152,15 @@ class AccountService:
 
         balance = float(row["balance"] or 0)
         credit_limit = float(row["credit_limit"] or 0)
-        
-        from utils.crypto import decrypt
-        from database.db import SECRET_KEY
-        
-        # Determine masked number and network logo
-        masked_number = "**** **** **** 0000"
-        network_logo = ""
-        if "card_number_full" in row.keys() and row["card_number_full"]:
-            try:
-                dec_num = decrypt(row["card_number_full"], SECRET_KEY)
-                network_logo = AccountService.check_card_network(dec_num)
-                # Keep only the last 4 digits
-                last4 = dec_num[-4:] if len(dec_num) >= 4 else dec_num
-                masked_number = f"**** **** **** {last4}"
-            except Exception:
-                pass
+
+        # masked_number/network_logo hesap oluşturulduğu ANDA türetilip
+        # saklanır (bkz. create_account) — burada artık şifre çözme YOK,
+        # ham kart numarası zaten diskte hiç yok.
+        has_masked_number = bool(
+            "masked_number" in row.keys() and row["masked_number"]
+        )
+        masked_number = row["masked_number"] if has_masked_number else "**** **** **** 0000"
+        network_logo = (row["network_logo"] or "") if "network_logo" in row.keys() else ""
 
         if account_type == CREDIT_CARD:
             if balance > 0:
@@ -181,9 +188,7 @@ class AccountService:
             # Arayüz hangi kart widget'ını çizeceğine buna bakarak karar verir.
             # Maskelenmiş metni ("**** **** **** 0000") karşılaştırmak kırılgandı:
             # numarası gerçekten 0000 ile biten bir kart kartsız sanılırdı.
-            "has_card_number": bool(
-                "card_number_full" in row.keys() and row["card_number_full"]
-            ),
+            "has_card_number": has_masked_number,
         }
 
     @staticmethod

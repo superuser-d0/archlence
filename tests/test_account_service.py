@@ -373,5 +373,117 @@ class AccountServiceTestCase(AccountFixtureMixin, unittest.TestCase):
                          round(card["debt"] + 750.0, 2))
 
 
+class CardDataNotPersistedTest(unittest.TestCase):
+    """docs/ROADMAP.md Faz 1 madde 1: tam kart numarası, son kullanma tarihi
+    ve CVC artık DİSKE HİÇ YAZILMIYOR. Yalnızca son-4-hane + kart ağı
+    (masked_number/network_logo), hesap oluşturulduğu anda türetilip
+    saklanıyor — çözülecek ham veri bir daha hiç yok."""
+
+    def setUp(self):
+        fd, self.db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        self._patcher = mock.patch("database.db.DB_NAME", self.db_path)
+        self._patcher.start()
+        from database.init_db import initialize_database
+        initialize_database()
+
+    def tearDown(self):
+        self._patcher.stop()
+        os.unlink(self.db_path)
+
+    def _raw_row(self, account_id):
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            return conn.execute(
+                "SELECT * FROM accounts WHERE id = ?", (account_id,)
+            ).fetchone()
+        finally:
+            conn.close()
+
+    def test_new_card_never_writes_raw_pan_or_cvc(self):
+        from services.account_service import AccountService
+
+        account_id = AccountService.create_account(
+            "Test Kart", "credit_card", initial_balance=500, credit_limit=5000,
+            card_number_full="4532 1234 5678 9012",
+        )
+
+        row = self._raw_row(account_id)
+        self.assertIsNone(row["card_number_full"])
+        self.assertIsNone(row["expiry_date"])
+        self.assertIsNone(row["cvc_code"])
+        self.assertEqual(row["masked_number"], "**** **** **** 9012")
+        self.assertTrue(row["network_logo"].endswith("visa.png"))
+
+        account = AccountService.get_account(account_id)
+        self.assertEqual(account["masked_number"], "**** **** **** 9012")
+        self.assertTrue(account["has_card_number"])
+
+    def test_create_account_no_longer_accepts_cvc_or_expiry(self):
+        from services.account_service import AccountService
+
+        with self.assertRaises(TypeError):
+            AccountService.create_account(
+                "Test Kart", "credit_card", initial_balance=0, credit_limit=1000,
+                cvc_code="123",
+            )
+        with self.assertRaises(TypeError):
+            AccountService.create_account(
+                "Test Kart", "credit_card", initial_balance=0, credit_limit=1000,
+                expiry_date="12/28",
+            )
+
+    def test_migration_backfills_masked_number_then_nulls_sensitive_columns(self):
+        """Eski sürümden gelen, gerçek şifreli kart verisi taşıyan bir
+        satır: initialize_database() tekrar çalıştığında önce masked_number/
+        network_logo'yu türetip geri doldurmalı, SONRA ham veriyi
+        null'lamalı. Sıra ters olsaydı türetmeden önce veri kaybolurdu."""
+        from database.db import SECRET_KEY
+        from utils.crypto import encrypt
+
+        # setUp'taki initialize_database() taze bir dosyada çalıştığından
+        # `accounts` bu noktada boştur (varsayılan hesap seed'i yok) — eski
+        # sürümden kalma bir satırı koşulsuz INSERT ile taklit ediyoruz.
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "INSERT INTO accounts (name, type, balance, account_type, "
+            "credit_limit, card_number_full, expiry_date, cvc_code) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            ("Eski Kartım", "credit", -1000.0, "credit_card", 5000.0,
+             encrypt("5555 4444 3333 2222", SECRET_KEY),
+             encrypt("12/28", SECRET_KEY),
+             encrypt("123", SECRET_KEY)),
+        )
+        conn.commit()
+        conn.close()
+
+        from database.init_db import initialize_database
+        initialize_database()  # migration burada tetiklenir
+
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT * FROM accounts WHERE name = 'Eski Kartım'"
+        ).fetchone()
+        conn.close()
+
+        self.assertEqual(row["masked_number"], "**** **** **** 2222")
+        self.assertTrue(row["network_logo"].endswith("mastercard.png"))
+        self.assertIsNone(row["card_number_full"])
+        self.assertIsNone(row["expiry_date"])
+        self.assertIsNone(row["cvc_code"])
+
+        # İdempotentlik: ikinci çalıştırma sonucu değiştirmemeli, hata da atmamalı.
+        initialize_database()
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        second = conn.execute(
+            "SELECT * FROM accounts WHERE name = 'Eski Kartım'"
+        ).fetchone()
+        conn.close()
+        self.assertEqual(second["masked_number"], row["masked_number"])
+
+
 if __name__ == "__main__":
     unittest.main()
