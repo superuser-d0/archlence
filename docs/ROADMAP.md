@@ -122,21 +122,54 @@ guarantees established earlier.
    wrong balance totals instead of a visible error. The 1,000,000-iteration
    PBKDF2 buys nothing here — the input to it is public (checked into the
    repo), so the derived key is too.
-   - Switch to AES-GCM or ChaCha20-Poly1305 (authenticated encryption).
-   - Generate a random key per install; store it via the OS keystore
-     (Windows DPAPI / Credential Manager, macOS Keychain, or a keyring
-     library on Linux) instead of in source.
-   - Prefix ciphertext with a version byte + algorithm id + nonce so a
-     future format change doesn't require a flag day.
-   - On decrypt failure, surface the error — don't fail open into
-     plaintext or a placeholder that silently becomes a number.
-   - Write an explicit migration for existing databases (re-encrypt every
-     row under the new scheme). Take a DB backup immediately before
-     running it.
+   - [x] Switch to AES-GCM or ChaCha20-Poly1305 (authenticated encryption).
+     **Core done** — `utils/aead_crypto.py`: AES-256-GCM, versioned
+     envelope (`version | algo_id | nonce | tag | ciphertext`), random
+     12-byte nonce per call (verified two encryptions of the same
+     plaintext never produce the same output). No fail-open: every
+     failure mode (wrong key, wrong key length, tampered ciphertext/tag/
+     nonce/version/algo-id byte, truncated envelope, invalid base64,
+     non-UTF-8 plaintext after decrypt) raises `DecryptionError` — this is
+     the actual point of the whole item, tested explicitly per failure
+     mode in `tests/test_aead_crypto.py`, not just a happy-path round
+     trip.
+   - [x] Generate a random key per install; store it **(interface + local
+     reference implementation done, OS keystore adapter still open)**.
+     `utils/key_provider.py::KeyProvider` is an abstract `get_or_create_key()
+     -> bytes` contract, deliberately independent of *where* the key
+     lives. `FileKeyProvider` is the reference implementation (generates
+     32 random bytes on first use, persists to a given path, mode `0600`)
+     — proves the contract works without needing an OS keystore yet. The
+     Windows DPAPI/Credential Manager adapter (item 6) implements the same
+     interface later; nothing above this layer needs to change when it
+     lands.
+   - [x] Prefix ciphertext with a version byte + algorithm id + nonce —
+     done, see envelope format above.
+   - [x] On decrypt failure, surface the error — done in the new module
+     (see above). **Not yet true for the app's actual decrypt path** —
+     `utils/crypto.py::decrypt()` (the function every call site still
+     uses) is untouched and still fails open. Swapping callers over is
+     the migration step below.
+   - [ ] Write an explicit migration for existing databases (re-encrypt
+     every row under the new scheme). Take a DB backup immediately before
+     running it. **Not started.**
    - Depends on (4): this touches the same `finance.db` the data-directory
      move touches. Do both in the same migration window — moving the file
      and re-encrypting it separately doubles the chance of a user's data
      getting stuck mid-migration.
+   - **What's deliberately NOT done yet, and why:** `utils/crypto.py`'s
+     existing `encrypt()`/`decrypt()` — the functions all ~13 real call
+     sites (`services/*.py`, `database/*.py`, `main.py`) actually use —
+     are untouched. Swapping them means both (a) picking where the key
+     file lives, which needs (4)'s `platformdirs` work first, and (b)
+     changing decrypt's fail-open behavior to raise, which the Phase 2
+     exception-narrowing note above already flagged as unsafe to do
+     blind: at least one real call chain (`main.py`'s dashboard-metrics
+     refresh) would go from "shows a slightly-wrong number" to "the home
+     screen silently never refreshes again," and the other ~55 chains
+     can't be checked without a GUI this agent can't run. This step is
+     the pure, GUI-independent half on purpose — same reasoning the user
+     applied to the Kivy fallback and PIN throttling work.
 
 6. ~~**PIN hashing: Argon2id**~~ **Argon2id done** — [PR #14](https://github.com/superuser-d0/archlence/pull/14).
    **Attempt throttling/lockout still open.** `security/security_service.py`
