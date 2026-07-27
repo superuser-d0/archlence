@@ -64,6 +64,14 @@ _BRANDS = (
     (("zoom",), "zoom", "zoom.us"),
     (("linkedin premium", "linkedin"), "linkedin", "linkedin.com"),
 
+    # ── Sosyal medya ────────────────────────────────────────────────────
+    # Instagram'ın kendisi ücretsizdir; tanınan asıl ürün rozet/destek
+    # paketi "Meta Verified"tir (Instagram + Facebook). Kullanıcı çoğunlukla
+    # abonelik adını yalnızca "Instagram" olarak girer; ikon yine de
+    # instagram.com'un kendi favicon'undan gelir — Meta'nın genel logosundan
+    # daha tanınır olduğu için.
+    (("meta verified", "instagram"), "instagram", "instagram.com"),
+
     # ── VPN ─────────────────────────────────────────────────────────────
     (("nordvpn", "nord vpn"), "nordvpn", "nordvpn.com"),
     (("expressvpn", "express vpn"), "expressvpn", "expressvpn.com"),
