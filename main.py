@@ -79,6 +79,28 @@ ARCHLENCE_HEADLESS = os.environ.get("ARCHLENCE_HEADLESS", "").strip().lower() in
 if ARCHLENCE_HEADLESS:
     os.environ.setdefault("KIVY_METRICS_DENSITY", "1")
     os.environ.setdefault("KIVY_DPI", "96")
+    # Bir CI/test ortamının çoğunda GERÇEK bir display sunucusu (X11/
+    # Wayland) yok. Bu durumda arama listesi kısıtlanmazsa Kivy, SDL2
+    # denemesinden sonra ham (SDL2 tabanlı olmayan) `x11` sağlayıcısına
+    # düşüyor; o sağlayıcı düşük seviye bir Xlib connect() çağrısı yapıyor
+    # ve display yoksa SÜRECİ OS SEVİYESİNDE ÇÖKERTİYOR (exit code 102,
+    # "Couldn't connect to X server") — bu, aşağıdaki try/except'in asla
+    # yakalayamayacağı bir C-seviyesi çökme, Python istisnası değil. GitHub
+    # Actions'ın ubuntu-latest runner'ında ampirik olarak doğrulandı (PR
+    # #16'nın ilk CI çalışması tam olarak bu şekilde kırmızı oldu).
+    #
+    # Düzeltme: arama listesini yalnızca `sdl2`'ye kısıtla (çökmeye sebep
+    # olan ham x11 sağlayıcısına hiç ulaşılmıyor) ve SDL2'ye kendi resmi
+    # desteklenen headless video sürücüsünü (`dummy`) ver — bu, herhangi
+    # bir display olmadan çalışır ve başarısız olursa PYTHON SEVİYESİNDE
+    # bir RuntimeError fırlatır (aşağıdaki `except (ImportError,
+    # RuntimeError)` bunu düzgünce yakalar). Bu, eski `KIVY_WINDOW=mock`
+    # ile AYNI ŞEY DEĞİL: "sdl2" gerçek bir sağlayıcı, "dummy" gerçek ve
+    # belgelenmiş bir SDL2 sürücüsü, ve ikisi de yalnızca
+    # ARCHLENCE_HEADLESS AÇIKÇA istendiğinde devreye giriyor — DISPLAY
+    # yokluğundan tahmin edilmiyor.
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    os.environ.setdefault("KIVY_WINDOW", "sdl2")
 
 # =========================================================================
 # 3. KIVY / KIVYMD IMPORTS

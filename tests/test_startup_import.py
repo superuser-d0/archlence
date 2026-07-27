@@ -9,11 +9,19 @@ import unittest
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def _run(script, extra_env=None):
+def _run(script, extra_env=None, strip_display=False):
     env = os.environ.copy()
     env.pop("KIVY_WINDOW", None)
     env.pop("ARCHLENCE_HEADLESS", None)
     env.pop("KIVY_NO_ARGS", None)
+    env.pop("SDL_VIDEODRIVER", None)
+    if strip_display:
+        # CI runner'ları (ör. GitHub Actions ubuntu-latest) gibi: HİÇBİR
+        # display sunucusu yok, yalnızca ARCHLENCE_HEADLESS + main.py'nin
+        # kendi SDL_VIDEODRIVER=dummy/KIVY_WINDOW=sdl2 varsayılanlarına
+        # güveniliyor.
+        env.pop("DISPLAY", None)
+        env.pop("WAYLAND_DISPLAY", None)
     env.setdefault("PYTHONPATH", PROJECT_ROOT)
     if extra_env:
         env.update(extra_env)
@@ -92,6 +100,34 @@ class StartupImportTest(unittest.TestCase):
         )
         self.assertEqual(completed.returncode, 0, msg=completed.stderr or completed.stdout)
         self.assertIn("imported", completed.stdout)
+
+    def test_headless_import_survives_a_display_server_that_does_not_exist_at_all(self):
+        """PR #16'nın ilk CI çalışmasının gerçek başarısızlık senaryosu:
+        DISPLAY hiç yok (X11/Wayland yok), yalnızca ARCHLENCE_HEADLESS=1
+        set. Önceki bir düzeltme burada YETERSİZDİ: `except (ImportError,
+        RuntimeError)` bir Python istisnası bekliyordu, ama Kivy'nin ham
+        `x11` sağlayıcısı display'e ulaşamayınca düşük seviye bir Xlib
+        connect() çağrısıyla SÜRECİ ÇÖKERTİYORDU (exit code 102) — hiçbir
+        Python except bloğu bunu yakalayamaz. main.py artık
+        ARCHLENCE_HEADLESS altında arama listesini `sdl2`'ye kısıtlayıp
+        SDL_VIDEODRIVER=dummy veriyor, böylece çökmeye sebep olan x11
+        sağlayıcısına hiç ulaşılmıyor ve başarısızlık (varsa) Python
+        seviyesinde, yakalanabilir kalıyor."""
+        completed = _run(
+            """
+            import main
+            assert main._KivyWindow is None
+            assert main.ArchlenceApp is not None
+            print('headless-no-display-ok')
+            """,
+            extra_env={"ARCHLENCE_HEADLESS": "1"},
+            strip_display=True,
+        )
+        self.assertEqual(
+            completed.returncode, 0,
+            msg=f"stdout={completed.stdout!r} stderr={completed.stderr!r}",
+        )
+        self.assertIn("headless-no-display-ok", completed.stdout)
 
 
 if __name__ == "__main__":
