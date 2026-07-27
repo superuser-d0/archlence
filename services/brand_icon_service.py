@@ -9,12 +9,14 @@ import os
 import re
 import unicodedata
 
+from utils.app_paths import cache_dir
 
-BRAND_ICON_CACHE_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "assets",
-    "brand_icon_cache",
-)
+# docs/ROADMAP.md Faz 1 madde 4. Paketlenmiş bir Windows kurulumunda
+# uygulamanın kendi kurulum dizini genelde salt-okunur. Bu bir ÖNBELLEK —
+# indirilen logo yeniden indirilebilir — bu yüzden eski BASE_DIR
+# konumundan bir MİGRATİON yok, gerekmiyor da: en kötü ihtimalle bir sonraki
+# `fetch_and_cache_brand_icon` çağrısı logoyu yeniden indirir.
+BRAND_ICON_CACHE_DIR = os.path.join(cache_dir(), "brand_icon_cache")
 
 # Uzun/özgül takma adlar önce sınanır. Değer: (cache anahtarı, marka domaini).
 _BRANDS = (

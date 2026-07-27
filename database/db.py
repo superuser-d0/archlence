@@ -2,10 +2,27 @@ import sqlite3
 import os
 from datetime import datetime
 from utils.crypto import encrypt, decrypt
+from utils.app_paths import data_dir, migrate_legacy_path
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_NAME = os.path.join(BASE_DIR, "finance.db")
+# docs/ROADMAP.md Faz 1 madde 4. Paketlenmiş bir Windows kurulumunda
+# BASE_DIR (uygulamanın kendi kurulum klasörü) genelde salt-okunur
+# (`Program Files` altı) — artık kullanıcı-veri dizinine (platformdirs)
+# yazıyoruz. BASE_DIR hâlâ var: NETWORK_LOGOS gibi salt-okunur, PAKETLE
+# BİRLİKTE GELEN varlıklar için hâlâ doğru yer, o değişmedi.
+_LEGACY_DB_PATH = os.path.join(BASE_DIR, "finance.db")
+DB_NAME = os.path.join(data_dir(), "finance.db")
 SECRET_KEY = "fi" + "nora_secure_2026"
+
+
+def migrate_legacy_database_location() -> bool:
+    """Var olan bir kurulumdan geçiş: eski BASE_DIR/finance.db'yi (varsa)
+    yeni kullanıcı-veri konumuna taşır. main.py'nin başlangıcında,
+    initialize_database()'DEN ÖNCE açıkça çağrılır — bu modülün salt
+    import edilmesiyle OTOMATİK tetiklenmez, çünkü test suite'i bu modülü
+    sürekli import ediyor ve import'un kendisi gerçek kullanıcı verisini
+    taşımamalı."""
+    return migrate_legacy_path(_LEGACY_DB_PATH, DB_NAME)
 
 # Arayüzde henüz hesap seçimi olmadığından işlem ekleyen tüm çağıranlar
 # (transaction_mixin, debt_mixin, recurring_mixin, asset_mixin) bu tek
@@ -31,6 +48,13 @@ COMPLETED_TX = "COALESCE(status, 'completed') = 'completed'"
 COMPLETED_TX_T = "COALESCE(t.status, 'completed') = 'completed'"
 
 def get_connection():
+    # DB_NAME artık kullanıcı-veri dizininde (bkz. yukarıdaki not) — o dizin
+    # ilk gerçek yazımdan önce OLUŞMAMIŞ olabilir (platformdirs.data_dir()
+    # yalnızca yolu ÇÖZER, oluşturmaz). exist_ok=True ile idempotent; zaten
+    # varsa maliyeti bir stat() kadar.
+    directory = os.path.dirname(DB_NAME)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
     conn = sqlite3.connect(DB_NAME, check_same_thread=False, timeout=10)
     conn.row_factory = sqlite3.Row
     return conn

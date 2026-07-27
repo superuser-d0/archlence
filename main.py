@@ -15,11 +15,24 @@ import shutil
 import faulthandler
 import traceback as _traceback
 
+from utils.app_paths import data_dir, log_dir, migrate_legacy_path
+
+# Bu dosyanın kendi dizini — eski (paketlenmiş kurulumda genelde salt-okunur)
+# konumları migrate_legacy_path çağrılarında kaynak olarak kullanmak için.
+# docs/ROADMAP.md Faz 1 madde 4.
+_APP_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # =========================================================================
 # 2. CRASH REPORTING & EARLY CONFIGURATION
 # =========================================================================
-# Crash reporting: Kivy'nin stderr yakalamasını susturduğu için çökmelerin loglanması
-_CRASH_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crash.log")
+# Crash reporting: Kivy'nin stderr yakalamasını susturduğu için çökmelerin
+# loglanması. Faz 1 madde 4: artık _APP_DIR yerine platformdirs'in log
+# dizininde — paketlenmiş bir Windows kurulumunda _APP_DIR genelde
+# salt-okunur, crash.log tam da çökmeleri yakalaması gereken an sessizce
+# açılamayabilirdi.
+_CRASH_LOG_DIR = log_dir()
+os.makedirs(_CRASH_LOG_DIR, exist_ok=True)
+_CRASH_LOG_PATH = os.path.join(_CRASH_LOG_DIR, "crash.log")
 _crash_log_file = open(_CRASH_LOG_PATH, "a", encoding="utf-8")
 faulthandler.enable(file=_crash_log_file)
 
@@ -287,6 +300,7 @@ from database.db import (
     record_balance_event,
     COMPLETED_TX,
     COMPLETED_TX_T,
+    migrate_legacy_database_location,
 )
 from services.transaction_service import TransactionService
 from services.queries import CategoryService
@@ -341,6 +355,39 @@ from services.projection_service import project_final_wealth
 # 5. CONSTANTS
 # =========================================================================
 SECRET_KEY = "fi" + "nora_secure_2026"
+
+
+def _resolve_config_path():
+    """docs/ROADMAP.md Faz 1 madde 4. Kalıcı config JSON dosyasının yolunu
+    çözer; gerekiyorsa eski konumlardan (önce eski "finora" adı, sonra
+    _APP_DIR'den kullanıcı-veri dizinine) tek seferlik migration yapar.
+    ARCHLENCE_CONFIG_PATH açıkça set edildiyse OLDUĞU GİBİ kullanılır
+    (migration atlanır) — testler ve ileri düzey override için.
+
+    self'e ihtiyacı olmayan saf bir fonksiyon: gerçek bir Kivy penceresi
+    kurmadan doğrudan çağrılıp test edilebilir (bkz.
+    tests/test_app_paths_wiring.py)."""
+    override = os.environ.get("ARCHLENCE_CONFIG_PATH")
+    if override:
+        return override
+
+    legacy_path = os.path.join(_APP_DIR, "archlence_config.json")
+    legacy_finora_path = os.path.join(_APP_DIR, "fi" + "nora_config.json")
+    if not os.path.exists(legacy_path) and os.path.exists(legacy_finora_path):
+        shutil.copy2(legacy_finora_path, legacy_path)
+
+    target_path = os.path.join(data_dir(), "archlence_config.json")
+    migrate_legacy_path(legacy_path, target_path)
+    return target_path
+
+
+def _resolve_savings_store_path():
+    """docs/ROADMAP.md Faz 1 madde 4. `_resolve_config_path` ile aynı
+    gerekçe, "finora" adı geçmişi olmayan tek dosya için."""
+    legacy_path = os.path.join(_APP_DIR, "savings_goals.json")
+    target_path = os.path.join(data_dir(), "savings_goals.json")
+    migrate_legacy_path(legacy_path, target_path)
+    return target_path
 
 
 # =========================================================================
@@ -422,8 +469,14 @@ class ArchlenceApp(
         # karede tamamlanabilmesi için ölçülü biçimde yükseltilir.
         Clock.max_iteration = 50
         self._warm_crypto_key_in_background()
+        # docs/ROADMAP.md Faz 1 madde 4. initialize_database()'DEN ÖNCE:
+        # eski BASE_DIR/finance.db varsa (var olan bir kurulumdan geçiş)
+        # yeni kullanıcı-veri konumuna taşınır. Zaten yeni konumda bir DB
+        # varsa (taze kurulum ya da önceki bir çalıştırmada zaten taşındı)
+        # hiçbir şey yapmaz.
+        migrate_legacy_database_location()
         initialize_database()
-        self.store = JsonStore("savings_goals.json")
+        self.store = JsonStore(_resolve_savings_store_path())
         if self.store.exists("goals"):
             self.savings_goals = self.store.get("goals")["data"]
 
@@ -431,15 +484,7 @@ class ArchlenceApp(
         # binerek bazı label'ları eski zemin rengine/şeffaflığa bırakabiliyor.
         # Uygulamanın kendi geçişi yeterli; metin renkleri atomik güncellenir.
         self.theme_cls.theme_style_switch_animation = False
-        config_path = os.environ.get("ARCHLENCE_CONFIG_PATH", "archlence_config.json")
-        legacy_config_path = "fi" + "nora_config.json"
-        if (
-            config_path == "archlence_config.json"
-            and not os.path.exists(config_path)
-            and os.path.exists(legacy_config_path)
-        ):
-            shutil.copy2(legacy_config_path, config_path)
-        self.config_store = JsonStore(config_path)
+        self.config_store = JsonStore(_resolve_config_path())
         saved_style = "Light"
         if self.config_store.exists("display"):
             saved_style = self.config_store.get("display").get("style", "Light")
@@ -555,7 +600,7 @@ class ArchlenceApp(
         if persist:
             try:
                 if not hasattr(self, "config_store"):
-                    self.config_store = JsonStore("archlence_config.json")
+                    self.config_store = JsonStore(_resolve_config_path())
                 self.config_store.put("theme", name=theme_name)
             except Exception as e:
                 print("Tema tercihi kaydedilemedi:", e)
