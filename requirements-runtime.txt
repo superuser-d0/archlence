@@ -10,6 +10,8 @@
 # hiç `import pandas` yazmadan yfinance'ın döndürdüğü DataFrame'i kullanıyor,
 # Kivy da PNG/JPG yüklerken Pillow'u kendi içinde arka planda çağırıyor. Emin
 # olmak için `pip show <paket>` çıktısındaki `Required-by` alanına bak.
+argon2-cffi==25.1.0
+argon2-cffi-bindings==25.1.0
 beautifulsoup4==4.15.0
 certifi==2026.5.20
 cffi==2.0.0

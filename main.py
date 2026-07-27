@@ -1578,6 +1578,17 @@ class ArchlenceApp(
 
         security = self.config_store.get("security")
         if SecurityService.verify_password(pin, security["salt"], security["pin_hash"]):
+            if SecurityService.needs_upgrade(security["pin_hash"]):
+                # docs/ROADMAP.md Faz 1 madde 6: eski SHA-256 hash'i sessizce
+                # Argon2id'ye yükselt. Yalnızca DOĞRU PIN girildiğinde
+                # tetiklenir (bu if bloğu zaten başarılı doğrulamanın
+                # içinde) — offline bir saldırgan doğru PIN'i bilmeden bu
+                # yükseltmeyi kendisi tetikleyemez.
+                new_hash = SecurityService.hash_password(pin)
+                self.config_store.put(
+                    "security", pin_hash=new_hash,
+                    salt=security["salt"], is_set=True,
+                )
             self._handle_successful_login()
         else:
             self._handle_failed_login()

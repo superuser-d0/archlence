@@ -119,16 +119,37 @@ guarantees established earlier.
      and re-encrypting it separately doubles the chance of a user's data
      getting stuck mid-migration.
 
-6. **PIN hashing: Argon2id + attempt throttling.**
-   `security/security_service.py:25` hashes the PIN with a single round of
-   salted SHA-256. The salt stops rainbow tables but does nothing to slow
-   down brute force, and a 4-6 digit PIN's keyspace is small enough that
-   this matters. Move to Argon2id (or PBKDF2-HMAC with a much higher
-   iteration count / scrypt as a fallback if Argon2 isn't available on a
-   target platform), add increasing backoff after failed attempts, and a
-   temporary lockout past a threshold. Independent of (5) — can land
-   separately, but shares the "verify with a real attack-cost estimate,
-   not just an algorithm name swap" bar.
+6. ~~**PIN hashing: Argon2id**~~ **Argon2id done** — [PR #14](https://github.com/superuser-d0/archlence/pull/14).
+   **Attempt throttling/lockout still open.** `security/security_service.py`
+   hashed the PIN with a single round of salted SHA-256 — the salt stops
+   rainbow tables but does nothing to slow down brute force, and a 4-6
+   digit PIN's keyspace is small enough that matters. This was the one
+   Phase 1 item not coupled to Windows/GUI verification (pure backend
+   logic, fully unit-testable), so it was picked to work on while the
+   Windows-dependent items (2-5) wait.
+   `hash_password()` now produces Argon2id hashes (library defaults: 64
+   MiB memory, 3 iterations, 4-way parallelism — OWASP's recommended
+   range, not hand-tuned). Existing installs' hashes stay valid: `verify_password()`
+   detects format from the hash's own shape (Argon2id strings self-identify
+   with a `$argon2id$` prefix; the legacy format is always exactly 64 hex
+   characters) and verifies either way. On a **successful** login against a
+   legacy hash, `main.py::check_login` silently re-hashes with Argon2id and
+   overwrites the stored record — deliberately gated behind a successful
+   verification first, so an offline attacker who doesn't know the PIN
+   can't trigger the upgrade themselves and can't distinguish "wrong PIN"
+   from "hash format" from the outside.
+   This was the smallest main.py touch made all session (4 lines, additive,
+   inside one existing method's success branch, no KV/widget changes) —
+   tested anyway by calling `ArchlenceApp.check_login` directly against a
+   lightweight stand-in `self` (no real Kivy window needed for a plain
+   Python method call); see `tests/test_pin_lazy_migration.py`.
+   **Not done, deliberately separated:** increasing backoff after failed
+   attempts and a temporary lockout past a threshold. That's new stateful
+   behavior (tracking attempt counts/timestamps somewhere, plus a UI
+   countdown/disabled-state), not a drop-in algorithm swap — bundling it
+   into this change would have made the main.py diff bigger and less
+   reviewable for no coupling reason (the algorithm swap and the lockout
+   don't depend on each other). Left as its own follow-up.
 
 ## Phase 2 — Hardening (after Phase 1 ships)
 
