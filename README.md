@@ -243,7 +243,17 @@ xvfb-run -a python -m unittest tests.test_gui tests.test_ids
 
 Archlence is designed around local data ownership:
 
-- core financial records are stored in `finance.db` on the user's machine;
+- core financial records are stored locally in `finance.db`, in a
+  per-OS user-data directory resolved via [`platformdirs`](https://github.com/tox-dev/platformdirs)
+  (`utils/app_paths.py`) — not inside the application's own install
+  folder, which is commonly read-only once packaged (e.g. under `Program
+  Files` on Windows). On Linux this is `~/.local/share/Archlence/`
+  (config JSON lives alongside it); cached, re-fetchable data (brand
+  icons) goes to `~/.cache/Archlence/`; `crash.log` goes to
+  `~/.local/state/Archlence/log/`. Windows and macOS use the
+  corresponding OS-standard locations for each. Upgrading from an older
+  version that stored these next to the application migrates them
+  automatically on first launch;
 - settings, local databases, and runtime data are excluded from Git by default;
 - the application does not include analytics or advertising trackers;
 - CSV export provides a human-readable way to move supported records elsewhere;
