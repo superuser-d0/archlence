@@ -8,6 +8,14 @@ import unittest
 # bu dosyanın konumundan türetilir ki test her yerden çalıştırılabilsin.
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# GitHub Actions'ın ubuntu-latest runner'ı gibi gerçek CI ortamlarının hiçbir
+# görüntüleme altyapısı yok (DISPLAY yok, XDG_RUNTIME_DIR yok, Xvfb yok) —
+# ampirik olarak doğrulandı (PR #16'nın CI çalışması). "Gerçek bir pencere
+# sağlayıcısı gerçekten kuruluyor mu" testi böyle bir ortamda anlamsız: kurulacak
+# gerçek bir şey yok. Bu, gerçek bir masaüstü oturumu (ör. yerel geliştirme)
+# olduğunda hâlâ regresyon koruması sağlar, CI'da sessizce atlanır.
+_HAS_REAL_DISPLAY = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
 
 def _run(script, extra_env=None, strip_display=False):
     env = os.environ.copy()
@@ -40,6 +48,9 @@ class StartupImportTest(unittest.TestCase):
     exit code 0 ile) atlanıyordu. Bu dosya artık üç ayrı gerçek senaryoyu
     doğruluyor."""
 
+    @unittest.skipUnless(
+        _HAS_REAL_DISPLAY, "gerçek bir display sunucusu yok (ör. CI runner)"
+    )
     def test_import_succeeds_with_a_genuinely_working_window_provider(self):
         """Asıl regresyon kanıtı: main.py artık KIVY_WINDOW'a hiç
         dokunmuyor, bu yüzden Kivy'nin kendi doğal sağlayıcı araması
