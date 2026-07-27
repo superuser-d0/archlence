@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 import unittest
 
 # Discovery HERHANGİ bir test dosyasını içe aktarmadan önce set edilmeli.
@@ -29,6 +30,23 @@ os.environ.setdefault("ARCHLENCE_HEADLESS", "1")
 if os.environ.get("ARCHLENCE_HEADLESS", "").strip().lower() in ("1", "true", "yes"):
     os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
     os.environ.setdefault("KIVY_WINDOW", "sdl2")
+
+# utils/app_paths.py::data_dir() artık gerçek şeyler barındırıyor: bir
+# şifreleme anahtarı (utils/crypto.py::_get_aead_key, PR #22). O anahtar
+# `data_dir()`'ın çözdüğü GERÇEK dizine yazılır — test suite'inin yüzlerce
+# çağrısı encrypt()/decrypt()'i (çoğu dolaylı, servis testleri üzerinden)
+# tetikliyor, yani bu satır olmadan HER test çalıştırmasında geliştiricinin
+# gerçek `~/.local/share/Archlence/encryption.key` dosyasına dokunulurdu —
+# main.py'nin crash.log'unun zaten yaptığı gibi (bkz. PR #18), ama bu sefer
+# gerçek kripto anahtar malzemesiyle, kabul edilebilirliği çok daha düşük.
+# Test discovery'den ÖNCE, tek bir paylaşılan geçici dizine yönlendiriyoruz
+# — tüm suite aynı (atılabilir) anahtarda buluşuyor, kimse gerçek ev
+# dizinine dokunmuyor.
+if "XDG_DATA_HOME" not in os.environ:
+    _sandbox = tempfile.mkdtemp(prefix="archlence-test-xdg-")
+    os.environ["XDG_DATA_HOME"] = os.path.join(_sandbox, "data")
+    os.environ["XDG_CACHE_HOME"] = os.path.join(_sandbox, "cache")
+    os.environ["XDG_STATE_HOME"] = os.path.join(_sandbox, "state")
 
 loader = unittest.TestLoader()
 suite = loader.discover("tests")
