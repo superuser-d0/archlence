@@ -42,6 +42,17 @@ jobs:
         # sorup girdi bekler; CI'da bu, sonsuza kadar asılı kalmak demektir.
         # --log-level WARN: INFO binlerce "analyzing module ..." satırı basıp
         # gerçek uyarıları gömüyordu.
+        #
+        # KIVY_GL_BACKEND=angle_sdl2: archlence.spec'teki `collect_all("kivymd")`
+        # kivymd'yi gerçekten import ediyor, bu da Kivy'nin Window/GL
+        # singleton'ını tetikliyor. Runner'da gerçek GPU yok — native sürücü
+        # yalnızca OpenGL 1.1 veriyor (Kivy 2.0 istiyor), süreç CRITICAL ile
+        # çöküp temiz kapanmıyor ve analiz adımı asılı kalıyor. Bu, her
+        # derlemenin başından beri 6 saatte zaman aşımına uğramasının GERÇEK
+        # sebebiydi (bkz. archlence.spec'in başındaki not). ANGLE, GPU
+        # olmadan da OpenGL ES'i DirectX'e çevirip 2.0+ bağlam sağlıyor.
+        env:
+          KIVY_GL_BACKEND: angle_sdl2
         run: pyinstaller --noconfirm --log-level WARN archlence.spec
         timeout-minutes: 20
 

@@ -8,7 +8,11 @@
 #
 # Kullanım (Windows'ta, venv aktifken):
 #   pip install pyinstaller kivy_deps.sdl2 kivy_deps.glew kivy_deps.angle
+#   set KIVY_GL_BACKEND=angle_sdl2
 #   pyinstaller archlence.spec
+#
+# KIVY_GL_BACKEND=angle_sdl2 ZORUNLU (aşağıdaki nota bak) — onsuz derleme
+# GPU'suz makinelerde (CI runner'ları dahil) çöker.
 #
 # Çıktı: dist/Archlence/Archlence.exe (+ yanındaki DLL/kaynak klasörü — bu bir
 # "onedir" build, tek dosyalık .exe DEĞİL. Kivy uygulamaları PyInstaller'da
@@ -18,8 +22,29 @@
 # İkonun vektör kaynağı assets/icon_source.svg; masaüstü paketleri için
 # üretilmiş PNG ve çok çözünürlüklü ICO sürümleri assets/ altında tutulur.
 
+# KIVY_GL_BACKEND ortam değişkeni, PyInstaller BU DOSYAYI Python olarak
+# çalıştırırken (aşağıdaki `collect_all("kivymd")` satırında) zaten devrede
+# olmalı — burada set etmek ÇOK GEÇ, işlem environment'ı build başlamadan önce
+# hazır olmalı (bkz. .github/workflows/build-windows.yml).
+#
+# NEDEN: `collect_all("kivymd")` kivymd paketini gerçekten import eder. Bu
+# zincir Kivy'nin `Window` singleton'ını da tetikler — Kivy'nin bilinen bir
+# garipliği: pencere `.run()` çağrılmasını beklemez, `kivy.core.window`
+# import edilir edilmez gerçek bir SDL2 penceresi + GL bağlamı açar. GitHub
+# Actions'ın Windows runner'ında gerçek GPU yok; sürücü "GDI Generic" yazılım
+# render'ına düşer ve yalnızca OpenGL 1.1 verir — Kivy 2.0 şart koşar, CRITICAL
+# hatasıyla çöker ve süreç temiz kapanmadığı için PyInstaller'ın analiz adımı
+# SONSUZA KADAR ASILI KALIR (build #1'den beri her derlemenin 6 saatte
+# zaman aşımına uğramasının GERÇEK sebebi buydu — matplotlib/UPX değil,
+# onlar sadece ayrı, meşru optimizasyonlardı).
+#
+# `kivy_deps.angle` tam bu yüzden zaten pip ile kuruluyordu ama hiç
+# bağlanmamıştı: ANGLE, OpenGL ES çağrılarını DirectX'e çevirip gerçek GPU
+# olmadan da 2.0+ uyumlu bir bağlam sağlıyor. `KIVY_GL_BACKEND=angle_sdl2`
+# Kivy'ye pencere+GL sağlayıcısı olarak ANGLE'ı kullanmasını söylüyor;
+# native "GDI Generic" sürücüsüne hiç dokunmuyor.
 import os
-from kivy_deps import sdl2, glew
+from kivy_deps import sdl2, glew, angle
 from PyInstaller.utils.hooks import collect_all
 
 block_cipher = None
@@ -27,6 +52,7 @@ PROJECT_ROOT = os.path.abspath(".")
 
 # KivyMD kendi içinde .kv dosyaları, fontlar ve ikonlar taşıyor; PyInstaller
 # bunları normal .py taramasıyla bulamaz, collect_all ile açıkça toplanıyor.
+# (Bu satır yukarıdaki KIVY_GL_BACKEND notundaki çökmeyi tetikleyen satırdır.)
 kivymd_datas, kivymd_binaries, kivymd_hidden = collect_all("kivymd")
 
 # matplotlib / kivy_garden.matplotlib BİLEREK toplanmıyor.
@@ -118,7 +144,10 @@ coll = COLLECT(
     a.binaries,
     a.zipfiles,
     a.datas,
-    *[Tree(p) for p in sdl2.dep_bins + glew.dep_bins],
+    # angle.dep_bins de paketleniyor: son kullanıcının makinesinde de GPU/
+    # sürücü zayıf çıkarsa (özellikle sanal makine/RDP oturumları) uygulama
+    # aynı ANGLE geri dönüşünü çalışma anında kullanabilsin diye.
+    *[Tree(p) for p in sdl2.dep_bins + glew.dep_bins + angle.dep_bins],
     strip=False,
     upx=False,   # EXE'deki ile aynı gerekçe (hız + numpy/pandas bozulması)
     name="Archlence",
