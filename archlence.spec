@@ -90,12 +90,15 @@ a = Analysis(
     ],
     hookspath=[],
     runtime_hooks=[],
-    # Kullanılmayan ağır bağımlılıklar. Bunlar dolaylı olarak (bir kütüphanenin
-    # isteğe bağlı importu üzerinden) içeri sızabiliyor; açıkça dışlanınca hem
-    # derleme süresi hem çıktı boyutu ciddi düşüyor.
+    # Kullanılmayan ağır bağımlılıklar. Build artık requirements-runtime.txt
+    # kullandığından matplotlib/kivy_garden.matplotlib/scipy zaten hiç pip
+    # install edilmiyor (bkz. o dosyanın başlığı) — bu satırlar savunma
+    # amaçlı kalıyor: biri yanlışlıkla tam requirements.txt'i kurarsa bile
+    # (flake8, pycodestyle, pyflakes, mccabe dahil — bunlar requirements-
+    # dev.txt'te) hiçbiri pakete sızmasın.
     #   * matplotlib/kivy_garden/mpl_toolkits/scipy: yukarıdaki nota bak.
-    #   * flake8, pycodestyle, pyflakes, mccabe: requirements.txt'te duran lint
-    #     araçları — çalışma zamanında hiç gerekmiyor.
+    #   * flake8, pycodestyle, pyflakes, mccabe: lint araçları, çalışma
+    #     zamanında hiç gerekmiyor.
     #   * tkinter: Kivy uygulaması, Tk'ye ihtiyaç yok.
     excludes=[
         "matplotlib",
