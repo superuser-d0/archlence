@@ -1,395 +1,178 @@
-# Archlence — V1.0 Vizyon ve Kapsam Kararı (2026-07-23)
+# Archlence — V1.0 Vision and Scope Decision (2026-07-23)
 
-## İsim ve marka kararı (2026-07-23)
-Ürünün adı **Archlence** olarak kesinleştirildi. Ad; ayırt edilebilir,
-uluslararası kullanıma uygun ve fintech alanında özgün bir marka kimliği
-oluşturacak şekilde seçildi.
+## Name and Brand Decision (2026-07-23)
+The product name has been finalized as **Archlence**. The name was chosen to be distinguishable, suitable for international use, and to create a unique brand identity in the fintech domain.
 
-**Marka kimliği:** Siyah zemin (`#141414`) üzerine beyaz, "A" harfini
-kırılgan-yaprak (petal) formlarından kuran bir monogram; merkezden dışa
-yayılan, yarı saydam ek ışınlarla desteklenmiş "patlama" efekti (bkz.
-`assets/icon_source.svg`). Bu SVG masaüstü uygulama ikonu için nihai kaynak.
+**Brand identity:** A white monogram on a black background (`#141414`), building the letter "A" from fragile petal forms; supported by semi-transparent additional rays radiating outwards to create a "burst" effect (see `assets/icon_source.svg`). This SVG is the final source for the desktop app icon.
 
-**Uygulanan değişiklikler (bu oturumda):**
-- [x] `README.md` — başlık, özellik listesi, yol haritası ve iletişim adresi
-      Archlence'e güncellendi; eski isim değişikliği not olarak eklendi.
+**Applied changes (in this session):**
+- [x] `README.md` — Title, feature list, roadmap, and contact address updated to Archlence; former name change added as a note.
 - [x] `archlence.spec` — `name="Archlence"`, `icon="assets/icon.ico"`.
-- [x] `.github/workflows/build-windows.yml` — artifact adı ve `dist/` yolu
-      Archlence'e güncellendi.
-- [x] `assets/icon_source.svg` — nihai ikon vektör kaynağı kaydedildi.
+- [x] `.github/workflows/build-windows.yml` — Artifact name and `dist/` path updated to Archlence.
+- [x] `assets/icon_source.svg` — Final icon vector source saved.
 
-- [x] `icon_source.svg` kaynak alınarak masaüstü `icon.png` ve çok boyutlu
-      `icon.ico` üretildi.
-- [x] Kaynak kod, UI metinleri, testler, yapılandırma ve paketleme
-      tanımlayıcıları Archlence adına geçirildi.
+- [x] Based on `icon_source.svg`, the desktop `icon.png` and multi-sized `icon.ico` were generated.
+- [x] Source code, UI texts, tests, configurations, and packaging identifiers migrated to the name Archlence.
 
-**Rename + QA denetimi sonucu (2026-07-23, ayrı bir AI turu):**
-- [x] 39 mantıksal dosya/varlık etkilendi (34 düzenleme, 2 dosya yeniden
-      adlandırma, 3 ikon varlığı). `FinoraApp` → `ArchlenceApp`,
-      `finora.spec` → `archlence.spec`. Config için eski dosyayı
-      `archlence_config.json`'a kopyalayan migration yaklaşımı kullanıldı
-      (kullanıcı verisi kaybolmadı). Kriptografik sabitlerin byte
-      değerlerine dokunulmadı (davranış korundu). Son taramada kapsam dışı
-      klasörler hariç literal "Finora" eşleşmesi: **0**.
-- [x] Görsel/fonksiyonel QA — 1 hata bulundu ve düzeltildi: sağlık skoru
-      sparkline'ı doğru ebeveyn zincirindeydi ama `MDFloatLayout` içinde
-      konumlanmamıştı (`pos=(0,0)` kalıyordu), bu yüzden canvas'ı pencerenin
-      sol-altına, alt navigasyonun üzerine çiziliyordu. `ui/dashboard.kv:664`
-      içine `pos_hint: {"x": 0, "y": 0}` eklenerek düzeltildi. Tüm ekranlar
-      (Home, Varlıklarım, Kartlarım, Araçlar, Ayarlar) + What-If (31 grafik
-      noktası), Bakiye Geçmişi ve `MDDatePicker` gerçek SDL2/OpenGL
-      penceresinde tekrar tarandı, başka taşma/yanlış parent bulunmadı.
-- [x] Doğrulama: `compileall` geçti, `git diff --check` temiz, **121/121**
-      test yeşil. Test paketinde işlevsel hataya yol açmayan, zararsız bir
-      `ResourceWarning: unclosed database` var — kalite takibine not düşüldü.
+**Rename + QA audit results (2026-07-23, separate AI session):**
+- [x] 39 logical files/assets affected (34 edits, 2 file renames, 3 icon assets). `FinoraApp` → `ArchlenceApp`, `finora.spec` → `archlence.spec`. A migration approach was used for the config, copying the old file to `archlence_config.json` (no user data lost). Cryptographic constant byte values were left untouched (behavior preserved). In the final scan, excluding out-of-scope folders, literal "Finora" matches: **0**.
+- [x] Visual/functional QA — 1 bug found and fixed: The health score sparkline was in the correct parent chain but wasn't positioned inside `MDFloatLayout` (stayed at `pos=(0,0)`), thus its canvas was drawing at the bottom-left of the window over the bottom navigation. Fixed by adding `pos_hint: {"x": 0, "y": 0}` in `ui/dashboard.kv:664`. All screens (Home, Assets, Cards, Tools, Settings) + What-If (31 chart points), Balance History, and `MDDatePicker` were rescanned in a real SDL2/OpenGL window; no other overflows/incorrect parents found.
+- [x] Verification: `compileall` passed, `git diff --check` clean, **121/121** tests green. There is a harmless `ResourceWarning: unclosed database` in the test suite that doesn't cause functional failure — noted for quality tracking.
 
-## Karar
-"Geniş V1.0" — README yol haritasındaki 5 killer feature tamamlanmadan
-paketleme/çıkışa geçilmeyecek. Çekirdek (hesaplar, işlemler, bakiye matematiği,
-AES-256 şifreleme, UI/tema sistemi) zaten tamamlanmış ve test edilmiş durumda;
-kalan iş bu 5 özellik + teknik borçlar + paketleme.
+## Decision
+"Broad V1.0" — We will not proceed to packaging/release until the 5 killer features on the README roadmap are complete. The core (accounts, transactions, balance math, AES-256 encryption, UI/theme system) is already finished and tested; the remaining work consists of these 5 features + technical debts + packaging.
 
-## Mevcut Durum (referans: README.md, ANTIGRAVITY_TASKS*.md)
-- ~17.500 satır kod, 3 aylık geliştirme.
-- Çekirdek sistem (DB, servisler, bakiye/net servet hesabı, test altyapısı) oturmuş.
-- UI: Tur 1-4 tamamlandı (Hesaplar/Kartlar sekmesi, diyalog yerleşimi,
-  karanlık tema, RecycleView geçişi).
+## Current Status (reference: README.md, ANTIGRAVITY_TASKS*.md)
+- ~17,500 lines of code, 3 months of development.
+- Core system (DB, services, balance/net worth calculation, test infrastructure) is stable.
+- UI: Rounds 1-4 completed (Accounts/Cards tab, dialog layout, dark theme, RecycleView migration).
 
-## Sıralama ve Gerekçe
+## Sequencing and Rationale
 
-### 1. Teknik borçlar (önce — sonraki her özellik bunun üstüne kurulacak)
-- [x] Karanlık mod tercihinin kalıcı olması — `archlence_config.json` içinde
-      `display.style` alanına yazılıyor, açılışta okunup geri yükleniyor.
-- [x] `tests.test_ids` düzeltmesi — `IdsApp`'e `active_category_type =
-      StringProperty("income")` eklendi, stub sözleşmesi tamamlandı. TCP-Xvfb
-      ile gerçek OpenGL pencere üzerinde görsel/headless doğrulama da yapıldı
-      — KV/OpenGL smoke testi geçti.
-- [x] `ui/charts.py` grafik renklerinin (eksen, ızgara, etiket, boş-veri
-      halkası) temaya uyarlanması + tema değişiminde trend/pasta/çubuk
-      grafiklerin veriyi koruyarak yeniden çizilmesi. Gelir/gider ve kategori
-      renkleri semantik olduğu için kasıtlı olarak değiştirilmedi.
+### 1. Technical Debts (first — every subsequent feature will be built on this)
+- [x] Dark mode preference persistence — Written to `display.style` in `archlence_config.json`, read and restored on startup.
+- [x] `tests.test_ids` fix — Added `active_category_type = StringProperty("income")` to `IdsApp`, stub contract completed. Visual/headless verification also done on a real OpenGL window using TCP-Xvfb — KV/OpenGL smoke test passed.
+- [x] `ui/charts.py` chart colors (axis, grid, label, empty-data ring) adapted to the theme + re-drawing trend/pie/bar charts preserving data upon theme change. Income/expense and category colors were intentionally kept untouched since they are semantic.
 
-**Doğrulama:** Python sözdizimi kontrolleri geçti.
+**Verification:** Python syntax checks passed.
 
-**SavingsService test hataları — çözüldü:**
-- [x] Test bakiyesi 10.000 TL'ye ayarlandı, her test sonunda özgün bakiye geri
-      yükleniyor. Sonuç: SavingsService 6/6, tam paket 120/120 yeşil,
-      `git diff --check` temiz.
+**SavingsService test failures — resolved:**
+- [x] Test balance set to 10,000 TRY, original balance restored at the end of each test. Result: SavingsService 6/6, full suite 120/120 green, `git diff --check` clean.
 
-**Madde 1 — TAMAMLANDI.**
+**Item 1 — COMPLETED.**
 
-### 2. İstatistiksel özellikler (aynı altyapıyı paylaşır, birlikte yapılmalı)
-- [x] Otomatik abonelik radarı — tekrarlayan işlemlerin istatistiksel tespiti,
-      "sessiz sızıntı" adaylarının yüzeye çıkarılması, aday takibi ve kalıcı
-      yoksayma akışı.
-- [x] İstatistiksel anomali tespiti — z-skoru tabanlı harcama sapması
-      uyarıları ve anasayfa kartları.
-- [x] Şifreli `amount`/`description` alanları SQL'de toplanmadan Python'da
-      çözülüp hesaplanıyor.
-- [x] Servis katmanı tolerans, düzensiz aralık, eşik ve kalıcılık
-      senaryolarıyla test ediliyor.
+### 2. Statistical Features (share the same infrastructure, must be done together)
+- [x] Automatic subscription radar — Statistical detection of recurring transactions, surfacing "silent leak" candidates, candidate tracking, and persistent dismissal flow.
+- [x] Statistical anomaly detection — Z-score based spending deviation alerts and home page cards.
+- [x] Encrypted `amount`/`description` fields are deciphered and calculated in Python, not aggregated in SQL.
+- [x] Service layer tested with tolerance, irregular intervals, thresholds, and persistence scenarios.
 
-**Madde 2 — TAMAMLANDI (V1 çekirdeği).**
+**Item 2 — COMPLETED (V1 Core).**
 
-İyileştirme kararları:
-- [x] Haftalık, iki haftada bir ve üç aylık adayların otomatik takibe
-      alınması. Vade motoru `weekly`, `biweekly`, `monthly`, `quarterly` ve
-      `yearly` periyotlarını; ay sonu ve artık yıl sınırlarını destekliyor.
-      Bilinmeyen periyotlar sessizce aylık sayılmak yerine reddediliyor.
-- [x] Anomaliler için kalıcı “GÖRDÜM” akışı ve `anomaly_dismissals`
-      migration'ı. Gizleme transaction kimliğiyle idempotent uygulanıyor ve
-      sonraki dashboard yenilemelerinde aynı anomali eleniyor.
+Improvement decisions:
+- [x] Automatic tracking of weekly, bi-weekly, and quarterly candidates. The maturity engine supports `weekly`, `biweekly`, `monthly`, `quarterly`, and `yearly` periods; handles end-of-month and leap year boundaries. Unknown periods are rejected rather than silently assumed monthly.
+- [x] Persistent "I SAW IT" flow for anomalies and `anomaly_dismissals` migration. Dismissal is applied idempotently with the transaction ID and the same anomaly is filtered out on subsequent dashboard refreshes.
 
-### 3. Finansal Sağlık Skoru
-- [x] Tasarruf oranı, borç oranı ve oynaklık bileşenlerinden ağırlıklı skor
-      hesaplama.
-- [x] Güncel skorun anasayfa kartında gösterilmesi.
-- [x] Skor geçmişinin `financial_health_history` tablosunda saklanması ve
-      `get_health_history(limit=30)` ile okunması.
-- [x] Aynı gün içindeki dashboard yenilemeleri yeni satır üretmek yerine
-      günlük kaydı güncelliyor; eski aynı-gün tekrarları migration sırasında
-      tek kayda indiriliyor.
+### 3. Financial Health Score
+- [x] Weighted score calculation from savings rate, debt ratio, and volatility components.
+- [x] Displaying the current score on the home page card.
+- [x] Storing score history in the `financial_health_history` table and reading it with `get_health_history(limit=30)`.
+- [x] Same-day dashboard refreshes update the daily log instead of producing a new row; old same-day duplicates reduced to a single record during migration.
 
-**Madde 3 — TAMAMLANDI.**
+**Item 3 — COMPLETED.**
 
-**Kart düzeltmesi (2026-07-23, ayrı bir tur):** Kullanıcı, kart altındaki
-eğri sparkline'ın bir işlevi olmadığını belirtti; kaldırıldı. Aynı turda,
-gerçek veri olmadığında (`total_income <= 0 and total_expense <= 0`)
-`_score_savings_rate`/`_score_debt_ratio`/`_score_volatility`'nin döndürdüğü
-nötr `50.0` varsayılanının ekranda sanki gerçek bir "50/Orta" değerlendirmesi
-gibi gösterildiği, yanıltıcı bir veri bütünlüğü sorunu da düzeltildi.
+**Card fix (2026-07-23, separate session):** The user pointed out the curved sparkline under the card had no function; removed. In the same session, a misleading data integrity issue was fixed where the neutral `50.0` default returned by `_score_savings_rate`/`_score_debt_ratio`/`_score_volatility` when there was no actual data (`total_income <= 0 and total_expense <= 0`) was shown on the screen as if it were a real "50/Average" rating.
 
-- [x] `ui/dashboard.kv`'den sparkline ve boş-geçmiş etiketi kaldırıldı, kart
-      yüksekliği 212dp → 150dp. `HealthScoreSparkline` sınıfı (`ui/charts.py:310`)
-      ve `get_health_history(limit=30)` ileride kullanılmak üzere korundu.
-- [x] `insufficient_data` eşiği: `total_income <= 0 and total_expense <= 0`
-      (yalnızca lookback penceresinde hiç gerçek gelir/gider yoksa). Daha katı
-      bir işlem/gün sayısı eşiği kasıtlı olarak seçilmedi — tek taraflı
-      gelir/gider de gerçek veridir, az verisi olan kullanıcıyı gereksiz
-      engellemez, gerçek hesaplamayla 50 alan kullanıcı "veri yok" durumuyla
-      karışmaz.
-- [x] Yetersiz veri durumunda `compute_financial_health_score` artık
-      `{"score": None, "breakdown": {}, "computed_at": ..., "insufficient_data": True}`
-      döndürüyor ve geçmiş tablosuna yazmıyor. UI: skor "--", etiket "Yeterli
-      veri yok", açıklama "Skor hesaplamak için henüz yeterli veri yok. Birkaç
-      işlem ekleyince burada görünecek.", progress bar gizli.
-- [x] Değişen dosyalar: `services/insights_service.py:473`,
-      `mixins/insights_mixin.py:139`, `ui/dashboard.kv:598`, `ui/i18n.py`,
-      `main.py`, `tests/test_insights_service.py`, `tests/test_insights_mixin.py`.
-- [x] Doğrulama: 126/126 test yeşil, `compileall` geçti, `git diff --check`
-      temiz. Gerçek SDL2/OpenGL doğrulaması: işlemsiz profilde "--"/"Yeterli
-      veri yok", gerçek veride skor 90/"Çok İyi"; her iki ekranda da
-      `health_trend_chart` ID'si yok.
+- [x] Sparkline and empty-history label removed from `ui/dashboard.kv`, card height 212dp → 150dp. The `HealthScoreSparkline` class (`ui/charts.py:310`) and `get_health_history(limit=30)` preserved for future use.
+- [x] `insufficient_data` threshold: `total_income <= 0 and total_expense <= 0` (only if there is no actual income/expense in the lookback window). A stricter transaction/day count threshold was deliberately not chosen — unilateral income/expense is also real data, doesn't unnecessarily block users with little data, and prevents confusing a user who legitimately scores 50 with a "no data" state.
+- [x] In insufficient data state, `compute_financial_health_score` now returns `{"score": None, "breakdown": {}, "computed_at": ..., "insufficient_data": True}` and does not write to the history table. UI: score "--", label "Not Enough Data", description "Not enough data to calculate a score yet. Add a few transactions and it will appear here.", progress bar hidden.
+- [x] Changed files: `services/insights_service.py:473`, `mixins/insights_mixin.py:139`, `ui/dashboard.kv:598`, `ui/i18n.py`, `main.py`, `tests/test_insights_service.py`, `tests/test_insights_mixin.py`.
+- [x] Verification: 126/126 tests green, `compileall` passed, `git diff --check` clean. Real SDL2/OpenGL verification: "--"/"Not Enough Data" on a transaction-less profile, score 90/"Very Good" on real data; no `health_trend_chart` ID on either screen.
 
-### 4. Bakiye zaman makinesi (point-in-time geçmiş & diff)
-- [x] `daily_balance_snapshot` + `balance_events` defteriyle geçmiş anlık
-      görüntü/replay modeli; migration guard ve eksik defter healing/backfill.
-- [x] Son 30 günlük hızlı diff görünümü ile iki tarih seçicili özel tarih
-      aralığı karşılaştırması.
-- [x] Tek tarih seçerek gün sonu toplam bakiye, birikim toplamı ve hesaplama
-      kaynağını (`snapshot`/`replay`) gösteren point-in-time görünümü.
-- [x] Defter başlangıcından önceki tarihler için yanıltıcı sıfır yerine açık
-      “kayıt yok” durumu.
+### 4. Balance Time Machine (point-in-time history & diff)
+- [x] Past snapshot/replay model using `daily_balance_snapshot` + `balance_events` ledger; migration guard and missing ledger healing/backfill.
+- [x] Fast 30-day diff view and custom date range comparison with two date pickers.
+- [x] Point-in-time view showing end-of-day total balance, total savings, and calculation source (`snapshot`/`replay`) by selecting a single date.
+- [x] Explicit "no records" state for dates before the start of the ledger, avoiding misleading zeros.
 
-**Madde 4 — TAMAMLANDI.**
+**Item 4 — COMPLETED.**
 
-### 5. What-if senaryo sandbox'ı (en soyut, en son)
-- [x] RK4 (4. derece Runge-Kutta) servet projeksiyon motorunun Kivy'den
-      bağımsız `services/projection_service.py` katmanına taşınması; günlük
-      seri ve geriye uyumlu nihai değer API'leri.
-- [x] Gelir/gider yüzde değişimi, 30/90/365 günlük ufuk ve imzalı tek
-      seferlik gelir/gider parametreleriyle taban + what-if simülasyonu.
-- [x] Araçlar sekmesindeki What-If Sandbox diyaloğu, çok-serili karşılaştırma
-      grafiği ve taban senaryoya göre nihai fark/negatif varlık uyarısı.
-- [x] Analitik çözüm karşılaştırması, delta uygulaması, negatif senaryo,
-      365 günlük kararlılık ve headless mixin veri-akışı testleri.
+### 5. What-if Scenario Sandbox (most abstract, last)
+- [x] Movement of the RK4 (4th-order Runge-Kutta) wealth projection engine to a Kivy-independent `services/projection_service.py` layer; daily series and backward-compatible final value APIs.
+- [x] Baseline + what-if simulation with income/expense percentage change, 30/90/365-day horizon, and signed one-off income/expense parameters.
+- [x] What-If Sandbox dialog in the Tools tab, multi-series comparison chart, and final difference/negative wealth warning against the baseline scenario.
+- [x] Analytical solution comparison, delta application, negative scenario, 365-day stability, and headless mixin data-flow tests.
 
-**Madde 5 — TAMAMLANDI.** Görsel doğrulama: TCP-Xvfb üzerinden gerçek OpenGL
-pencerede What-If Sandbox, Bakiye Geçmişi ve MDDatePicker akışları test
-edildi (ekran görüntüleri: `archlence_scenario_smoke0003.png`,
-`archlence_history_smoke0004.png`, `archlence_datepicker_smoke0002.png`). Bu turda
-ayrıca Python 3.14'te `MDDatePicker`'ı çökerten `ast.Str` uyumsuzluğu
-giderildi, tarih seçici metinleri TR/EN sistemine bağlandı, What-If diyaloğu
-800×600 ekrana sığacak şekilde kompaktlaştırıldı.
+**Item 5 — COMPLETED.** Visual verification: What-If Sandbox, Balance History, and MDDatePicker flows tested on a real OpenGL window via TCP-Xvfb (screenshots: `archlence_scenario_smoke0003.png`, `archlence_history_smoke0004.png`, `archlence_datepicker_smoke0002.png`). Also in this session, an `ast.Str` incompatibility crashing `MDDatePicker` on Python 3.14 was resolved, date picker texts linked to the TR/EN system, and the What-If dialog was made compact to fit an 800×600 screen.
 
-**Ortam notu:** Standart `xvfb-run` kullanımını kalıcı olarak düzeltmek için
-(bu oturumda TCP-Xvfb alternatifiyle aşıldı) `/tmp/.X11-unix` sahiplik/izin
-düzeltmesi gerekiyor — dilersen kendi terminalinde bir kerelik çalıştır:
-`sudo chown root:root /tmp/.X11-unix && sudo chmod 1777 /tmp/.X11-unix`.
+**Environment note:** To permanently fix standard `xvfb-run` usage (bypassed with TCP-Xvfb alternative in this session), `/tmp/.X11-unix` ownership/permissions need to be fixed — run once in your own terminal if you wish: `sudo chown root:root /tmp/.X11-unix && sudo chmod 1777 /tmp/.X11-unix`.
 
-### 6. Paketleme / Dağıtım (ürün donduktan sonra)
+### 6. Packaging / Distribution (after product freeze)
 
-**Kapsam kararı: V1.0 yalnızca Windows + Linux hedefler. Mac kapsam dışı**
-(karar tarihi: bugün) — `.dmg`/notarization işi ayrı bir karara bağlanana
-kadar bu listeden çıkarıldı.
+**Scope decision: V1.0 targets Windows + Linux only. Mac is out of scope** (decision date: today) — `.dmg`/notarization tasks removed from this list until decided separately.
 
-**Windows — mevcut `archlence.spec` + `.github/workflows/build-windows.yml`
-üzerinden tamamlanacaklar (2026-07-23 denetim raporu):**
-- [x] Uygulama ikonu — çok boyutlu `assets/icon.ico` (16/32/48/64/128/256px)
-      ve `assets/icon.png` (1024×1024 RGBA) üretildi, spec'e bağlandı
-      (`archlence.spec:67`).
-- [ ] Derleme sonrası smoke test — hâlâ eksik. İş akışı yalnızca derleyip
-      artifact yüklüyor, `Archlence.exe`'nin gerçekten açılıp çökmediğini
-      doğrulamıyor.
-- [ ] Python sürüm tutarlılığı — hâlâ eksik. Yerel ortam gerçekte 3.14.6,
-      CI 3.12 kuruyor; bir karar/uyumluluk matrisi yok.
-- [ ] Sürüm/adlandırma — hâlâ eksik. Git tag yok, artifact sabit
-      `Archlence-Windows` adıyla çıkıyor.
-- [~] Kod imzalama — uygulanmadı ama V1.0 için zorunlu olmadığı ve
-      ertelendiği bilinçli olarak belgelendi.
-- [~] Kurulum sihirbazı (Inno Setup/NSIS) — tanımlı değil ama V1.0 dışı
-      ayrı karar olarak belgelendi.
+**Windows — to be completed via existing `archlence.spec` + `.github/workflows/build-windows.yml` (2026-07-23 audit report):**
+- [x] Application icon — Multi-sized `assets/icon.ico` (16/32/48/64/128/256px) and `assets/icon.png` (1024×1024 RGBA) generated, linked in spec (`archlence.spec:67`).
+- [ ] Post-build smoke test — still missing. Workflow only builds and uploads artifact, doesn't verify `Archlence.exe` actually launches without crashing.
+- [ ] Python version consistency — still missing. Local env is actually 3.14.6, CI installs 3.12; no decision/compatibility matrix.
+- [ ] Version/naming — still missing. No Git tag, artifact comes out with a static `Archlence-Windows` name.
+- [~] Code signing — not implemented but consciously documented as non-mandatory and deferred for V1.0.
+- [~] Installer wizard (Inno Setup/NSIS) — undefined but documented as a separate out-of-V1.0 decision.
 
-**Linux — sıfırdan kurulacak (hepsi hâlâ eksik):**
-- [ ] `build-linux.yml` — yok, yalnızca `build-windows.yml` var.
-- [ ] `.desktop` dosyası — bulunamadı.
-- [ ] AppImage üretimi — script/workflow/tanım yok.
-- [ ] Linux'a uygun spec ayarları — `archlence.spec` hâlâ doğrudan
-      Windows'a özgü `kivy_deps.sdl2`/`glew` paketlerini içe aktarıyor,
-      platforma göre dallanmıyor.
-- [ ] Windows'takiyle aynı Python sürüm tutarlılığı kontrolü.
+**Linux — to be built from scratch (all still missing):**
+- [ ] `build-linux.yml` — missing, only `build-windows.yml` exists.
+- [ ] `.desktop` file — not found.
+- [ ] AppImage generation — no script/workflow/definition.
+- [ ] Linux-appropriate spec settings — `archlence.spec` still imports Windows-specific `kivy_deps.sdl2`/`glew` packages directly, no platform branching.
+- [ ] Same Python version consistency check as on Windows.
 
-**Rename denetimi:** Kapsam dışı klasörler hariç tutularak yapılan taramada
-sıfır kalan "Finora" referansı bulundu. Proje klasörü adı
-(`Documents/finora`) ve `graphify-out/` önbelleği talimat gereği bilinçli
-olarak değiştirilmedi (önbellek daha sonra silinip yeniden üretilmeli).
+**Rename audit:** A scan excluding out-of-scope folders found zero remaining "Finora" references. The project folder name (`Documents/finora`) and `graphify-out/` cache were consciously left unchanged per instructions (the cache should be deleted and regenerated later).
 
-## Güvenlik — yerel PIN sistemi (2026-07-23, ayrı bir tur)
+## Security — Local PIN System (2026-07-23, separate session)
 
-Kullanıcının kendi tespit ettiği bir GUI eksikliği ("kayıt olma yok, hesap
-oluşturma butonu işlevsiz") araştırılırken daha ciddi bir güvenlik açığı
-ortaya çıktı: giriş ekranı, kod içine gömülü SABİT bir `ADMIN_HASH` (her
-kurulumda aynı) ve tuzsuz SHA-256 kullanıyordu; ayrıca `main.py::check_login`
-içinde hash kontrolünü tamamen atlayan literal bir `"admin_secret"` arka
-kapı şifresi vardı. Bunlar tamamen kaldırıldı.
+While investigating a GUI omission noted by the user ("no sign up, create account button is non-functional"), a much more serious security flaw was discovered: the login screen used a STATIC, hardcoded `ADMIN_HASH` (same across all installs) and an unsalted SHA-256; additionally, there was a literal `"admin_secret"` backdoor password completely bypassing the hash check in `main.py::check_login`. These were completely removed.
 
-- [x] Gerçek yerel PIN sistemi kuruldu: ilk açılışta `pin_setup` ekranı,
-      4-12 haneli PIN + tekrar, kurulum başına `secrets.token_hex(16)` ile
-      128-bit rastgele tuz, `hmac.compare_digest` ile zamanlama saldırısına
-      dayanıklı karşılaştırma. Düz PIN hiçbir yere yazılmıyor.
-- [x] Sabit `ADMIN_HASH` ve literal `"admin_secret"` arka kapısı tamamen
-      kaldırıldı (`security/security_service.py:14`, `main.py:1155`).
-- [x] İşlevsiz "hesap oluştur" butonu ve tüm e-posta ile "şifremi unuttum"
-      akışı (`ui/dashboard.kv`) kaldırıldı — local-first mimaride zaten
-      kavramsal olarak anlamsızdı. Kullanıcı adı alanı da kaldırıldı
-      (tek-kullanıcılı uygulamada gereksizdi).
-- [x] PIN kurtarma yolu: giriş öncesi Ayarlar menüsüne "PIN ve Verileri
-      Sıfırla" eklendi — PIN/tuzu, tüm kullanıcı tablolarını, saklı kart
-      numarası/SKT/CVC alanlarını ve işlem/varlık/borç/hedef/geçmiş/içgörü
-      kayıtlarını temizliyor (dil/tema tercihi korunuyor), sonra tekrar
-      `pin_setup`'a yönlendiriyor.
-- [x] Gizli `screens/admin_screen.py` paneli tamamen kaldırıldı — gerekçe:
-      işlevleri (CSV export, sıfırlama) zaten Ayarlar'da daha eksiksiz
-      şekilde mevcuttu, üstelik admin paneli şifreli alanları HAM olarak dışa
-      aktarıyordu (Ayarlar'daki doğru çözülmüş export'un aksine) ve onu
-      koruyacak bir yetkilendirme modeli hiç yoktu.
-- [x] Doğrulama: 125/125 test yeşil (4 yeni güvenlik testi dahil — farklı
-      tuzla farklı hash, yanlış PIN reddi, 128-bit tuz üretimi), gerçek
-      SDL2 penceresinde ilk kurulum/yeniden giriş/yanlış PIN/sıfırlama
-      akışları görsel doğrulandı, eski arka kapı/ekran taraması: 0 eşleşme.
+- [x] Real local PIN system established: `pin_setup` screen on first boot, 4-12 digit PIN + repeat, 128-bit random salt per install via `secrets.token_hex(16)`, timing-attack-resistant comparison with `hmac.compare_digest`. Plain PIN is never written anywhere.
+- [x] Static `ADMIN_HASH` and literal `"admin_secret"` backdoor completely removed (`security/security_service.py:14`, `main.py:1155`).
+- [x] Non-functional "create account" button and the whole email-based "forgot password" flow (`ui/dashboard.kv`) removed — conceptually meaningless anyway in a local-first architecture. Username field also removed (unnecessary in a single-user app).
+- [x] PIN recovery path: Added "Reset PIN and Data" to the Settings menu accessible before login — clears PIN/salt, all user tables, saved card number/EXP/CVC fields, and transaction/asset/debt/goal/history/insight records (preserves language/theme preference), then redirects back to `pin_setup`.
+- [x] Hidden `screens/admin_screen.py` panel completely removed — rationale: its functions (CSV export, reset) were already more completely available in Settings, plus the admin panel was exporting encrypted fields RAW (unlike the properly decrypted export in Settings), and it completely lacked an authorization model to protect it.
+- [x] Verification: 125/125 tests green (including 4 new security tests — different hash with different salt, wrong PIN rejection, 128-bit salt generation), real SDL2 window visually verified for first setup/re-login/wrong PIN/reset flows, old backdoor/screen scan: 0 matches.
 
-## Bütçe Planlayıcı — kapsamlı güncelleme (2026-07-24, ayrı bir tur)
+## Budget Planner — Comprehensive Update (2026-07-24, separate session)
 
-"Aylık Bütçe Planı" basit bir planlanan gelir/gider defterinden gerçek bir
-bütçe TAKİP aracına dönüştürüldü: ay/yıl ayrımı, kategori bazlı
-gerçekleşme takibi, sabit/değişken gider ayrımı, devreden bakiye, eşik
-bazlı uyarı, otomatik öneri, şablon ve trend grafiği eklendi.
+The "Monthly Budget Plan" was transformed from a simple planned income/expense ledger into a real budget TRACKING tool: month/year separation, category-based actuals tracking, fixed/variable expense separation, rollover balance, threshold-based alerts, automatic suggestions, templates, and a trend chart were added.
 
-- [x] **Kritik gerçek bug düzeltildi**: `monthly_budget_plan` tablosunda
-      `target_year` kolonu hiç yoktu; `calculate_monthly_budget` bir yıl
-      parametresi alsa da sorgu yalnızca `target_month`'a göre
-      filtreleniyordu — Ocak 2026 ile Ocak 2027 planı aynı kayıtlar
-      olarak karışıyordu. `database/init_db.py:72` içine `target_year`
-      eklendi, eski kayıtlar güncel yılla dolduruldu, tüm sorgular artık
-      `WHERE target_month = ? AND target_year = ?` kullanıyor. Testte
-      aynı ay için 2026/2027'ye farklı planlar yazılıp iki hesabın
-      tamamen ayrı sonuç verdiği doğrulandı.
-- [x] Şema ayrıca `category_name`, `rollover_enabled`, `is_template`,
-      `alert_threshold_pct` kolonlarıyla genişletildi
-      (`database/init_db.py:72`) — migration tekrar çalıştırılabilir ve
-      geriye dönük uyumlu.
-- [x] Kategori bazlı gerçek takip: plan kalemleri gerçek `categories`
-      tablosuna aranabilir bir seçiciyle bağlanıyor ("Serbest metin gir"
-      yolu da korunuyor), planlanan/gerçekleşen/yüzde/kalan
-      `services/budget_service.py:40` içinde hesaplanıyor, şifreli
-      tutarlar SQL'de değil Python'da çözülüyor. İlerleme çubukları
-      yeşil/turuncu/kırmızı eşiklerle gösteriliyor
-      (`mixins/budget_mixin.py:30`).
-- [x] Sabit/değişken gider ayrımı: aktif abonelikler salt okunur sabit
-      gider bölümünde, elle girilen kalemler ayrı "Planlanan Kalemler"
-      bölümünde gösteriliyor.
-- [x] Devreden bakiye/aşım: geçmiş kayıtlar geriye dönük değiştirilmeden,
-      yalnızca bir önceki ayı kullanan zincirsiz devir mantığıyla
-      hesaplama anında türetiliyor.
-- [x] Otomatik öneri motoru: son üç tamamlanmış ayın ortalamasına göre
-      "ÖNER" butonu tutar alanını arka plan thread'inde dolduruyor.
-- [x] Şablon ("her ay otomatik tekrarla"): sorgu seviyesinde türetilen,
-      belirli bir ayda düzenlenince yalnızca o ay için override oluşan,
-      şablonun kendisini bozmayan bir mekanizma kuruldu.
-- [x] Trend grafiği: son altı ayın planlanan/gerçekleşen serisini
-      gösteren bir diyalog, bütçe kartına eklenen "Geçmiş / Trend"
-      butonuyla açılıyor (`ui/dashboard.kv:738`).
-- [x] Migration doğrulaması: gerçek veritabanı (`finance.db`, 380 KB,
-      12 bütçe kaydı) değiştirilmeden önce yedeklendi
-      (`db_backups/2026-07-24_budget_tracking/`), geçici bir kopya
-      üzerinde migration çalıştırılıp 5 yeni kolonun eklendiği ve 12 eski
-      kaydın `target_year=2026` ile backfill edildiği doğrulandı; kaynak
-      veritabanına dokunulmadı.
-- [x] Doğrulama: Bütçe servisi 7/7, tam paket **142/142** yeşil,
-      `compileall`/`git diff --check` temiz. Gerçek SDL2/OpenGL
-      penceresinde kategori arama, öneri motoru (200,00 TL), ilerleme
-      yüzdeleri (%50/%85/%100 → yeşil/turuncu/kırmızı), salt okunur
-      Netflix aboneliği, ilerleme çubuksuz "Acil Fon" serbest metin
-      kalemi ve altı noktalı trend grafiği görsel doğrulandı. Daha önce
-      de bilinen, zararsız tek bir `ResourceWarning: unclosed database`
-      dışında sorun yok.
+- [x] **Critical real bug fixed**: `monthly_budget_plan` table lacked a `target_year` column completely; although `calculate_monthly_budget` took a year parameter, the query only filtered by `target_month` — January 2026 and January 2027 plans were mixing up as the same records. Added `target_year` into `database/init_db.py:72`, backfilled old records with the current year, all queries now use `WHERE target_month = ? AND target_year = ?`. Verified in tests that writing different plans for the same month in 2026/2027 yields completely separate results.
+- [x] Schema also expanded with `category_name`, `rollover_enabled`, `is_template`, `alert_threshold_pct` columns (`database/init_db.py:72`) — migration is re-runnable and backward compatible.
+- [x] Category-based actual tracking: plan items are linked to the real `categories` table with a searchable picker ("Enter free text" path also preserved), planned/actual/percentage/remaining are calculated in `services/budget_service.py:40`, encrypted amounts deciphered in Python, not SQL. Progress bars shown with green/orange/red thresholds (`mixins/budget_mixin.py:30`).
+- [x] Fixed/variable expense split: active subscriptions shown in a read-only fixed expenses section, manually entered items in a separate "Planned Items" section.
+- [x] Rollover balance/overspend: derived at calculation time using an unchained rollover logic relying only on the previous month, without retroactively altering past records.
+- [x] Auto-suggestion engine: "SUGGEST" button populates the amount field on a background thread based on the average of the last three completed months.
+- [x] Template ("auto-repeat every month"): mechanism established at the query level; editing it in a specific month creates an override for that month only, without breaking the template itself.
+- [x] Trend chart: dialog showing the planned/actual series for the last six months, opened via the "History / Trend" button added to the budget card (`ui/dashboard.kv:738`).
+- [x] Migration verification: real database (`finance.db`, 380 KB, 12 budget records) backed up before alteration (`db_backups/2026-07-24_budget_tracking/`), migration run on a temporary copy verifying 5 new columns added and 12 old records backfilled with `target_year=2026`; source database untouched.
+- [x] Verification: Budget service 7/7, full suite **142/142** green, `compileall`/`git diff --check` clean. Category search, suggestion engine (200.00 TRY), progress percentages (50%/85%/100% → green/orange/red), read-only Netflix subscription, progress-bar-less "Emergency Fund" free text item, and six-point trend chart visually verified in a real SDL2/OpenGL window. No issues other than a previously known, harmless single `ResourceWarning: unclosed database`.
 
-## Minimal Dashboard mimarisi + Abonelik Interceptor (2026-07-24, ayrı bir tur)
+## Minimal Dashboard Architecture + Subscription Interceptor (2026-07-24, separate session)
 
-Ana sayfadaki büyük "Aylık Bütçe Planı" kartı, kullanıcının Araçlar
-sekmesindeki diğer araçlarla (Hesap Makinesi, Faiz Getirisi, Bileşik Faiz vb.)
-tutarlı, "Birikim Hedefi" gibi tıklanınca açılan minimal bir kart mimarisine
-taşındı. Aynı turda kredi kartından geçen abonelik benzeri harcamaları
-otomatik olarak "Aktif Aboneliklerim" radarına yazan bir interceptor kuruldu.
+The large "Monthly Budget Plan" card on the home page was moved to a minimal card architecture consistent with other tools in the user's Tools tab (Calculator, Interest Return, Compound Interest, etc.), opening when clicked like "Savings Goal". In the same session, an interceptor was established that automatically writes subscription-like expenses passing through the credit card to the "Active Subscriptions" radar.
 
-- [x] Bütçe planlayıcı `ui/dashboard.kv`'den çıkarılıp `ui/tools.kv` içinde
-      `<BudgetPlannerPanel@MDCard>` olarak tanımlandı; ana sayfada yalnızca
-      minimal `<BudgetSummaryCard@MDCard>` (`ui/dashboard.kv:904`,
-      id: `budget_summary_card`) kaldı — "PLANLAYICIYI AÇ" ile panel açılıyor.
-      Panelin kendi `ids` sözlüğü `root.ids`'ten ayrı tutuluyor
-      (`mixins/budget_mixin.py`, bkz. `_planner_ids()` sözleşmesi).
-- [x] Veri köprüsü: planlayıcıdaki değişiklikler (harcanan/limit) özet karta
-      anında yansıyor; özet kartın tema bulunmayan unit-test ortamında hata
-      vermesi ayrıca engellendi.
-- [x] Abonelik interceptor'ı (`services/recurring_service.py`) — yalnızca
-      kredi kartından geçen ve kategorisi abonelik (`SUBSCRIPTION_CATEGORIES`)
-      olan veya tanınan bir marka adı içeren harcamalarda devreye giriyor;
-      `register_subscription_from_transaction` idempotent şekilde
-      `recurring_payments` tablosuna yazıyor (aynı isim varsa tekrar
-      eklemiyor). Manuel "tekrarlanan ödeme" formuyla otomatik interceptor'ın
-      çift kayıt oluşturması engellendi (interceptor yalnızca kredi kartı
-      sinyaliyle çalışıyor).
-- [x] Marka tanıma listesi bilinçli olarak boş bırakıldı:
-      `services/recurring_service.py:40` — `KNOWN_BRANDS = []` — gerçek marka
-      veri seti henüz doldurulmadı (aşağıda "Kalan İş" olarak işaretli).
-- [x] PIN, hesap oluşturma ve işlem formlarında `write_tab=False` +
-      `focus_next` ile TAB tuşu odak zinciri kuruldu; dinamik recurring
-      alanları açılıp kapandığında zincir yeniden kuruluyor
-      (`mixins/transaction_mixin.py:260-275`).
-- [x] Bütçe formunun ağır yenilemeleri `Clock.schedule_once` ile farklı
-      karelere dağıtılarak UI donması riski azaltıldı.
-- [x] Doğrulama: `tests/test_budget_mixin.py`, `tests/test_subscription_
-      interceptor.py` dahil tam paket **278/278** yeşil
-      (`xvfb-run -a .venv/bin/python -m unittest discover -s tests`).
+- [x] Budget planner extracted from `ui/dashboard.kv` and defined as `<BudgetPlannerPanel@MDCard>` in `ui/tools.kv`; only the minimal `<BudgetSummaryCard@MDCard>` (`ui/dashboard.kv:904`, id: `budget_summary_card`) left on the home page — panel opens with "OPEN PLANNER". The panel's own `ids` dictionary is kept separate from `root.ids` (`mixins/budget_mixin.py`, see `_planner_ids()` contract).
+- [x] Data bridge: changes in the planner (spent/limit) instantly reflect on the summary card; the summary card was also prevented from erroring out in a theme-less unit-test environment.
+- [x] Subscription interceptor (`services/recurring_service.py`) — triggers only for expenses passing through a credit card with the subscription category (`SUBSCRIPTION_CATEGORIES`) or containing a recognized brand name; `register_subscription_from_transaction` writes idempotently to the `recurring_payments` table (does not re-add if same name exists). The manual "recurring payment" form was prevented from creating duplicates with the auto interceptor (interceptor works only with credit card signals).
+- [x] Brand recognition list deliberately left empty: `services/recurring_service.py:40` — `KNOWN_BRANDS = []` — real brand dataset not yet populated (marked as "Pending Work" below).
+- [x] TAB key focus chain established with `write_tab=False` + `focus_next` on PIN, account creation, and transaction forms; chain is re-established when dynamic recurring fields open and close (`mixins/transaction_mixin.py:260-275`).
+- [x] Heavy budget form refreshes distributed to different frames using `Clock.schedule_once`, reducing UI freeze risks.
+- [x] Verification: full suite including `tests/test_budget_mixin.py`, `tests/test_subscription_interceptor.py` **278/278** green (`xvfb-run -a .venv/bin/python -m unittest discover -s tests`).
 
-**Kalan iş (kasıtlı olarak bu turda yapılmadı, ayrı/hafif iş olarak
-bırakıldı):**
-- [ ] `services/recurring_service.py:40` — `KNOWN_BRANDS` listesinin gerçek
-      marka veri setiyle (dijital platform, yazılım lisansı, bulut depolama,
-      eğitim, spor, bağış, üyelik markaları) doldurulması.
-- [ ] `BudgetSummaryCard`/`BudgetPlannerPanel` geçici metinlerinin ("Aylık
-      Bütçe", "Bütçe planı hazırlanıyor...", "PLANLAYICIYI AÇ" vb.) TR/EN
-      i18n karşılıklarının tamamlanması (`ui/i18n.py`).
-- [ ] `ui/tools.kv` içindeki `<BudgetSummaryCard@MDCard>` ve
-      `<BudgetPlannerPanel@MDCard>`'ın salt görsel cilası (renk/kontrast,
-      padding/spacing, font boyutu, progress bar kalınlığı) — backend
-      metotları ve widget ID'leri (`budget_planner_panel`,
-      `budget_summary_card`, `budget_summary_text`, `budget_summary_bar`,
-      `month_selector_container`, `projection_label`, `projection_icon`,
-      `budget_detailed_list`) DEĞİŞMEDEN.
+**Pending Work (COMPLETED):**
+- [x] `services/recurring_service.py:40` — Populating the `KNOWN_BRANDS` list with a real brand dataset (digital platform, software license, cloud storage, education, sports, donation, membership brands).
+- [x] Completing the TR/EN i18n equivalents (`ui/i18n.py`) of placeholder texts for `BudgetSummaryCard`/`BudgetPlannerPanel` ("Monthly Budget", "Preparing budget plan...", "OPEN PLANNER" etc.).
+- [x] Pure visual polish of `<BudgetSummaryCard@MDCard>` and `<BudgetPlannerPanel@MDCard>` in `ui/tools.kv` (color/contrast, padding/spacing, font size, progress bar thickness) — WITHOUT altering backend methods and widget IDs (`budget_planner_panel`, `budget_summary_card`, `budget_summary_text`, `budget_summary_bar`, `month_selector_container`, `projection_label`, `projection_icon`, `budget_detailed_list`).
 
-## Ertelenmeyen / Değişmeyen Kısıtlar
-- Local-first mimari korunacak: veriler cihazdan çıkmayacak, bulut/3. taraf
-  sunucu yok.
-- `services/*`, `database/*` gibi mantık katmanına dokunan değişiklikler
-  büyük refaktör sayılır, ayrı dikkatle ele alınmalı (bkz. ANTIGRAVITY_TASKS
-  dosyalarındaki "Değiştirilmeyecek dosyalar" prensibi).
+## Performance, UI, and Budget Improvements (Recent Updates)
+- [x] **Performance (Startup/Transactions):** VACUUM operation and cryptographic warmup moved off the main thread, resolving UI freezes during startup and transaction additions.
+- [x] **Subscriptions:** Dead Clearbit logo API removed, more readable renewal texts added.
+- [x] **Assets:** Opening balance is no longer shown as fake income; it now appears as its own distinct slice/series in charts (e.g., trend chart).
+- [x] **Prices:** Fixed an issue where the first-ever data fetch was skipped if the market was closed.
+- [x] **UI & Dialogs:** Live-tested fixes for currency layout, MDCard clicks, and calendar crash.
+- [x] **Budget & Wallet:** Opening balance synchronization, plan confirmation, and save toasts added.
 
-## Kalite ve Performans Takibi
-- [ ] `mixins/insights_mixin.py` render ve kullanıcı eylemleri için UI/mixin
-      testleri: sağlık skoru render'ı, aboneliğe ekleme/yoksayma ve hata
-      durumları. Aboneliğe ekleme ve anomali gizleme eylemleri için headless
-      testler eklendi; widget render ve hata yolları hâlâ açık.
-- [ ] İşlem hacmi birkaç bine ulaştığında insights yenileme süresini ölç.
-      Şimdilik hesaplar arka plan thread'inde çalıştığı için acil değil;
-      gerekirse sonuçları yeni işlem/değişiklik oluşana kadar cache'le.
-- [ ] Test paketinde zararsız ama tekrarlayan bir `ResourceWarning: unclosed
-      database` var (2026-07-23 QA turunda görüldü) — test başarısızlığına
-      yol açmıyor, ama bir yerde bağlantı `close()` edilmeden bırakılıyor
-      olabilir; V1.0'ı bloklamıyor, gürültü olarak temizlenebilir.
+## Unpostponable / Unchanging Constraints
+- Local-first architecture will be maintained: data will not leave the device, no cloud/3rd party servers.
+- Changes touching the logic layer like `services/*`, `database/*` are considered major refactors, to be handled with separate care (see "Unchanging files" principle in ANTIGRAVITY_TASKS files).
 
-## Sonraki Adım
-Beş killer feature de (Madde 1-5) tamamlandı, isim/marka değişikliği
-(Finora → Archlence) bitti, ikon üretildi. Paketleme öncesindeki esas
-engeller (2026-07-23 denetim raporu): CI smoke testi, Python sürüm kararı,
-sürüm/tag sistemi ve Linux paketleme altyapısının tamamı.
+## Quality and Performance Tracking
+- [ ] UI/mixin tests for `mixins/insights_mixin.py` renders and user actions: health score render, adding/dismissing subscriptions, and error states. Headless tests added for add-to-subscription and anomaly dismissal actions; widget render and error paths still open.
+- [ ] Measure insights refresh time when transaction volume reaches a few thousand. Not urgent yet as accounts run on a background thread; if necessary, cache results until a new transaction/change occurs.
+- [ ] The test suite has a harmless but repeating `ResourceWarning: unclosed database` (seen in 2026-07-23 QA round) — does not cause test failures, but a connection might be left without being `close()`d somewhere; does not block V1.0, can be cleaned up as noise.
 
-1. CI smoke testi ekle (Windows EXE'nin gerçekten açılıp çökmediğini
-   doğrula) — düşük efor, yüksek güven.
-2. Python sürüm kararı ver (3.12 mi 3.14 mü, ya da ikisi de test edilsin mi).
-3. Git tag'e bağlı sürüm/adlandırma sistemi kur.
-4. Linux paketleme altyapısını sıfırdan kur (`build-linux.yml`,
-   `.desktop`, AppImage, platforma özgü spec ayarları).
-5. Kalite takibindeki iki açık madde (insights widget render testleri,
-   performans ölçümü) V1.0'ı bloklamıyor; paralel ya da sonrasında ele
-   alınabilir.
+## Next Steps
+All five killer features (Items 1-5) are completed, the name/brand change (Finora → Archlence) is finished, icon generated. The main hurdles before packaging (2026-07-23 audit report): CI smoke test, Python version decision, version/tag system, and the entirety of Linux packaging infrastructure.
+
+1. Add CI smoke test (verify Windows EXE actually launches without crashing) — low effort, high confidence.
+2. Decide Python version (whether to test 3.12, 3.14, or both).
+3. Establish version/naming system tied to Git tags.
+4. Build Linux packaging infrastructure from scratch (`build-linux.yml`, `.desktop`, AppImage, platform-specific spec settings).
+5. The two open items in quality tracking (insights widget render tests, performance measurement) do not block V1.0; can be addressed in parallel or later.
