@@ -16,14 +16,19 @@ Everything in Phase 1 touches encryption, stored data, or the startup path.
 Making those changes without a CI check that can actually fail is flying
 blind.
 
-- [ ] **CI test job.** `run_tests.py` didn't propagate a failing exit code —
+- [x] **CI test job.** Done — [PR #8](https://github.com/superuser-d0/archlence/pull/8).
+  `run_tests.py` didn't propagate a failing exit code —
   a broken build would report `0` regardless of test results, so it could
   never have failed a "required" CI check. Fixed in this same change
   (`sys.exit(0 if result.wasSuccessful() else 1)`), verified with both a
-  passing and a deliberately failing run before trusting it. Add a fast
-  Linux job (`ubuntu-latest`) running `run_tests.py` on push/PR to `main`,
-  and mark it as a required status check once it's proven stable through
-  at least one real PR cycle.
+  passing and a deliberately failing run before trusting it. Added a fast
+  Linux job (`ubuntu-latest`, `.github/workflows/tests.yml`) running
+  `run_tests.py` on push/PR to `main`; promoted to a required status check
+  (alongside `build-windows`, `enforce_admins: true`) after it proved
+  stable through the PR that introduced it — which, on its own first CI
+  run, caught a real pre-existing bug: `tests/test_savings_service.py` was
+  silently depending on the real `finance.db` already having an account.
+  Fixed in the same PR (see commit `37017f6`).
 - [ ] **Lint, informational only (not blocking).** `flake8 --select=F`
   (pyflakes: unused imports, undefined names, redefinitions) currently
   reports 117 pre-existing violations; unrestricted flake8 reports 2067
@@ -42,16 +47,18 @@ blind.
 Ordered by dependency, not just severity — items later in the list build on
 guarantees established earlier.
 
-1. **Remove CVC and full PAN storage entirely.**
-   `AccountService.create_account` accepts and encrypts `card_number_full`,
-   `expiry_date`, `cvc_code` and writes them to `accounts`
-   ([services/account_service.py:88-96](../services/account_service.py)).
-   The UI only ever displays last-4 + network logo downstream — there's no
-   product reason to hold the CVC at all, and holding it is a liability
-   with no offsetting benefit. Remove the field from the dialog, the
-   service signature, and the column; ship a migration that nulls out any
-   `cvc_code` already on disk. No dependency on anything else — do this
-   first, it's the cheapest way to close the worst exposure.
+1. ~~**Remove CVC and full PAN storage entirely.**~~ **Done** —
+   [PR #9](https://github.com/superuser-d0/archlence/pull/9).
+   `expiry_date`/`cvc_code` params removed everywhere (dialog, service,
+   nothing ever read them back out anyway); `card_number_full` stays as a
+   transient input to `create_account` — used once to derive `masked_number`
+   + `network_logo`, never encrypted or written to disk. Migration
+   backfills those two derived columns from any pre-existing encrypted
+   `card_number_full` (decrypt once, derive, THEN null the sensitive
+   columns — order verified against a hand-built pre-upgrade row before
+   trusting it), so existing installs don't lose their last-4 display.
+   Verified against real encrypted data, not just unit-test mocks, before
+   writing the permanent tests.
 
 2. **Remove the `KIVY_WINDOW=mock` / `except BaseException` startup
    fallback.** `main.py:45-48` silently switches to a mock window when
