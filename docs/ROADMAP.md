@@ -137,12 +137,29 @@ Not release-blocking, but worth doing before calling this stable.
 - Split overly broad exception handling by failure type (decrypt error /
   validation error / network error / DB error) so a real data problem
   can't collapse into a value that looks like a normal `0`.
-- Stock price cache TTL is Istanbul/BIST-hours-based regardless of the
-  ticker's actual exchange, so a US stock can be treated as "market closed"
-  while its own market is open — and if the cache is empty *and* the
-  market's considered closed, the first fetch may never happen at all.
-  Track exchange/timezone per ticker; always allow at least one fetch when
-  the cache is empty, independent of market-hours state.
+- ~~Stock price cache TTL is Istanbul/BIST-hours-based regardless of the
+  ticker's actual exchange~~ — checked before implementing, corrected:
+  stock entry only ever goes through the BIST100 picker
+  (`mixins/asset_mixin.py::show_add_asset_dialog`, `data/bist100.py`),
+  there's no free-text/non-BIST ticker path in the app today, so the
+  BIST-only market-hours check is actually correct for every reachable
+  case. Building exchange/timezone tracking now would be solving a
+  problem the app doesn't have yet — revisit only if non-BIST stock
+  entry is ever added.
+  The other half of this finding was real, independent of exchange:
+  **Done** — [PR #11](https://github.com/superuser-d0/archlence/pull/11).
+  `services/price_service.py::get_price()` had its own fetch gate that
+  duplicated (and diverged from) `fetch_prices_async()`'s — the latter
+  already special-cased "no cache at all → fetch once even if the market
+  is closed" (with almost this exact comment already in the code), but
+  `get_price()` blocked the call before ever reaching that logic, so a
+  never-cached BIST/FX/gold symbol added while the market was closed
+  would never get its first price. `get_price()` has zero production
+  callers today (verified — only its own test called it), so this was
+  latent, not something a live user hit, but it was a live trap for
+  whoever calls it next. Fixed to defer to the same logic
+  `fetch_prices_async()` already had; verified the old gate actually
+  fails (reproduced the bug standalone before trusting the fix).
 - `main.py` is ~1,800 lines and `ArchlenceApp` inherits from a long list of
   mixins. Split screen behavior into separate controller/view-model
   classes; keep `ArchlenceApp` to app lifecycle only.

@@ -161,7 +161,17 @@ def get_price(
 
     # Sonsuz TTL piyasa kapalı anlamına gelir; force bile kapalı piyasaya istek
     # attırmaz. Son bilinen değer (varsa) aynen kullanılır.
-    if ttl != INFINITE_TTL and (force_refresh or stale):
+    #
+    # AMA bu kural hiç cache'i olmayan (`cached is None`) bir sembole
+    # UYGULANMAZ: uygulanırsa, piyasa kapalıyken eklenen bir varlık piyasa
+    # açılana kadar SONSUZA KADAR fiyatsız kalırdı. `fetch_prices_async`
+    # bu istisnayı zaten kendi içinde uyguluyor (bkz. o fonksiyondaki
+    # `if row is None: due[symbol] = asset_type` dalı) — buradaki eski
+    # kapı ise `ttl != INFINITE_TTL` şartını `fetch_prices_async`'ı hiç
+    # ÇAĞIRMADAN önce uyguluyordu, yani o fonksiyonun zaten doğru olan
+    # mantığına asla ulaşamıyordu. `cached is None` durumunu tamamen
+    # `fetch_prices_async`'a devretmek iki fonksiyonu tekrar tutarlı kılıyor.
+    if cached is None or (ttl != INFINITE_TTL and (force_refresh or stale)):
         fetch_prices_async(
             [(key, asset_type)], callback=None, force_refresh=force_refresh
         )
