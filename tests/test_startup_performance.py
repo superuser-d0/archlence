@@ -25,7 +25,7 @@ os.environ.setdefault("KIVY_NO_ARGS", "1")
 
 class CryptoWarmupTest(unittest.TestCase):
     def test_returns_a_daemon_thread_and_warms_the_key_cache(self):
-        from utils.crypto import _get_key
+        from utils.crypto import DEFAULT_PASSWORD, _get_key
         _get_key.cache_clear()
 
         from main import ArchlenceApp
@@ -34,11 +34,18 @@ class CryptoWarmupTest(unittest.TestCase):
         thread.join(2)
         self.assertFalse(thread.is_alive())
 
-        # Anahtar artık önbellekte olmalı: bir sonraki decrypt/encrypt PBKDF2'yi
-        # tekrar ÇALIŞTIRMAMALI (cache_info hit sayısı artmalı).
-        from utils.crypto import decrypt, encrypt
+        # Anahtar artık önbellekte olmalı: `_get_key`'i AYNI parametreyle
+        # tekrar çağırmak PBKDF2'yi yeniden ÇALIŞTIRMAMALI (cache_info hit
+        # sayısı artmalı). PR #22 (AEAD entegrasyonu) öncesinde bu,
+        # `decrypt(encrypt(...))` round-trip'iyle dolaylı doğrulanıyordu —
+        # ama `encrypt()` artık HER ZAMAN yeni AEAD şemasını ürettiği için
+        # o round-trip `_get_key`'e hiç uğramaz oldu ve ısıtma sessizce
+        # işlevsiz kalmıştı; bu test tam da o regresyonu yakaladı. Artık
+        # `_get_key`'in kendisi doğrudan çağrılarak doğrulanıyor — var olan
+        # her eski-format kaydın hâlâ bu yoldan geçtiği gerçeğine sadık
+        # kalarak.
         before = _get_key.cache_info().hits
-        decrypt(encrypt("post-warmup-check"))
+        _get_key(DEFAULT_PASSWORD)
         after = _get_key.cache_info().hits
         self.assertGreater(after, before)
 

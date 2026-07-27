@@ -441,8 +441,9 @@ class ArchlenceApp(
     # -------------------------------------------------------------------------
     @staticmethod
     def _warm_crypto_key_in_background():
-        """PBKDF2 anahtar türetmesini (utils/crypto.py::_get_key) arka planda
-        önceden tetikler.
+        """PBKDF2 anahtar türetmesini (utils/crypto.py::_get_key) VE AEAD
+        anahtar dosyası okumasını (`_get_aead_key`) arka planda önceden
+        tetikler.
 
         DÜZELTME (performans): `encrypt`/`decrypt` her çağrıda 1 milyon
         iterasyonlu PBKDF2'yi YENİDEN çalıştırmaz — `functools.lru_cache` ile
@@ -453,13 +454,25 @@ class ArchlenceApp(
         kare gecikiyordu. Bu fonksiyon o yarışı BİLEREK arka plana kaydırır:
         `build()`'in ilk satırında çağrılır, böylece pencere görünür olana
         kadar anahtar çoktan ısınmış olur.
+
+        AEAD ENTEGRASYONU NOTU (Faz 1 madde 5, PR #22): eskiden burada
+        `decrypt(encrypt("archlence-warmup"))` çağrılıyordu — `encrypt()`
+        artık HER ZAMAN yeni AEAD şemasını ürettiği için bu round-trip
+        `_get_key`'e (PBKDF2) hiç UĞRAMAZ oldu, yani ısıtma sessizce
+        işlevsiz kalırdı (bkz. tests/test_startup_performance.py, bu
+        regresyonu yakaladı). `_get_key`'in kendisi hâlâ gerekli: var olan
+        her eski-format satırın (AEAD'e henüz yeniden yazılmamış her
+        transactions/active_debts/... kaydı) İLK çözülüşü hâlâ bu yoldan
+        geçiyor. Doğrudan çağrılıyor — dolaylı bir round-trip'e güvenmek
+        yerine.
         """
         import threading
-        from utils.crypto import decrypt, encrypt
+        from utils.crypto import DEFAULT_PASSWORD, _get_aead_key, _get_key
 
         def _warm():
             try:
-                decrypt(encrypt("archlence-warmup"))
+                _get_key(DEFAULT_PASSWORD)
+                _get_aead_key()
             except Exception:
                 pass
 
