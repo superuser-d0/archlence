@@ -387,36 +387,25 @@ class DebtMixin:
                     Clock.schedule_once(lambda dt: toast(_t("Borç başarıyla ödendi!")), 0)
                     Clock.schedule_once(lambda dt: self.pay_debt_dialog.dismiss(), 0)
                     
-                    # refresh UI (kart bilgilerini anında güncelle)
-                    def refresh_card(dt):
-                        if hasattr(self, 'render_accounts'):
-                            self.render_accounts()
-                        
-                        if hasattr(self, 'root') and self.root and "cards_container" in self.root.ids:
-                            from ui.components import PremiumCreditCardWidget
-                            from services.account_service import AccountService, _fmt_try
-                            fresh_card = AccountService.get_account(credit_card_id)
-                            if not fresh_card: return
-                            
-                            limit_val = float(fresh_card.get("credit_limit") or 0.0)
-                            debt_val = float(fresh_card.get("debt") or 0.0)
-                            if debt_val == 0.0:
-                                ratio = 100.0
-                            elif limit_val > 0.0:
-                                ratio = ((limit_val - debt_val) / limit_val) * 100.0
-                            else:
-                                ratio = 0.0
-                            ratio = max(0.0, min(100.0, ratio))
-                            
-                            for child in self.root.ids.cards_container.children:
-                                if isinstance(child, PremiumCreditCardWidget) and getattr(child, 'account_id', None) == credit_card_id:
-                                    child.debt_ratio = ratio
-                                    child.available_limit = _fmt_try(fresh_card["available_limit"])
-                                    child.current_debt = _fmt_try(fresh_card["debt"])
-                                    if hasattr(self, '_fill_card_recent'):
-                                        self._fill_card_recent(child, credit_card_id)
-
-                    Clock.schedule_once(refresh_card, 0)
+                    # Kart bilgilerini tazele. `render_accounts` tek başına
+                    # yeterli: `pay_credit_card_debt` -> `record_balance_event`
+                    # RAM snapshot'ını bayat işaretler, `render_accounts` da
+                    # okumadan önce `ensure_account_cache_fresh()` ile tazeler.
+                    #
+                    # Burada eskiden ek olarak kart ELLE yamanıyordu
+                    # (AccountService.get_account ile taze okuyup
+                    # debt_ratio/available_limit/current_debt alanlarını tek tek
+                    # set ederek). O kod, snapshot'ın bayat kalması yüzünden
+                    # `render_accounts`'ın eski bakiyeyi geri çizmesine karşı bir
+                    # ÇÖZÜM DEĞİL SEMPTOM YAMASIYDI; kök neden giderildiği için
+                    # kaldırıldı. Yaptığı iş zaten
+                    # `_render_account_widget`'ın kredi kartı dalının birebir
+                    # alt kümesiydi (aynı oran formülü, aynı ₺ biçimleyici).
+                    #
+                    # Zamanlama da bozulmuyor: `render_accounts` içindeki
+                    # gecikmeli `add_next` döngüsü yalnızca YENİ widget'lar için;
+                    # hâlihazırda ekranda olan kart aynı karede senkron güncellenir.
+                    Clock.schedule_once(lambda dt: self.render_accounts(), 0)
                 except Exception as e:
                     print("Error paying credit card debt:", e)
                     error_msg = str(e)
