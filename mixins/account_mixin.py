@@ -714,7 +714,11 @@ class AccountMixin:
 
     def render_accounts(self, *args, removed_account_id=None):
         """Hesap verisini arka planda okumak yerine RAM'den çizer (Instant Render)."""
-        from services.asset_service import _asset_data_cache
+        # Bayat snapshot varsa burada tazelenir (bkz. asset_service). DÖNÜŞ
+        # DEĞERİ kullanılmalı: tazeleme modül global'ini yeniden atadığı için
+        # `from ... import _asset_data_cache` ile alınan ad eski sözlükte kalırdı.
+        from services.asset_service import ensure_account_cache_fresh
+        _asset_data_cache = ensure_account_cache_fresh()
 
         if not (self.root and "accounts_container" in self.root.ids and "cards_container" in self.root.ids):  # type: ignore
             return
