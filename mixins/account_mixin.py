@@ -64,7 +64,13 @@ class AccountMixin:
                                  kredi kartında MEVCUT BORÇ (pozitif)>,
                 credit_limit=<yalnızca kredi kartında toplam limit, yoksa 0>,
                 statement_date=<opsiyonel 1-31 arası kesim günü, yoksa None>,
+                card_number_full=<opsiyonel, yalnızca son-4-hane + kart ağı
+                                   türetmek için — diske hiç yazılmaz>,
             )
+
+        CVC ve son kullanma tarihi ARTIK SORULMUYOR (bkz. docs/ROADMAP.md
+        Faz 1 madde 1): ikisinin de uygulamada hiçbir tüketicisi yoktu,
+        saklamanın ürünsel karşılığı olmadan risk taşıyordu.
 
         Dönüş True ise diyalog kapatılabilir; False ise kullanıcıya toast ile
         hata gösterilmiştir, diyalog AÇIK kalmalıdır ki kullanıcı düzeltebilsin.
@@ -91,8 +97,9 @@ class AccountMixin:
         # helper_text için büyür. Bu yüzden alan başına SLOT ayrılır: konteyner
         # en kötü durumda bile taşmaz, artan boşluk alanların altında kalır.
         FIELD_SLOT = dp(56)
-        # En yüksek durum kredi kartıdır: borç + limit + kesim günü + kart no + SKT + CVC = 6 alan
-        DYNAMIC_H = FIELD_SLOT * 6 + GAP * 5
+        # En yüksek durum kredi kartıdır: kart no + borç + limit + kesim günü = 4 alan
+        # (SKT ve CVC kaldırıldı — bkz. docs/ROADMAP.md Faz 1 madde 1)
+        DYNAMIC_H = FIELD_SLOT * 4 + GAP * 3
 
         type_control = MDSegmentedControl(
             pos_hint={"center_x": 0.5},
@@ -117,8 +124,6 @@ class AccountMixin:
         self.acc_limit_field = create_modern_tf(_t("Toplam Limit (₺)"), "float")
         self.acc_statement_field = create_modern_tf(_t("Hesap Kesim Günü (1-31, opsiyonel)"), "int")
         self.acc_card_number_field = create_modern_tf(_t("Kart Numarası (Örn: 1234 5678 1234 5678)"))
-        self.acc_expiry_field = create_modern_tf(_t("Son Kullanma Tarihi (AA/YY)"))
-        self.acc_cvc_field = create_modern_tf(_t("CVC (Arkada yer alan 3 hane)"), filter="int", password=True)
 
         self.selected_account_type = _t("Nakit / Vadesiz")
 
@@ -145,8 +150,6 @@ class AccountMixin:
             dynamic_container.clear_widgets()
             if account_type_label == _t("Kredi Kartı"):
                 dynamic_container.add_widget(self.acc_card_number_field)
-                dynamic_container.add_widget(self.acc_expiry_field)
-                dynamic_container.add_widget(self.acc_cvc_field)
                 dynamic_container.add_widget(self.acc_debt_field)
                 dynamic_container.add_widget(self.acc_limit_field)
                 dynamic_container.add_widget(self.acc_statement_field)
@@ -158,7 +161,9 @@ class AccountMixin:
                 # kartı widget'ı hiçbir zaman çizilemiyordu (ölü kod).
                 dynamic_container.add_widget(self.acc_initial_balance_field)
                 dynamic_container.add_widget(self.acc_card_number_field)
-                dynamic_container.add_widget(self.acc_expiry_field)
+                # Widget() esnektir (size_hint_y=1); sabit yükseklikli
+                # dynamic_container'da kalan boşluğu tek başına doldurur —
+                # kaç sabit alan önce geldiğinden bağımsız.
                 dynamic_container.add_widget(Widget())
 
         fill_dynamic(self.selected_account_type)
@@ -173,21 +178,19 @@ class AccountMixin:
             is_credit = (self.selected_account_type == _t("Kredi Kartı"))
             acc_type = "credit_card" if is_credit else "checking"
             
-            # Kart bilgileri her iki türde de opsiyonel; boş string yerine None
-            # geçiyoruz ki servis "kart yok" durumunu ayırt edebilsin.
+            # Kart numarası her iki türde de opsiyonel; boş string yerine None
+            # geçiyoruz ki servis "kart yok" durumunu ayırt edebilsin. Servise
+            # yalnızca son-4-hane + kart ağı türetmek için geçer, diske
+            # hiçbir zaman ham hâliyle yazılmaz (bkz. AccountService.create_account).
             card_number_full = self.acc_card_number_field.text.strip() or None
-            expiry_date = self.acc_expiry_field.text.strip() or None
 
             try:
                 if is_credit:
                     initial_balance = float(self.acc_debt_field.text.replace(",", ".") or 0)
                     credit_limit = float(self.acc_limit_field.text.replace(",", ".") or 0)
-                    cvc_code = self.acc_cvc_field.text.strip() or None
                 else:
                     initial_balance = float(self.acc_initial_balance_field.text.replace(",", ".") or 0)
                     credit_limit = 0.0
-                    # CVC yalnızca kredi kartı formunda soruluyor.
-                    cvc_code = None
             except ValueError:
                 toast(_t("Lütfen tutarları geçerli bir sayı olarak girin."))
                 return
@@ -201,8 +204,6 @@ class AccountMixin:
                 credit_limit=credit_limit,
                 statement_date=statement_date,
                 card_number_full=card_number_full,
-                expiry_date=expiry_date,
-                cvc_code=cvc_code
             )
 
         def do_cancel(instance):
@@ -662,7 +663,7 @@ class AccountMixin:
     # ─── İş mantığı (tamamlandı — değiştirmeyin) ──────────────────────────────
     def commit_new_account(self, name, account_type, initial_balance=0.0,
                            credit_limit=0.0, statement_date=None,
-                           card_number_full=None, expiry_date=None, cvc_code=None):
+                           card_number_full=None):
         """Formdan gelen veriyi doğrular, hesabı kaydeder ve ekranı tazeler.
 
         Başarılıysa True, doğrulama hatası varsa (toast göstererek) False döner.
@@ -677,8 +678,6 @@ class AccountMixin:
                 credit_limit=credit_limit,
                 statement_date=statement_date,
                 card_number_full=card_number_full,
-                expiry_date=expiry_date,
-                cvc_code=cvc_code
             )
         except ValueError as exc:
             toast(_t(str(exc)))
