@@ -4,6 +4,7 @@ yola nasıl kalıcı anahtar yazılıp okunacağını doğrular."""
 import os
 import stat
 import tempfile
+import threading
 import unittest
 
 from utils.key_provider import FileKeyProvider
@@ -62,6 +63,49 @@ class FileKeyProviderTest(unittest.TestCase):
         provider = FileKeyProvider(self.key_path)
         with self.assertRaises(ValueError):
             provider.get_or_create_key()
+
+    def test_concurrent_first_creation_yields_one_shared_key(self):
+        """Uygulamanın süreç düzeyinde tek-örnek koruması yok, yani taze bir
+        kurulumda kısayola iki kez tıklamak iki süreci aynı anda anahtar
+        üretmeye sokar — sıradan kullanıcı davranışı, saldırı değil.
+
+        Bu test iki ayrı hatayı birden kilitler:
+          1) Yalnızca `exists()` + yaz: iki süreç FARKLI anahtar üretir,
+             ikincisi birincisinin üzerine yazar; birincinin şifrelediği her
+             şey KALICI OLARAK kurtarılamaz hâle gelir.
+          2) Yalnızca `O_EXCL`: dosya, oluşturulma ile içeriğin yazılması
+             arasında kısa süre BOŞ görünür; yarışı kaybeden o aralıkta okur
+             ve "Anahtar dosyası bozuk: 0 byte" ile patlar. (Bu, gerçek
+             16-süreçli bir çalıştırmada ampirik olarak gözlendi — teorik
+             değil.)
+        Doğru davranış: tüm süreçler AYNI, TAM anahtarı döndürür.
+        """
+        import concurrent.futures
+
+        barrier = threading.Barrier(8)
+
+        def create():
+            barrier.wait()  # sekiz thread'i de aynı ana hizala
+            return FileKeyProvider(self.key_path).get_or_create_key()
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+            keys = [f.result() for f in
+                    [pool.submit(create) for _ in range(8)]]
+
+        with open(self.key_path, "rb") as f:
+            on_disk = f.read()
+
+        self.assertEqual(len(set(keys)), 1, "süreçler farklı anahtar üretti")
+        self.assertEqual(len(on_disk), 32)
+        self.assertTrue(all(k == on_disk for k in keys),
+                        "dönen anahtar diskteki anahtarla aynı değil")
+
+    def test_no_temp_files_are_left_behind(self):
+        """Atomik bağlama geçici bir dosya üzerinden yapılıyor; o dosya her
+        durumda temizlenmeli, anahtar dizininde artık kalmamalı."""
+        FileKeyProvider(self.key_path).get_or_create_key()
+        leftovers = [n for n in os.listdir(self.tmpdir) if ".tmp." in n]
+        self.assertEqual(leftovers, [])
 
     def test_key_file_is_owner_only_readable(self):
         provider = FileKeyProvider(self.key_path)

@@ -1,5 +1,6 @@
 import sqlite3
 import os
+from contextlib import contextmanager
 from datetime import datetime
 from utils.crypto import encrypt, decrypt
 from utils.app_paths import data_dir, migrate_legacy_path
@@ -58,6 +59,31 @@ def get_connection():
     conn = sqlite3.connect(DB_NAME, check_same_thread=False, timeout=10)
     conn.row_factory = sqlite3.Row
     return conn
+
+
+@contextmanager
+def managed_connection():
+    """Bağlantıyı HER ÇIKIŞ YOLUNDA kapatan context manager.
+
+    Bu modüldeki fonksiyonlar eskiden `conn = get_connection()` ... `conn.close()`
+    kalıbını try/finally OLMADAN kullanıyordu — yani araya giren herhangi bir
+    istisnada `close()` hiç çalışmıyordu. Bu teorik bir risk değildi:
+    `adjust_account_balance` hesap bulunamadığında BİLEREK ValueError fırlatır
+    (aşağıdaki `cursor.rowcount == 0` koruması) ve onu çağıran
+    `insert_asset_transaction` / `process_due_recurring_payment` tam da bu
+    kalıptaydı. Yazma bütünlüğü zaten güvendeydi (commit'e ulaşılmadığı için
+    yarım kayıt oluşmaz), sızan şey bağlantı nesnesinin kendisiydi.
+
+    Servis katmanı (services/account_service.py, transaction_service.py vb.)
+    bu işi zaten try/finally ile doğru yapıyordu; eksik olan tek katman
+    buydu. Context manager tercih edildi ki bundan SONRA eklenecek
+    fonksiyonlar da kalıbı yeniden yazmak zorunda kalmadan güvenli olsun.
+    """
+    conn = get_connection()
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 ACCOUNT = "account"
@@ -170,48 +196,45 @@ def adjust_account_balance(cursor, account_id, transaction_type, amount,
     )
 
 def insert_debt(debt_name, total_amount, monthly_payment, total_installments, is_auto_pay=0, auto_pay_day=1):
-    conn = get_connection()
-    cursor = conn.cursor()
-    enc_name = encrypt(str(debt_name), SECRET_KEY)
-    enc_total = encrypt(str(total_amount), SECRET_KEY)
-    enc_monthly = encrypt(str(monthly_payment), SECRET_KEY)
-    
-    cursor.execute("""
-        INSERT INTO active_debts (debt_name, total_amount, monthly_payment, total_installments, paid_installments, is_active, is_auto_pay, auto_pay_day)
-        VALUES (?, ?, ?, ?, 0, 1, ?, ?)
-    """, (enc_name, enc_total, enc_monthly, total_installments, int(is_auto_pay), auto_pay_day))
-    conn.commit()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        enc_name = encrypt(str(debt_name), SECRET_KEY)
+        enc_total = encrypt(str(total_amount), SECRET_KEY)
+        enc_monthly = encrypt(str(monthly_payment), SECRET_KEY)
+
+        cursor.execute("""
+            INSERT INTO active_debts (debt_name, total_amount, monthly_payment, total_installments, paid_installments, is_active, is_auto_pay, auto_pay_day)
+            VALUES (?, ?, ?, ?, 0, 1, ?, ?)
+        """, (enc_name, enc_total, enc_monthly, total_installments, int(is_auto_pay), auto_pay_day))
+        conn.commit()
 
 def update_debt_progress(debt_id, extra_installments_paid, is_active=1):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        UPDATE active_debts 
-        SET paid_installments = paid_installments + ?, is_active = ?
-        WHERE id = ?
-    """, (extra_installments_paid, is_active, debt_id))
-    conn.commit()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE active_debts
+            SET paid_installments = paid_installments + ?, is_active = ?
+            WHERE id = ?
+        """, (extra_installments_paid, is_active, debt_id))
+        conn.commit()
 
 def update_debt_auto_pay(debt_id, is_auto_pay, auto_pay_day):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        UPDATE active_debts
-        SET is_auto_pay = ?, auto_pay_day = ?
-        WHERE id = ?
-    """, (int(is_auto_pay), auto_pay_day, debt_id))
-    conn.commit()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE active_debts
+            SET is_auto_pay = ?, auto_pay_day = ?
+            WHERE id = ?
+        """, (int(is_auto_pay), auto_pay_day, debt_id))
+        conn.commit()
 
 def get_active_debts():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM active_debts WHERE is_active = 1")
-    rows = cursor.fetchall()
-    conn.close()
-    
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM active_debts WHERE is_active = 1")
+        rows = cursor.fetchall()
+
+
     debts = []
     for r in rows:
         try:
@@ -246,26 +269,24 @@ def get_active_debts():
 
 def insert_asset(asset_name, asset_code, asset_type, purchase_price, quantity, purchase_date=None):
     from datetime import datetime
-    conn = get_connection()
-    cursor = conn.cursor()
-    enc_purchase_price = encrypt(str(purchase_price), SECRET_KEY)
-    enc_quantity       = encrypt(str(quantity),       SECRET_KEY)
-    if purchase_date is None:
-        purchase_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute("""
-        INSERT INTO active_assets (asset_name, asset_code, asset_type, purchase_price, quantity, purchase_date)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (asset_name, asset_code.upper(), asset_type, enc_purchase_price, enc_quantity, purchase_date))
-    conn.commit()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        enc_purchase_price = encrypt(str(purchase_price), SECRET_KEY)
+        enc_quantity       = encrypt(str(quantity),       SECRET_KEY)
+        if purchase_date is None:
+            purchase_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("""
+            INSERT INTO active_assets (asset_name, asset_code, asset_type, purchase_price, quantity, purchase_date)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (asset_name, asset_code.upper(), asset_type, enc_purchase_price, enc_quantity, purchase_date))
+        conn.commit()
 
 
 def get_all_assets():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM active_assets ORDER BY id DESC")
-    rows = cursor.fetchall()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM active_assets ORDER BY id DESC")
+        rows = cursor.fetchall()
 
     assets = []
     for r in rows:
@@ -288,20 +309,18 @@ def get_all_assets():
 
 
 def delete_asset(asset_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM active_assets WHERE id = ?", (asset_id,))
-    conn.commit()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM active_assets WHERE id = ?", (asset_id,))
+        conn.commit()
 
 
 def get_asset_by_id(asset_id):
     """Returns a single asset row as a dict (decrypted)."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM active_assets WHERE id = ?", (asset_id,))
-    r = cursor.fetchone()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM active_assets WHERE id = ?", (asset_id,))
+        r = cursor.fetchone()
     if not r:
         return None
     try:
@@ -329,18 +348,20 @@ def insert_asset_transaction(account_id, amount, tx_type, category, description)
     transactions table so the liquid wallet balance is updated correctly.
     """
     from datetime import datetime
-    conn = get_connection()
-    cursor = conn.cursor()
-    enc_amount = encrypt(str(amount), SECRET_KEY)
-    enc_desc   = encrypt(str(description), SECRET_KEY)
-    tx_date    = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute("""
-        INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (account_id, enc_amount, tx_type, category, enc_desc, tx_date))
-    adjust_account_balance(cursor, account_id, tx_type, amount)
-    conn.commit()
-    conn.close()
+    # adjust_account_balance hesap yoksa ValueError fırlatır — o durumda
+    # commit'e hiç ulaşılmaz (yarım kayıt yok, doğru davranış) ama eskiden
+    # close() de çalışmıyordu. Bağlantı artık her çıkış yolunda kapanıyor.
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        enc_amount = encrypt(str(amount), SECRET_KEY)
+        enc_desc   = encrypt(str(description), SECRET_KEY)
+        tx_date    = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("""
+            INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (account_id, enc_amount, tx_type, category, enc_desc, tx_date))
+        adjust_account_balance(cursor, account_id, tx_type, amount)
+        conn.commit()
 
 
 def get_asset_transaction_history(limit=50):
@@ -348,18 +369,17 @@ def get_asset_transaction_history(limit=50):
     Returns all investment ledger entries (Varlık Alımı + Varlık Satışı)
     ordered by most recent first, for the 'Varlık Geçmişi' section.
     """
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT type, category, amount, description,
-               strftime('%d/%m/%Y %H:%M', transaction_date) as t_date
-        FROM transactions
-        WHERE category IN ('Varlık Alımı', 'Varlık Satışı')
-        ORDER BY id DESC
-        LIMIT ?
-    """, (limit,))
-    rows = cursor.fetchall()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT type, category, amount, description,
+                   strftime('%d/%m/%Y %H:%M', transaction_date) as t_date
+            FROM transactions
+            WHERE category IN ('Varlık Alımı', 'Varlık Satışı')
+            ORDER BY id DESC
+            LIMIT ?
+        """, (limit,))
+        rows = cursor.fetchall()
 
     result = []
     for r in rows:
@@ -396,21 +416,20 @@ def insert_recurring_payment(
     recurrence_day = int(recurrence_day)
     if not 1 <= recurrence_day <= 31:
         raise ValueError("Tekrarlama günü 1 ile 31 arasında olmalıdır.")
-    conn = get_connection()
-    cursor = conn.cursor()
-    enc_name = encrypt(str(name), SECRET_KEY)
-    enc_amount = encrypt(str(amount), SECRET_KEY)
-    cursor.execute("""
-        INSERT INTO recurring_payments
-            (name, amount, category, frequency, next_due_date, recurrence_day,
-             auto_deduct, is_active, account_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
-    """, (
-        enc_name, enc_amount, category, frequency, next_due_date,
-        recurrence_day, int(bool(auto_deduct)), account_id,
-    ))
-    conn.commit()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        enc_name = encrypt(str(name), SECRET_KEY)
+        enc_amount = encrypt(str(amount), SECRET_KEY)
+        cursor.execute("""
+            INSERT INTO recurring_payments
+                (name, amount, category, frequency, next_due_date, recurrence_day,
+                 auto_deduct, is_active, account_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+        """, (
+            enc_name, enc_amount, category, frequency, next_due_date,
+            recurrence_day, int(bool(auto_deduct)), account_id,
+        ))
+        conn.commit()
 
 
 def has_active_recurring_payment(name):
@@ -418,11 +437,10 @@ def has_active_recurring_payment(name):
     duyarsız) bir kayıt olup olmadığını kontrol eder. İsimler şifreli
     tutulduğundan SQL WHERE ile aranamaz; aktif kayıtlar çözülüp Python'da
     karşılaştırılır (abonelik duplikasyonunu engellemek için)."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT name FROM recurring_payments WHERE is_active = 1")
-    rows = cursor.fetchall()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM recurring_payments WHERE is_active = 1")
+        rows = cursor.fetchall()
 
     target = str(name).strip().lower()
     for r in rows:
@@ -438,11 +456,10 @@ def has_active_recurring_payment(name):
 
 
 def get_active_recurring_payments():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM recurring_payments WHERE is_active = 1 ORDER BY next_due_date ASC")
-    rows = cursor.fetchall()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM recurring_payments WHERE is_active = 1 ORDER BY next_due_date ASC")
+        rows = cursor.fetchall()
 
     payments = []
     for r in rows:
@@ -468,11 +485,10 @@ def get_active_recurring_payments():
 
 
 def deactivate_recurring_payment(payment_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE recurring_payments SET is_active = 0 WHERE id = ?", (payment_id,))
-    conn.commit()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE recurring_payments SET is_active = 0 WHERE id = ?", (payment_id,))
+        conn.commit()
 
 
 def _advance_due_date(date_str, frequency):
@@ -522,28 +538,26 @@ def process_due_recurring_payment(payment):
         payment.get("recurrence_day")
         or int(str(payment["next_due_date"])[8:10]),
     )
-    conn = get_connection()
-    cursor = conn.cursor()
-    enc_amount = encrypt(str(payment["amount"]), SECRET_KEY)
-    enc_desc = encrypt(f"{payment['name']} (Otomatik)", SECRET_KEY)
-    tx_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute("""
-        INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
-        VALUES (?, ?, 'expense', ?, ?, ?)
-    """, (payment["account_id"], enc_amount, payment["category"], enc_desc, tx_date))
-    adjust_account_balance(cursor, payment["account_id"], "expense", payment["amount"])
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        enc_amount = encrypt(str(payment["amount"]), SECRET_KEY)
+        enc_desc = encrypt(f"{payment['name']} (Otomatik)", SECRET_KEY)
+        tx_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute("""
+            INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
+            VALUES (?, ?, 'expense', ?, ?, ?)
+        """, (payment["account_id"], enc_amount, payment["category"], enc_desc, tx_date))
+        adjust_account_balance(cursor, payment["account_id"], "expense", payment["amount"])
 
-    cursor.execute("UPDATE recurring_payments SET next_due_date = ? WHERE id = ?", (new_due, payment["id"]))
-    conn.commit()
-    conn.close()
+        cursor.execute("UPDATE recurring_payments SET next_due_date = ? WHERE id = ?", (new_due, payment["id"]))
+        conn.commit()
 
 def update_debt_last_auto_pay(debt_id, current_month_str):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        UPDATE active_debts 
-        SET last_auto_pay_date = ? 
-        WHERE id = ?
-    """, (current_month_str, debt_id))
-    conn.commit()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE active_debts
+            SET last_auto_pay_date = ?
+            WHERE id = ?
+        """, (current_month_str, debt_id))
+        conn.commit()

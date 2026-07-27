@@ -972,10 +972,38 @@ class AccountMixin:
         else:
             current.status_text = _t(f"{asset_count} TL dışı varlık • Canlı değer")
 
+    def stop_active_assets_refresh(self):
+        """60 saniyelik arka plan tazeleme döngüsünü açıkça durdurur.
+
+        Uygulama kapanışında (ArchlenceApp.on_stop) çağrılır. Eskiden bu
+        interval hiçbir yerde iptal EDİLMİYORDU: bir kez kurulduktan sonra
+        sürecin ömrü boyunca, hangi ekran görünür olursa olsun çalışmaya
+        devam ediyordu. Karşılaştırma için ui/charts.py'deki 60 FPS
+        `_clock` DÖRT ayrı çıkış yolunda düzgünce iptal ediliyor — kalıp
+        codebase'de zaten doğru biçimde biliniyordu, yalnızca buraya
+        uygulanmamıştı.
+        """
+        event = getattr(self, "_active_assets_refresh_event", None)
+        if event is not None:
+            event.cancel()
+            self._active_assets_refresh_event = None
+
     def _silent_background_refresh(self, dt):
-        """UI'yi dondurmadan sadece arkadaki önbelleği günceller (Data Warm-up)."""
+        """UI'yi dondurmadan sadece arkadaki önbelleği günceller (Data Warm-up).
+
+        Hesaplar görünümü artık widget ağacında değilse `False` döner;
+        Kivy `False` dönen bir `schedule_interval` callback'ini otomatik
+        olarak listeden düşürür. Böylece ekran yok edildiğinde döngü
+        kendiliğinden durur ve `_active_assets_refresh_event` sıfırlanarak
+        görünüm tekrar çizildiğinde (render_accounts) yeniden kurulabilir.
+        """
+        if getattr(self, "_active_assets_bento", None) is None or \
+                self._active_assets_bento.parent is None:
+            self._active_assets_refresh_event = None
+            return False
+
         from services.asset_service import start_data_warmup
-        
+
         def on_update():
             from services.asset_service import _asset_data_cache
             if not _asset_data_cache or not _asset_data_cache.get("ready"):

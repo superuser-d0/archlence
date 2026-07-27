@@ -171,8 +171,24 @@ class RecurringMixin:
                     if p["auto_deduct"] and datetime.date.fromisoformat(p["next_due_date"]) <= today
                 ]
                 for p in due_auto:
-                    process_due_recurring_payment(p)
-                    ui_needs_refresh = True
+                    # HER ÖDEME KENDİ BAŞINA KORUNUR. Eskiden bu çağrı
+                    # korumasızdı ve tüm rutini saran dıştaki tek
+                    # `except Exception` yakalıyordu — yani vadesi gelen
+                    # ödemelerden BİRİ patlarsa (ör. tutarsız bir account_id),
+                    # istisna kendisinden SONRAKİ bütün tekrarlanan ödemeleri
+                    # ve aşağıdaki otomatik borç taksitlerinin TAMAMINI da
+                    # atlayarak yukarı kaçıyordu. Kullanıcının kirası/faturası
+                    # o açılışta sessizce hiç işlenmiyordu; tek iz, paketlenmiş
+                    # derlemede (console=False) hiçbir yere gitmeyen bir
+                    # print()'ti. Artık bozuk kayıt yalnızca kendini atlar.
+                    try:
+                        process_due_recurring_payment(p)
+                        ui_needs_refresh = True
+                    except Exception as exc:
+                        print(
+                            f"Tekrarlanan ödeme işlenemedi (id={p.get('id')}), "
+                            f"diğerleri sürdürülüyor: {exc}"
+                        )
                 
                 # 2. OTOMATİK BORÇ/KREDİ TAKSİT ÖDEMELERİ
                 debts = get_active_debts()
@@ -216,24 +232,33 @@ class RecurringMixin:
                     new_paid_total = debt['paid_installments'] + installments_to_pay
                     is_active = 0 if new_paid_total >= debt['total_installments'] else 1
 
-                    update_debt_progress(debt['id'], installments_to_pay, is_active=is_active)
-                    update_debt_last_auto_pay(debt['id'], current_month_str)
+                    # Yukarıdaki tekrarlanan ödeme döngüsüyle AYNI gerekçe:
+                    # tek bir bozuk borç kaydı, kendisinden sonraki borçların
+                    # otomatik taksitlerini sessizce iptal etmemeli.
+                    try:
+                        update_debt_progress(debt['id'], installments_to_pay, is_active=is_active)
+                        update_debt_last_auto_pay(debt['id'], current_month_str)
 
-                    desc = f"{debt['debt_name']} (Otomatik Taksit Ödemesi)"
-                    if installments_to_pay > 1:
-                        desc = f"{debt['debt_name']} (Otomatik Taksit Ödemesi — {installments_to_pay} ay telafi)"
+                        desc = f"{debt['debt_name']} (Otomatik Taksit Ödemesi)"
+                        if installments_to_pay > 1:
+                            desc = f"{debt['debt_name']} (Otomatik Taksit Ödemesi — {installments_to_pay} ay telafi)"
 
-                    # Atlanan her ay için ayrı gider kaydı oluştur ki toplam bakiye
-                    # ve işlem geçmişi gerçek taksit sayısını yansıtsın.
-                    for _ in range(installments_to_pay):
-                        TransactionService.add_transaction(
-                            account_id=DEFAULT_ACCOUNT_ID,
-                            amount=debt['monthly_payment'],
-                            transaction_type="expense",
-                            category="Kredi Taksiti",
-                            description=desc
+                        # Atlanan her ay için ayrı gider kaydı oluştur ki toplam bakiye
+                        # ve işlem geçmişi gerçek taksit sayısını yansıtsın.
+                        for _ in range(installments_to_pay):
+                            TransactionService.add_transaction(
+                                account_id=DEFAULT_ACCOUNT_ID,
+                                amount=debt['monthly_payment'],
+                                transaction_type="expense",
+                                category="Kredi Taksiti",
+                                description=desc
+                            )
+                        ui_needs_refresh = True
+                    except Exception as exc:
+                        print(
+                            f"Otomatik borç taksiti işlenemedi (id={debt.get('id')}), "
+                            f"diğerleri sürdürülüyor: {exc}"
                         )
-                    ui_needs_refresh = True
 
                 # 3. ORTAK UI SENKRONİZASYONU
                 if ui_needs_refresh:

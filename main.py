@@ -589,6 +589,18 @@ class ArchlenceApp(
         # paralel okuma uzlaştırılmış kayıtları hâlâ bekleyen gösterebilirdi.
         self.process_due_auto_deductions()
 
+    def on_stop(self):
+        """Kivy'nin kapanış kancası — süreç ömrüne bağlanmış zamanlayıcıları
+        bırakır. `stop_active_assets_refresh` olmadan hesaplar görünümündeki
+        60 saniyelik `Clock.schedule_interval` hiçbir yerde iptal edilmiyordu
+        (bkz. mixins/account_mixin.py); kapanış sırasında tetiklenmeye devam
+        edip yıkılmakta olan DB/arayüze dokunabilirdi."""
+        try:
+            self.stop_active_assets_refresh()
+        except Exception as exc:
+            # Kapanış yolu hiçbir koşulda hata fırlatmamalı.
+            print("Arka plan tazeleme durdurulamadı:", exc)
+
     # -------------------------------------------------------------------------
     # Theming & Visuals
     # -------------------------------------------------------------------------
@@ -1348,7 +1360,11 @@ class ArchlenceApp(
             try:
                 t_dt = datetime.datetime.strptime(t_date[:10], "%Y-%m-%d").date()
                 amount = float(decrypt(amount_enc, SECRET_KEY))
-            except:
+            except (ValueError, TypeError):
+                # ValueError iki kaynaktan gelebilir ve İKİSİ de bu satırın
+                # atlanmasını gerektirir: strptime'ın bozuk tarih metnini
+                # ayrıştıramaması, ya da float()'ın "[Şifreli Veri]" yer
+                # tutucusunu sayıya çevirememesi.
                 continue
 
             val = (
@@ -1496,16 +1512,25 @@ class ArchlenceApp(
 
                 processed_items = []
                 for t_type, category, amount_enc, desc_enc, t_date in transactions_raw:
+                    # DAR TUTULDU (bkz. docs/ROADMAP.md Faz 2 "except ayrımı",
+                    # PR #13). Bu iki blok ÇIPLAK `except:` idi — yani
+                    # KeyboardInterrupt/SystemExit/MemoryError'ı bile yutup
+                    # 0.0'a düşürüyorlardı. decrypt() kendi içinde asla raise
+                    # etmez (bkz. utils/crypto.py), buraya ulaşabilen tek
+                    # gerçek hata float()'ın "[Şifreli Veri]" yer tutucusunu
+                    # ya da None'ı sayıya çevirememesidir — codebase'in geri
+                    # kalanında zaten tam olarak bu iki tipe daraltılmıştı,
+                    # yalnızca bu iki satır atlanmıştı.
                     try:
                         dec_amt = float(decrypt(str(amount_enc), SECRET_KEY))
-                    except:
+                    except (ValueError, TypeError):
                         dec_amt = 0.0
 
                     try:
                         dec_desc = (
                             decrypt(str(desc_enc), SECRET_KEY) if desc_enc else ""
                         )
-                    except:
+                    except (ValueError, TypeError):
                         dec_desc = ""
 
                     processed_items.append(
@@ -1881,7 +1906,7 @@ class ArchlenceApp(
         for cat, amount in expense_rows_this_month:
             try:
                 val = float(decrypt(str(amount), SECRET_KEY))
-            except:
+            except (ValueError, TypeError):
                 val = 0.0
             cat_sums[cat] = cat_sums.get(cat, 0.0) + val
             this_month_exp += val
