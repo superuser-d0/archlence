@@ -54,9 +54,13 @@ class ResolveConfigPathTest(unittest.TestCase):
         with open(result, encoding="utf-8") as f:
             self.assertEqual(f.read(), "gercek kullanici ayarlari")
 
-    def test_chains_legacy_finora_rename_then_data_dir_migration(self):
-        """En eski isim (finora) -> archlence adı (_APP_DIR içinde) ->
-        kullanıcı-veri dizini: üç konum, iki migration, tek çağrı."""
+    def test_migrates_the_oldest_finora_named_config_straight_to_data_dir(self):
+        """En eski isim (finora) DOĞRUDAN kullanıcı-veri dizinine taşınır.
+        Önceki hâli araya bir adım koyuyordu — finora'yı önce _APP_DIR
+        içinde yeni ada kopyalayıp sonra oradan taşıyordu — yani
+        paketlenmiş bir Windows kurulumunda SALT-OKUNUR olan kurulum
+        dizinine YAZMAYA çalışıyordu; tam da madde 4'ün ortadan kaldırmak
+        için var olduğu şey."""
         finora_path = os.path.join(self.app_dir, "fi" + "nora_config.json")
         with open(finora_path, "w", encoding="utf-8") as f:
             f.write("cok eski finora verisi")
@@ -67,8 +71,43 @@ class ResolveConfigPathTest(unittest.TestCase):
         self.assertEqual(result, os.path.join(self.data_dir_path, "archlence_config.json"))
         with open(result, encoding="utf-8") as f:
             self.assertEqual(f.read(), "cok eski finora verisi")
-        # finora dosyası kopyalandı (copy2), taşınmadı — orijinal yerinde kalır.
-        self.assertTrue(os.path.exists(finora_path))
+        # _APP_DIR'a ara dosya YAZILMAMALI.
+        self.assertFalse(
+            os.path.exists(os.path.join(self.app_dir, "archlence_config.json"))
+        )
+
+    def test_newer_legacy_name_wins_when_both_old_names_exist(self):
+        """İki eski ad da varsa yeni olanı (archlence) kazanmalı; finora
+        dosyası kullanıcının güncel ayarlarının üzerine yazmamalı."""
+        with open(os.path.join(self.app_dir, "archlence_config.json"), "w", encoding="utf-8") as f:
+            f.write("daha yeni ayarlar")
+        with open(os.path.join(self.app_dir, "fi" + "nora_config.json"), "w", encoding="utf-8") as f:
+            f.write("cok eski finora verisi")
+        p1, p2 = self._patched()
+        with p1, p2:
+            os.environ.pop("ARCHLENCE_CONFIG_PATH", None)
+            result = self.main._resolve_config_path()
+        with open(result, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "daha yeni ayarlar")
+
+    def test_resolves_without_writing_into_a_read_only_install_dir(self):
+        """Asıl regresyon koruması: kurulum dizini salt-okunur olduğunda
+        (paketlenmiş Windows kurulumu) config çözümlemesi PATLAMAMALI —
+        bu, build() içinde yakalanmadığı için uygulamayı hiç açılmadan
+        düşürürdü."""
+        with open(os.path.join(self.app_dir, "archlence_config.json"), "w", encoding="utf-8") as f:
+            f.write("mevcut kurulumdan gelen ayarlar")
+        os.chmod(self.app_dir, 0o555)
+        self.addCleanup(os.chmod, self.app_dir, 0o755)
+
+        p1, p2 = self._patched()
+        with p1, p2:
+            os.environ.pop("ARCHLENCE_CONFIG_PATH", None)
+            result = self.main._resolve_config_path()
+
+        self.assertEqual(result, os.path.join(self.data_dir_path, "archlence_config.json"))
+        with open(result, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "mevcut kurulumdan gelen ayarlar")
 
     def test_fresh_install_has_no_legacy_files_to_migrate(self):
         p1, p2 = self._patched()

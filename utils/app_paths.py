@@ -56,5 +56,25 @@ def migrate_legacy_path(old_path: str, new_path: str) -> bool:
     new_dir = os.path.dirname(new_path)
     if new_dir:
         os.makedirs(new_dir, exist_ok=True)
-    shutil.move(old_path, new_path)
+
+    # TAŞIMA DEĞİL, KOPYALA + EN İYİ ÇABA SİL. `shutil.move` aynı dosya
+    # sisteminde `os.rename`e iner ve bu, KAYNAK DİZİNDE yazma izni ister
+    # (dizin girdisini silmek için). Bu fonksiyonun asıl kullanım senaryosu
+    # ise tam tersi: kaynak, paketlenmiş bir Windows kurulumunda genelde
+    # SALT-OKUNUR olan uygulama kurulum dizini (`Program Files`) — yani
+    # madde 4'ün düzeltmek için var olduğu durumun ta kendisi. Salt-okunur
+    # bir kaynak dizinle ampirik olarak doğrulandı: `shutil.move`
+    # PermissionError fırlatıyordu ve bu, çağrıldığı yerde (build())
+    # yakalanmadığı için uygulamayı hiç açılmadan düşürüyordu.
+    #
+    # Kopyalama başarılı olduktan SONRA eskisini silmeye çalışıyoruz; bu
+    # silme başarısız olursa YUTULUYOR: veri güvenle yeni konumda ve
+    # yukarıdaki `os.path.exists(new_path)` guard'ı sayesinde bir sonraki
+    # açılışta yeniden kopyalanmayacak. Kalan eski dosya bir daha hiç
+    # okunmaz — "biraz çöp" ile "uygulama hiç açılmıyor" arasındaki tercih.
+    shutil.copy2(old_path, new_path)
+    try:
+        os.remove(old_path)
+    except OSError:
+        pass
     return True
