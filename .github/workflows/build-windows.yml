@@ -1,14 +1,29 @@
 name: Build Windows EXE
 
 # Sadece Windows runner'da çalışır çünkü PyInstaller çapraz derleme yapamaz.
-# main dalına her push'ta ve elle tetiklemede (workflow_dispatch) çalışır.
+#
+# main'i HEDEFLEYEN PR'larda da çalışır. Bu bilerek eklendi: workflow uzun süre
+# yalnızca `push: main` ile tetikleniyordu, yani paketleme hataları ancak
+# main'e GİRDİKTEN SONRA görülebiliyordu. Pratikte bunun bedeli ödendi —
+# derlemeyi tamamen kilitleyen OpenGL hatası (bkz. archlence.spec'teki
+# KIVY_GL_BACKEND notu) ilk commit'ten beri main'de duruyordu ve her
+# derlemenin 6 saatlik varsayılan zaman aşımına kadar asılı kalmasına yol
+# açıyordu; kimse fark etmedi çünkü kırılmayı merge öncesi gösterecek bir
+# sinyal yoktu.
+#
+# Maliyet artık ihmal edilebilir: donma düzeltildikten sonra derleme ~3 dakika
+# sürüyor (PyInstaller adımı ~1 dk).
 on:
   push:
+    branches: [ main ]
+  pull_request:
     branches: [ main ]
   workflow_dispatch: {}
 
 # Arka arkaya push'ta eski derleme iptal edilsin; iki Windows runner'ını aynı
-# anda 20+ dakika meşgul etmenin anlamı yok.
+# anda meşgul etmenin anlamı yok. PR'larda github.ref `refs/pull/<no>/merge`
+# olduğundan her PR kendi grubunu alır; yeni commit push'lanınca o PR'ın eski
+# derlemesi iptal olur, başka PR'lar etkilenmez.
 concurrency:
   group: build-windows-${{ github.ref }}
   cancel-in-progress: true
