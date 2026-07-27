@@ -31,6 +31,48 @@ _BRANDS = (
     (("mubi",), "mubi", "mubi.com"),
     (("deezer",), "deezer", "deezer.com"),
     (("tod tv", "tod"), "tod", "todtv.com.tr"),
+
+    # ── Video/yayın (ek) ────────────────────────────────────────────────
+    (("twitch",), "twitch", "twitch.tv"),
+    (("paramount plus", "paramount+"), "paramount-plus", "paramountplus.com"),
+    (("peacock",), "peacock", "peacocktv.com"),
+    (("crunchyroll",), "crunchyroll", "crunchyroll.com"),
+
+    # ── Müzik ───────────────────────────────────────────────────────────
+    (("tidal",), "tidal", "tidal.com"),
+    (("soundcloud", "soundcloud go"), "soundcloud", "soundcloud.com"),
+
+    # ── Oyun ────────────────────────────────────────────────────────────
+    (("playstation plus", "ps plus", "psn"), "playstation-plus", "playstation.com"),
+    (("xbox game pass", "game pass", "xbox"), "xbox-game-pass", "xbox.com"),
+    (("nintendo switch online", "nintendo online"), "nintendo-online", "nintendo.com"),
+    (("ea play",), "ea-play", "ea.com"),
+    (("ubisoft+", "ubisoft plus"), "ubisoft-plus", "ubisoft.com"),
+
+    # ── Bulut depolama ──────────────────────────────────────────────────
+    (("google one", "google drive"), "google-one", "one.google.com"),
+    (("dropbox",), "dropbox", "dropbox.com"),
+
+    # ── Üretkenlik / yapay zekâ ─────────────────────────────────────────
+    (("microsoft 365", "office 365"), "microsoft-365", "microsoft.com"),
+    (("adobe creative cloud", "adobe cc", "creative cloud"), "adobe-cc", "adobe.com"),
+    (("canva",), "canva", "canva.com"),
+    (("notion",), "notion", "notion.so"),
+    (("chatgpt", "chat gpt", "openai"), "chatgpt", "openai.com"),
+    (("github copilot", "github"), "github", "github.com"),
+    (("slack",), "slack", "slack.com"),
+    (("zoom",), "zoom", "zoom.us"),
+    (("linkedin premium", "linkedin"), "linkedin", "linkedin.com"),
+
+    # ── VPN ─────────────────────────────────────────────────────────────
+    (("nordvpn", "nord vpn"), "nordvpn", "nordvpn.com"),
+    (("expressvpn", "express vpn"), "expressvpn", "expressvpn.com"),
+
+    # Genel "amazon" (Prime/Prime Video DIŞINDA, ör. Amazon Music/Kindle
+    # Unlimited) — listenin SONUNDA durmalı: yukarıdaki "amazon prime" /
+    # "prime video" girdisi daha özgül, önce sınanmalı. Sıra iterasyon
+    # sırasıyla eşleşen İLK girdiyi döndürür (bkz. classify_brand).
+    (("amazon",), "amazon", "amazon.com"),
 )
 
 
