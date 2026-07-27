@@ -21,6 +21,7 @@ hem de jenerik "Tarih,Tür,Kategori,Tutar,Açıklama" başlıklı CSV'leri tanı
 """
 
 import csv
+import math
 import os
 from datetime import datetime
 
@@ -201,7 +202,20 @@ def parse_transactions_csv(path):
                 if "," in raw_amount and raw_amount.count(",") == 1:
                     raw_amount = raw_amount.replace(".", "").replace(",", ".")
                 amount = float(raw_amount)
-                if amount <= 0:
+                # math.isfinite ŞART: float("inf") ve float("nan") ikisi de
+                # Python'da SORUNSUZ ayrıştırılır ve İKİSİ DE `<= 0`
+                # koşulunu geçmez (IEEE 754: nan ile yapılan her
+                # karşılaştırma False'tur, inf zaten <= 0 değildir). Yani bu
+                # guard tek başına ikisini de KABUL ediyordu. Böyle tek bir
+                # satır içeri alınınca adjust_account_balance'ın
+                # `balance = balance + ?` işlemi hesabı kalıcı olarak
+                # zehirliyor: inf/nan sonraki HER SUM(balance) üzerinden
+                # yayılıyor, yani uygulamadaki her Net Servet rakamı bozuluyor
+                # ve kullanıcı ilgili satırı elle bulup silene kadar düzelmiyor.
+                # Elle giriş yolu bu sınıfa karşı zaten korunuyordu
+                # (utils/formatters.py::read_amount + input_filter); aynı
+                # disiplin CSV yoluna hiç uygulanmamıştı.
+                if not math.isfinite(amount) or amount <= 0:
                     raise ValueError
             except ValueError:
                 skipped += 1
