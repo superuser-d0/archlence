@@ -120,6 +120,73 @@ class BrandIconServiceTest(unittest.TestCase):
             "amazon",
         )
 
+    def test_instagram_and_meta_verified_resolve_to_same_icon(self):
+        """Kullanıcı çoğunlukla yalnızca 'Instagram' yazar; 'Meta Verified'
+        gerçek ürün adı da aynı ikona düşmeli — ikisi de instagram.com'un
+        favicon'unu kullanır (Meta'nın genel logosundan daha tanınır)."""
+        self.assertEqual(
+            brand_icon_service.classify_brand("Instagram")[0], "instagram",
+        )
+        self.assertEqual(
+            brand_icon_service.classify_brand("Meta Verified")[0], "instagram",
+        )
+        self.assertIn(
+            "domain=instagram.com",
+            brand_icon_service.classify_brand("Instagram")[1],
+        )
+
+    def test_instagram_subscription_end_to_end_via_recurring_payments(self):
+        """Kullanıcının asıl senaryosu: recurring_payments'a DOĞRUDAN SQL ile
+        yazılan bir 'Instagram' kaydı, GUI hiç açılmadan get_active_recurring_
+        payments() (gerçek şifre-çözme yolu) + brand_icon_service üzerinden
+        subscription_mixin._build_subscription_row'un YAPACAĞI ikon
+        çözümlemesiyle birebir aynı sonucu vermeli."""
+        import tempfile
+        import datetime
+        from unittest import mock as _mock
+
+        fd, db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        try:
+            with _mock.patch("database.db.DB_NAME", db_path):
+                from database.init_db import initialize_database
+                initialize_database()
+
+                from services.account_service import AccountService
+                from database.db import (
+                    insert_recurring_payment, get_active_recurring_payments,
+                )
+                from services.recurring_service import next_due_for_recurrence
+
+                account_id = AccountService.create_account(
+                    "Test Hesabı", "checking", initial_balance=5000,
+                )
+                next_due = next_due_for_recurrence(
+                    datetime.date.today(), "monthly", 15,
+                )
+                insert_recurring_payment(
+                    "Instagram", 149.99, "Dijital Platformlar", "monthly",
+                    next_due, auto_deduct=0, account_id=account_id,
+                    recurrence_day=15,
+                )
+
+                payments = get_active_recurring_payments()
+                self.assertEqual(len(payments), 1)
+                payment = payments[0]
+                self.assertEqual(payment["name"], "Instagram")
+
+                # _build_subscription_row'daki BİREBİR satır:
+                icon_path = brand_icon_service.resolve_cached_brand_icon_path(
+                    payment.get("name", "")
+                )
+                self.assertIsNone(icon_path)  # önbellek boş — ilk kez görülüyor
+                self.assertEqual(
+                    brand_icon_service.classify_brand(payment["name"])[0],
+                    "instagram",
+                )
+        finally:
+            os.unlink(db_path)
+
 
 if __name__ == "__main__":
     unittest.main()
