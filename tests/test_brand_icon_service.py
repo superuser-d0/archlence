@@ -83,6 +83,43 @@ class BrandIconServiceTest(unittest.TestCase):
                 brand_icon_service.fetch_and_cache_brand_icon("Spotify")
             )
 
+    def test_cache_keys_are_unique(self):
+        """İki farklı alias grubu aynı cache_key'e yazarsa biri diğerinin
+        önbelleğini sessizce ezer — dosya sistemi seviyesinde fark edilmez."""
+        keys = [cache_key for _, cache_key, _ in brand_icon_service._BRANDS]
+        self.assertEqual(len(keys), len(set(keys)))
+
+    def test_newly_added_brands_across_categories(self):
+        """Video/müzik/oyun/bulut/üretkenlik/VPN kategorilerinden birer
+        örnek — genişletilen listenin gerçekten eşleştiğini doğrular."""
+        cases = {
+            "Twitch aboneliği": "twitch",
+            "Xbox Game Pass Ultimate": "xbox-game-pass",
+            "PlayStation Plus": "playstation-plus",
+            "Google One 2TB": "google-one",
+            "ChatGPT Plus": "chatgpt",
+            "GitHub Copilot": "github",
+            "NordVPN yıllık": "nordvpn",
+        }
+        for text, expected_key in cases.items():
+            with self.subTest(text=text):
+                key, url = brand_icon_service.classify_brand(text)
+                self.assertEqual(key, expected_key)
+                self.assertIn("google.com", url)
+
+    def test_generic_amazon_does_not_shadow_prime_video(self):
+        """Genel 'amazon' girdisi listenin SONUNDA durmalı — 'amazon prime' /
+        'prime video' gibi daha özgül takma adlar önce sınanmalı, yoksa Prime
+        Video hiçbir zaman kendi ikonuna ulaşamaz."""
+        self.assertEqual(
+            brand_icon_service.classify_brand("Amazon Prime yıllık üyelik")[0],
+            "prime-video",
+        )
+        self.assertEqual(
+            brand_icon_service.classify_brand("Amazon Music aboneliği")[0],
+            "amazon",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
