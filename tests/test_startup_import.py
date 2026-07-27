@@ -9,37 +9,87 @@ import unittest
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-class StartupImportTest(unittest.TestCase):
-    def test_main_module_imports_without_system_exit(self):
-        env = os.environ.copy()
-        env.pop("KIVY_WINDOW", None)
-        env.pop("KIVY_NO_ARGS", None)
-        env.setdefault("PYTHONPATH", PROJECT_ROOT)
+def _run(script, extra_env=None):
+    env = os.environ.copy()
+    env.pop("KIVY_WINDOW", None)
+    env.pop("ARCHLENCE_HEADLESS", None)
+    env.pop("KIVY_NO_ARGS", None)
+    env.setdefault("PYTHONPATH", PROJECT_ROOT)
+    if extra_env:
+        env.update(extra_env)
+    return subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(script)],
+        cwd=PROJECT_ROOT, env=env, capture_output=True, text=True, timeout=120,
+    )
 
-        script = textwrap.dedent(
+
+class StartupImportTest(unittest.TestCase):
+    """docs/ROADMAP.md Faz 1 madde 2. Eski davranış: `DISPLAY` yoksa
+    `KIVY_WINDOW=mock` set edilirdi. Bu, ampirik olarak doğrulandığı üzere
+    ikili bir hataydı — `DISPLAY` Windows'ta hiç set edilmez (X11'e özgü),
+    "mock" ise Kivy 2.3.1'de gerçek bir sağlayıcı değil; ikisi birleşince
+    her Windows kurulumunda gerçek pencere denemesi hiç yapılmadan (sessizce,
+    exit code 0 ile) atlanıyordu. Bu dosya artık üç ayrı gerçek senaryoyu
+    doğruluyor."""
+
+    def test_import_succeeds_with_a_genuinely_working_window_provider(self):
+        """Asıl regresyon kanıtı: main.py artık KIVY_WINDOW'a hiç
+        dokunmuyor, bu yüzden Kivy'nin kendi doğal sağlayıcı araması
+        çalışabiliyor. Bu sandbox'ta DISPLAY hiç yok ama SDL2 yine de
+        gerçek bir pencere nesnesi kurabiliyor (kendi headless/offscreen
+        fallback'i sayesinde) — eskiden KIVY_WINDOW=mock zorlaması bunu
+        HİÇ denemeden engelliyordu."""
+        completed = _run(
+            """
+            import main
+            assert main._KivyWindow is not None, "gercek pencere kurulamadi"
+            assert type(main.Window).__name__ != "Window", (
+                "main.py'nin kendi stub Window sinifina dusmus"
+            )
+            print("real-window-ok")
+            """
+        )
+        self.assertEqual(completed.returncode, 0, msg=completed.stderr)
+        self.assertIn("real-window-ok", completed.stdout)
+
+    def test_genuinely_broken_window_fails_loudly_without_headless_flag(self):
+        """ARCHLENCE_HEADLESS set edilmediyse, pencere gerçekten
+        kurulamadığında bu SESSİZCE geçiştirilmemeli — kullanıcı "uygulama
+        hiçbir şey yapmadan kapandı" yerine gerçek bir hata görmeli."""
+        completed = _run(
+            "import main",
+            extra_env={"KIVY_WINDOW": "gecerli_olmayan_saglayici_xyz"},
+        )
+        self.assertNotEqual(
+            completed.returncode, 0,
+            msg="pencere kurulamayınca sessizce (exit 0) çıkmamalı",
+        )
+
+        crash_log = os.path.join(PROJECT_ROOT, "crash.log")
+        with open(crash_log, encoding="utf-8") as f:
+            tail = f.read()[-2000:]
+        self.assertIn(
+            "Kivy herhangi bir pencere sağlayıcısı bulamadı", tail,
+            msg="crash.log gercek hatayi kaydetmemis",
+        )
+
+    def test_genuinely_broken_window_degrades_gracefully_with_headless_flag(self):
+        """Aynı kırık senaryo, ama ARCHLENCE_HEADLESS=1 açıkça istendiğinde
+        — main.py, ArchlenceApp'i yine de import edilebilir bırakan stub
+        sınıflara sessizce düşmeli (test/CI/tooling kullanım senaryosu)."""
+        completed = _run(
             """
             import importlib
-            import os
-            import sys
-
-            os.environ.setdefault('KIVY_NO_ARGS', '1')
-            os.environ.setdefault('KIVY_WINDOW', 'mock')
-
             module = importlib.import_module('main')
             assert module.ArchlenceApp is not None
+            assert module._KivyWindow is None
             print('imported')
-            """
+            """,
+            extra_env={
+                "KIVY_WINDOW": "gecerli_olmayan_saglayici_xyz",
+                "ARCHLENCE_HEADLESS": "1",
+            },
         )
-
-        completed = subprocess.run(
-            [sys.executable, "-c", script],
-            cwd=PROJECT_ROOT,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-
         self.assertEqual(completed.returncode, 0, msg=completed.stderr or completed.stdout)
         self.assertIn("imported", completed.stdout)
 

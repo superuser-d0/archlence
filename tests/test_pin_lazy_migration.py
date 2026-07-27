@@ -18,7 +18,10 @@ import unittest
 from unittest import mock
 
 os.environ.setdefault("KIVY_NO_ARGS", "1")
-os.environ.setdefault("KIVY_WINDOW", "mock")
+# "KIVY_WINDOW=mock" was never a real Kivy provider (bkz. docs/ROADMAP.md
+# Faz 1 madde 2) — main.py artık gerçek pencere kurulamadığında yalnızca
+# ARCHLENCE_HEADLESS=1 açıkça set edildiyse sessizce stub sınıflara düşüyor.
+os.environ.setdefault("ARCHLENCE_HEADLESS", "1")
 
 
 class _FakeStore:

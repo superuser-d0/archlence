@@ -1,5 +1,17 @@
+import os
 import sys
 import unittest
+
+# Discovery HERHANGİ bir test dosyasını içe aktarmadan önce set edilmeli.
+# main.py'yi import eden birden fazla test dosyası var; main.py aynı süreçte
+# yalnızca İLK kez gerçekten çalışır (sys.modules önbelleği), sonraki
+# `import main` çağrıları üst-seviye kodu tekrar ÇALIŞTIRMAZ. Yani bu
+# değişkeni yalnızca tek tek dosyaların kendi başına set etmesine güvenmek,
+# "hangi dosya önce import edildi" sırasına bağlı kırılgan bir davranış
+# üretirdi (bkz. docs/ROADMAP.md Faz 1 madde 2 — main.py artık gerçek
+# pencere kurulamadığında yalnızca bu bayrak açıkça set edildiyse sessizce
+# stub sınıflara düşüyor, aksi hâlde görünür şekilde patlıyor).
+os.environ.setdefault("ARCHLENCE_HEADLESS", "1")
 
 loader = unittest.TestLoader()
 suite = loader.discover("tests")
