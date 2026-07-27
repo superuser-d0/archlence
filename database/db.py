@@ -67,6 +67,22 @@ def record_balance_event(cursor, entity_type, entity_id, delta,
             None if ref_id is None else int(ref_id),
         ),
     )
+    # Hesap bakiyesini değiştiren HER yol buradan geçer (defter değişmezi), bu
+    # yüzden "ekrandaki snapshot bayatladı" işareti tek bir yerden düşürülür.
+    #
+    # Alternatif — her çağrı noktasına tazeleme eklemek — zaten denenmiş ve
+    # tutmamıştı: işlem ekleme ve kart silme tazeliyordu ama hesap ekleme, kart
+    # borcu ödeme, birikim aktarımı ve otomatik ödeme talimatları unutulmuştu.
+    # Yeni bir yazım yolu eklendiğinde defter satırı yazmak zaten zorunlu
+    # olduğundan, bayrak da kendiliğinden düşer.
+    #
+    # Commit'ten ÖNCE işaretlenir: yazım geri alınırsa bayrak boş yere kalkmış
+    # olur, bu da yalnızca bir kez fazladan (ve doğru sonucu veren) okuma demek.
+    # İçeriden import: database katmanı servis katmanını modül düzeyinde import
+    # edemez (döngü olurdu).
+    if entity_type == ACCOUNT:
+        from services.asset_service import mark_account_cache_stale
+        mark_account_cache_stale()
 
 
 def current_account_balance(cursor, account_id):

@@ -44,10 +44,59 @@ _asset_data_cache = {
 _warmup_lock = threading.Lock()
 _warmup_generation = 0
 
+# Bakiyeye dokunan bir yazım oldu ama snapshot henüz tazelenmedi mi?
+#
+# NEDEN: `render_accounts` hız için hiç SQL çalıştırmaz, yalnızca
+# `_asset_data_cache`ten çizer. Bu, yazan her akışın snapshot'ı elle
+# tazelemesini şart koşuyordu ve akışların ÇOĞU bunu yapmıyordu: yalnızca işlem
+# ekleme (transaction_mixin) ve kart silme (invalidate_asset_data_cache) doğru
+# davranıyordu. Hesap ekleme, kart borcu ödeme, birikim hedefine para atma ve
+# otomatik ödeme talimatları bakiyeyi DB'de değiştirip ekranda ESKİ değeri
+# bırakıyordu — kullanıcının gördüğü "hesap ekledim, toplam güncellendi ama
+# listedeki bakiye eski" hatası buydu. (Ana sayfadaki toplam tutarlı
+# görünüyordu çünkü o `_compute_dashboard_metrics` ile her seferinde DB'den
+# taze okunuyor; liste ise RAM'den geliyordu — sayılar değil, OKUMA YOLLARI
+# ayrışmıştı.)
+#
+# Çözüm tek tek çağrı noktalarına tazeleme eklemek değil (unutulmaya devam
+# ederdi): yazan taraf bayrağı DÜŞÜRÜR, okuyan taraf gerekiyorsa tazeler.
+_account_cache_stale = False
+
+
+def mark_account_cache_stale():
+    """accounts.balance'a dokunan her yazımdan sonra çağrılır (ucuz, sadece bayrak)."""
+    global _account_cache_stale
+    _account_cache_stale = True
+
+
+def ensure_account_cache_fresh():
+    """Bayat snapshot'ı tazeleyip GÜNCEL sözlüğü döndürür.
+
+    Dönüş değeri önemlidir: `refresh_account_cache_snapshot` modül global'ini
+    YENİDEN ATAR, bu yüzden `from ... import _asset_data_cache` ile alınmış eski
+    bir yerel ad tazelemeden sonra hâlâ eski sözlüğe bakar. Çağıran bu
+    fonksiyonun döndürdüğünü kullanmalıdır.
+
+    Henüz ısınmamış (ready=False) cache tazelenmez: açılış worker'ı zaten
+    yazımdan sonraki DB'yi okuyacak ve ağ gerektiren `active_assets_result`
+    alanını da dolduracak; araya girmek onu None'a düşürürdü.
+    """
+    global _account_cache_stale
+    if not _account_cache_stale:
+        return _asset_data_cache
+    if not (_asset_data_cache and _asset_data_cache.get("ready")):
+        return _asset_data_cache
+    _account_cache_stale = False
+    return refresh_account_cache_snapshot()
+
 
 def invalidate_asset_data_cache(deleted_account_id=None, deleted_card_debt=0.0):
     """Eski worker'ı iptal edip snapshot'tan silinen kartı atomik çıkarır."""
-    global _asset_data_cache, _warmup_generation
+    global _asset_data_cache, _warmup_generation, _account_cache_stale
+    # Snapshot burada zaten cerrahi olarak yeniden kuruluyor; bayrağı düşürmek
+    # `render_accounts`'ın üstüne bir de tam tazeleme yapmasını önler (silme
+    # yolundaki solma animasyonu bu cerrahi güncellemeye bağlı).
+    _account_cache_stale = False
     with _warmup_lock:
         _warmup_generation += 1
         previous = _asset_data_cache or {}
@@ -148,7 +197,9 @@ def refresh_account_cache_snapshot():
     İşlem kaydı worker'ından çağrılır; UI thread'indeki ``render_accounts``
     böylece eski açılış snapshot'ını değil yeni DB durumunu görür.
     """
-    global _asset_data_cache
+    global _asset_data_cache, _account_cache_stale
+    # Taze snapshot yazılıyor: bekleyen bayat işareti varsa düşer.
+    _account_cache_stale = False
     from services.account_service import AccountService
     from services.transaction_service import TransactionService
 
