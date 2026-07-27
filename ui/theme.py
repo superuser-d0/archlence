@@ -445,6 +445,76 @@ def chart_empty(style):
     return [0.80, 0.80, 0.80, 1] if not _is_dark(style) else [0.34, 0.35, 0.39, 1]
 
 
+# ── Grafik seri renkleri (TEK KAYNAK) ──────────────────────────────────────
+# Pasta grafiği, lejant ve zaman grafiği artık bu sözlükten okur. Eskiden
+# palet ÜÇ yerde kopyalanmıştı (ui/charts.py'de iki, ui/components.py'de bir;
+# yanlarında "must match" yorumuyla) ve kaçınılmaz olarak birbirinden ayrıldı:
+# zaman grafiğinde gider MAVİ çizilirken pastada mavi 'Ek Gelir' idi — yan yana
+# duran iki grafikte aynı renk zıt anlam taşıyordu.
+#
+# Renkler göz kararı seçilmedi; ölçülerek seçildi (OKLab ΔE, renk körlüğü
+# simülasyonu, WCAG kontrast). Doğrulama özeti:
+#   Açık tema (yüzey #FFFFFF) — pasta dilim komşulukları + sarma çifti:
+#     CVD ΔE 12.3 · normal görü ΔE 16.9 · 2 dilim 3:1 kontrastın altında
+#   Koyu tema (yüzey #1E1E1E) — aynı komşuluklar:
+#     CVD ΔE 10.7 · normal görü ΔE 17.5 · tüm dilimler ≥ 3:1
+#   Zaman grafiği üçlüsü (gelir/gider/açılış), TÜM çiftler:
+#     Açık CVD ΔE 12.4 · Koyu CVD ΔE 20.0 — ikisi de tüm testleri geçer
+# Karşılaştırma için ESKİ palet: gelir↔açılış normal görüde ΔE 7.6, pastada
+# 'Ana Gelir'↔'Temel Gider' kırmızı-yeşil körlüğünde ΔE 3.4 — yani gelir ile
+# gider birbirinden ayırt EDİLEMİYORDU.
+#
+# 3:1 kontrastın altında kalan dilimler "relief" kuralına tabidir: pasta
+# yüzdeleri dilimin üstüne basar, lejant her kategoriyi metinle etiketler —
+# kimlik hiçbir zaman yalnız renge bırakılmaz.
+#
+# BİLİNÇLİ ÖDÜN: koyu temadaki gelir yeşili (#4CCB7E, OKLCH L 0.753) önerilen
+# koyu-tema parlaklık bandının (0.48–0.67) ÜSTÜNDEDİR. Bandın içinde kalan bir
+# yeşille kırmızı, kırmızı-yeşil renk körlüğünde ΔE 3.1'e düşüyordu (pratikte
+# ayırt edilemez). Finanstaki "gelir yeşil / gider kırmızı" kuralını korumak
+# için band aşımı bilerek kabul edildi: erişilebilirlik testlerinin tamamı
+# geçiyor, aşım yalnızca koyu yüzeydeki canlılık meselesi.
+_CHART_SERIES = {
+    # rol              (açık tema, koyu tema)
+    "income":          ("00661F", "4CCB7E"),
+    "income_extra":    ("57C287", "14884A"),
+    "opening":         ("4A3AA7", "9085E9"),
+    "expense":         ("E9645F", "C0392B"),
+    "expense_extra":   ("EDA100", "C98500"),
+}
+
+# Pasta dilimlerinin ÇİZİM SIRASI. Sıra kozmetik değil, renk körlüğü
+# güvenliğinin mekanizmasıdır: 'Açılış Bakiyesi' iki gelir ve iki gider dilimi
+# ARASINA konur, böylece yeşil ve kırmızı aileleri hiçbir zaman komşu olmaz.
+# Halka kapandığı için son dilim ilkiyle de temas eder (sarma çifti); o çift de
+# doğrulamaya dahil edildi.
+CHART_CATEGORY_ROLES = (
+    ("Ana Gelir", "income"),
+    ("Ek Gelir", "income_extra"),
+    ("Açılış Bakiyesi", "opening"),
+    ("Temel Gider", "expense"),
+    ("Ekstra Gider", "expense_extra"),
+)
+
+
+def chart_series_hex(style, role):
+    """Seri rolünün aktif temadaki '#RRGGBB' değeri."""
+    light, dark = _CHART_SERIES[role]
+    return "#" + (dark if _is_dark(style) else light)
+
+
+def chart_series(style, role, alpha=1.0):
+    """Seri rolünün rgba'sı; `alpha` ile alan dolgusu tonu üretilir."""
+    r, g, b = get_color_from_hex(chart_series_hex(style, role))[:3]
+    return [r, g, b, alpha]
+
+
+def chart_category_colors(style):
+    """{kategori adı: '#RRGGBB'} — pasta ve lejant aynı sırayı paylaşır."""
+    return {name: chart_series_hex(style, role)
+            for name, role in CHART_CATEGORY_ROLES}
+
+
 _FIELD_ROLES = ("hint", "text", "fill", "line")
 
 

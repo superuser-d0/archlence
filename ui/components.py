@@ -11,6 +11,7 @@ from kivymd.app import MDApp
 from kivymd.uix.label import MDLabel
 import unicodedata
 from ui.i18n import tr as _t
+from ui import theme as ftheme
 
 
 def is_read_only_asset_account(account):
@@ -145,16 +146,7 @@ class LegendItem(MDBoxLayout):
 
 
 class LegendWidget(MDBoxLayout):
-    """Statik 4 kategorili lejant bileşeni. Başlangıçta oluşturulur, 'update_percentages()' ile güncellenir."""
-
-    # Fixed palette — must match PieChart.category_colors
-    CATEGORY_COLORS = {
-        'Ana Gelir':    '#00C853',
-        'Ek Gelir':     '#2979FF',
-        'Temel Gider':  '#FF5252',
-        'Ekstra Gider': '#FFD600',
-        'Açılış Bakiyesi': '#00BFA5',
-    }
+    """Statik 5 kategorili lejant bileşeni. Başlangıçta oluşturulur, 'update_percentages()' ile güncellenir."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -162,9 +154,32 @@ class LegendWidget(MDBoxLayout):
         self.spacing = dp(20)
         self.padding = [dp(8), dp(4), dp(8), dp(4)]
         self.labels = {}   # cat -> MDLabel reference for text updates
+        self.dots = {}     # cat -> MDIcon reference for tema tazelemesi
         self._built = False
         # Build on next frame so the widget tree is stable
         Clock.schedule_once(self._build, 0)
+
+    @staticmethod
+    def _category_colors():
+        """Pasta grafiğiyle ORTAK palet (ui.theme tek kaynağı)."""
+        app = MDApp.get_running_app()
+        style = app.theme_cls.theme_style if app is not None else "Light"
+        return ftheme.chart_category_colors(style)
+
+    def refresh_theme(self):
+        """Tema değişiminde nokta renklerini tazeler.
+
+        Noktalar `_build`'de bir kez kurulur ve rengi o anki temadan alır;
+        kendiliğinden güncellenmezler. Açık↔koyu geçişte lejant eski basamakta
+        kalırsa pasta dilimiyle uyuşmaz — DashboardChartManager.refresh_theme
+        bu yüzden burayı da çağırır.
+        """
+        from kivy.utils import get_color_from_hex
+
+        for cat, hex_color in self._category_colors().items():
+            dot = self.dots.get(cat)
+            if dot is not None:
+                dot.text_color = get_color_from_hex(hex_color)
 
     def _build(self, *args):
         if self._built:
@@ -175,7 +190,7 @@ class LegendWidget(MDBoxLayout):
         left_box = MDBoxLayout(orientation='vertical', size_hint_x=0.5, spacing=dp(4))
         right_box = MDBoxLayout(orientation='vertical', size_hint_x=0.5, spacing=dp(4))
 
-        for cat, hex_color in self.CATEGORY_COLORS.items():
+        for cat, hex_color in self._category_colors().items():
             row = LegendItem(
                 orientation='horizontal',
                 size_hint_y=None,
@@ -201,6 +216,7 @@ class LegendWidget(MDBoxLayout):
                 pos_hint={'center_y': 0.5}
             )
             self.labels[cat] = lbl
+            self.dots[cat] = dot
             row.add_widget(dot)
             row.add_widget(lbl)
 

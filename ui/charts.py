@@ -52,14 +52,12 @@ class CurvedTrendChart(Widget):
 
     anim_progress = NumericProperty(0.0)
 
-    # Palette
-    COLOR_INCOME_LINE  = (0.16, 0.84, 0.60, 1.0)    # teal
-    COLOR_INCOME_FILL  = (0.16, 0.84, 0.60, 0.20)
-    COLOR_EXPENSE_LINE = (0.30, 0.45, 0.95, 1.0)    # blue
-    COLOR_EXPENSE_FILL = (0.30, 0.45, 0.95, 0.15)
-    # Pasta grafiğindeki 'Açılış Bakiyesi' dilimiyle AYNI renk (#00BFA5).
-    COLOR_OPENING_LINE = (0.00, 0.75, 0.65, 1.0)
-    COLOR_OPENING_FILL = (0.00, 0.75, 0.65, 0.18)
+    # Seri renkleri ui.theme'den TEMA-DUYARLI okunur (bkz. ftheme._CHART_SERIES);
+    # burada sabit tutulamazlar çünkü açık ve koyu temada farklı basamaklar
+    # kullanılır. Pastadaki 'Ana Gelir' / 'Temel Gider' / 'Açılış Bakiyesi'
+    # dilimleriyle aynı rolleri paylaşır — tek kaynak olduğu için artık
+    # birbirinden ayrışamazlar.
+    FILL_ALPHA = 0.16
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -141,6 +139,13 @@ class CurvedTrendChart(Widget):
         axis_color = ftheme.chart_axis(style)
         grid_color = ftheme.chart_grid(style)
         label_color = ftheme.chart_label(style)
+        a = self.FILL_ALPHA
+        income_line = ftheme.chart_series(style, "income")
+        income_fill = ftheme.chart_series(style, "income", a)
+        expense_line = ftheme.chart_series(style, "expense")
+        expense_fill = ftheme.chart_series(style, "expense", a)
+        opening_line = ftheme.chart_series(style, "opening")
+        opening_fill = ftheme.chart_series(style, "opening", a)
 
         # ── Layout margins ────────────────────────────────────────────────
         PAD_LEFT  = dp(50)   # Y-axis label gutter (wider for larger font)
@@ -290,22 +295,22 @@ class CurvedTrendChart(Widget):
                                   size=vt.size)
 
             # Draw expense first (below income)
-            draw_series('expense', self.COLOR_EXPENSE_LINE, self.COLOR_EXPENSE_FILL)
-            draw_series('income',  self.COLOR_INCOME_LINE,  self.COLOR_INCOME_FILL)
+            draw_series('expense', expense_line, expense_fill)
+            draw_series('income',  income_line,  income_fill)
             # Açılış bakiyesi yalnızca gerçekten varsa çizilir; yoksa her
             # kullanıcıya kalıcı bir sıfır çizgisi göstermiş olurduk.
             if has_opening:
-                draw_series('opening', self.COLOR_OPENING_LINE, self.COLOR_OPENING_FILL)
+                draw_series('opening', opening_line, opening_fill)
 
             # ── Mini legend top-right ─────────────────────────────────────
             if p > 0.8:
                 leg_alpha = min(1.0, (p - 0.8) * 5.0)
                 leg_y     = cy1 - dp(2)
                 leg_x     = cx1
-                legend_items = [('Gider', self.COLOR_EXPENSE_LINE),
-                                ('Gelir', self.COLOR_INCOME_LINE)]
+                legend_items = [('Gider', expense_line),
+                                ('Gelir', income_line)]
                 if has_opening:
-                    legend_items.append(('Açılış', self.COLOR_OPENING_LINE))
+                    legend_items.append(('Açılış', opening_line))
                 for ltext, lcol in legend_items:
                     lt2 = _label_texture(ltext, dp(11), (*lcol[:3], 1.0), bold=True)
                     sw_w, sw_h = dp(16), dp(3)
@@ -731,6 +736,11 @@ class DashboardChartManager(MDBoxLayout):
             self.pie_widget.draw_immediate()
         if self.trend_chart is not None:
             self.trend_chart.draw_immediate()
+        # Lejant noktaları canvas değil widget: yeniden çizimle tazelenmez,
+        # açıkça güncellenmezse pasta koyu basamağa geçerken lejant açık
+        # basamakta kalırdı.
+        if self.legend_widget is not None:
+            self.legend_widget.refresh_theme()
 
     # Legacy shim so any existing callers (on_tab_press etc.) keep working
     def render_dashboard(self, period):
@@ -1210,17 +1220,16 @@ class PieChart(Widget):
         if not self.canvas: return
         self.canvas.clear()
         
-        # Persistent categories and colors
-        self.category_colors = {
-            'Ana Gelir': '#00C853',
-            'Ek Gelir': '#2979FF',
-            'Temel Gider': '#FF5252',
-            'Ekstra Gider': '#FFD600',
-            'Açılış Bakiyesi': '#00BFA5',
-        }
-        
+        # Dilim renkleri ve ÇİZİM SIRASI tek kaynaktan gelir (ui.theme). Sıra
+        # renk körlüğü güvenliğinin parçasıdır: 'Açılış Bakiyesi' gelir ve gider
+        # dilimlerinin arasına düşer, böylece yeşil-kırmızı aileleri komşu
+        # olmaz (halka kapandığı için sarma çifti de doğrulandı).
+        app = MDApp.get_running_app()
+        style = app.theme_cls.theme_style if app is not None else "Light"
+        self.category_colors = ftheme.chart_category_colors(style)
+
         from kivy.utils import get_color_from_hex
-        
+
         # Calculate total
         total = sum(self.data.get(k, 0) for k in self.category_colors.keys()) if isinstance(self.data, dict) else 0
 
@@ -1263,14 +1272,11 @@ class PieChart(Widget):
                     angle_start += slice_angle
             else:
                 # Verisiz halka aktif yüzey temasına göre nötrleşir.
-                app = MDApp.get_running_app()
-                style = app.theme_cls.theme_style if app is not None else "Light"
                 Color(*ftheme.chart_empty(style))
                 Ellipse(pos=(x, y), size=(d, d), angle_start=0, angle_end=360 * self.anim_progress)
                 texts.append((0, 0)) # Placeholder for 0%
-            
+
             # 2. Halka (Donut) Kesimi
-            app = MDApp.get_running_app()
             if app:
                 Color(*app.theme_cls.bg_normal)
             else:
