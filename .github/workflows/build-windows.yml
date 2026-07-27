@@ -7,9 +7,19 @@ on:
     branches: [ main ]
   workflow_dispatch: {}
 
+# Arka arkaya push'ta eski derleme iptal edilsin; iki Windows runner'ını aynı
+# anda 20+ dakika meşgul etmenin anlamı yok.
+concurrency:
+  group: build-windows-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-windows:
     runs-on: windows-latest
+    # Bu sınır olmadan takılan bir adım varsayılan 360 dakikaya kadar runner'ı
+    # meşgul ediyor ve elle iptal gerekiyor (34 dakikalık "PyInstaller ile
+    # derle" adımı böyle oluşmuştu).
+    timeout-minutes: 30
 
     steps:
       - name: Kodu çek
@@ -19,6 +29,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip   # bağımlılıkları her koşuda baştan indirmesin
 
       - name: Bağımlılıkları kur
         run: |
@@ -27,7 +38,12 @@ jobs:
           pip install pyinstaller kivy_deps.sdl2 kivy_deps.glew kivy_deps.angle
 
       - name: PyInstaller ile derle
-        run: pyinstaller archlence.spec
+        # --noconfirm: dist/ zaten varsa PyInstaller "silinsin mi? (y/N)" diye
+        # sorup girdi bekler; CI'da bu, sonsuza kadar asılı kalmak demektir.
+        # --log-level WARN: INFO binlerce "analyzing module ..." satırı basıp
+        # gerçek uyarıları gömüyordu.
+        run: pyinstaller --noconfirm --log-level WARN archlence.spec
+        timeout-minutes: 20
 
       - name: .exe'yi artifact olarak yükle
         uses: actions/upload-artifact@v4
