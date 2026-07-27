@@ -102,6 +102,43 @@ class MigrateLegacyPathTest(unittest.TestCase):
         # Eski dosya da yerinde kalmalı — sessizce silinmemeli.
         self.assertTrue(os.path.exists(self.old_path))
 
+    def test_survives_a_read_only_source_directory(self):
+        """Bu fonksiyonun ASIL kullanım senaryosu: kaynak, paketlenmiş bir
+        Windows kurulumunda genelde SALT-OKUNUR olan uygulama kurulum
+        dizini — madde 4'ün var olma sebebi. İlk sürüm burada `shutil.move`
+        kullanıyordu; move aynı dosya sisteminde `os.rename`e iner ve
+        kaynak DİZİNDE yazma izni ister, bu yüzden PermissionError
+        fırlatıyordu ve build() bunu yakalamadığı için uygulama hiç
+        açılmadan düşüyordu. Veri yine de yeni konuma ulaşmalı."""
+        self._write(self.old_path, "salt okunur dizindeki veri")
+        old_dir = os.path.dirname(self.old_path)
+        os.chmod(old_dir, 0o555)
+        self.addCleanup(os.chmod, old_dir, 0o755)
+
+        moved = migrate_legacy_path(self.old_path, self.new_path)
+
+        self.assertTrue(moved)
+        with open(self.new_path, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "salt okunur dizindeki veri")
+
+    def test_undeletable_source_is_not_recopied_on_the_next_run(self):
+        """Salt-okunur kaynakta eski dosya silinemeden kalır; bu KABUL
+        EDİLEBİLİR, ama bir sonraki açılışta kullanıcının o an güncel olan
+        verisinin üzerine tekrar kopyalanmamalı."""
+        self._write(self.old_path, "eski veri")
+        old_dir = os.path.dirname(self.old_path)
+        os.chmod(old_dir, 0o555)
+        self.addCleanup(os.chmod, old_dir, 0o755)
+
+        self.assertTrue(migrate_legacy_path(self.old_path, self.new_path))
+        # Kullanıcı yeni konumdaki veriyi değiştirir (uygulamayı kullanır).
+        with open(self.new_path, "w", encoding="utf-8") as f:
+            f.write("kullanicinin guncel verisi")
+
+        self.assertFalse(migrate_legacy_path(self.old_path, self.new_path))
+        with open(self.new_path, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "kullanicinin guncel verisi")
+
     def test_repeated_calls_are_idempotent(self):
         self._write(self.old_path, "veri")
         first = migrate_legacy_path(self.old_path, self.new_path)

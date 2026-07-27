@@ -11,7 +11,6 @@ import csv
 import math
 import logging
 import datetime
-import shutil
 import faulthandler
 import traceback as _traceback
 
@@ -371,13 +370,20 @@ def _resolve_config_path():
     if override:
         return override
 
+    target_path = os.path.join(data_dir(), "archlence_config.json")
     legacy_path = os.path.join(_APP_DIR, "archlence_config.json")
     legacy_finora_path = os.path.join(_APP_DIR, "fi" + "nora_config.json")
-    if not os.path.exists(legacy_path) and os.path.exists(legacy_finora_path):
-        shutil.copy2(legacy_finora_path, legacy_path)
 
-    target_path = os.path.join(data_dir(), "archlence_config.json")
-    migrate_legacy_path(legacy_path, target_path)
+    # _APP_DIR'a HİÇ YAZMIYORUZ. Önceki hâli, eski "finora" dosyasını önce
+    # _APP_DIR içinde yeni ada kopyalayıp sonra oradan taşıyordu — yani
+    # paketlenmiş bir Windows kurulumunda SALT-OKUNUR olan kurulum
+    # dizinine yazmaya çalışıyordu, tam da madde 4'ün ortadan kaldırmak
+    # için var olduğu şeyi yaparak. Artık her iki eski konumdan da DOĞRUDAN
+    # hedefe kopyalanıyor: önce yeni ad denenir, o taşınmadıysa (yoksa)
+    # eski "finora" adı denenir. Hedef zaten varsa ikisi de hiçbir şey
+    # yapmaz (migrate_legacy_path'in kendi guard'ı).
+    if not migrate_legacy_path(legacy_path, target_path):
+        migrate_legacy_path(legacy_finora_path, target_path)
     return target_path
 
 

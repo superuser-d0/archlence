@@ -153,6 +153,27 @@ guarantees established earlier.
      because it already had that exact same eager-write-on-import behavior
      before this change, just pointed at the repo root instead of
      `~/.local/state/Archlence/log/`.
+   - **Follow-up fix (found in a self-audit, not by CI)** —
+     [PR #19](https://github.com/superuser-d0/archlence/pull/19). The first
+     cut of this item had a bug that made it fail in exactly the situation
+     it exists to fix. `migrate_legacy_path()` used `shutil.move`, which on
+     the same filesystem degrades to `os.rename` and therefore needs write
+     permission on the **source directory** — but the source here is the
+     app's install directory, which on a packaged Windows install is
+     commonly read-only. Reproduced empirically against a `chmod a-w`
+     directory: `PermissionError`, and since all three migration calls are
+     unguarded in `build()`, the app would have died before showing a
+     window — the same silent-startup-failure class as item (2), for
+     exactly the upgrading users this item was meant to help. Now copies
+     and then deletes the source on a best-effort basis (an undeletable
+     source leaves a harmless orphan that the `os.path.exists(new_path)`
+     guard stops from ever being re-read). Separately,
+     `_resolve_config_path()` was writing the old "finora" config into
+     `_APP_DIR` as an intermediate step before migrating it out — also a
+     write into the possibly-read-only install dir; both legacy names now
+     migrate straight to the target. Locked in by three new tests that
+     `chmod` the source directory read-only, which is what the original
+     tests failed to do.
    - **Not done / explicitly deferred:** the real acceptance check — does
      a genuinely installed Windows `.exe` actually persist data under
      `%LOCALAPPDATA%\Archlence` and survive being read-only under
