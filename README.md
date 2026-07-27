@@ -201,8 +201,17 @@ Install dependencies and start the application:
 
 ```bash
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+pip install -r requirements-runtime.txt
 python main.py
+```
+
+`requirements-runtime.txt` is everything the app itself needs — nothing more.
+If you also want to run lint locally (`flake8`), install
+`requirements-dev.txt` too, or use the `requirements.txt` umbrella, which
+installs both:
+
+```bash
+pip install -r requirements.txt
 ```
 
 On first launch, Archlence guides you through creating a local PIN and setting up your first account.

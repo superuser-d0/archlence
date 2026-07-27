@@ -1,0 +1,51 @@
+# Archlence'in ÇALIŞMASI için gereken bağımlılıklar — paketlenmiş .exe'nin
+# derlenmesi ve `python main.py`/`python run_tests.py` için bunlar yeterli.
+#
+# Her satır tam sürüme sabitlenmiş (mevcut kurulu ortamla birebir) — bu zaten
+# tam bir kilit dosyası (lockfile) gibi davranıyor; ayrı bir kilit dosyasına
+# gerek yok.
+#
+# BURAYA EKLEME YAPMADAN ÖNCE: yeni paketin gerçekten import edildiğini
+# doğrula. Doğrudan `import X` araması YETERLİ DEĞİL — örn. price_service.py
+# hiç `import pandas` yazmadan yfinance'ın döndürdüğü DataFrame'i kullanıyor,
+# Kivy da PNG/JPG yüklerken Pillow'u kendi içinde arka planda çağırıyor. Emin
+# olmak için `pip show <paket>` çıktısındaki `Required-by` alanına bak.
+beautifulsoup4==4.15.0
+certifi==2026.5.20
+cffi==2.0.0
+charset-normalizer==3.4.7
+cryptography==48.0.0
+curl_cffi==0.15.0
+defusedxml==0.7.1
+docutils==0.23
+filetype==1.2.0
+fonttools==4.63.0
+fpdf2==2.8.7
+idna==3.17
+Kivy==2.3.1
+Kivy-Garden==0.1.5
+kivymd==1.2.0
+markdown-it-py==4.2.0
+mdurl==0.1.2
+multitasking==0.0.13
+numpy==2.4.6
+packaging==26.2
+pandas==3.0.3
+peewee==4.0.7
+pillow==12.2.0
+platformdirs==4.10.0
+protobuf==7.35.1
+pycparser==3.0
+pycryptodome==3.23.0
+Pygments==2.20.0
+python-dateutil==2.9.0.post0
+pytz==2026.2
+requests==2.34.2
+rich==15.0.0
+setuptools==82.0.1
+six==1.17.0
+soupsieve==2.8.4
+typing_extensions==4.15.0
+urllib3==2.7.0
+websockets==16.0
+yfinance==1.4.1

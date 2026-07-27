@@ -163,9 +163,29 @@ Not release-blocking, but worth doing before calling this stable.
 - `main.py` is ~1,800 lines and `ArchlenceApp` inherits from a long list of
   mixins. Split screen behavior into separate controller/view-model
   classes; keep `ArchlenceApp` to app lifecycle only.
-- Split `requirements.txt` into `requirements-runtime.txt` (what the
-  shipped app needs) and `requirements-dev.txt` (flake8, testing tools),
-  plus a pinned lockfile.
+- ~~Split `requirements.txt` into `requirements-runtime.txt` and
+  `requirements-dev.txt`, plus a pinned lockfile.~~ **Done** —
+  [PR #12](https://github.com/superuser-d0/archlence/pull/12). Every
+  package's real reverse-dependency graph was checked with `pip show
+  <pkg> | grep Required-by` before moving or deleting anything — a plain
+  "is it imported" grep is not safe here: `services/price_service.py`
+  uses pandas' DataFrame API (`.columns`, `.iloc`, `.dropna()`) on
+  whatever `yfinance.download()` hands back without ever writing
+  `import pandas`, and Kivy loads Pillow as an internal image backend
+  the same way. That check also caught real cases the naive approach
+  would have gotten backwards: `docutils` and the bare `Kivy-Garden`
+  package looked disposable but are `Required-by: Kivy` itself.
+  `matplotlib`/`scipy`/`kivy_garden.matplotlib` (already known dead
+  weight from the Windows-build-hang investigation) plus their
+  matplotlib-only transitive deps (`contourpy`, `cycler`, `kiwisolver`,
+  `pyparsing`) were dropped entirely rather than moved anywhere — proven
+  unused, not just unclassified. Verified by installing
+  `requirements-runtime.txt` into a throwaway venv from scratch and
+  running the full suite against it: 348/348, no reliance on anything
+  that got dropped. No separate lockfile was added: every line in
+  `requirements-runtime.txt`/`requirements-dev.txt` was already pinned
+  to an exact version (including transitive deps), which already gives
+  the same reproducibility a lockfile would.
 
 ## Notes on scope
 

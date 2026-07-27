@@ -1,0 +1,13 @@
+# Yalnızca geliştirme/lint araçları — runtime bağımlılıklarını İÇERMEZ
+# (CI'daki lint job'ı bu yüzden hızlı kalıyor: kivy/pandas/numpy'yi kurmadan
+# yalnızca bunları kurar). Tam geliştirme ortamı için requirements.txt
+# şemsiyesini kullan (ikisini birden kurar), ya da elle:
+#   pip install -r requirements-runtime.txt -r requirements-dev.txt
+#
+# Çalışan uygulama bunlara hiç ihtiyaç duymaz (bkz. archlence.spec'in
+# excludes listesi, aynı dört paketi bu gerekçeyle paketlenmiş .exe'den de
+# çıkarıyor).
+flake8==7.3.0
+pycodestyle==2.14.0
+pyflakes==3.4.0
+mccabe==0.7.0
