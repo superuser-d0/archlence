@@ -1,10 +1,11 @@
 import os
 import sys
+import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database.init_db import initialize_database
 from database.db import get_connection, DEFAULT_ACCOUNT_ID
 from services.savings_service import SavingsService, STATUS_ACTIVE, STATUS_COMPLETED
 
@@ -32,12 +33,42 @@ def _set_balance(amount):
 
 
 class SavingsServiceTest(unittest.TestCase):
-    """Gerçek finance.db üzerinde çalışır; her test kendi açtığı hedefi silip
-    hesabın özgün bakiyesini test sonunda geri yükler."""
+    """İzole bir geçici veritabanında çalışır — gerçek finance.db'ye DOKUNMAZ.
+
+    DÜZELTME: Eskiden gerçek finance.db üzerinde çalışıyordu ve
+    DEFAULT_ACCOUNT_ID'nin (=1) zaten bir bakiyesi olduğunu varsayıyordu.
+    Bu, geliştiricinin yerel makinesinde hep işe yarıyordu (aylardır
+    biriken gerçek hesap verisi vardı) ama iki gerçek sorun taşıyordu:
+    (1) taze bir kurulumda/CI checkout'unda `accounts` tablosu BOŞTUR —
+    varsayılan hesap seed'i bilerek kaldırıldı ("taze kurulum kullanıcıya
+    ait olmayan bakiye üretmez" sözleşmesi, bkz. OrphanTransactionGuardTest)
+    — bu yüzden `_get_balance()` `None` dönüyor ve `None["balance"]`
+    `TypeError` fırlatıyordu (CI'da Faz 0 test job'ının ilk çalışmasında
+    yakalandı); (2) test her koşuda GERÇEK kullanıcının bakiyesini 10.000'e
+    set edip sonra geri yüklüyordu — tearDown'a hiç ulaşmadan bir hata
+    olsaydı gerçek bakiye test değerinde takılı kalırdı.
+
+    SavingsService.deposit_to_goal/withdraw_from_goal/delete_goal hepsi
+    `account_id=DEFAULT_ACCOUNT_ID` varsayılanını kullanıyor; testler bunu
+    değiştirmeden çağırdığından, izole DB'de İLK oluşturulan hesabın id'si
+    (autoincrement ile 1) DEFAULT_ACCOUNT_ID'yle eşleşir — böylece hiçbir
+    çağrı sitesini account_id geçirecek şekilde değiştirmeye gerek kalmadı.
+    """
 
     def setUp(self):
-        initialize_database()  # savings_goals tablosu idempotent oluşsun
-        self.original_balance = _get_balance()
+        fd, self.db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        self._patcher = mock.patch("database.db.DB_NAME", self.db_path)
+        self._patcher.start()
+
+        from database.init_db import initialize_database
+        initialize_database()
+
+        from services.account_service import AccountService
+        AccountService.create_account(
+            "Test Hesabı", "checking", initial_balance=0.0
+        )
+
         _set_balance(10000.0)
         self.balance_before = _get_balance()
         self.goal_id = SavingsService.create_goal(
@@ -52,7 +83,8 @@ class SavingsServiceTest(unittest.TestCase):
                 msg="Hedef temizliği sonrası test bakiyesi başlangıca dönmedi",
             )
         finally:
-            _set_balance(self.original_balance)
+            self._patcher.stop()
+            os.unlink(self.db_path)
 
     def test_deposit_isolates_from_main_balance(self):
         """1.000 TL aktarımda ana bakiye azalmalı, hedef aynı tutarda artmalı."""
