@@ -4,6 +4,8 @@ import sys
 import textwrap
 import unittest
 
+from utils.app_paths import log_dir
+
 # Testler tests/ altında; main.py proje kökünde. Kök, çalışma dizininden değil
 # bu dosyanın konumundan türetilir ki test her yerden çalıştırılabilsin.
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -84,7 +86,12 @@ class StartupImportTest(unittest.TestCase):
             msg="pencere kurulamayınca sessizce (exit 0) çıkmamalı",
         )
 
-        crash_log = os.path.join(PROJECT_ROOT, "crash.log")
+        # docs/ROADMAP.md Faz 1 madde 4: crash.log artık PROJECT_ROOT'ta
+        # değil, platformdirs'in log dizininde. _run()'ın alt süreci
+        # os.environ.copy()'den başladığı için (XDG_*/HOME değişmiyor),
+        # log_dir()'in BURADA (aynı makine, aynı ortam) çözdüğü yol, alt
+        # sürecin gerçekte yazdığı yolla aynı olmalı.
+        crash_log = os.path.join(log_dir(), "crash.log")
         with open(crash_log, encoding="utf-8") as f:
             tail = f.read()[-2000:]
         self.assertIn(
