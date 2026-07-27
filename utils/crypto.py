@@ -1,4 +1,5 @@
 import base64
+import binascii
 from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Util.Padding import pad, unpad
@@ -34,9 +35,21 @@ def encrypt(data, password: str = DEFAULT_PASSWORD) -> str:
         # IV ve Ciphertext'i birleştirip base64'e çevir
         encrypted_payload = iv + ciphertext
         return base64.b64encode(encrypted_payload).decode('utf-8')
-    except Exception as e:
-        # Hata durumunda verinin orijinalini döndür
-        print(f"Şifreleme hatası: {e}")
+    except (ValueError, TypeError) as e:
+        # DAR TUTULDU (bkz. docs/ROADMAP.md Faz 2 "except ayrımı"): AES/pad
+        # birincil olarak ValueError (kötü anahtar/blok uzunluğu) veya
+        # TypeError (yanlış tip girdi) fırlatır — ikisi de veriyle ilgisiz,
+        # kütüphane çağrısının kendisiyle ilgili hatalardır. Eskiden `except
+        # Exception` buraya HİÇ ALAKASIZ bir programlama hatasını da
+        # yakalayıp aynı "düz metne düş" yoluna sokabilirdi.
+        #
+        # DAVRANIŞ BİLEREK DEĞİŞMEDİ: hata durumunda hâlâ düz metin
+        # döndürülüyor (fail-open). Bu, Faz 1'in şifreleme migration'ının
+        # (AEAD'e geçiş) konusu — burada yalnızca hangi hataların bu yola
+        # düştüğü daraltıldı ve GÖRÜNÜR kılındı. Önceden bu satır hiç
+        # loglanmıyordu; şifreleme başarısız olup gerçek veri düz metin
+        # yazıldığında bunu fark etmenin tek yolu yoktu.
+        print(f"[GÜVENLİK] Şifreleme başarısız, veri DÜZ METİN yazılıyor: {e}")
         return str(data)
 
 def decrypt(enc_data, password: str = DEFAULT_PASSWORD) -> str:
@@ -58,6 +71,22 @@ def decrypt(enc_data, password: str = DEFAULT_PASSWORD) -> str:
         # Çözme ve unpad işlemi
         decrypted_bytes = unpad(cipher.decrypt(ciphertext), AES.block_size)
         return decrypted_bytes.decode('utf-8')
-    except Exception:
-        # Şifreleme hatalarına karşı uygulamanın çökmesini önlemek için:
+    except (binascii.Error, ValueError, UnicodeDecodeError) as e:
+        # DAR TUTULDU (bkz. docs/ROADMAP.md Faz 2 "except ayrımı"): gerçek
+        # bozuk/kurcalanmış şifreli veri yalnızca bu üç yoldan hata verebilir
+        # — bozuk base64 (binascii.Error), yanlış IV/blok uzunluğu ya da
+        # geçersiz PKCS7 dolgu (ValueError, pycryptodome'un unpad'i tam bu
+        # tipi fırlatır), ya da çözülen bayt dizisi geçerli UTF-8 değilse
+        # (UnicodeDecodeError). Eskiden `except Exception` buraya hiç
+        # alakasız bir programlama hatasını da yakalayıp aynı "[Şifreli
+        # Veri]" yerine geçen değere düşürebilirdi — artık öyle bir hata
+        # burada YAKALANMAZ, gerçek traceback'iyle yükselir.
+        #
+        # DAVRANIŞ BİLEREK DEĞİŞMEDİ: gerçek şifre çözme hatası hâlâ
+        # "[Şifreli Veri]" yerine geçen değerine düşüyor (fail-open). Bunu
+        # gerçek bir hataya çevirmek Faz 1'in şifreleme migration'ının işi —
+        # 58 çağrı sitesinin her birinin bunu nasıl karşılayacağını GUI'de
+        # görmeden garanti edemem. Burada yalnızca hangi hataların bu yola
+        # düştüğü daraltıldı ve şimdi loglanıyor (önceden HİÇ iz bırakmıyordu).
+        print(f"[VERİ BÜTÜNLÜĞÜ] Şifre çözme başarısız — kayıt bozuk/kurcalanmış olabilir: {type(e).__name__}: {e}")
         return "[Şifreli Veri]"

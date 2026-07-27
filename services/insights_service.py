@@ -19,6 +19,7 @@ döndürür. Arayüze bağlanması mixins/insights_mixin.py'nin işidir.
 """
 
 import json
+import sqlite3
 import statistics
 from datetime import datetime, timedelta
 
@@ -58,7 +59,8 @@ def _safe_decrypt_float(value):
     """
     try:
         return float(decrypt(str(value), SECRET_KEY))
-    except Exception:
+    except (ValueError, TypeError) as e:
+        print(f"[VERİ BÜTÜNLÜĞÜ] insights tutarı çözülemedi: {e}")
         return 0.0
 
 
@@ -66,7 +68,9 @@ def _safe_decrypt_text(value):
     """Şifreli metni çözer; çözülemezse boş string döner."""
     try:
         return decrypt(str(value), SECRET_KEY) or ""
-    except Exception:
+    except (ValueError, TypeError):
+        # decrypt() tek başına hiçbir zaman raise etmez — pratikte
+        # tetiklenemez, aynı gerekçeyle daraltılmış hâliyle bırakıldı.
         return ""
 
 
@@ -487,11 +491,16 @@ def compute_financial_health_score(lookback_days=90, persist=True):
 
     # Aylık borç yükü: active_debts şifreli tutarlar taşıdığı için
     # get_active_debts zaten çözerek döndürüyor, onu tekrar kullanıyoruz.
+    # Bu, decrypt hatası değil DB hatası kategorisi (bkz. docs/ROADMAP.md
+    # Faz 2 "except ayrımı") — get_active_debts() kendi içindeki decrypt
+    # hatalarını zaten ayrıca ele alıyor; burada asıl korunan bağlantı/sorgu
+    # seviyesindeki hatalar.
     monthly_debt_payment = 0.0
     try:
         from database.db import get_active_debts
         monthly_debt_payment = sum(d.get("monthly_payment", 0.0) for d in get_active_debts())
-    except Exception:
+    except sqlite3.Error as e:
+        print(f"[DB] Aylık borç yükü hesaplanamadı: {e}")
         monthly_debt_payment = 0.0
 
     # Gelir aylığa normalize edilir ki borç oranı elmayla elma karşılaşsın.

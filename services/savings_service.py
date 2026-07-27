@@ -76,7 +76,9 @@ class SavingsService:
         for r in rows:
             try:
                 name = decrypt(r["goal_name"], SECRET_KEY)
-            except Exception:
+            except (ValueError, TypeError):
+                # decrypt() tek başına hiçbir zaman raise etmez — pratikte
+                # tetiklenemez, aynı gerekçeyle daraltılmış hâliyle bırakıldı.
                 name = "Bilinmeyen Hedef"
             goals.append({
                 "id": r["id"],
@@ -211,7 +213,7 @@ class SavingsService:
             return None
         try:
             name = decrypt(r["goal_name"], SECRET_KEY)
-        except Exception:
+        except (ValueError, TypeError):
             name = "Bilinmeyen Hedef"
         return {
             "id": r["id"],
