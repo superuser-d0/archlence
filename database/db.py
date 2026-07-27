@@ -194,7 +194,13 @@ def get_active_debts():
             dec_name = decrypt(r["debt_name"], SECRET_KEY)
             dec_total = float(decrypt(r["total_amount"], SECRET_KEY))
             dec_monthly = float(decrypt(r["monthly_payment"], SECRET_KEY))
-        except Exception:
+        except (ValueError, TypeError) as e:
+            # decrypt() kendi içinde hiçbir zaman raise etmez (bkz.
+            # utils/crypto.py) — buraya ulaşan tek hata float()'ın "[Şifreli
+            # Veri]" yerine geçen değerini ya da None'ı sayıya çevirememesi.
+            # DAR TUTULDU: alakasız bir programlama hatası artık bu satırın
+            # arkasına gizlenip "Bilinmeyen Borç"a düşmüyor.
+            print(f"[VERİ BÜTÜNLÜĞÜ] active_debts id={r['id']} çözülemedi: {e}")
             dec_name = "Bilinmeyen Borç"
             dec_total = 0.0
             dec_monthly = 0.0
@@ -242,7 +248,8 @@ def get_all_assets():
         try:
             dec_price    = float(decrypt(r["purchase_price"], SECRET_KEY))
             dec_quantity = float(decrypt(r["quantity"],       SECRET_KEY))
-        except Exception:
+        except (ValueError, TypeError) as e:
+            print(f"[VERİ BÜTÜNLÜĞÜ] active_assets id={r['id']} çözülemedi: {e}")
             dec_price    = 0.0
             dec_quantity = 0.0
         assets.append({
@@ -276,7 +283,8 @@ def get_asset_by_id(asset_id):
     try:
         dec_price    = float(decrypt(r["purchase_price"], SECRET_KEY))
         dec_quantity = float(decrypt(r["quantity"],       SECRET_KEY))
-    except Exception:
+    except (ValueError, TypeError) as e:
+        print(f"[VERİ BÜTÜNLÜĞÜ] active_assets id={r['id']} çözülemedi: {e}")
         dec_price    = 0.0
         dec_quantity = 0.0
     return {
@@ -333,11 +341,16 @@ def get_asset_transaction_history(limit=50):
     for r in rows:
         try:
             dec_amount = float(decrypt(str(r["amount"]), SECRET_KEY))
-        except Exception:
+        except (ValueError, TypeError) as e:
+            print(f"[VERİ BÜTÜNLÜĞÜ] transactions id={r['id']} tutar çözülemedi: {e}")
             dec_amount = 0.0
+        # decrypt() tek başına (float() sarmalı olmadan) hiçbir zaman raise
+        # etmez — bu except pratikte tetiklenemez, ama gelecekte decrypt()
+        # değişirse sessizce yanlış davranmasın diye daraltılmış hâliyle
+        # bırakıldı.
         try:
             dec_desc = decrypt(str(r["description"]), SECRET_KEY)
-        except Exception:
+        except (ValueError, TypeError):
             dec_desc = ""
         result.append({
             "type":        r["type"],
@@ -391,7 +404,9 @@ def has_active_recurring_payment(name):
     for r in rows:
         try:
             existing_name = decrypt(r["name"], SECRET_KEY)
-        except Exception:
+        except (ValueError, TypeError):
+            # decrypt() tek başına hiçbir zaman raise etmez — pratikte
+            # tetiklenemez, aynı gerekçeyle daraltılmış hâliyle bırakıldı.
             continue
         if existing_name.strip().lower() == target:
             return True
@@ -410,7 +425,8 @@ def get_active_recurring_payments():
         try:
             dec_name = decrypt(r["name"], SECRET_KEY)
             dec_amount = float(decrypt(r["amount"], SECRET_KEY))
-        except Exception:
+        except (ValueError, TypeError) as e:
+            print(f"[VERİ BÜTÜNLÜĞÜ] recurring_payments id={r['id']} çözülemedi: {e}")
             dec_name = "Bilinmeyen Ödeme"
             dec_amount = 0.0
         payments.append({

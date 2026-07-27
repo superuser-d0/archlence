@@ -29,6 +29,7 @@ izlenir.
 """
 
 import json
+import sqlite3
 from datetime import datetime
 
 from database.db import get_connection
@@ -65,7 +66,10 @@ def _compute_current_totals(cursor):
     try:
         cursor.execute("SELECT id, current_amount FROM savings_goals")
         goals = {str(r["id"]): (r["current_amount"] or 0.0) for r in cursor.fetchall()}
-    except Exception:
+    except sqlite3.Error:
+        # savings_goals eski bir DB'de henüz mevcut olmayabilir — DB
+        # hatası kategorisi, decrypt ile ilgisi yok (bkz. docs/ROADMAP.md
+        # Faz 2 "except ayrımı").
         goals = {}
     return sum(accounts.values()), accounts, goals
 
@@ -148,7 +152,7 @@ def _latest_snapshot_on_or_before(cursor, date_str):
         return None
     try:
         breakdown = json.loads(row["breakdown_json"]) if row["breakdown_json"] else {}
-    except Exception:
+    except (json.JSONDecodeError, TypeError):
         breakdown = {}
     return {
         "snapshot_date": row["snapshot_date"],

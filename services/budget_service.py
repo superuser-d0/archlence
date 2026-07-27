@@ -22,7 +22,8 @@ def _amount(value):
     except (TypeError, ValueError):
         try:
             return float(decrypt(str(value), SECRET_KEY))
-        except Exception:
+        except (ValueError, TypeError) as e:
+            print(f"[VERİ BÜTÜNLÜĞÜ] bütçe tutarı çözülemedi: {e}")
             return 0.0
 
 

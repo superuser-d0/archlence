@@ -880,7 +880,8 @@ def get_active_non_try_assets() -> list:
         try:
             quantity = float(decrypt(row["quantity"], SECRET_KEY))
             purchase_price = float(decrypt(row["purchase_price"], SECRET_KEY))
-        except Exception:
+        except (ValueError, TypeError) as e:
+            print(f"[VERİ BÜTÜNLÜĞÜ] active_assets id={row['id']} çözülemedi: {e}")
             continue
         if quantity > 0:
             assets.append({

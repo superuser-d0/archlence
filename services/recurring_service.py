@@ -179,14 +179,17 @@ def _get_payment(cursor, payment_id):
 def _plain_name(raw):
     try:
         return decrypt(str(raw), SECRET_KEY) or ""
-    except Exception:
+    except (ValueError, TypeError):
+        # decrypt() tek başına hiçbir zaman raise etmez — pratikte
+        # tetiklenemez, aynı gerekçeyle daraltılmış hâliyle bırakıldı.
         return ""
 
 
 def _plain_amount(raw):
     try:
         return float(decrypt(str(raw), SECRET_KEY))
-    except Exception:
+    except (ValueError, TypeError) as e:
+        print(f"[VERİ BÜTÜNLÜĞÜ] recurring_payments tutarı çözülemedi: {e}")
         return 0.0
 
 
@@ -299,7 +302,7 @@ def find_current_period_charge(payment_id, today=None):
     for candidate in candidates:
         try:
             description = decrypt(str(candidate["description"]), SECRET_KEY)
-        except Exception:
+        except (ValueError, TypeError):
             continue
         if description == expected_description:
             return {

@@ -64,7 +64,9 @@ def _dec(value):
     tek bir bozuk satır tüm dışa aktarımı düşürmesin."""
     try:
         return decrypt(str(value), SECRET_KEY)
-    except Exception:
+    except (ValueError, TypeError):
+        # decrypt() tek başına hiçbir zaman raise etmez — pratikte
+        # tetiklenemez, aynı gerekçeyle daraltılmış hâliyle bırakıldı.
         return ""
 
 

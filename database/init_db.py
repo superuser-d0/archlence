@@ -81,7 +81,12 @@ def initialize_database():
                 network_logo = AccountService.check_card_network(dec_num)
                 last4 = dec_num[-4:] if len(dec_num) >= 4 else dec_num
                 masked_number = f"**** **** **** {last4}"
-            except Exception:
+            except (ValueError, TypeError) as e:
+                # decrypt() hiçbir zaman raise etmez, string işlemleri de
+                # (slicing/len) raise etmez — bu except pratikte tetiklenemez.
+                # Yine de daraltılmış hâliyle bırakıldı: bu, tek seferlik bir
+                # migration, sessizce yanlış davranmaması önemli.
+                print(f"[VERİ BÜTÜNLÜĞÜ] accounts id={account_id} kart no migration'ı başarısız: {e}")
                 # Çözülemeyen/bozuk bir kayıt bile ham veriyi diskte
                 # bırakmamalı; yalnızca görüntüleme bilgisi kaybolur.
                 masked_number, network_logo = None, None

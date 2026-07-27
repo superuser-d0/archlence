@@ -134,9 +134,42 @@ guarantees established earlier.
 
 Not release-blocking, but worth doing before calling this stable.
 
-- Split overly broad exception handling by failure type (decrypt error /
-  validation error / network error / DB error) so a real data problem
-  can't collapse into a value that looks like a normal `0`.
+- ~~Split overly broad exception handling by failure type~~ — **Partially
+  done, scope deliberately narrowed** — [PR #13](https://github.com/superuser-d0/archlence/pull/13).
+  ~200 `except Exception` blocks exist across the codebase; ~157 of them are
+  in `main.py`/`mixins/`/`ui/` — the same UI layer the `main.py` split was
+  deferred for, and for the same reason: I can't run the GUI here to verify
+  a narrower catch doesn't let a real Kivy-lifecycle edge case crash a
+  screen instead of degrading gracefully. Scoped to the 58 in
+  `services/`/`database/`/`utils/` instead — fully unit-testable, no UI
+  risk.
+  Two behavior-vs-narrowing options were on the table for the decrypt-
+  adjacent sites specifically: (A) narrow the caught exception type only,
+  keep the existing fail-open recovery (still 0.0 / a placeholder string on
+  a real decrypt failure), or (B) also change the recovery to raise instead
+  of silently defaulting. B was rejected after checking two real call
+  chains: one (`ui/charts.py`'s caller) degrades safely to an empty chart,
+  but another (`main.py`'s dashboard-metrics refresh) would have gone from
+  "shows a slightly-wrong number" to "the home screen silently never
+  refreshes again," and there was no way to check the other ~55 call chains
+  or see the resulting UI without a real window. Went with A: `utils/crypto.py::decrypt()`
+  never actually raises (it already catches everything internally) — so the
+  only exceptions that ever reached a caller's `except Exception` were
+  `ValueError`/`TypeError` from feeding a non-numeric placeholder into
+  `float()`. Narrowed to exactly that, added logging that didn't exist
+  before (a decrypt failure used to leave zero trace anywhere), and proved
+  the narrowing does something real: an unrelated bug injected into the
+  call chain now raises instead of silently becoming "Bilinmeyen Borç" or
+  `0.0` (see `tests/test_crypto.py::NarrowedExceptHandlingTest` and
+  `tests/test_exception_narrowing.py`). `utils/crypto.py::encrypt()`'s
+  fail-open-to-plaintext path (a separate, arguably worse issue — encryption
+  failure currently writes real financial data to disk unencrypted with no
+  trace) got the same narrow-and-log treatment, not a behavior change —
+  actually fixing that fail-open belongs to the Phase 1 crypto migration
+  item, which is redesigning this whole mechanism anyway.
+  The `main.py`/`mixins/`/`ui/` ~157 remain untouched — same open question
+  as the `main.py` split: revisit once there's a way to verify GUI behavior
+  in this environment, or the user tests changes directly.
 - ~~Stock price cache TTL is Istanbul/BIST-hours-based regardless of the
   ticker's actual exchange~~ — checked before implementing, corrected:
   stock entry only ever goes through the BIST100 picker

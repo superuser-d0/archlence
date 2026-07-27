@@ -208,7 +208,8 @@ class TransactionService:
             for row in due_rows:
                 try:
                     amount = float(decrypt(str(row["amount"]), SECRET_KEY))
-                except Exception:
+                except (ValueError, TypeError) as e:
+                    print(f"[VERİ BÜTÜNLÜĞÜ] pending işlem id={row['id']} tutarı çözülemedi: {e}")
                     # Tutar çözülemiyorsa bakiyeye körlemesine dokunmaktansa
                     # kaydı pending bırak; kullanıcı veriyi düzeltebilir.
                     continue
@@ -258,11 +259,12 @@ class TransactionService:
         for r in rows:
             try:
                 amount = float(decrypt(str(r["amount"]), SECRET_KEY))
-            except Exception:
+            except (ValueError, TypeError) as e:
+                print(f"[VERİ BÜTÜNLÜĞÜ] pending işlem id={r['id']} tutarı çözülemedi: {e}")
                 amount = 0.0
             try:
                 description = decrypt(str(r["description"]), SECRET_KEY) or ""
-            except Exception:
+            except (ValueError, TypeError):
                 description = ""
             items.append({
                 "id": r["id"],
@@ -355,13 +357,14 @@ class TransactionService:
             try:
                 total = float(decrypt(str(r["total_amount"]), SECRET_KEY))
                 monthly = float(decrypt(str(r["monthly_amount"]), SECRET_KEY))
-            except Exception:
+            except (ValueError, TypeError) as e:
+                print(f"[VERİ BÜTÜNLÜĞÜ] taksit planı id={r['id']} tutarı çözülemedi: {e}")
                 continue
             # Açıklama, transactions tablosundaki konvansiyonla aynı şekilde
             # şifreli durur; çözülemezse plan gizlenmez, ad boş bırakılmaz.
             try:
                 plan_description = decrypt(str(r["description"]), SECRET_KEY) or "Taksitli İşlem"
-            except Exception:
+            except (ValueError, TypeError):
                 plan_description = "Taksitli İşlem"
             remaining = int(r["total_installments"]) - int(r["paid_installments"])
             plans.append({
@@ -401,7 +404,8 @@ class TransactionService:
         for r in rows:
             try:
                 decrypted_amount = float(decrypt(r[0], SECRET_KEY))
-            except Exception:
+            except (ValueError, TypeError) as e:
+                print(f"[VERİ BÜTÜNLÜĞÜ] işlem tutarı çözülemedi: {e}")
                 decrypted_amount = 0.0
 
             data.append({
@@ -508,11 +512,12 @@ class TransactionService:
         for r in rows:
             try:
                 amount = float(decrypt(str(r["amount"]), SECRET_KEY))
-            except Exception:
+            except (ValueError, TypeError) as e:
+                print(f"[VERİ BÜTÜNLÜĞÜ] son işlem tutarı çözülemedi: {e}")
                 amount = 0.0
             try:
                 desc = decrypt(str(r["description"]), SECRET_KEY) or ""
-            except Exception:
+            except (ValueError, TypeError):
                 desc = ""
             items.append({
                 "amount": amount,
