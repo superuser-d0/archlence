@@ -24,6 +24,7 @@ fark etmez, PIN'ini yeniden girmesi gerekmez.
 import hashlib
 import hmac
 import secrets
+import time as _time
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHash, VerifyMismatchError
@@ -98,3 +99,73 @@ class SecurityService:
         doğrulamadan hemen sonra çağıran `hash_password` ile yeniden
         hash'leyip saklamalı (lazy migration — kullanıcı fark etmez)."""
         return SecurityService._is_legacy_sha256(hashed_password)
+
+
+class LoginThrottle:
+    """Ardışık başarısız PIN denemelerinden sonra artan gecikme/geçici kilit
+    (docs/ROADMAP.md Faz 1 madde 6'nın Argon2id'den ayrı bırakılan kısmı).
+
+    SAF MANTIK: state (deneme sayısı + son başarısız zaman) harici olarak
+    sağlanır ve döndürülür — bu sınıf hiçbir şeyi kendi başına kalıcı
+    saklamaz, `main.py` state'i `config_store`'un "security_throttle"
+    kaydında tutar. `now` her yerde enjekte edilebilir (varsayılan
+    `time.time()`) — testler gerçek saniyeler beklemeden saat manipülasyonunu
+    simüle edebilir.
+
+    KARAR — kilit durumu KALICI: `config_store`'da saklanır, uygulama
+    yeniden başlatılınca SIFIRLANMAZ. Bilinçli bir seçim: bu, cihaza
+    fiziksel/dosya erişimi olan bir saldırganı hedefleyen bir tehdit modeli
+    — geçici (yalnızca bellekte) bir sayaç, uygulamayı yeniden başlatarak
+    trivially bypass edilebilirdi ve tüm mekanizmayı anlamsız kılardı.
+
+    Politika: ilk `FAILED_ATTEMPT_THRESHOLD` deneme için gecikme YOK (yanlış
+    tuşlama toleransı — her PIN girişini cezalandırmak kötü UX olurdu).
+    Eşikten sonra üstel artan kilit: 2^(deneme - eşik) * taban saniye,
+    `LOCKOUT_MAX_SECONDS` tavanına kadar.
+    """
+
+    FAILED_ATTEMPT_THRESHOLD = 3
+    LOCKOUT_BASE_SECONDS = 5
+    LOCKOUT_MAX_SECONDS = 300  # 5 dakika tavan
+
+    @staticmethod
+    def _lockout_duration(failed_attempts):
+        if failed_attempts < LoginThrottle.FAILED_ATTEMPT_THRESHOLD:
+            return 0
+        exponent = failed_attempts - LoginThrottle.FAILED_ATTEMPT_THRESHOLD
+        seconds = LoginThrottle.LOCKOUT_BASE_SECONDS * (2 ** exponent)
+        return min(seconds, LoginThrottle.LOCKOUT_MAX_SECONDS)
+
+    @staticmethod
+    def seconds_remaining(state, now=None):
+        """`state`: {"failed_attempts": int, "last_failed_at": float|None}.
+        Kilit bitmişse ya da hiç yoksa 0.0 döner."""
+        if now is None:
+            now = _time.time()
+        state = state or {}
+        failed_attempts = int(state.get("failed_attempts", 0) or 0)
+        last_failed_at = state.get("last_failed_at")
+        duration = LoginThrottle._lockout_duration(failed_attempts)
+        if duration == 0 or last_failed_at is None:
+            return 0.0
+        elapsed = now - float(last_failed_at)
+        return max(0.0, duration - elapsed)
+
+    @staticmethod
+    def is_locked(state, now=None):
+        return LoginThrottle.seconds_remaining(state, now=now) > 0
+
+    @staticmethod
+    def record_failure(state, now=None):
+        """Başarısız bir denemeden sonraki YENİ state'i döndürür (girdiyi
+        mutasyona uğratmaz)."""
+        if now is None:
+            now = _time.time()
+        state = state or {}
+        failed_attempts = int(state.get("failed_attempts", 0) or 0) + 1
+        return {"failed_attempts": failed_attempts, "last_failed_at": now}
+
+    @staticmethod
+    def record_success():
+        """Başarılı bir girişten sonraki sıfırlanmış state."""
+        return {"failed_attempts": 0, "last_failed_at": None}
