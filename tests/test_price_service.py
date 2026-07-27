@@ -44,6 +44,34 @@ class PriceServiceTest(unittest.TestCase):
         self.assertEqual(value, 245.5)
         download.assert_not_called()
 
+    def test_get_price_fetches_never_cached_symbol_even_when_market_closed(self):
+        """Aynı istisna `get_price()` (tek sembol wrapper'ı) için de geçerli
+        olmalı. Eskiden bu fonksiyonun kendi kapısı `ttl != INFINITE_TTL`
+        şartını `fetch_prices_async`'ı hiç ÇAĞIRMADAN önce uyguluyordu — o
+        fonksiyonun zaten doğru olan 'ilk çekim' istisnasına asla ulaşılmıyordu.
+        `get_price()` üretim kodunda henüz çağrılmıyor ama kardeş fonksiyonuyla
+        (fetch_prices_async) tutarsız kalmak, onu bir gün çağıracak biri için
+        gizli bir tuzaktı."""
+        from services import price_service
+
+        sunday = datetime(2026, 7, 26, 12, 0, tzinfo=ISTANBUL)
+        with (
+            mock.patch.object(price_service, "_now", return_value=sunday),
+            mock.patch.object(
+                price_service, "_download_batch",
+                return_value={"SISE.IS": 43.42},
+            ) as download,
+        ):
+            price_service.get_price("SISE", "STOCK")
+            # fetch_prices_async arka plan thread'i başlatır; sonucun
+            # cache'e yazılmasını bekle.
+            for _ in range(20):
+                if price_service.get_cached_price("SISE") is not None:
+                    break
+                time.sleep(0.1)
+        download.assert_called_once()
+        self.assertEqual(price_service.get_cached_price("SISE"), 43.42)
+
     def test_never_cached_symbol_fetches_even_when_market_closed(self):
         """Hafta sonu eklenen bir hisse/altın/döviz sonsuza kadar 'Canlı veri
         bekleniyor…' durumunda kalmamalı — ilk çekim piyasa kapalıyken de
