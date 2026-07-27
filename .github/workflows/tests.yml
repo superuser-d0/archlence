@@ -40,8 +40,29 @@ jobs:
         # argv as its own CLI flags. run_tests.py now propagates a non-zero
         # exit code on failure (previously always exited 0 regardless of
         # test results, which would have made this check meaningless).
+        #
+        # ARCHLENCE_HEADLESS: main.py no longer silently falls back to stub
+        # UI classes unless this is explicitly set (docs/ROADMAP.md Faz 1
+        # madde 2 — the old DISPLAY-based guess was actively broken).
+        #
+        # SDL_VIDEODRIVER / KIVY_WINDOW: this runner has no display server
+        # at all. Without these, Kivy's provider search reaches the raw
+        # (non-SDL2) x11 provider, which hard-crashes the whole process
+        # (exit 102) on a low-level Xlib connect() failure — no Python
+        # exception, so ARCHLENCE_HEADLESS alone can't save it. dummy/sdl2
+        # keep the search inside SDL2's own headless-capable path.
+        #
+        # run_tests.py already sets all three itself before test discovery
+        # (required — Kivy fixes its own provider list on the first `import
+        # kivy` anywhere in the process, which can happen via a mixin
+        # before main.py ever runs), so this is redundant on purpose:
+        # explicit at the workflow level too, rather than relying solely on
+        # a default buried in a script.
         env:
           KIVY_NO_ARGS: "1"
+          ARCHLENCE_HEADLESS: "1"
+          SDL_VIDEODRIVER: "dummy"
+          KIVY_WINDOW: "sdl2"
         run: python run_tests.py
 
   lint:

@@ -60,16 +60,35 @@ guarantees established earlier.
    Verified against real encrypted data, not just unit-test mocks, before
    writing the permanent tests.
 
-2. **Remove the `KIVY_WINDOW=mock` / `except BaseException` startup
-   fallback.** `main.py:45-48` silently switches to a mock window when
-   `DISPLAY` is unset, and `main.py:84` / `main.py:118` catch
-   `BaseException` around the Kivy/KivyMD import and startup path, falling
-   back to a stub `run()` that only prints to console. On a packaged
-   Windows build this means the app can exit without ever showing a
-   window, with no visible error. Gate the mock window behind an explicit
-   `ARCHLENCE_HEADLESS=1` env var instead of `DISPLAY` absence, and narrow
-   the `except BaseException` blocks to the specific import/init errors
-   that are actually recoverable.
+2. ~~**Remove the `KIVY_WINDOW=mock` / `except BaseException` startup
+   fallback.**~~ **Done** —
+   [PR #16](https://github.com/superuser-d0/archlence/pull/16).
+   The original description undersold the bug: `"mock"` has never been a
+   real Kivy 2.3.1 window provider (only `egl_rpi`/`sdl2`/`x11` exist —
+   verified by reading `kivy/core/__init__.py::core_select_lib` and
+   `kivy/core/window/__init__.py::window_impl` directly, not assumed).
+   Setting `KIVY_WINDOW=mock` restricts Kivy's own provider search to a
+   name that matches nothing, so `core_select_lib` tries zero real
+   providers and returns `None` — no exception, just a silent `Window =
+   None`. Combined with the old `if not DISPLAY: KIVY_WINDOW=mock` guard
+   (`DISPLAY` is X11/Linux-only and is never set on Windows, so this fired
+   on *every* Windows install unconditionally) and the entry point's `if
+   _KivyWindow is None: raise SystemExit(0)`, this meant the packaged
+   Windows `.exe` (`console=False`) most likely exited with a **success**
+   code without ever showing a window, on every install — a real,
+   previously-unknown release blocker, confirmed empirically via
+   subprocess tests that set the real env vars and inspect `crash.log`,
+   not by inspection alone. Fix: the `DISPLAY`/`mock` logic is gone
+   entirely — `KIVY_WINDOW` is never touched, so Kivy's real provider
+   search runs. A new explicit `ARCHLENCE_HEADLESS` flag (opt-in, not
+   inferred from `DISPLAY`) gates the stub-class fallback for
+   test/CI/tooling use. The `except BaseException` blocks around the
+   Kivy/KivyMD import are narrowed to `(ImportError, RuntimeError)` /
+   `(ImportError, AttributeError)`, and both now `raise` instead of
+   silently degrading unless `ARCHLENCE_HEADLESS=1` is explicitly set. See
+   `tests/test_startup_import.py` for the three scenarios this locks in
+   (real provider succeeds; genuinely broken provider fails loudly without
+   the flag; degrades gracefully with it).
 
 3. **Smoke-test the built `.exe` in CI.** Once (2) removes the silent
    fallback, add a step after the PyInstaller build that launches the

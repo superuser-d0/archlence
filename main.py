@@ -39,15 +39,68 @@ def _log_unhandled_exception(exc_type, exc_value, exc_tb):
 
 sys.excepthook = _log_unhandled_exception
 
-# Configure Kivy window setup (for headless / environments without SDL2)
+# docs/ROADMAP.md Faz 1 madde 2. Eskiden burada "DISPLAY yoksa
+# KIVY_WINDOW=mock yap" mantığı vardı. İKİ AYRI SEBEPTEN BOZUKTU:
+#
+#   1) DISPLAY, X11/Linux'a özgü bir kural — Windows'ta HİÇBİR ZAMAN set
+#      edilmez (kendi native pencere API'sini kullanır, X11'e ihtiyacı
+#      yoktur). Yani bu kod, HER Windows kurulumunda koşulsuz "mock"a
+#      düşüyordu.
+#   2) "mock", Kivy 2.3.1'de GERÇEK bir pencere sağlayıcısı DEĞİL — gerçek
+#      liste yalnızca egl_rpi/sdl2/x11 (bkz. kivy/core/window/__init__.py,
+#      window_impl). `KIVY_WINDOW=mock`, Kivy'nin arama listesini "mock"
+#      ile kısıtlıyor; hiçbir gerçek sağlayıcı bu listede olmadığından
+#      core_select_lib hiçbirini DENEMEDEN "Unable to find any valuable
+#      Window provider" diye loglayıp `Window`'u SESSİZCE `None` yapıyor —
+#      EXCEPTION FIRLATMIYOR (bkz. kivy/core/__init__.py::core_select_lib,
+#      bulunamama yolunda hiçbir raise yok, fonksiyon sessizce döner).
+#
+# Sonuç, ampirik olarak doğrulandı: aşağıdaki try/except bu hatayı HİÇ
+# YAKALAYAMIYORDU (import başarıyla dönüyor, yalnızca değeri None oluyor),
+# ve dosyanın en altındaki asıl giriş noktası da `_KivyWindow is None`
+# ise `raise SystemExit(0)` ile BAŞARI kodu döndürüyordu — `console=False`
+# olduğu için bu hiçbir yerde görünmeden. Yani DISPLAY'i olmayan HER
+# platformda (= her Windows kurulumunda) paketlenmiş .exe muhtemelen
+# hiçbir pencere göstermeden "başarıyla" kapanıyordu.
+#
+# Düzeltme: KIVY_WINDOW'a hiç dokunulmuyor — Kivy kendi doğal sağlayıcı
+# aramasını (sdl2 vb.) çalıştırsın. Headless çalışma artık DISPLAY
+# TAHMİNİYLE değil, açık bir bayrakla (ARCHLENCE_HEADLESS=1) kontrol
+# ediliyor — ve o bayrak "hangi sağlayıcıyı dene"yi değil, "pencere
+# KURULAMAZSA sessizce mi devam et yoksa görünür şekilde mi patla"yı
+# belirliyor (aşağıdaki try/except'lere bak).
 if not os.environ.get("KIVY_NO_ARGS"):
     os.environ["KIVY_NO_ARGS"] = "1"
-if not os.environ.get("KIVY_WINDOW"):
-    os.environ["KIVY_WINDOW"] = "mock" if not os.environ.get("DISPLAY") else "sdl2"
 
-if os.environ.get("KIVY_WINDOW") == "mock":
+ARCHLENCE_HEADLESS = os.environ.get("ARCHLENCE_HEADLESS", "").strip().lower() in (
+    "1", "true", "yes",
+)
+
+if ARCHLENCE_HEADLESS:
     os.environ.setdefault("KIVY_METRICS_DENSITY", "1")
     os.environ.setdefault("KIVY_DPI", "96")
+    # Bir CI/test ortamının çoğunda GERÇEK bir display sunucusu (X11/
+    # Wayland) yok. Bu durumda arama listesi kısıtlanmazsa Kivy, SDL2
+    # denemesinden sonra ham (SDL2 tabanlı olmayan) `x11` sağlayıcısına
+    # düşüyor; o sağlayıcı düşük seviye bir Xlib connect() çağrısı yapıyor
+    # ve display yoksa SÜRECİ OS SEVİYESİNDE ÇÖKERTİYOR (exit code 102,
+    # "Couldn't connect to X server") — bu, aşağıdaki try/except'in asla
+    # yakalayamayacağı bir C-seviyesi çökme, Python istisnası değil. GitHub
+    # Actions'ın ubuntu-latest runner'ında ampirik olarak doğrulandı (PR
+    # #16'nın ilk CI çalışması tam olarak bu şekilde kırmızı oldu).
+    #
+    # Düzeltme: arama listesini yalnızca `sdl2`'ye kısıtla (çökmeye sebep
+    # olan ham x11 sağlayıcısına hiç ulaşılmıyor) ve SDL2'ye kendi resmi
+    # desteklenen headless video sürücüsünü (`dummy`) ver — bu, herhangi
+    # bir display olmadan çalışır ve başarısız olursa PYTHON SEVİYESİNDE
+    # bir RuntimeError fırlatır (aşağıdaki `except (ImportError,
+    # RuntimeError)` bunu düzgünce yakalar). Bu, eski `KIVY_WINDOW=mock`
+    # ile AYNI ŞEY DEĞİL: "sdl2" gerçek bir sağlayıcı, "dummy" gerçek ve
+    # belgelenmiş bir SDL2 sürücüsü, ve ikisi de yalnızca
+    # ARCHLENCE_HEADLESS AÇIKÇA istendiğinde devreye giriyor — DISPLAY
+    # yokluğundan tahmin edilmiyor.
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    os.environ.setdefault("KIVY_WINDOW", "sdl2")
 
 # =========================================================================
 # 3. KIVY / KIVYMD IMPORTS
@@ -81,7 +134,23 @@ from kivy.uix.scrollview import ScrollView
 try:
     from kivy.core.window import Window as _KivyWindow
     from kivy.core.window import Window
-except BaseException:
+    if Window is None:
+        # Kivy kendi sağlayıcı aramasını (egl_rpi/sdl2/x11) denedi ama
+        # hiçbiri kurulamadı — bu import EXCEPTION FIRLATMAZ (bkz. yukarıdaki
+        # ARCHLENCE_HEADLESS notu), `Window` sessizce None olur. Bunu
+        # açıkça kontrol etmezsek, gerçek bir masaüstünde pencere
+        # kurulamadığında kod sessizce ilerler ve çok daha sonra, alakasız
+        # bir yerde `NoneType has no attribute ...` ile çöker.
+        raise RuntimeError(
+            "Kivy herhangi bir pencere sağlayıcısı bulamadı "
+            "(egl_rpi/sdl2/x11 hiçbiri kullanılamadı)."
+        )
+except (ImportError, RuntimeError):
+    if not ARCHLENCE_HEADLESS:
+        # ARCHLENCE_HEADLESS açıkça istenmediyse bu SESSİZCE geçiştirilecek
+        # bir şey değil — kullanıcı "uygulama hiçbir şey yapmadan kapandı"
+        # yerine gerçek hatayı görmeli (docs/ROADMAP.md Faz 1 madde 2).
+        raise
     _KivyWindow = None
 
     class Window(object):
@@ -115,7 +184,17 @@ try:
     )
     from kivymd.uix.label import MDLabel, MDIcon
     from kivymd.uix.screen import MDScreen
-except BaseException as exc:
+except (ImportError, AttributeError) as exc:
+    # ImportError: kivymd genuinely missing/broken. AttributeError: bir
+    # kivymd sürüm uyuşmazlığı, yukarıdaki adlardan birini kaldırmış/
+    # taşımış olabilir — ikisi de "gerçekten kurulamadı" kategorisi.
+    # `except BaseException` eskiden buraya TAMAMEN alakasız bir hatayı
+    # (ör. bir programlama bug'ı) da düşürüp aynı sessiz fallback'e
+    # sokabilirdi.
+    if not ARCHLENCE_HEADLESS:
+        # bkz. yukarıdaki Window guard'ındaki aynı gerekçe: gerçek bir
+        # masaüstünde bu sessizce geçiştirilmez.
+        raise
     from kivy.app import App
     import warnings
 
@@ -2003,7 +2082,13 @@ class ArchlenceApp(
 # =========================================================================
 if __name__ == "__main__":
     if _KivyWindow is None:
-        print("No usable Kivy window backend detected; skipping GUI startup.")
+        # Bu noktaya yalnızca ARCHLENCE_HEADLESS=1 açıkça set edildiyse
+        # ulaşılır — aksi hâlde yukarıdaki Window/MDApp guard'ları pencere
+        # kurulamadığında zaten görünür bir hatayla dururdu (bkz. docs/
+        # ROADMAP.md Faz 1 madde 2). Bilinçli bir headless çağrısı olduğu
+        # için burada sessizce (exit 0) çıkmak doğru — bir GERÇEK kullanıcı
+        # bu koda hiç ulaşmaz.
+        print("ARCHLENCE_HEADLESS=1: GUI başlatılmadı, çıkılıyor.")
         raise SystemExit(0)
 
     ArchlenceApp().run()
