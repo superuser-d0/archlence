@@ -97,18 +97,68 @@ guarantees established earlier.
    files. Depends on (2) — testing a fallback that's designed to hide
    failures proves nothing.
 
-4. **Move user data out of the install directory, via `platformdirs`.**
-   `database/db.py:6-7` derives `DB_NAME` from `BASE_DIR` (the app's own
-   install location) — same pattern for logs, JSON config, and image
-   caches across `services/*.py` and `main.py`. On a packaged Windows
-   install this directory is commonly read-only (`Program Files`), so the
-   app likely can't persist any data at all post-install, or silently
-   writes into `VirtualStore` where the user will never find it.
-   `platformdirs` is already in `requirements.txt` and unused — no new
-   dependency needed, just use it: bundle dir (KV files, default assets),
-   user-data dir (SQLite + config), user-cache dir (logos, price cache),
-   user-log dir (crash logs). Depends on (3) — confirm the exe actually
-   runs before deciding where it's allowed to write.
+4. ~~**Move user data out of the install directory, via `platformdirs`.**~~
+   **Core done** — `database/db.py:6-7` derived `DB_NAME` from `BASE_DIR`
+   (the app's own install location), same pattern for config JSON, the
+   savings-goals store, crash logs, and the brand-icon cache across
+   `main.py`/`services/brand_icon_service.py`/`services/migration_service.py`.
+   On a packaged Windows install this directory is commonly read-only
+   (`Program Files`), so the app likely couldn't persist any data at all
+   post-install. `platformdirs` was already in `requirements.txt`, unused
+   — now wired in via `utils/app_paths.py`, a thin resolver
+   (`data_dir()`/`cache_dir()`/`log_dir()`) plus `migrate_legacy_path()`,
+   a generic single-file "move if source exists and destination doesn't,
+   never overwrite an existing destination" helper.
+   - Correction to the original text: this did **not** end up depending on
+     item (3) after all. The original reasoning ("confirm the exe actually
+     runs before deciding where it's allowed to write") was the same
+     over-cautious Windows-dependency pattern already corrected earlier in
+     this roadmap for the Kivy fallback and PIN throttling items — the
+     resolver and migration logic don't need a real Windows install to
+     verify; only the final "does the installed .exe actually persist data
+     where platformdirs says it will" acceptance check does, and that's a
+     smaller, separate concern than gating all the development work on it.
+   - `database/db.py::DB_NAME` now resolves via `data_dir()`; `get_connection()`
+     creates the target directory on first real connection (`data_dir()`
+     itself does zero I/O — resolving a path by importing this module,
+     which every test file does, must never touch the real filesystem).
+     `migrate_legacy_database_location()` is a separate, explicit function
+     — called once from `main.py::build()` before `initialize_database()`,
+     not triggered by import — moves an existing `BASE_DIR/finance.db`
+     into the new location for upgrading installs.
+   - `main.py`: crash log now opens under `log_dir()` instead of next to
+     `main.py`. Config JSON and the savings-goals store resolve through
+     new module-level helpers (`_resolve_config_path()`/
+     `_resolve_savings_store_path()`, deliberately `self`-free so they're
+     directly testable without a real window) that chain the *existing*
+     legacy "finora" rename (an even older app-name migration already in
+     the code) with the new `BASE_DIR` → `data_dir()` move.
+   - `services/brand_icon_service.py::BRAND_ICON_CACHE_DIR` now under
+     `cache_dir()` — no migration needed, it's a re-fetchable cache, not
+     user data.
+   - `services/migration_service.py::get_export_path()`'s Desktop-not-found
+     fallback now targets `data_dir()` instead of `BASE_DIR`, same
+     read-only-install-dir risk, same fix.
+   - Verified: 14 new tests across `tests/test_app_paths.py` (pure
+     resolver + migration mechanics, via monkeypatched `XDG_*` env vars —
+     confirms the wrapper actually delegates to `platformdirs` and that
+     `migrate_legacy_path` never overwrites a destination that already has
+     current data) and `tests/test_app_paths_wiring.py` (the `main.py`
+     helpers call the mechanics with the right source/destination pairs,
+     including the finora → archlence → `data_dir()` three-location
+     chain). Confirmed import-time side-effect-free: running the full test
+     suite creates no real `~/.local/share/Archlence` or
+     `~/.local/cache/Archlence` directory on the dev machine (checked
+     directly, not assumed) — `crash.log` is the one exception, and only
+     because it already had that exact same eager-write-on-import behavior
+     before this change, just pointed at the repo root instead of
+     `~/.local/state/Archlence/log/`.
+   - **Not done / explicitly deferred:** the real acceptance check — does
+     a genuinely installed Windows `.exe` actually persist data under
+     `%LOCALAPPDATA%\Archlence` and survive being read-only under
+     `Program Files` — needs a real Windows install, not something this
+     agent can verify. That's a small, focused check for whenever item (3)
+     happens, not a blocker for the work above.
 
 5. **Encryption: move to AEAD, generate a real key, use an OS keystore,
    version the ciphertext, migrate existing data.**

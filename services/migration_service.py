@@ -49,14 +49,18 @@ _DATE_FORMATS = [
 
 
 def get_export_path():
-    """Dışa aktarım hedefini döndürür: masaüstü varsa oraya, yoksa uygulama dizinine."""
+    """Dışa aktarım hedefini döndürür: masaüstü varsa oraya, yoksa kullanıcı-veri dizinine."""
     home = os.path.expanduser("~")
     for candidate in ("Masaüstü", "Desktop"):
         desktop = os.path.join(home, candidate)
         if os.path.isdir(desktop):
             return os.path.join(desktop, "archlence_export.csv")
-    from database.db import BASE_DIR
-    return os.path.join(BASE_DIR, "archlence_export.csv")
+    # docs/ROADMAP.md Faz 1 madde 4. Eskiden BASE_DIR'a (uygulamanın kendi
+    # kurulum dizini) düşerdi — paketlenmiş bir Windows kurulumunda bu
+    # genelde salt-okunur, Masaüstü bulunamazsa dışa aktarım burada
+    # sessizce başarısız olurdu.
+    from utils.app_paths import data_dir
+    return os.path.join(data_dir(), "archlence_export.csv")
 
 
 def _dec(value):
