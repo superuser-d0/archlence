@@ -143,13 +143,32 @@ guarantees established earlier.
    tested anyway by calling `ArchlenceApp.check_login` directly against a
    lightweight stand-in `self` (no real Kivy window needed for a plain
    Python method call); see `tests/test_pin_lazy_migration.py`.
-   **Not done, deliberately separated:** increasing backoff after failed
-   attempts and a temporary lockout past a threshold. That's new stateful
-   behavior (tracking attempt counts/timestamps somewhere, plus a UI
-   countdown/disabled-state), not a drop-in algorithm swap — bundling it
-   into this change would have made the main.py diff bigger and less
-   reviewable for no coupling reason (the algorithm swap and the lockout
-   don't depend on each other). Left as its own follow-up.
+
+   **Attempt throttling: done** — [PR #15](https://github.com/superuser-d0/archlence/pull/15),
+   landed separately as planned. Corrected course mid-session on this one:
+   originally deferred as "needs Windows/GUI to verify," which was wrong —
+   only the *acceptance* test (does a real window show the lockout message)
+   needs Windows; the actual throttle logic is pure and fully unit-testable
+   without a window, same as the hashing swap. `security.security_service.LoginThrottle`
+   tracks `{failed_attempts, last_failed_at}` as plain data the caller
+   owns (no hidden state in the class itself) — first `FAILED_ATTEMPT_THRESHOLD`
+   (3) wrong attempts have no delay (a mistyped PIN shouldn't be punished),
+   then lockout duration doubles per attempt up to a `LOCKOUT_MAX_SECONDS`
+   (300) cap. Every duration/expiry calculation takes an injectable `now`
+   (defaults to `time.time()`), so `tests/test_login_throttle.py`'s 11
+   tests run in 0.000s — no test sleeps to prove a 5-minute lockout expires.
+   **Decision made explicitly, not defaulted into:** lockout state is
+   persisted in `config_store` (same durable local storage `pin_hash`
+   already uses), survives app restart. An in-memory-only counter would
+   have been simpler to write but trivially defeated by restarting the
+   app — for a threat model that includes someone with physical/file
+   access to the device, that would have made the whole feature
+   decorative. Wired into `main.py::check_login`: a locked state now
+   blocks PIN verification entirely (correct PIN included — no signal an
+   attacker could use to distinguish "wrong PIN" from "locked out" get
+   evaluated differently), a fresh failure updates and persists the
+   counter, and success resets it. Covered by
+   `tests/test_pin_lazy_migration.py::PinThrottleTest`.
 
 ## Phase 2 — Hardening (after Phase 1 ships)
 

@@ -254,7 +254,7 @@ from mixins.history_mixin import HistoryMixin
 from mixins.scenario_mixin import ScenarioMixin
 from mixins.subscription_mixin import SubscriptionMixin
 from mixins.pending_mixin import PendingMixin
-from security.security_service import SecurityService
+from security.security_service import LoginThrottle, SecurityService
 from services.history_service import write_daily_snapshot
 from services.projection_service import project_final_wealth
 
@@ -1576,6 +1576,23 @@ class ArchlenceApp(
             self.root.ids.screen_manager.current = "pin_setup"
             return
 
+        # docs/ROADMAP.md Faz 1 madde 6 (Argon2id'den ayrı bırakılan kısım):
+        # ardışık başarısız denemelerden sonra artan gecikme/geçici kilit.
+        # Kilitliyken PIN HİÇ doğrulanmaz — ne doğru ne yanlış girişin
+        # throttle state'ine hiçbir etkisi olmaz, yalnızca kalan süre
+        # gösterilir. State kalıcı (config_store'da): uygulamayı yeniden
+        # başlatarak bypass edilemesin diye (bkz. LoginThrottle docstring'i).
+        throttle_state = (
+            self.config_store.get("security_throttle")
+            if self.config_store.exists("security_throttle") else {}
+        )
+        remaining = LoginThrottle.seconds_remaining(throttle_state)
+        if remaining > 0:
+            self._handle_failed_login(message=translate(
+                f"Çok fazla hatalı deneme. {int(remaining) + 1} saniye sonra tekrar deneyin."
+            ))
+            return
+
         security = self.config_store.get("security")
         if SecurityService.verify_password(pin, security["salt"], security["pin_hash"]):
             if SecurityService.needs_upgrade(security["pin_hash"]):
@@ -1589,9 +1606,20 @@ class ArchlenceApp(
                     "security", pin_hash=new_hash,
                     salt=security["salt"], is_set=True,
                 )
+            self.config_store.put(
+                "security_throttle", **LoginThrottle.record_success()
+            )
             self._handle_successful_login()
         else:
-            self._handle_failed_login()
+            new_throttle = LoginThrottle.record_failure(throttle_state)
+            self.config_store.put("security_throttle", **new_throttle)
+            new_remaining = LoginThrottle.seconds_remaining(new_throttle)
+            if new_remaining > 0:
+                self._handle_failed_login(message=translate(
+                    f"Çok fazla hatalı deneme. {int(new_remaining) + 1} saniye sonra tekrar deneyin."
+                ))
+            else:
+                self._handle_failed_login()
 
     def _handle_successful_login(self):
         self.root.ids.login_error_label.text = ""
@@ -1600,8 +1628,8 @@ class ArchlenceApp(
         # tüm tablolar boşalır), o yüzden giriş de aynı kapıdan geçer.
         self.root.ids.screen_manager.current = self.route_after_auth()
 
-    def _handle_failed_login(self):
-        self.root.ids.login_error_label.text = translate("Hatalı PIN!")
+    def _handle_failed_login(self, message=None):
+        self.root.ids.login_error_label.text = message or translate("Hatalı PIN!")
 
         pwd_container = self.root.ids.password_container
 
