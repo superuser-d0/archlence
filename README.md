@@ -217,6 +217,13 @@ Run the complete test suite with:
 python -m unittest discover -s tests -p "test_*.py"
 ```
 
+or the equivalent convenience wrapper (same discovery, verbose output, and
+a correct non-zero exit code on failure — this is what CI runs):
+
+```bash
+python run_tests.py
+```
+
 GUI checks may require a virtual display on headless Linux:
 
 ```bash
