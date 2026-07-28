@@ -13,6 +13,15 @@ name: Build Windows EXE
 #
 # Maliyet artık ihmal edilebilir: donma düzeltildikten sonra derleme ~3 dakika
 # sürüyor (PyInstaller adımı ~1 dk).
+#
+# İKİ artifact üretir:
+#   - Archlence-Windows: ham "onedir" klasörü (.exe + DLL/kaynak klasörü) —
+#     geliştirici/debug amaçlı, elle zip açıp klasör bütünlüğünü koruma
+#     gerektirir.
+#   - Archlence-Setup: installer/archlence.iss ile üretilen TEK dosyalık
+#     ArchlenceSetup.exe — son kullanıcı/test için, çift tıklayıp kurar,
+#     Başlat Menüsü kısayolu ve kaldırıcı otomatik gelir, yönetici izni
+#     gerektirmez (kullanıcı başına kurulum).
 on:
   push:
     branches: [ main ]
@@ -75,9 +84,31 @@ jobs:
         run: pyinstaller --noconfirm --log-level WARN archlence.spec
         timeout-minutes: 20
 
-      - name: .exe'yi artifact olarak yükle
+      - name: Ham .exe klasörünü artifact olarak yükle
         uses: actions/upload-artifact@v4
         with:
           name: Archlence-Windows
           path: dist/Archlence/
+          if-no-files-found: error
+
+      - name: Inno Setup ile tek dosyalık kurulum paketi oluştur
+        # windows-latest runner'ında Chocolatey zaten kurulu — Inno Setup'ı
+        # ayrıca indirip kurmaya gerek yok. ISCC.exe'yi PATH üzerinden DEĞİL,
+        # tam yoluyla çağırıyoruz: choco'nun PATH'e eklediği değişiklik aynı
+        # `run:` adımının (aynı kabuk oturumu) İÇİNDE her zaman hemen
+        # görünmeyebiliyor — bilinen bir Chocolatey/PowerShell pürüzü.
+        #
+        # NEDEN: dist/Archlence/ bir "onedir" çıktısı (.exe + yanında DLL/
+        # kaynak klasörü, bkz. archlence.spec) — son kullanıcı zip açıp
+        # klasör bütünlüğünü kendi koruma zorunda kalmasın diye installer/
+        # archlence.iss bunu TEK bir ArchlenceSetup.exe'ye sarmalıyor.
+        run: |
+          choco install innosetup -y --no-progress
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\archlence.iss
+
+      - name: Kurulum paketini artifact olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Archlence-Setup
+          path: installer_output/ArchlenceSetup.exe
           if-no-files-found: error

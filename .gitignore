@@ -22,6 +22,9 @@ build/
 dist/
 *.build/
 
+# Inno Setup çıktısı — installer/archlence.iss'ten CI her seferinde üretir
+installer_output/
+
 # IDE ajanlarının (Antigravity vb.) bıraktığı tek seferlik test çıktıları
 test_output*.txt
 test_exit*.txt
