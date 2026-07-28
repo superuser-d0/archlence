@@ -1833,13 +1833,41 @@ class ArchlenceApp(
     # Categories & AI Insights
     # -------------------------------------------------------------------------
     def load_categories(self, cat_type=None):
+        """Kategori Ayarları > Gelir/Gider arasında geçiş.
+
+        DÜZELTME (performans): varsayılan kategori listesi ~30 gelir + ~50
+        gider kategorisi içeriyor (bkz. database/init_db.py). Eskiden bu
+        fonksiyon hepsini TEK Clock karesinde, düz bir döngüyle inşa
+        ediyordu — her `CategorySettingItem` bir `MDSwitch` içeriyor
+        (KivyMD'de inşası pahalı bir widget: kendi animasyon/ripple
+        durumu var), yani "Gelir"/"Gider"e her basışta 30-50 tane ağır
+        widget'ı SENKRON olarak ana thread'de kurmaya çalışıyordu. Bu, tam
+        da kullanıcının bildirdiği "basınca donuyor" hissini üretir —
+        `update_metrics_and_goals`/`refresh_insights` gibi diğer ekranların
+        zaten kaçındığı aynı sınıf hata, yalnızca burası unutulmuştu.
+
+        Asıl maliyet SQL sorgusu değil (küçük bir tablo, mikrosaniyeler
+        sürer) — widget inşası. O yüzden çözüm "arka plan thread'i" değil,
+        inşayı birkaç kareye YAYMAK: bir kerede `_CATEGORY_BATCH_SIZE`
+        kadar widget eklenir, sonraki grup için `Clock.schedule_once(...,
+        0)` ile bir sonraki kareye bırakılır — Kivy aradaki karelerde
+        girdi/çizim işleyebilir, tek bir kare asla bloklanmaz.
+
+        Jenerasyon sayacı (`_metrics_generation` vb. ile aynı desen):
+        kullanıcı Gelir/Gider arasında hızlıca geçiş yaparsa, eski bir
+        yükleme artık geçerli olmayan `settings_list`'e widget eklemeye
+        devam etmez.
+        """
         if cat_type:
             self.active_category_type = cat_type
 
         settings_list = self.root.ids.settings_list
         settings_list.clear_widgets()
 
-        def _populate_categories(dt):
+        self._category_load_generation = getattr(self, "_category_load_generation", 0) + 1
+        generation = self._category_load_generation
+
+        def _fetch(dt):
             conn = get_connection()
             cursor = conn.cursor()
             cursor.execute(
@@ -1848,14 +1876,28 @@ class ArchlenceApp(
             )
             categories = cursor.fetchall()
             conn.close()
+            self._add_categories_incrementally(settings_list, categories, generation)
 
-            for cat_name, cat_type_val, cat_imp in categories:
-                item = CategorySettingItem(
-                    cat_name=cat_name, cat_type=cat_type_val, cat_importance=cat_imp
-                )
-                settings_list.add_widget(item)
+        Clock.schedule_once(_fetch, 0.1)
 
-        Clock.schedule_once(_populate_categories, 0.1)
+    _CATEGORY_BATCH_SIZE = 8
+
+    def _add_categories_incrementally(self, settings_list, categories, generation, index=0):
+        if generation != self._category_load_generation:
+            return  # bayat yükleme — kullanıcı zaten başka bir sekmeye geçti
+        end = min(index + self._CATEGORY_BATCH_SIZE, len(categories))
+        for cat_name, cat_type_val, cat_imp in categories[index:end]:
+            item = CategorySettingItem(
+                cat_name=cat_name, cat_type=cat_type_val, cat_importance=cat_imp
+            )
+            settings_list.add_widget(item)
+        if end < len(categories):
+            Clock.schedule_once(
+                lambda dt: self._add_categories_incrementally(
+                    settings_list, categories, generation, end
+                ),
+                0,
+            )
 
     def update_category_importance(self, category_name, is_active):
         new_importance = "main" if is_active else "extra"
