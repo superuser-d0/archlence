@@ -35,7 +35,17 @@ class TransactionMixin:
         ve isteğe bağlı "tekrarlanan ödeme" alanları (isim, sıklık, otomatik düş)."""
         from kivymd.uix.selectioncontrol import MDSwitch
 
-        self.selected_type = "income"
+        # DÜZELTME (doğruluk hatası): "Gider" segmenti aşağıda İLK eklenen
+        # (satır ~86) ve KivyMD'nin kendi göstergesi bunu varsayılan olarak
+        # görsel açıdan aktif gösteriyor — ama MDSegmentedControl'ün kendi
+        # kaynağı (`on_press_segment`) `on_active`'i YALNIZCA gerçek bir
+        # dokunuşla tetikliyor, hiçbir varsayılan senkronizasyon yok.
+        # `self.selected_type` burada "income" olarak kalsaydı: kullanıcı
+        # "Gider" zaten seçili görünüyor diye sekmeye hiç dokunmadan tutarı
+        # girip kaydederse, işlem SESSİZCE gelir olarak kaydedilirdi —
+        # ekranda gördüğünün tam tersi. Python durumu, görsel varsayılanla
+        # (Gider) eşleşecek şekilde burada kuruluyor.
+        self.selected_type = "expense"
         self.selected_category = _t("Kategori Seç")
         self.selected_frequency = "monthly"
 
@@ -151,7 +161,7 @@ class TransactionMixin:
         # Switch açılınca aşağıdaki abonelik alanları belirir.
         recurring_row = MDBoxLayout(
             orientation="horizontal", size_hint_y=None, height="44dp", spacing="12dp",
-            padding=[0, 0, dp(12), 0],
+            padding=[0, 0, dp(24), 0],
         )
         # Taksitli mod ile karşılıklı dışlama için self üzerinde tutulur.
         self._recurring_row = recurring_row
@@ -745,22 +755,35 @@ class TransactionMixin:
         content.add_widget(search_field)
         content.add_widget(scroll)
 
+        self._category_populate_generation = getattr(self, "_category_populate_generation", 0)
+
         def populate(query=""):
-            """Listeyi arama sorgusuna göre (harf duyarsız) yeniden doldurur."""
+            """Listeyi arama sorgusuna göre (harf duyarsız) yeniden doldurur.
+
+            DÜZELTME (performans): eskiden bu fonksiyon eşleşen TÜM
+            kategorileri (boş aramada ~30-50 tanesi, bkz. database/init_db.py)
+            TEK karede, senkron olarak inşa ediyordu — ve arama kutusuna her
+            karakter yazıldığında YENİDEN çalışıyordu (aşağıdaki
+            `search_field.bind`). main.py::load_categories'teki aynı hata
+            sınıfı (bkz. o fonksiyonun kendi düzeltme notu), burada daha da
+            sık tetikleniyordu. Aynı kademeli-ekleme + jenerasyon-koruması
+            deseni uygulandı: bir seferde yalnızca birkaç `OneLineListItem`
+            eklenir, kalanı sonraki kareye bırakılır; kullanıcı yazmaya devam
+            ederse bayat (bir önceki karakterin) yükleme kendini durdurur.
+            """
             self._category_list.clear_widgets()
             q = query.strip().lower()
             matches = [
                 n for n in self._all_categories
                 if q in n.lower() or q in _t(n).lower()
             ]
+            self._category_populate_generation += 1
+            generation = self._category_populate_generation
             if not matches:
                 self._category_list.add_widget(
                     OneLineListItem(text=_t("Sonuç yok"), disabled=True))
                 return
-            for name in matches:
-                item = OneLineListItem(text=_t(name))
-                item.bind(on_release=lambda inst, n=name: self.set_category(n))
-                self._category_list.add_widget(item)
+            self._add_category_items_incrementally(matches, generation)
 
         search_field.bind(text=lambda inst, val: populate(val))
         populate()
@@ -775,6 +798,27 @@ class TransactionMixin:
             )],
         )
         self.category_dialog.open()
+
+    _CATEGORY_MENU_BATCH_SIZE = 8
+
+    def _add_category_items_incrementally(self, names, generation, index=0):
+        from kivymd.uix.list import OneLineListItem
+
+        if generation != self._category_populate_generation:
+            return  # bayat arama sonucu — kullanıcı yazmaya devam etti
+        category_list = getattr(self, "_category_list", None)
+        if category_list is None:
+            return
+        end = min(index + self._CATEGORY_MENU_BATCH_SIZE, len(names))
+        for name in names[index:end]:
+            item = OneLineListItem(text=_t(name))
+            item.bind(on_release=lambda inst, n=name: self.set_category(n))
+            category_list.add_widget(item)
+        if end < len(names):
+            Clock.schedule_once(
+                lambda dt: self._add_category_items_incrementally(names, generation, end),
+                0,
+            )
 
     def set_category(self, text_item):
         self.category_button.text = _t(text_item)
