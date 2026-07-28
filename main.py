@@ -14,12 +14,32 @@ import datetime
 import faulthandler
 import traceback as _traceback
 
-from utils.app_paths import data_dir, log_dir, migrate_legacy_path
+from utils.app_paths import data_dir, log_dir, migrate_legacy_path, resource_dir
 
 # Bu dosyanın kendi dizini — eski (paketlenmiş kurulumda genelde salt-okunur)
 # konumları migrate_legacy_path çağrılarında kaynak olarak kullanmak için.
 # docs/ROADMAP.md Faz 1 madde 4.
 _APP_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# ÇÖKME DÜZELTMESİ (gerçek bir Windows kurulumunda ampirik olarak üretildi):
+# main.py'nin geri kalanı — `Builder.load_file("ui/tools.kv")`,
+# `database/db.py::NETWORK_LOGOS`, ui/components.py'nin KV'ye gömülü
+# "assets/blank.png" gibi literalleri — hep GÖRELİ yol kullanıyor, yani
+# çalışma dizininin (cwd) kurulum klasörüyle aynı olduğunu VARSAYIYOR. Bu
+# geliştirmede doğru (uygulama repo kökünden çalıştırılır) ama paketlenmiş
+# bir `.exe` Başlat Menüsü/masaüstü kısayolundan ya da Inno Setup'ın
+# kurulum-sonu "Başlat" adımından açıldığında Windows/Inno Setup çalışma
+# dizinini kurulum klasörüyle aynı yapacağını GARANTİ ETMEZ. Sonuç: gerçek
+# bir kullanıcı kurulumunda `FileNotFoundError: [Errno 2] No such file or
+# directory: 'ui/tools.kv'` ile açılışta çöküyordu.
+#
+# Her göreli-yol referansını tek tek mutlak yola çevirmek yerine (bazıları
+# .kv dosyalarına GÖMÜLÜ literal string, Python'dan dokunulamaz — bkz.
+# ui/components.py), süreç HER ŞEYDEN ÖNCE doğru dizine geçiyor. Bu, tüm
+# göreli referansları TEK bir yerden, hiçbirini teker teker bulmaya
+# gerek kalmadan düzeltiyor. Kivy/KivyMD importlarından ÖNCE yapılmalı ki
+# onların kendi olası göreli-yol varsayımları da doğru cwd'yi görsün.
+os.chdir(resource_dir())
 
 # =========================================================================
 # 2. CRASH REPORTING & EARLY CONFIGURATION

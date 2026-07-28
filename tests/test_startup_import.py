@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import tempfile
 import textwrap
 import unittest
 
@@ -19,7 +20,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _HAS_REAL_DISPLAY = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
 
-def _run(script, extra_env=None, strip_display=False):
+def _run(script, extra_env=None, strip_display=False, cwd=None):
     env = os.environ.copy()
     env.pop("KIVY_WINDOW", None)
     env.pop("ARCHLENCE_HEADLESS", None)
@@ -37,7 +38,7 @@ def _run(script, extra_env=None, strip_display=False):
         env.update(extra_env)
     return subprocess.run(
         [sys.executable, "-c", textwrap.dedent(script)],
-        cwd=PROJECT_ROOT, env=env, capture_output=True, text=True, timeout=120,
+        cwd=cwd or PROJECT_ROOT, env=env, capture_output=True, text=True, timeout=120,
     )
 
 
@@ -146,6 +147,77 @@ class StartupImportTest(unittest.TestCase):
             msg=f"stdout={completed.stdout!r} stderr={completed.stderr!r}",
         )
         self.assertIn("headless-no-display-ok", completed.stdout)
+
+
+class WorkingDirectoryIndependenceTest(unittest.TestCase):
+    """Gerçek bir Windows kurulumunda ampirik olarak üretilen çökme:
+    `Builder.load_file("ui/tools.kv")` gibi çağrılar göreli yol kullanıyor,
+    yani çalışma dizininin (cwd) kurulum klasörüyle aynı olduğunu
+    VARSAYIYORDU. Bu geliştirmede doğru (uygulama repo kökünden çalıştırılır)
+    ama paketlenmiş bir .exe Başlat Menüsü/masaüstü kısayolundan ya da Inno
+    Setup'ın kurulum-sonu "Başlat" adımından açıldığında YANLIŞ — gerçek bir
+    kullanıcı kurulumunda `FileNotFoundError: 'ui/tools.kv'` ile açılışta
+    çöküyordu (tam bu iz düşümüyle, kullanıcının kendi ekran görüntüsüne
+    karşı doğrulandı).
+
+    main.py artık başlangıçta `os.chdir(resource_dir())` çağırıyor. Bu test
+    tam olarak o hatayı üreten koşulu yeniden kuruyor: `import main`'i,
+    REPO KÖKÜNDEN BAŞKA bir çalışma dizininden tetikliyor."""
+
+    def test_import_corrects_a_wrong_working_directory(self):
+        """Pencere kurulup kurulmamasından TAMAMEN bağımsız: `os.chdir`,
+        main.py'nin en başında, Window importundan ÖNCE gerçekleşiyor —
+        bu yüzden ARCHLENCE_HEADLESS ile (gerçek pencere denemeden,
+        CI'nın kendi koşuluyla aynı) test ediliyor."""
+        with tempfile.TemporaryDirectory() as wrong_cwd:
+            completed = _run(
+                """
+                import os
+                before = os.getcwd()
+                import main
+                after = os.getcwd()
+                print(f"BEFORE={before}")
+                print(f"AFTER={after}")
+                """,
+                cwd=wrong_cwd,
+                extra_env={"ARCHLENCE_HEADLESS": "1"},
+                strip_display=True,
+            )
+        self.assertEqual(completed.returncode, 0, msg=completed.stderr)
+        self.assertIn(f"BEFORE={os.path.realpath(wrong_cwd)}", completed.stdout)
+        self.assertIn(f"AFTER={os.path.realpath(PROJECT_ROOT)}", completed.stdout)
+
+    @unittest.skipUnless(
+        _HAS_REAL_DISPLAY, "gerçek bir display sunucusu yok (ör. CI runner)"
+    )
+    def test_build_succeeds_when_launched_from_the_wrong_directory(self):
+        """Asıl regresyon kanıtı: yalnızca cwd'nin düzeldiğini değil,
+        `build()`'in (dolayısıyla `Builder.load_file("ui/tools.kv")`'nin)
+        yanlış bir dizinden başlatılınca da GERÇEKTEN çökmediğini
+        doğrular — kullanıcının bildirdiği hatanın birebir aynısı."""
+        with tempfile.TemporaryDirectory() as wrong_cwd:
+            completed = _run(
+                """
+                from kivy.clock import Clock
+                import main
+
+                app = main.ArchlenceApp()
+
+                def _check(dt):
+                    print("BUILD_SUCCEEDED")
+                    app.stop()
+
+                Clock.schedule_once(_check, 1.5)
+                app.run()
+                """,
+                cwd=wrong_cwd,
+            )
+        self.assertEqual(
+            completed.returncode, 0,
+            msg=f"stdout={completed.stdout!r} stderr={completed.stderr!r}",
+        )
+        self.assertIn("BUILD_SUCCEEDED", completed.stdout)
+        self.assertNotIn("FileNotFoundError", completed.stderr)
 
 
 if __name__ == "__main__":
