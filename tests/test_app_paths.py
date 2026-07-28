@@ -4,11 +4,12 @@ değil, platformdirs'in kendi okuduğu ortam değişkenleri (Linux'ta
 XDG_DATA_HOME vb.) monkeypatch'lenerek gerçek bir OS kurulumu gerekmeden
 test edilir."""
 import os
+import sys
 import tempfile
 import unittest
 from unittest import mock
 
-from utils.app_paths import cache_dir, data_dir, log_dir, migrate_legacy_path
+from utils.app_paths import cache_dir, data_dir, log_dir, migrate_legacy_path, resource_dir
 
 
 class PathResolutionTest(unittest.TestCase):
@@ -55,6 +56,45 @@ class PathResolutionTest(unittest.TestCase):
             with mock.patch.dict(os.environ, {"XDG_DATA_HOME": tmp}):
                 d = data_dir()
             self.assertIn("Archlence", d)
+
+
+class ResourceDirTest(unittest.TestCase):
+    """Gerçek bir Windows kurulumunda ampirik olarak üretilen çökmenin
+    (`FileNotFoundError: 'ui/tools.kv'`) kök nedenini kapatan fonksiyon.
+
+    `main.py` artık başlangıçta `os.chdir(resource_dir())` çağırıyor —
+    bu, `resource_dir()`'ın PAKETLENMİŞ (sys.frozen) ve GELİŞTİRME
+    modlarının İKİSİNDE de doğru dizini döndürdüğüne bağlı. `sys.frozen`/
+    `sys._MEIPASS`, PyInstaller'ın paketlenmiş bir .exe çalışırken gerçekten
+    ayarladığı öznitelikler — burada gerçek bir .exe olmadan (Linux'ta
+    mümkün değil) taklit ediliyor."""
+
+    def test_dev_mode_resolves_to_the_repo_root(self):
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.assertEqual(resource_dir(), repo_root)
+        # Gerçek bir işaret: repo kökünde ui/ ve assets/ var mı?
+        self.assertTrue(os.path.isdir(os.path.join(resource_dir(), "ui")))
+
+    def test_frozen_mode_resolves_to_sys_meipass_not_cwd_or_file(self):
+        """PyInstaller'ın kendi mekanizması: paketlenmiş bir derlemede
+        `sys.frozen = True` ve `sys._MEIPASS`, `datas=[...]` ile gömülen
+        dosyaların GERÇEKTE durduğu dizini gösterir — .exe'nin kendi
+        dizininden FARKLI olabilir (PyInstaller 6.x'in `_internal` alt
+        klasörü, bkz. archlence.spec). `__file__` ya da `os.getcwd()`'e
+        güvenmenin YANLIŞ olacağını kanıtlamak için ikisini de gerçek
+        değerden FARKLI bırakıyoruz."""
+        fake_meipass = "/some/fake/pyinstaller/bundle/dir"
+        with mock.patch.object(sys, "frozen", True, create=True), \
+                mock.patch.object(sys, "_MEIPASS", fake_meipass, create=True):
+            self.assertEqual(resource_dir(), fake_meipass)
+
+    def test_frozen_flag_absent_means_dev_mode_even_if_meipass_lingers(self):
+        """`sys.frozen` gerçekten False/yok olduğu sürece (gerçek geliştirme
+        ortamının hâli), `sys._MEIPASS` her ne sebeple olursa olsun ortamda
+        kalmış olsa bile göz ardı edilmeli."""
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with mock.patch.object(sys, "_MEIPASS", "/leftover/stale/path", create=True):
+            self.assertEqual(resource_dir(), repo_root)
 
 
 class MigrateLegacyPathTest(unittest.TestCase):

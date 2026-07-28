@@ -53,9 +53,24 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "..\dist\Archlence\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+; WorkingDir={app} HER İKİSİNDE DE BİLEREK AÇIK: main.py artık kendi
+; başlangıcında doğru dizine chdir ediyor (bkz. utils/app_paths.py::
+; resource_dir, main.py'deki FileNotFoundError düzeltmesi) — yani bu satır
+; olmadan da çalışması gerekir. Yine de burada belirtmek bedava bir ikinci
+; koruma katmanı: WorkingDir belirtilmezse [Icons] kısayolları {app}'ı
+; varsayılan alır, ama açıkça yazmak gelecekte main.py'nin kendi
+; düzeltmesi yanlışlıkla kaldırılırsa bile aynı çökmenin BURADAN
+; tekrarlanmasını engeller.
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
 Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; WorkingDir: "{app}"
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
+; WorkingDir={app} burada [Icons]'dan daha da önemliydi: Inno Setup'ın
+; [Run] girdileri için varsayılanı {app} DEĞİL, kurulumun kendi GEÇİCİ
+; dizinidir — belirtilmezse kurulum sonunda "Başlat" tıklanınca uygulama
+; kurulum tamamlanır tamamlanmaz zaten var olmayacak bir geçici dizinden
+; (ya da en azından {app}'tan FARKLI bir dizinden) açılırdı. Bu, main.py
+; düzeltmesinden BAĞIMSIZ olarak, kullanıcının bildirdiği çökmenin ikinci,
+; ayrı bir olası kaynağıydı.
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent

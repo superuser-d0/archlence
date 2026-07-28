@@ -19,6 +19,7 @@ taşımanın mekaniğini sağlar.
 """
 import os
 import shutil
+import sys
 
 from platformdirs import PlatformDirs
 
@@ -27,6 +28,35 @@ APP_NAME = "Archlence"
 
 def _dirs() -> PlatformDirs:
     return PlatformDirs(appname=APP_NAME, appauthor=False, ensure_exists=False)
+
+
+def resource_dir() -> str:
+    """Uygulamayla birlikte paketlenen, SALT-OKUNUR kaynakların (`ui/*.kv`,
+    `assets/*`) gerçekte durduğu dizin.
+
+    Gerçek bir Windows kurulumunda ampirik olarak doğrulanan çökme:
+    `main.py::build()`'daki `Builder.load_file("ui/tools.kv")` gibi çağrılar
+    ve `database/db.py::NETWORK_LOGOS` gibi sabitler, hep GÖRELİ yol
+    kullanıyordu — yani çalışma dizininin (`cwd`) kurulum klasörüyle AYNI
+    olduğunu VARSAYIYORDU. Bu varsayım geliştirmede doğru (uygulama repo
+    kökünden çalıştırılır) ama paketlenmiş bir `.exe`, Başlat Menüsü/
+    masaüstü kısayolundan ya da Inno Setup'ın kurulum-sonu "Başlat"
+    adımından açıldığında YANLIŞ — Windows/Inno Setup çalışma dizinini
+    kurulum klasörüyle aynı yapacağını GARANTİ ETMEZ. Sonuç: gerçek bir
+    kullanıcı kurulumunda `FileNotFoundError: [Errno 2] No such file or
+    directory: 'ui/tools.kv'` ile açılışta çöküyordu.
+
+    `sys._MEIPASS`, PyInstaller'ın (paketlenmiş, `sys.frozen` gerçek
+    olduğunda) `datas=[...]` ile gömülen dosyaları GERÇEKTE koyduğu
+    dizindir — `.exe`'nin kendisiyle AYNI dizin OLMAYABİLİR (PyInstaller
+    6.x varsayılan olarak `_internal` alt klasörünü kullanıyor, bkz.
+    archlence.spec). `__file__` ya da `os.getcwd()`'e güvenmek burada
+    YANLIŞ olurdu — ikisi de paketlenmiş bir yapıda güvenilir değil.
+    """
+    if getattr(sys, "frozen", False):
+        return sys._MEIPASS
+    # utils/app_paths.py -> utils/ -> repo kökü.
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def data_dir() -> str:
