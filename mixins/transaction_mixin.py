@@ -149,7 +149,10 @@ class TransactionMixin:
 
         # Tekrarlanan ödeme mi? (Kira, Netflix, Spotify vb. her ay tekrar eden giderler)
         # Switch açılınca aşağıdaki abonelik alanları belirir.
-        recurring_row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="44dp", spacing="12dp")
+        recurring_row = MDBoxLayout(
+            orientation="horizontal", size_hint_y=None, height="44dp", spacing="12dp",
+            padding=[0, 0, dp(12), 0],
+        )
         # Taksitli mod ile karşılıklı dışlama için self üzerinde tutulur.
         self._recurring_row = recurring_row
         recurring_lbl = MDLabel(text=_t("Tekrarlanan Ödeme mi?"), valign="center")
