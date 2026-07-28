@@ -381,6 +381,38 @@ MDScreen:
                                 on_active: app.toggle_theme(self.active)
                         MDSeparator:
 
+                        MDBoxLayout:
+                            orientation: "horizontal"
+                            size_hint_y: None
+                            height: "64dp"
+                            padding: ["20dp", 0, "20dp", 0]
+                            spacing: "20dp"
+                            MDIcon:
+                                icon: "palette-outline"
+                                size_hint_x: None
+                                width: "36dp"
+                                halign: "center"
+                                pos_hint: {"center_y": .5}
+                                theme_text_color: "Primary"
+                            MDBoxLayout:
+                                orientation: "vertical"
+                                MDLabel:
+                                    text: app.tr("Premium Mavi Tema", app.language)
+                                    theme_text_color: "Primary"
+                                MDLabel:
+                                    text: app.tr("Kapalıyken standart tema kullanılır", app.language)
+                                    font_style: "Caption"
+                                    theme_text_color: "Secondary"
+                            MDSwitch:
+                                size_hint_x: None
+                                width: "52dp"
+                                pos_hint: {"center_y": .5}
+                                icon_active: "check"
+                                icon_inactive: "close"
+                                active: app.theme_name == "premium"
+                                on_active: app.apply_theme("premium" if self.active else "standard")
+                        MDSeparator:
+
                         ClickableSettingsRow:
                             orientation: "horizontal"
                             size_hint_y: None
