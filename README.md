@@ -129,7 +129,7 @@ Notable implementation details include:
 - `SAVEPOINT`-backed settlement for due transactions;
 - SQLite migration guards for existing installations;
 - asynchronous asset-price workers with dynamic cache lifetimes;
-- local field-level protection for selected sensitive values;
+- AEAD (AES-256-GCM) field-level encryption with a random per-install key for newly written sensitive values, with backward-compatible reads for records still in the previous format;
 - daily balance snapshots and event replay for historical balances.
 
 ## Project status
@@ -138,10 +138,10 @@ Archlence is an early-stage open-source desktop application under active develop
 
 The current focus is:
 
-- strengthening local encryption and key management;
+- OS-keystore-backed key storage and migrating records still using the previous encryption scheme;
 - stabilizing credit-card and recurring-payment workflows;
 - expanding automated and regression test coverage;
-- improving packaging and installation;
+- automated verification that packaged builds actually launch correctly;
 - documenting architectural decisions;
 - making the project easier for outside contributors to understand and extend.
 
@@ -153,8 +153,8 @@ Archlence should not yet be treated as production financial infrastructure.
 
 The following areas are actively being improved:
 
-- the local encryption and key-management model;
-- installation and release packaging;
+- OS-keystore-backed key storage (currently a random key generated per install, stored in a local file) and migrating records still using the previous encryption scheme;
+- automated end-to-end verification that packaged builds actually launch — Windows now ships a real installer, but nothing in CI yet confirms the built app opens a window, which is how a real launch-time crash reached a tester before being caught and fixed;
 - consistency of sample-data presentation;
 - selected credit-card and recurring-payment flows;
 - some loading, localization, and UI edge cases;
@@ -216,6 +216,18 @@ pip install -r requirements.txt
 
 On first launch, Archlence guides you through creating a local PIN and setting up your first account.
 
+### Pre-built Windows installer
+
+If you'd rather not build from source, every push to `main` produces a
+single-file `ArchlenceSetup.exe` via GitHub Actions — see the
+`Archlence-Setup` artifact on the latest successful run of
+[Build Windows EXE](https://github.com/superuser-d0/archlence/actions/workflows/build-windows.yml).
+It installs per-user (no admin rights required) and doesn't touch any
+existing Archlence data. The build is unsigned, so Windows SmartScreen
+will show an "unrecognized app" warning on first run — this is expected
+for an app without a paid code-signing certificate, not a sign of
+tampering; choose "More info" → "Run anyway" to proceed.
+
 ## Tests
 
 The repository includes automated coverage for the ledger, transactions, accounts, subscriptions, pricing, budgeting, history, projections, security, and UI contracts.
@@ -254,6 +266,11 @@ Archlence is designed around local data ownership:
   corresponding OS-standard locations for each. Upgrading from an older
   version that stored these next to the application migrates them
   automatically on first launch;
+- sensitive transaction fields (amounts, descriptions) are encrypted at rest
+  with AES-256-GCM authenticated encryption, using a random key generated
+  per install and stored locally — not a value shared across installs.
+  Records written before this scheme was introduced remain readable
+  through a backward-compatible path until they're naturally rewritten;
 - settings, local databases, and runtime data are excluded from Git by default;
 - the application does not include analytics or advertising trackers;
 - CSV export provides a human-readable way to move supported records elsewhere;
@@ -266,14 +283,14 @@ Archlence is a personal finance management tool. It is not a bank, brokerage ser
 
 ## Roadmap
 
-- Stronger local encryption and installation-specific key management
+- OS-keystore-backed key storage and migration of existing records to the newer encryption scheme
 - Improved credit-card reliability and statement workflows
 - More consistent recurring-payment detection and presentation
 - Natural-language queries over local financial history
 - Local receipt parsing and categorization
 - More explainable forecasts and budget recommendations
 - Additional portfolio data sources and reporting options
-- Improved packaging and automated release workflows
+- Automated smoke-testing of packaged builds in CI (currently a manual step)
 - Contributor documentation and architecture decision records
 
 ## Contributing
