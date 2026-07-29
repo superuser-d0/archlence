@@ -1,11 +1,10 @@
-import math
 from math import sin, cos, radians
 from kivy.metrics import dp
 from kivy.clock import Clock
-from kivy.properties import NumericProperty, ColorProperty
+from kivy.properties import NumericProperty
 from kivy.uix.widget import Widget
 from kivy.graphics import (
-    Color, Line, RoundedRectangle, Ellipse, Mesh, Rectangle,
+    Color, Line, RoundedRectangle, Ellipse, Rectangle,
     PushMatrix, PopMatrix, Translate,
 )
 from kivy.core.text import Label as CoreLabel  # type: ignore
@@ -996,130 +995,11 @@ class HorizontalBarChart(Widget):
 
 
 
-class LiquidWaveWidget(Widget):
-    """Yatay, soldan sağa dolan ve üst kısmı dalgalı (sıvı animasyonlu) bir ilerleme çubuğu çizer.
-    Beklenen veri formatı:
-    Sözlük veya liste beklemez; 'progress' adlı NumericProperty üzerinden (0.0 ile 100.0 arası) değer alır.
-    """
-    phase      = NumericProperty(0.0)
-    progress   = NumericProperty(0.0)   # 0–100
-    wave_color = ColorProperty((0.1, 0.8, 0.2, 0.9))
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.bind(
-            pos=self._redraw, size=self._redraw,
-            phase=self._redraw, progress=self._redraw,
-            wave_color=self._redraw,
-        )
-        self._clock = Clock.schedule_interval(self._tick, 1 / 60.0)
-
-    def _tick(self, dt):
-        self.phase += 0.06
-        self._redraw()
-
-    def _redraw(self, *args):
-        from kivy.graphics import (
-            Color, Mesh, Line, RoundedRectangle,
-            StencilPush, StencilUse, StencilUnUse, StencilPop,
-        )
-        if not self.canvas: return
-        self.canvas.clear()
-        self.canvas.before.clear()
-        self.canvas.after.clear()
-        
-        if self.width <= 0 or self.height <= 0:
-            return
-
-        # Daha kibar: Tam hap şeklinde kenarlar
-        r          = self.height / 2.0
-        ratio      = max(0.0, min(1.0, self.progress / 100.0))
-        fill_width = self.width * ratio
-        base_y     = self.y
-        
-        # Daha dalgalı: Yüksek genlik, sıfırda ve yüzde yüzde sönümlü
-        if ratio <= 0.01:
-            amp = 0
-        elif ratio >= 0.99:
-            amp = dp(1)
-        else:
-            amp = dp(4.5)
-            
-        top_y_base = self.y + self.height - amp - dp(1)
-
-        wr, wg, wb, wa = self.wave_color
-
-        with self.canvas.before:
-            StencilPush()
-            RoundedRectangle(pos=self.pos, size=self.size, radius=[r])
-            StencilUse()
-            
-            # Empty track background (Daha yumuşak, entegre gri)
-            Color(0.5, 0.5, 0.5, 0.2)
-            RoundedRectangle(pos=self.pos, size=self.size, radius=[r])
-
-        with self.canvas:
-            if fill_width > 0:
-                # Dalganın ucunu (sağ taraf) küt değil, hap şeklinde maskelemek için 2. Stencil
-                StencilPush()
-                RoundedRectangle(pos=self.pos, size=(fill_width, self.height), radius=[r])
-                StencilUse()
-
-                wave_top = []
-                steps = max(1, int(self.width / 2))
-                # Dalga tüm genişlik boyunca hesaplanır, maske sayesinde sadece dolan kısım görünür
-                for i in range(steps + 1):
-                    px = self.x + (self.width * i / steps)
-                    # Daha hareketli, frekansı yüksek sıvı efekti
-                    py = top_y_base + math.sin(self.phase * 2.0 + px * 0.08) * amp
-                    wave_top.append((px, py))
-
-                Color(wr, wg, wb, wa)
-                mesh_verts = []
-                for (px, py) in wave_top:
-                    mesh_verts += [px, py,      0, 0]
-                    mesh_verts += [px, base_y,  0, 0]
-                indices = []
-                n = len(wave_top)
-                for i in range(n - 1):
-                    b = i * 2
-                    indices += [b, b+1, b+2, b+2, b+1, b+3]
-                if indices:
-                    Mesh(vertices=mesh_verts, indices=indices, mode='triangles')
-
-                # Wavy top üzerine beyaz parlama (Shine)
-                Color(1, 1, 1, 0.50)
-                crest = []
-                for px, py in wave_top:
-                    crest += [px, py]
-                if len(crest) >= 4:
-                    Line(points=crest, width=1.2)
-
-                # 2. Stencil'i doğru şekilde kapat (Kivy kuralları)
-                StencilUnUse()
-                RoundedRectangle(pos=self.pos, size=(fill_width, self.height), radius=[r])
-                StencilPop()
-
-        with self.canvas.after:
-            # 1. Stencil'i kapat
-            StencilUnUse()
-            RoundedRectangle(pos=self.pos, size=self.size, radius=[r])
-            StencilPop()
-            
-            # Capsule outline border in the fill colour
-            Color(wr, wg, wb, 0.45)
-            Line(rounded_rectangle=[self.x, self.y, self.width, self.height, r], width=1.0)
-
-    def on_parent(self, *args):
-        if not self.parent:
-            self._clock.cancel()
-
-
 class ConfettiWidget(Widget):
     """Birikim hedefinde bir eşik (%25/50/75/100) geçildiğinde tetiklenen kısa
     süreli konfeti patlaması. burst() çağrılana kadar tamamen pasif kalır; tüm
-    parçacıklar söndüğünde kendi Clock'unu iptal eder (LiquidWaveWidget'taki
-    sürekli tick'in aksine, burada yalnızca aktifken tick atan bir döngü kullanılır).
+    parçacıklar söndüğünde kendi Clock'unu iptal eder; yalnızca aktifken
+    tick atan bir döngü kullanılır.
     """
 
     PALETTE = [
