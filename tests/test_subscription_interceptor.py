@@ -47,6 +47,35 @@ class SubscriptionDetectionTest(unittest.TestCase):
             self.assertTrue(recurring_service.looks_like_subscription(
                 "Ekstra Gider", "NETFLIX.COM 12/2026"))
 
+    def test_proton_products_are_detected_as_subscriptions(self):
+        from services.recurring_service import looks_like_subscription
+        for description in (
+            "Proton VPN Plus", "ProtonMail", "Proton Pass Plus",
+            "Proton Drive", "Proton Unlimited", "Proton",
+        ):
+            with self.subTest(description=description):
+                self.assertTrue(looks_like_subscription(
+                    "Ekstra Gider", description,
+                ))
+
+    def test_extended_catalog_products_are_detected_as_subscriptions(self):
+        from services.recurring_service import looks_like_subscription
+        descriptions = (
+            "Paramount Plus", "Peacock Premium", "Crunchyroll", "Tidal",
+            "SoundCloud Go", "EA Play", "Ubisoft Plus", "Slack Pro",
+            "Zoom Pro", "LinkedIn Premium", "Meta Verified", "Storytel",
+            "Audible Plus", "Kindle Unlimited", "Blinkist", "Figma",
+            "JetBrains", "1Password", "LastPass", "Claude Pro",
+            "Gemini Advanced", "Udemy", "Coursera Plus", "Duolingo Super",
+            "Skillshare", "MACFit", "Club Sporium", "Strava",
+            "Headspace", "Patreon", "Wikipedia", "tabii",
+        )
+        for description in descriptions:
+            with self.subTest(description=description):
+                self.assertTrue(looks_like_subscription(
+                    "Ekstra Gider", description,
+                ))
+
     def test_unknown_brand_stays_undetected(self):
         from services import recurring_service
         with mock.patch.object(recurring_service, "KNOWN_BRANDS", ["netflix"]):

@@ -45,23 +45,30 @@ KNOWN_BRANDS = [
     "netflix", "spotify", "youtube premium", "youtube music", "amazon prime",
     "prime video", "disney+", "disney plus", "blutv", "exxen", "mubi",
     "deezer", "tabii", "hbo max", "apple music", "apple tv", "apple one",
-    "twitch",
+    "twitch", "paramount plus", "paramount+", "peacock", "crunchyroll",
+    "tidal", "soundcloud go", "soundcloud",
     # Kitap / sesli kitap
     "storytel", "audible", "kindle unlimited", "blinkist",
     # Yazılım / lisans / bulut
     "adobe", "creative cloud", "microsoft 365", "office 365", "icloud",
     "google one", "dropbox", "notion", "figma", "canva", "jetbrains",
     "github", "1password", "lastpass", "nordvpn", "expressvpn",
+    "proton vpn", "protonvpn", "proton mail", "protonmail", "proton pass",
+    "protonpass", "proton drive", "protondrive", "proton calendar",
+    "protoncalendar", "proton unlimited", "proton duo", "proton family",
+    "proton visionary", "proton",
     "chatgpt", "openai", "claude", "anthropic", "gemini advanced",
+    "slack", "zoom", "linkedin premium", "meta verified",
     # Eğitim / kurs
     "udemy", "coursera", "duolingo", "skillshare",
     # Spor / sağlık / üyelik
-    "macfit", "sporium", "strava", "headspace", "spotify premium",
+    "macfit", "club sporium", "clubsporium", "sporium", "strava",
+    "headspace", "spotify premium",
     # Bağış / üyelik
     "patreon", "wikipedia",
     # Oyun
     "playstation plus", "ps plus", "xbox game pass", "game pass",
-    "nintendo online",
+    "nintendo online", "ea play", "ubisoft+", "ubisoft plus",
 ]
 
 
