@@ -57,6 +57,10 @@ KNOWN_BRANDS = [
     "protonpass", "proton drive", "protondrive", "proton calendar",
     "protoncalendar", "proton unlimited", "proton duo", "proton family",
     "proton visionary", "proton",
+    # Telekomünikasyon / internet
+    "türk telekom", "turk telekom", "türktelekom", "turktelekom", "ttnet",
+    "vodafone türkiye", "vodafone turkey", "vodafone net", "vodafone",
+    "turkcell superonline", "superonline", "turkcell",
     "chatgpt", "openai", "claude", "anthropic", "gemini advanced",
     "slack", "zoom", "linkedin premium", "meta verified",
     # Eğitim / kurs
@@ -94,6 +98,28 @@ def next_due_for_recurrence(
     advanced = date.fromisoformat(_advance_due_date(source.isoformat(), frequency))
     valid_day = min(day, calendar.monthrange(advanced.year, advanced.month)[1])
     return advanced.replace(day=valid_day).isoformat()
+
+
+def initial_recurring_income_date(
+        reference_date: date, recurrence_day: int, include_current_month: bool
+) -> date | None:
+    """İlk maaş kaydının tarihini kullanıcı kararına göre belirler.
+
+    Ayın seçilen günü geçtiyse "bu ayı dahil et" bugüne yazar; henüz
+    gelmediyse o güne bekleyen işlem planlar. 29-31 seçimleri kısa aylarda
+    ayın son gününe sıkıştırılır. Dahil edilmeyen ay hiç işlem üretmez.
+    """
+    if not include_current_month:
+        return None
+    day = int(recurrence_day)
+    if not 1 <= day <= 31:
+        raise ValueError("Tekrarlama günü 1 ile 31 arasında olmalıdır.")
+    valid_day = min(
+        day,
+        calendar.monthrange(reference_date.year, reference_date.month)[1],
+    )
+    occurrence = reference_date.replace(day=valid_day)
+    return occurrence if occurrence > reference_date else reference_date
 
 
 def looks_like_subscription(category, description="", is_credit_card=False):

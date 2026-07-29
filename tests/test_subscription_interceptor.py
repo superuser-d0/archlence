@@ -7,8 +7,8 @@ kilitler:
   * Radar kaydı yardımcı bir kolaylıktır: orada bir sorun çıksa bile
     kullanıcının gerçek harcaması kaydedilmiş kalır.
 
-NOT: `KNOWN_BRANDS` bilerek boş bırakıldı (marka listesini Gemini dolduracak),
-bu yüzden marka bazlı algılama testleri listeyi geçici olarak yamalıyor.
+Marka kataloğu gerçek servis adlarını içerir; dar kural testleri gerektiğinde
+listeyi geçici olarak yamalayarak tek bir sinyali izole eder.
 """
 import os
 import tempfile
@@ -56,6 +56,21 @@ class SubscriptionDetectionTest(unittest.TestCase):
             with self.subTest(description=description):
                 self.assertTrue(looks_like_subscription(
                     "Ekstra Gider", description,
+                ))
+
+    def test_telecom_bills_are_detected_as_subscriptions(self):
+        from services.recurring_service import looks_like_subscription
+        for description in (
+            "Türk Telekom mobil faturası",
+            "TTNET internet",
+            "Vodafone Red tarifesi",
+            "Vodafone Net",
+            "Turkcell Platinum",
+            "Turkcell Superonline",
+        ):
+            with self.subTest(description=description):
+                self.assertTrue(looks_like_subscription(
+                    "Faturalar", description,
                 ))
 
     def test_extended_catalog_products_are_detected_as_subscriptions(self):

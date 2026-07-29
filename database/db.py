@@ -410,12 +410,16 @@ def get_asset_transaction_history(limit=50):
 
 def insert_recurring_payment(
         name, amount, category, frequency, next_due_date, auto_deduct,
-        account_id=DEFAULT_ACCOUNT_ID, recurrence_day=None):
+        account_id=DEFAULT_ACCOUNT_ID, recurrence_day=None,
+        transaction_type="expense"):
     if recurrence_day is None:
         recurrence_day = int(str(next_due_date)[8:10])
     recurrence_day = int(recurrence_day)
     if not 1 <= recurrence_day <= 31:
         raise ValueError("Tekrarlama günü 1 ile 31 arasında olmalıdır.")
+    transaction_type = str(transaction_type or "expense").strip().lower()
+    if transaction_type not in ("income", "expense"):
+        raise ValueError("Tekrarlanan işlem türü income veya expense olmalıdır.")
     with managed_connection() as conn:
         cursor = conn.cursor()
         enc_name = encrypt(str(name), SECRET_KEY)
@@ -423,11 +427,12 @@ def insert_recurring_payment(
         cursor.execute("""
             INSERT INTO recurring_payments
                 (name, amount, category, frequency, next_due_date, recurrence_day,
-                 auto_deduct, is_active, account_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+                 auto_deduct, is_active, account_id, transaction_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
         """, (
             enc_name, enc_amount, category, frequency, next_due_date,
             recurrence_day, int(bool(auto_deduct)), account_id,
+            transaction_type,
         ))
         conn.commit()
 
@@ -480,6 +485,11 @@ def get_active_recurring_payments():
             "recurrence_day": r["recurrence_day"],
             "auto_deduct":   bool(r["auto_deduct"]),
             "account_id":    r["account_id"],
+            "transaction_type": (
+                r["transaction_type"]
+                if "transaction_type" in r.keys()
+                else "expense"
+            ),
         })
     return payments
 
@@ -524,10 +534,7 @@ def _advance_due_date(date_str, frequency):
 
 
 def process_due_recurring_payment(payment):
-    """Vadesi gelen tekrarlanan ödemeyi işler: transactions tablosuna gider olarak
-    yazar (insert_asset_transaction'daki 'yan etki olarak transactions'a yazma'
-    kalıbını izler) ve next_due_date'i bir periyot ileri alır. Bu sayede aynı gün
-    tekrar çağrılsa da ödeme yeniden düşmez (next_due_date artık bugünü geçmiştir)."""
+    """Vadesi gelen tekrarlanan gelir/gideri işler ve vadeyi ilerletir."""
     from datetime import datetime
     # Sıklığı herhangi bir finansal yazımdan önce doğrula. Geçersiz eski bir
     # kayıt transaction/bakiye yazıp sonra vade hesabında yarım kalmamalı.
@@ -540,14 +547,26 @@ def process_due_recurring_payment(payment):
     )
     with managed_connection() as conn:
         cursor = conn.cursor()
+        transaction_type = str(
+            payment.get("transaction_type") or "expense"
+        ).strip().lower()
+        if transaction_type not in ("income", "expense"):
+            raise ValueError("Geçersiz tekrarlanan işlem türü.")
         enc_amount = encrypt(str(payment["amount"]), SECRET_KEY)
         enc_desc = encrypt(f"{payment['name']} (Otomatik)", SECRET_KEY)
         tx_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cursor.execute("""
             INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
-            VALUES (?, ?, 'expense', ?, ?, ?)
-        """, (payment["account_id"], enc_amount, payment["category"], enc_desc, tx_date))
-        adjust_account_balance(cursor, payment["account_id"], "expense", payment["amount"])
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (
+            payment["account_id"], enc_amount, transaction_type,
+            payment["category"], enc_desc, tx_date,
+        ))
+        adjust_account_balance(
+            cursor, payment["account_id"], transaction_type,
+            payment["amount"], ref_id=cursor.lastrowid,
+            source="recurring_payment",
+        )
 
         cursor.execute("UPDATE recurring_payments SET next_due_date = ? WHERE id = ?", (new_due, payment["id"]))
         conn.commit()

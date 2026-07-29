@@ -1416,8 +1416,18 @@ class ArchlenceApp(
     def update_sg_period(self, segment, item):
         self.sg_period = item.text
 
-    def refresh_dashboard_data(self, list_filter=None):
-        import threading
+    def refresh_dashboard_data(self, list_filter=None, reuse_if_fresh=False):
+        from services.asset_service import financial_chart_cache_key
+
+        dashboard_key = financial_chart_cache_key(
+            getattr(self, "home_filter", "Bugün")
+        )
+        if (
+            reuse_if_fresh
+            and getattr(self, "_dashboard_rendered_cache_key", None)
+            == dashboard_key
+        ):
+            return False
 
         try:
             # update_metrics_and_goals metrikleri ve değişim oranını aynı
@@ -1434,6 +1444,16 @@ class ArchlenceApp(
             self.refresh_insights()
         except Exception as e:
             print("Error refreshing insights:", e)
+
+        if not list_filter:
+            list_filter = getattr(self, "home_filter", "Günlük")
+        self._refresh_recent_transactions(list_filter)
+        self._dashboard_rendered_cache_key = dashboard_key
+        return True
+
+    def _refresh_recent_transactions(self, list_filter=None):
+        """Yalnız son işlemler listesini arka planda yeniler."""
+        import threading
 
         if not list_filter:
             list_filter = getattr(self, "home_filter", "Günlük")

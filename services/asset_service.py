@@ -25,6 +25,7 @@ fiyatını USD güncel fiyatla kıyaslar ve tamamen yanlış sonuç üretirdi.
 
 import threading
 import time
+from datetime import date
 
 _PORTFOLIO_CACHE_TABLE = "asset_portfolio_cache"
 _PORTFOLIO_CACHE_TTL = 300
@@ -61,12 +62,24 @@ _warmup_generation = 0
 # Çözüm tek tek çağrı noktalarına tazeleme eklemek değil (unutulmaya devam
 # ederdi): yazan taraf bayrağı DÜŞÜRÜR, okuyan taraf gerekiyorsa tazeler.
 _account_cache_stale = False
+_financial_data_revision = 0
 
 
 def mark_account_cache_stale():
-    """accounts.balance'a dokunan her yazımdan sonra çağrılır (ucuz, sadece bayrak)."""
-    global _account_cache_stale
+    """Finansal yazımdan sonra hesap snapshot'ını ve grafik sürümünü eskitir."""
+    global _account_cache_stale, _financial_data_revision
     _account_cache_stale = True
+    _financial_data_revision += 1
+
+
+def get_financial_data_revision():
+    """Grafiklerin dayandığı finansal verinin süreç-içi monoton sürümü."""
+    return _financial_data_revision
+
+
+def financial_chart_cache_key(period):
+    """Dönem + veri sürümü + takvim gününden güvenli grafik anahtarı üretir."""
+    return (str(period), _financial_data_revision, date.today().isoformat())
 
 
 def ensure_account_cache_fresh():
@@ -93,10 +106,12 @@ def ensure_account_cache_fresh():
 def invalidate_asset_data_cache(deleted_account_id=None, deleted_card_debt=0.0):
     """Eski worker'ı iptal edip snapshot'tan silinen kartı atomik çıkarır."""
     global _asset_data_cache, _warmup_generation, _account_cache_stale
+    global _financial_data_revision
     # Snapshot burada zaten cerrahi olarak yeniden kuruluyor; bayrağı düşürmek
     # `render_accounts`'ın üstüne bir de tam tazeleme yapmasını önler (silme
     # yolundaki solma animasyonu bu cerrahi güncellemeye bağlı).
     _account_cache_stale = False
+    _financial_data_revision += 1
     with _warmup_lock:
         _warmup_generation += 1
         previous = _asset_data_cache or {}

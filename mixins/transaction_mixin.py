@@ -165,11 +165,14 @@ class TransactionMixin:
         )
         # Taksitli mod ile karşılıklı dışlama için self üzerinde tutulur.
         self._recurring_row = recurring_row
-        recurring_lbl = MDLabel(text=_t("Tekrarlanan Ödeme mi?"), valign="center")
-        recurring_lbl.bind(size=recurring_lbl.setter('text_size'))
+        self._recurring_label = MDLabel(
+            text=_t("Tekrarlanan Ödeme mi?"), valign="center",
+        )
+        self._recurring_label.bind(
+            size=self._recurring_label.setter('text_size'))
         self.recurring_switch = MDSwitch(size_hint_x=None, width=dp(65))
         self.recurring_switch.bind(active=self._toggle_recurring_fields)
-        recurring_row.add_widget(recurring_lbl)
+        recurring_row.add_widget(self._recurring_label)
         recurring_row.add_widget(self.recurring_switch)
 
         # ── Aşamalı olarak açılan (varsayılan GİZLİ) abonelik alanları ──────────
@@ -196,10 +199,14 @@ class TransactionMixin:
         self.recurring_freq_segment.bind(on_active=self.on_recurring_freq_active)
 
         auto_deduct_row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="44dp", spacing="12dp")
-        auto_deduct_lbl = MDLabel(text=_t("Vadesi Gelince Otomatik Düş"), valign="center")
-        auto_deduct_lbl.bind(size=auto_deduct_lbl.setter('text_size'))
+        self._auto_deduct_label = MDLabel(
+            text=_t("Vadesi Gelince Otomatik Düş"), valign="center",
+        )
+        self._auto_deduct_label.bind(
+            size=self._auto_deduct_label.setter("text_size"),
+        )
         self.auto_deduct_switch = MDSwitch(size_hint_x=None, width=dp(65))
-        auto_deduct_row.add_widget(auto_deduct_lbl)
+        auto_deduct_row.add_widget(self._auto_deduct_label)
         auto_deduct_row.add_widget(self.auto_deduct_switch)
 
         # Abonelik alanları TEK bir wrapper'da toplanır. Gizleme = wrapper'ı
@@ -216,6 +223,7 @@ class TransactionMixin:
         self._recurring_box.add_widget(self.recurring_freq_segment)
         self._recurring_box.add_widget(auto_deduct_row)
         self._recurring_visible = False
+        self._update_recurring_copy()
 
         # ── Taksit alanları (varsayılan GİZLİ) ─────────────────────────────────
         # Yalnızca Gider + kredi kartı seçiliyken görünür (aşamalı gösterim,
@@ -558,8 +566,41 @@ class TransactionMixin:
         self.selected_category = _t("Kategori Seç")
         self.category_button.text = _t("Kategori Seç")
         self._revalidate_payment_method()
+        self._update_recurring_copy()
         self._update_installment_visibility()
         self._update_mini_card_preview()
+
+    def _update_recurring_copy(self):
+        """Tekrarlama alanlarını seçilen nakit-akışı yönüne göre adlandırır."""
+        is_income = getattr(self, "selected_type", "expense") == "income"
+        day_field = getattr(self, "recurrence_day_input", None)
+        auto_label = getattr(self, "_auto_deduct_label", None)
+        recurring_label = getattr(self, "_recurring_label", None)
+        name_field = getattr(self, "recurring_name_input", None)
+        if recurring_label is not None:
+            recurring_label.text = _t(
+                "Tekrarlanan Gelir mi?"
+                if is_income
+                else "Tekrarlanan Ödeme mi?"
+            )
+        if day_field is not None:
+            day_field.hint_text = _t(
+                "Her Ayın Hangi Günü Yatacak? (1-31)"
+                if is_income
+                else "Her Ayın Hangi Günü Ödenecek? (1-31)"
+            )
+        if auto_label is not None:
+            auto_label.text = _t(
+                "Vadesi Gelince Otomatik Ekle"
+                if is_income
+                else "Vadesi Gelince Otomatik Düş"
+            )
+        if name_field is not None:
+            name_field.hint_text = _t(
+                "Gelir Adı (örn: Maaş)"
+                if is_income
+                else "Ödeme Adı (örn: Netflix)"
+            )
 
     # ─── Ödeme yöntemi (hesap / kart seçimi) ─────────────────────────────────
 
@@ -840,7 +881,7 @@ class TransactionMixin:
         if switch is not None:
             apply_category_trigger(category, switch)
 
-    def save_transaction(self, *args):
+    def save_transaction(self, *args, include_current_income=None):
         """Girilen işlemi doğrular ve arka planda şifreleyip veritabanına yazar.
 
         Doğrulama (kategori seçili mi, miktar geçerli ve pozitif mi) ana thread'de;
@@ -874,8 +915,16 @@ class TransactionMixin:
                 if not 1 <= recurrence_day <= 31:
                     raise ValueError
             except (TypeError, ValueError):
-                toast(_t("Ödeme günü 1 ile 31 arasında olmalıdır."))
+                toast(_t("Tekrarlama günü 1 ile 31 arasında olmalıdır."))
                 return
+
+        if (
+            is_recurring
+            and self.selected_type == "income"
+            and include_current_income is None
+        ):
+            self._ask_include_current_income()
+            return
 
         # Taksit: yalnızca görünür Taksitli seçimde ve 2+ taksitte plan yazılır
         # (1 taksit fiilen tek çekimdir). Aylık tutar serviste toplam/ay olarak
@@ -896,19 +945,31 @@ class TransactionMixin:
         # gönderime ait değişmez değerleri ve dialog örneğini kullanmalı.
         submitted_dialog = self.dialog
         submitted_account_id = self.selected_account_id
+        # Dialog açılırken zaten okunan snapshot'ı worker'a taşı. Her kayıt
+        # işleminde bütün hesapları yeniden sorgulayıp çözmek gereksiz DB ve
+        # şifreleme yükünün yanı sıra SQLite kilit rekabeti yaratıyordu.
+        submitted_account = next(
+            (account for account in getattr(self, "_payment_methods", [])
+             if account["id"] == submitted_account_id),
+            None,
+        )
         submitted_type = self.selected_type
         submitted_category = self.selected_category
         # Seçilen tarih de gönderime ait değişmez bir değer: worker çalışırken
         # kullanıcı formu yeniden açarsa self.selected_transaction_date başka
         # bir diyaloga ait olabilir.
         submitted_date = getattr(self, "selected_transaction_date", None)
+        if is_recurring and submitted_type == "income" and include_current_income:
+            from services.recurring_service import initial_recurring_income_date
+            submitted_date = initial_recurring_income_date(
+                datetime.date.today(), recurrence_day, True,
+            )
         submitted_is_future = bool(
             submitted_date and submitted_date > datetime.date.today()
         )
 
-        if is_recurring and self.selected_type == "expense":
-            # Abonelik Duplikasyonu koruması: aynı isimle (harf duyarsız)
-            # ikinci kez aktif bir abonelik eklenmesin.
+        if is_recurring:
+            # Aynı isimle ikinci aktif gelir/gider planı oluşturulmasın.
             from database.db import has_active_recurring_payment
             if has_active_recurring_payment(recurring_name):
                 toast(_t("Bu isimde aktif bir aboneliğiniz zaten var!"))
@@ -935,7 +996,15 @@ class TransactionMixin:
             # İleri tarihli işlem bakiyeye yansımadı; kullanıcı "kaydettim ama
             # bakiyem değişmedi" diye tereddüt etmesin, mesaj bunu söylesin ve
             # bekleyenler paneli anında güncellensin.
-            if submitted_is_future:
+            if (
+                is_recurring
+                and submitted_type == "income"
+                and include_current_income is False
+            ):
+                toast(_t(
+                    "Tekrarlanan gelir kaydedildi; bu ay dahil edilmedi."
+                ))
+            elif submitted_is_future:
                 if hasattr(self, "load_pending_transactions"):
                     try:
                         self.load_pending_transactions()
@@ -958,14 +1027,9 @@ class TransactionMixin:
         def background_task():
             try:
                 from database.db import DEFAULT_ACCOUNT_ID
-                from services.account_service import AccountService
                 # Kullanıcının seçtiği hesap/kart; seçim yoksa eski davranış.
                 account_id = submitted_account_id or DEFAULT_ACCOUNT_ID
-                selected_account = next(
-                    (account for account in AccountService.get_accounts()
-                     if account["id"] == account_id),
-                    None,
-                )
+                selected_account = submitted_account
                 if selected_account and is_read_only_asset_account(selected_account):
                     raise ValueError(
                         "Aktif Varlık hesabı salt okunurdur ve harcama kaynağı olamaz."
@@ -987,25 +1051,30 @@ class TransactionMixin:
                     else:
                         submitted_timestamp = f"{submitted_date.isoformat()} 09:00:00"
 
-                TransactionService.add_transaction(
-                    account_id=account_id,
-                    amount=user_amount,
-                    transaction_type=submitted_type,
-                    category=submitted_category,
-                    description=description,
-                    transaction_date=submitted_timestamp,
-                    installments=use_installments,
-                    # Kullanıcı "Tekrarlanan Ödeme" switch'ini açtıysa abonelik
-                    # kaydını aşağıda BU akış yazıyor; interceptor'ı da
-                    # çalıştırmak aynı aboneliği iki kez eklerdi.
-                    detect_subscription=not is_recurring,
+                include_initial_transaction = not (
+                    is_recurring
+                    and submitted_type == "income"
+                    and include_current_income is False
                 )
-                # render_accounts ön-ısıtılmış snapshot okur. DB yazımından
-                # hemen sonra snapshot'ı bu worker içinde yenilemezsek başarı
-                # callback'i eski bakiyeyi tekrar çizer.
-                from services.asset_service import refresh_account_cache_snapshot
-                refresh_account_cache_snapshot()
-                if is_recurring and submitted_type == "expense":
+                if include_initial_transaction:
+                    TransactionService.add_transaction(
+                        account_id=account_id,
+                        amount=user_amount,
+                        transaction_type=submitted_type,
+                        category=submitted_category,
+                        description=description,
+                        transaction_date=submitted_timestamp,
+                        installments=use_installments,
+                        # Plan kaydını aşağıdaki akış yazar; interceptor aynı
+                        # aboneliği ikinci kez oluşturmamalı.
+                        detect_subscription=not is_recurring,
+                    )
+                    # Başarı callback'i yalnız RAM snapshot'ından çiziyor.
+                    from services.asset_service import (
+                        refresh_account_cache_snapshot,
+                    )
+                    refresh_account_cache_snapshot()
+                if is_recurring:
                     from database.db import insert_recurring_payment
                     from services.recurring_service import next_due_for_recurrence
                     next_due = next_due_for_recurrence(
@@ -1018,6 +1087,7 @@ class TransactionMixin:
                         recurring_frequency, next_due, recurring_auto_deduct,
                         account_id=account_id,
                         recurrence_day=recurrence_day,
+                        transaction_type=submitted_type,
                     )
                 Clock.schedule_once(success_callback, 0)
             except ValueError as e:
@@ -1030,6 +1100,47 @@ class TransactionMixin:
                 Clock.schedule_once(error_callback, 0)
 
         threading.Thread(target=background_task, daemon=True).start()
+
+    def _ask_include_current_income(self):
+        """Tekrarlanan gelirin ilk ayını kullanıcıya açıkça seçtirir."""
+        existing = getattr(self, "recurring_income_period_dialog", None)
+        if existing is not None:
+            try:
+                existing.dismiss()
+            except Exception:
+                pass
+
+        content = MDLabel(
+            text=_t(
+                "Bu ayki gelir hesaba eklensin mi?\n\n"
+                "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gelir "
+                "hemen, gelmediyse seçilen günde eklenir."
+            ),
+            size_hint_y=None,
+            height=dp(110),
+            theme_text_color="Secondary",
+        )
+
+        def choose(value):
+            self.recurring_income_period_dialog.dismiss()
+            self.save_transaction(include_current_income=value)
+
+        self.recurring_income_period_dialog = MDDialog(
+            title=_t("Bu Ay Dahil Edilsin mi?"),
+            type="custom",
+            content_cls=content,
+            buttons=[
+                ftheme.secondary_button(
+                    _t("BU AYI DAHİL ETME"), self.theme_cls,
+                    on_release=lambda _button: choose(False),
+                ),
+                ftheme.primary_button(
+                    _t("BU AYI DAHİL ET"), self.theme_cls,
+                    on_release=lambda _button: choose(True),
+                ),
+            ],
+        )
+        self.recurring_income_period_dialog.open()
 
     def on_assets_tab_enter(self, *args):
         """KV'deki Varlıklarım sekmesinin `on_enter` hedefi.
@@ -1051,7 +1162,7 @@ class TransactionMixin:
             # ayrıca doğrudan çağrılıyordu; her sekme girişinde grafikler iki
             # kez kurulup animasyon/yerleşim spam'i yaratıyordu.
             try:
-                self.refresh_dashboard_data()
+                self.refresh_dashboard_data(reuse_if_fresh=True)
             except Exception as e:
                 print("Varlıklarım paneli yüklenemedi:", e)
             try:
@@ -1062,4 +1173,8 @@ class TransactionMixin:
         self._assets_tab_load_ev = Clock.schedule_once(_load, 0.1)
 
     def load_recent_transactions(self, list_filter=None):
-        self.refresh_dashboard_data(list_filter)
+        # Bu metodun adı yalnız işlem listesini vaat ediyor. Eskiden tüm
+        # dashboard'u çağırdığı için `safe_refresh_charts()` ile peş peşe
+        # kullanıldığı her yerde grafik/metric/insight worker'ları iki kez
+        # başlıyordu.
+        self._refresh_recent_transactions(list_filter)

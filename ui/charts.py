@@ -679,9 +679,18 @@ class DashboardChartManager(MDBoxLayout):
 
     # ── Public API ───────────────────────────────────────────────────────────
 
-    def refresh_dashboard(self, period):
-        """Fetch data in a background thread, then update all charts on the main thread."""
+    def refresh_dashboard(self, period, force=False):
+        """Veri değiştiyse arka planda okuyup grafikleri günceller.
+
+        Aynı dönem daha önce güncel finansal sürümle çizildiyse widget/canvas
+        olduğu gibi korunur; spinner, sorgu ve animasyon tekrar başlatılmaz.
+        """
         import threading
+        from services.asset_service import financial_chart_cache_key
+
+        cache_key = financial_chart_cache_key(period)
+        if not force and getattr(self, "_rendered_cache_key", None) == cache_key:
+            return False
 
         # Üst üste binen tazelemelerde yalnız en son istek arayüze yazar; eski
         # thread'lerin geciken sonuçları grafikleri geri saramaz.
@@ -723,11 +732,13 @@ class DashboardChartManager(MDBoxLayout):
             # Başarılı veya hatalı her yol ana thread'de loading'i sonlandırır.
             Clock.schedule_once(
                 lambda dt: self._apply_data_safely(
-                    raw_data, period, generation, opening_events
+                    raw_data, period, generation, opening_events,
+                    cache_key,
                 ), 0
             )
 
         threading.Thread(target=_load, daemon=True).start()
+        return True
 
     def refresh_theme(self):
         """Mevcut veriyi koruyarak tema-duyarlı canvas renklerini tazele."""
@@ -747,11 +758,22 @@ class DashboardChartManager(MDBoxLayout):
 
     # ── Internal update (always runs on the main thread) ─────────────────────
 
-    def _apply_data_safely(self, raw_data, period, generation=None, opening_events=None):
+    def _apply_data_safely(
+            self, raw_data, period, generation=None, opening_events=None,
+            requested_cache_key=None):
         if generation is not None and generation != getattr(self, "_refresh_generation", 0):
             return  # bayat sonuç — daha yeni bir tazeleme başladı
+        if requested_cache_key is not None:
+            from services.asset_service import financial_chart_cache_key
+            if requested_cache_key != financial_chart_cache_key(period):
+                # Okuma sürerken finansal yazım oldu; karışık/bayat snapshot'ı
+                # bir kare bile göstermeden yeni sürümü yükle.
+                self.refresh_dashboard(period)
+                return
         try:
             self._apply_data(raw_data, period, opening_events)
+            if requested_cache_key is not None:
+                self._rendered_cache_key = requested_cache_key
         except Exception as exc:
             print("Dashboard grafikleri çizilemedi:", exc)
             # Canvas/veri biçimi hatası dahi spinner ve opacity'yi kilitlemez.
@@ -781,8 +803,12 @@ class DashboardChartManager(MDBoxLayout):
         )
 
         # Update PieChart
+        first_render = not getattr(self, "_has_rendered_data", False)
         self.pie_widget.data = cat_totals
-        self.pie_widget.request_redraw()
+        if first_render:
+            self.pie_widget.request_redraw()
+        else:
+            self.pie_widget.draw_immediate()
 
         # Update Legend with percentages
         self.legend_widget.update_percentages(cat_totals)
@@ -796,7 +822,11 @@ class DashboardChartManager(MDBoxLayout):
             print("Dashboard zaman grafiği hazırlanamadı:", exc)
             buckets = []
         self.trend_chart.chart_data = buckets
-        self.trend_chart.request_redraw()
+        if first_render:
+            self.trend_chart.request_redraw()
+        else:
+            self.trend_chart.draw_immediate()
+        self._has_rendered_data = True
         has_chart_data = any(cat_totals.values()) or any(
             row.get("income", 0) or row.get("expense", 0) or row.get("opening", 0)
             for row in buckets

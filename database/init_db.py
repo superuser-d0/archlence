@@ -282,7 +282,8 @@ def initialize_database():
             recurrence_day INTEGER CHECK (recurrence_day BETWEEN 1 AND 31),
             auto_deduct INTEGER DEFAULT 0,
             is_active INTEGER DEFAULT 1,
-            account_id INTEGER DEFAULT 1
+            account_id INTEGER DEFAULT 1,
+            transaction_type TEXT NOT NULL DEFAULT 'expense'
         )
     """)
     cursor.execute("PRAGMA table_info(recurring_payments)")
@@ -290,6 +291,12 @@ def initialize_database():
     if "recurrence_day" not in existing_recurring_cols:
         cursor.execute(
             "ALTER TABLE recurring_payments ADD COLUMN recurrence_day INTEGER"
+        )
+    if "transaction_type" not in existing_recurring_cols:
+        # Eski tablodaki bütün kayıtlar abonelik/fatura gideriydi.
+        cursor.execute(
+            "ALTER TABLE recurring_payments ADD COLUMN transaction_type TEXT "
+            "NOT NULL DEFAULT 'expense'"
         )
     cursor.execute("""
         UPDATE recurring_payments
