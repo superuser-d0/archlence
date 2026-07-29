@@ -180,6 +180,26 @@ class BrandIconServiceTest(unittest.TestCase):
                 self.assertEqual(key, expected_key)
                 self.assertIn("google.com", url)
 
+    def test_turkish_telecom_brands_and_statement_aliases_resolve(self):
+        cases = {
+            "Türk Telekom mobil faturası": (
+                "turk-telekom", "turktelekom.com.tr",
+            ),
+            "TURKTELEKOM OTOMATİK ÖDEME": (
+                "turk-telekom", "turktelekom.com.tr",
+            ),
+            "TTNET internet": ("turk-telekom", "turktelekom.com.tr"),
+            "Vodafone Red tarifem": ("vodafone", "vodafone.com.tr"),
+            "Vodafone Net": ("vodafone", "vodafone.com.tr"),
+            "Turkcell Platinum": ("turkcell", "turkcell.com.tr"),
+            "Turkcell Superonline": ("superonline", "superonline.net"),
+        }
+        for text, (expected_key, expected_domain) in cases.items():
+            with self.subTest(text=text):
+                key, url = brand_icon_service.classify_brand(text)
+                self.assertEqual(key, expected_key)
+                self.assertIn(f"domain={expected_domain}", url)
+
     def test_instagram_subscription_end_to_end_via_recurring_payments(self):
         """Kullanıcının asıl senaryosu: recurring_payments'a DOĞRUDAN SQL ile
         yazılan bir 'Instagram' kaydı, GUI hiç açılmadan get_active_recurring_

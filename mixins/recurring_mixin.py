@@ -25,10 +25,23 @@ class RecurringMixin:
     def load_upcoming_recurring(self, *args):
         from database.db import get_active_recurring_payments
 
+        self._recurring_load_generation = (
+            getattr(self, "_recurring_load_generation", 0) + 1
+        )
+        generation = self._recurring_load_generation
+
+        def apply_result(payments):
+            # Hızlı ekran geçişlerinde eski worker yeni sonucu ezmesin.
+            if generation != getattr(self, "_recurring_load_generation", 0):
+                return
+            self.render_upcoming_payments(payments)
+
         def fetch():
             try:
                 payments = get_active_recurring_payments()
-                Clock.schedule_once(lambda dt: self.render_upcoming_payments(payments), 0)
+                Clock.schedule_once(
+                    lambda dt, value=payments: apply_result(value), 0,
+                )
             except Exception as e:
                 print("Error fetching recurring payments:", e)
 
@@ -88,11 +101,22 @@ class RecurringMixin:
                 )
 
                 btn_layout = MDBoxLayout(orientation="horizontal", spacing="10dp", size_hint_y=None, height="32dp")
+                is_income = p.get("transaction_type") == "income"
                 if not p["auto_deduct"]:
-                    pay_btn = MDFlatButton(text=_t("ÖDE"), on_release=lambda x, pp=p: self.pay_recurring_now(pp))
+                    pay_btn = MDFlatButton(
+                        text=_t("EKLE" if is_income else "ÖDE"),
+                        on_release=lambda x, pp=p: self.pay_recurring_now(pp),
+                    )
                     btn_layout.add_widget(pay_btn)
                 else:
-                    auto_lbl = MDLabel(text=_t("Otomatik düşecek"), font_style="Caption", theme_text_color="Secondary")
+                    auto_lbl = MDLabel(
+                        text=_t(
+                            "Otomatik eklenecek"
+                            if is_income else "Otomatik düşecek"
+                        ),
+                        font_style="Caption",
+                        theme_text_color="Secondary",
+                    )
                     btn_layout.add_widget(auto_lbl)
                 pause_btn = MDFlatButton(text=_t("DURDUR"), on_release=lambda x, pid=p["id"]: self.deactivate_recurring(pid))
                 btn_layout.add_widget(pause_btn)
@@ -110,7 +134,15 @@ class RecurringMixin:
         def process():
             try:
                 process_due_recurring_payment(payment)
-                Clock.schedule_once(lambda dt: toast(_t(f"{payment['name']} ödendi!")), 0)
+                action = (
+                    "hesaba eklendi!"
+                    if payment.get("transaction_type") == "income"
+                    else "ödendi!"
+                )
+                message = f"{payment['name']} {action}"
+                Clock.schedule_once(
+                    lambda dt, value=message: toast(_t(value)), 0,
+                )
                 Clock.schedule_once(lambda dt: self.load_upcoming_recurring(), 0)
                 Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                 Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)

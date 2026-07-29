@@ -110,6 +110,33 @@ _BRANDS = (
         "proton.me",
     ),
 
+    # ── Telekomünikasyon / internet ─────────────────────────────────────
+    # Alt markalar ana operatörden önce gelir: "Turkcell Superonline"
+    # metni Turkcell'in mobil logosuna değil Superonline'ın kendi ikonuna
+    # çözülmeli. Türkçe karakterli ve fatura/ekstrelerde görülen bitişik
+    # yazımlar normalize edilerek aynı cache anahtarında birleşir.
+    (
+        ("turkcell superonline", "superonline"),
+        "superonline",
+        "superonline.net",
+    ),
+    (
+        ("türk telekom", "turk telekom", "türktelekom", "turktelekom",
+         "ttnet"),
+        "turk-telekom",
+        "turktelekom.com.tr",
+    ),
+    (
+        ("vodafone türkiye", "vodafone turkey", "vodafone net", "vodafone"),
+        "vodafone",
+        "vodafone.com.tr",
+    ),
+    (
+        ("turkcell",),
+        "turkcell",
+        "turkcell.com.tr",
+    ),
+
     # ── Sosyal medya ────────────────────────────────────────────────────
     # Instagram'ın kendisi ücretsizdir; tanınan asıl ürün rozet/destek
     # paketi "Meta Verified"tir (Instagram + Facebook). Kullanıcı çoğunlukla
