@@ -571,7 +571,7 @@ class TransactionMixin:
         fark, artık sabit DEFAULT_ACCOUNT_ID yerine gerçek bir hesap olması.
         """
         try:
-            from services.account_service import AccountService, CREDIT_CARD
+            from services.account_service import AccountService
             self._payment_methods = [
                 account for account in AccountService.get_accounts()
                 if not is_read_only_asset_account(account)

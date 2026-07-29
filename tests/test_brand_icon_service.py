@@ -135,6 +135,51 @@ class BrandIconServiceTest(unittest.TestCase):
             brand_icon_service.classify_brand("Instagram")[1],
         )
 
+    def test_proton_family_products_resolve_to_brand_icons(self):
+        cases = {
+            "Proton Unlimited": ("proton", "proton.me"),
+            "Proton VPN Plus": ("proton-vpn", "protonvpn.com"),
+            "ProtonMail": ("proton-mail", "proton.me"),
+            "Proton Pass Plus": ("proton-pass", "proton.me"),
+            "Proton Drive": ("proton-drive", "proton.me"),
+            "Proton Calendar": ("proton-calendar", "proton.me"),
+        }
+        for text, (expected_key, expected_domain) in cases.items():
+            with self.subTest(text=text):
+                key, url = brand_icon_service.classify_brand(text)
+                self.assertEqual(key, expected_key)
+                self.assertIn(f"domain={expected_domain}", url)
+
+    def test_extended_subscription_catalog_resolves_to_icons(self):
+        cases = {
+            "tabii Premium": "tabii",
+            "Storytel": "storytel",
+            "Audible Plus": "audible",
+            "Kindle Unlimited": "kindle-unlimited",
+            "Blinkist Premium": "blinkist",
+            "Figma Professional": "figma",
+            "JetBrains All Products Pack": "jetbrains",
+            "1Password Families": "1password",
+            "LastPass Premium": "lastpass",
+            "Claude Pro": "claude",
+            "Gemini Advanced": "gemini",
+            "Udemy Personal Plan": "udemy",
+            "Coursera Plus": "coursera",
+            "Duolingo Super": "duolingo",
+            "Skillshare": "skillshare",
+            "MACFit üyeliği": "macfit",
+            "Club Sporium": "sporium",
+            "Strava Premium": "strava",
+            "Headspace": "headspace",
+            "Patreon": "patreon",
+            "Wikipedia bağışı": "wikipedia",
+        }
+        for text, expected_key in cases.items():
+            with self.subTest(text=text):
+                key, url = brand_icon_service.classify_brand(text)
+                self.assertEqual(key, expected_key)
+                self.assertIn("google.com", url)
+
     def test_instagram_subscription_end_to_end_via_recurring_payments(self):
         """Kullanıcının asıl senaryosu: recurring_payments'a DOĞRUDAN SQL ile
         yazılan bir 'Instagram' kaydı, GUI hiç açılmadan get_active_recurring_

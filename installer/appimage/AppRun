@@ -1,0 +1,13 @@
+#!/bin/bash
+# Archlence — AppImage giriş noktası.
+#
+# archlence.spec bilerek "onedir" derliyor (bkz. o dosyadaki not) — yani
+# PyInstaller çıktısı tek bir ikili değil, Archlence ikilisi + yanında bir
+# .so/kaynak klasörü. .github/workflows/build-linux.yml bu klasörün
+# TAMAMINI olduğu gibi AppDir/usr/bin/Archlence/ altına kopyalıyor; bu
+# script yalnızca o klasörün içindeki gerçek ikiliyi bulup çalıştırıyor —
+# PyInstaller'ın iç düzenini (sürüme göre değişebilen _internal/ gibi alt
+# klasörleri) hiç bilmek zorunda değil.
+set -e
+HERE="$(dirname "$(readlink -f "${0}")")"
+exec "${HERE}/usr/bin/Archlence/Archlence" "$@"

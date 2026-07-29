@@ -2,13 +2,6 @@ import os
 import re
 from kivy.clock import Clock
 from kivymd.toast import toast
-from kivymd.uix.button import MDFlatButton, MDRaisedButton
-from kivymd.uix.dialog import MDDialog
-from kivymd.uix.textfield import MDTextField
-from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.menu import MDDropdownMenu
-from kivymd.uix.list import TwoLineAvatarIconListItem, IconLeftWidget
-from kivymd.uix.label import MDLabel
 
 
 from data.bist100 import BIST100_STOCKS
@@ -1175,7 +1168,6 @@ class AssetMixin:
     def _save_new_asset(self):
         """Formu doğrular, DB'e şifreli yazar, listeyi yeniler."""
         import threading
-        from database.db import insert_asset
         from kivymd.toast import toast
 
         asset_name  = self._asset_name_input.text.strip()
@@ -1269,6 +1261,7 @@ class AssetMixin:
         try:
             container = self.root.ids.active_assets_container
         except Exception:
+            self._asset_load_inflight = False
             return
 
         # İskelet yalnızca liste gerçekten boşken gösterilir; mevcut kartlar

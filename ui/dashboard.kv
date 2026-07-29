@@ -1,6 +1,5 @@
 #:import FadeTransition kivy.uix.screenmanager.FadeTransition
 #:import Window kivy.core.window.Window
-#:import LiquidWaveWidget ui.charts.LiquidWaveWidget
 #:import RecycleListRow ui.components.RecycleListRow
 #:import ftheme ui.theme
 
@@ -676,11 +675,19 @@ MDScreen:
                                             bold: True
 
                                 # YENİ: MATEMATİKSEL ÖNGÖRÜ KARTI
+                                # DÜZELTME (2026-07-29): kart sabit "90dp" idi — bu, prediction_text
+                                # tek satırlık bir metinken yeterliydi. Metin artık 3 aylık öngörü
+                                # paragrafıyla birlikte 4-5 satıra çıkabiliyor (bkz.
+                                # main.py::_compute_monthly_forecast_text); prediction_text'in
+                                # `size_hint_y`/`text_size` bağlanmamış olması, taşan metnin kendi
+                                # kutusunun DIŞINA, üstündeki başlık etiketiyle ÇAKIŞACAK şekilde
+                                # çizilmesine yol açıyordu ("Şurası da kaymış" ekran görüntüsü).
+                                # Artık kart + iç kutu + etiket üçü de içeriğe göre büyüyor.
                                 MDCard:
                                     elevation: 0
                                     line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     size_hint_y: None
-                                    height: "90dp"
+                                    height: max(dp(90), self.minimum_height + dp(30))
                                     padding: "15dp"
                                     radius: [24]
                                     md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
@@ -693,22 +700,31 @@ MDScreen:
                                         theme_text_color: "Custom"
                                         text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
                                         font_size: "36sp"
-                                        pos_hint: {"center_y": .5}
+                                        size_hint_y: None
+                                        height: self.texture_size[1]
+                                        pos_hint: {"top": 1}
 
                                     MDBoxLayout:
                                         orientation: "vertical"
                                         spacing: "2dp"
-                                        pos_hint: {"center_y": .5}
+                                        size_hint_y: None
+                                        height: self.minimum_height
+                                        pos_hint: {"top": 1}
                                         MDLabel:
                                             text: app.tr("Algoritmik Öngörü", app.language)
                                             font_style: "Subtitle2"
                                             bold: True
                                             theme_text_color: "Primary"
+                                            size_hint_y: None
+                                            height: self.texture_size[1]
                                         MDLabel:
                                             id: prediction_text
                                             text: app.tr("Veriler analiz ediliyor...", app.language)
                                             font_style: "Caption"
                                             theme_text_color: "Secondary"
+                                            size_hint_y: None
+                                            height: self.texture_size[1]
+                                            text_size: self.width, None
 
                                 # FAZ 1: FİNANSAL SAĞLIK SKORU KARTI
                                 # Skor rengi/etiketi InsightsMixin.render_health_score
@@ -1691,6 +1707,7 @@ MDScreen:
                                     # Panel artık ızgaranın üstünde tam genişlikte
                                     # durmuyor; kullanıcı isteği bu kareydi.
                                     MDCard:
+                                        id: budget_tool_card
                                         elevation: 0
                                         line_color: ftheme.card_line(app.theme_cls.theme_style)
                                         size_hint_y: None
@@ -1701,7 +1718,9 @@ MDScreen:
                                         padding: "20dp"
                                         spacing: "10dp"
                                         ripple_behavior: True
-                                        on_release: app.show_budget_planner()
+                                        # Gerçek tıklama main.py::on_start'ta bind_card_tap ile kuruluyor —
+                                        # bkz. calendar_tool_card'daki DÜZELTME notu (on_release burada
+                                        # hiç dispatch edilmiyordu, MDCard ButtonBehavior miras almıyor).
                                         MDFloatLayout:
                                             size_hint: None, None
                                             size: "48dp", "48dp"
@@ -1725,6 +1744,7 @@ MDScreen:
                                             bold: True
 
                                     MDCard:
+                                        id: calendar_tool_card
                                         elevation: 0
                                         line_color: ftheme.card_line(app.theme_cls.theme_style)
                                         size_hint_y: None
@@ -1735,7 +1755,11 @@ MDScreen:
                                         padding: "20dp"
                                         spacing: "10dp"
                                         ripple_behavior: True
-                                        on_release: app.show_calendar_view()
+                                        # DÜZELTME: `on_release:` burada SESSİZCE hiç ateşlenmiyordu —
+                                        # MDCard'ın ripple_behavior'ı yalnızca GÖRSEL efekt, ButtonBehavior'ı
+                                        # miras almıyor (bkz. ui/theme.py::bind_card_tap docstring'i; aynı
+                                        # kökten "Daha fazla seçenek" ve tutar alanı hataları). Gerçek
+                                        # tıklama main.py::on_start içinde bind_card_tap ile kuruluyor.
                                         MDFloatLayout:
                                             size_hint: None, None
                                             size: "48dp", "48dp"
@@ -1759,6 +1783,7 @@ MDScreen:
                                             bold: True
 
                                     MDCard:
+                                        id: calc_basic_tool_card
                                         elevation: 0
                                         line_color: ftheme.card_line(app.theme_cls.theme_style)
                                         size_hint_y: None
@@ -1769,7 +1794,6 @@ MDScreen:
                                         padding: "20dp"
                                         spacing: "10dp"
                                         ripple_behavior: True
-                                        on_release: app.open_calculator("basic")
                                         MDFloatLayout:
                                             size_hint: None, None
                                             size: "48dp", "48dp"
@@ -1793,6 +1817,7 @@ MDScreen:
                                             bold: True
 
                                     MDCard:
+                                        id: calc_interest_tool_card
                                         elevation: 0
                                         line_color: ftheme.card_line(app.theme_cls.theme_style)
                                         size_hint_y: None
@@ -1803,7 +1828,6 @@ MDScreen:
                                         padding: "20dp"
                                         spacing: "10dp"
                                         ripple_behavior: True
-                                        on_release: app.open_calculator("interest")
                                         MDFloatLayout:
                                             size_hint: None, None
                                             size: "48dp", "48dp"
@@ -1827,6 +1851,7 @@ MDScreen:
                                             bold: True
 
                                     MDCard:
+                                        id: calc_compound_tool_card
                                         elevation: 0
                                         line_color: ftheme.card_line(app.theme_cls.theme_style)
                                         size_hint_y: None
@@ -1837,7 +1862,6 @@ MDScreen:
                                         padding: "20dp"
                                         spacing: "10dp"
                                         ripple_behavior: True
-                                        on_release: app.open_calculator("compound")
                                         MDFloatLayout:
                                             size_hint: None, None
                                             size: "48dp", "48dp"
@@ -1861,6 +1885,7 @@ MDScreen:
                                             bold: True
 
                                     MDCard:
+                                        id: calc_loan_tool_card
                                         elevation: 0
                                         line_color: ftheme.card_line(app.theme_cls.theme_style)
                                         size_hint_y: None
@@ -1871,7 +1896,6 @@ MDScreen:
                                         padding: "20dp"
                                         spacing: "10dp"
                                         ripple_behavior: True
-                                        on_release: app.open_calculator("loan")
                                         MDFloatLayout:
                                             size_hint: None, None
                                             size: "48dp", "48dp"
@@ -1895,6 +1919,7 @@ MDScreen:
                                             bold: True
 
                                     MDCard:
+                                        id: calc_savings_goal_tool_card
                                         elevation: 0
                                         line_color: ftheme.card_line(app.theme_cls.theme_style)
                                         size_hint_y: None
@@ -1905,7 +1930,6 @@ MDScreen:
                                         padding: "20dp"
                                         spacing: "10dp"
                                         ripple_behavior: True
-                                        on_release: app.open_calculator("savings_goal")
                                         MDFloatLayout:
                                             size_hint: None, None
                                             size: "48dp", "48dp"
@@ -1929,6 +1953,7 @@ MDScreen:
                                             bold: True
 
                                     MDCard:
+                                        id: scenario_tool_card
                                         elevation: 0
                                         line_color: ftheme.card_line(app.theme_cls.theme_style)
                                         size_hint_y: None
@@ -1939,7 +1964,6 @@ MDScreen:
                                         padding: "20dp"
                                         spacing: "10dp"
                                         ripple_behavior: True
-                                        on_release: app.open_scenario_sandbox()
                                         MDFloatLayout:
                                             size_hint: None, None
                                             size: "48dp", "48dp"
@@ -1963,6 +1987,7 @@ MDScreen:
                                             bold: True
 
                                     MDCard:
+                                        id: reset_data_tool_card
                                         elevation: 0
                                         line_color: ftheme.card_line(app.theme_cls.theme_style)
                                         size_hint_y: None
@@ -1973,7 +1998,6 @@ MDScreen:
                                         padding: "20dp"
                                         spacing: "10dp"
                                         ripple_behavior: True
-                                        on_release: app.confirm_delete_all_data()
                                         MDFloatLayout:
                                             size_hint: None, None
                                             size: "48dp", "48dp"

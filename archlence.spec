@@ -1,26 +1,52 @@
 # -*- mode: python ; coding: utf-8 -*-
 #
-# Archlence — Windows PyInstaller spec dosyası
+# Archlence — PyInstaller spec dosyası (Windows + Linux)
 #
-# ÖNEMLİ: PyInstaller çapraz derleme YAPAMAZ. Bu dosya Windows üzerinde
-# çalıştırılmalı (GitHub Actions'taki windows-latest runner dahil). Linux'ta
-# `pyinstaller archlence.spec` çalıştırırsan Linux binary üretir, .exe değil.
+# ÖNEMLİ: PyInstaller çapraz derleme YAPAMAZ. Bu dosya, üretmek istediğin
+# platformun kendi üzerinde çalıştırılmalı (GitHub Actions'ta windows-latest
+# .exe, ubuntu-latest Linux ikili üretir). `pyinstaller archlence.spec`
+# hangi platformda çalışırsa o platformun çıktısını üretir.
 #
 # Kullanım (Windows'ta, venv aktifken):
 #   pip install pyinstaller kivy_deps.sdl2 kivy_deps.glew kivy_deps.angle
 #   set KIVY_GL_BACKEND=angle_sdl2
 #   pyinstaller archlence.spec
 #
-# KIVY_GL_BACKEND=angle_sdl2 ZORUNLU (aşağıdaki nota bak) — onsuz derleme
-# GPU'suz makinelerde (CI runner'ları dahil) çöker.
+# Kullanım (Linux'ta, venv aktifken):
+#   pip install pyinstaller
+#   pyinstaller archlence.spec
+#   (kivy_deps YOK — o paketler yalnızca Windows'ta SDL2/GLEW/ANGLE'ı DLL
+#   olarak bundle etmek için var; Linux'ta Kivy pip tekerleği kendi SDL2'sini
+#   zaten taşır, ayrıca paket gerekmez.)
 #
-# Çıktı: dist/Archlence/Archlence.exe (+ yanındaki DLL/kaynak klasörü — bu bir
-# "onedir" build, tek dosyalık .exe DEĞİL. Kivy uygulamaları PyInstaller'da
-# --onefile ile sık sorun çıkarır; onedir çok daha güvenilir. Dağıtırken
-# dist/Archlence/ klasörünün TAMAMINI zipleyip paylaş.)
+# KIVY_GL_BACKEND=angle_sdl2 yalnızca WINDOWS'ta ZORUNLU (aşağıdaki nota
+# bak) — onsuz derleme GPU'suz makinelerde (CI runner'ları dahil) çöker.
+# Linux runner'ında (ubuntu-latest, ekransız) ANGLE bir seçenek değil —
+# ama SDL'nin "dummy" video sürücüsü de (run_tests.py'nin headless test
+# deseni) İŞE YARAMIYOR: dummy sürücü hiçbir OpenGL yüzeyi sağlamıyor,
+# oysa aşağıdaki `collect_all("kivymd")` GERÇEK (yazılım da olsa) bir GL
+# bağlamı istiyor — bu, yerel bir Linux makinesinde denenip doğrulandı.
+# Çalışan çözüm: `xvfb-run` ile sanal ama gerçek bir X11 ekranı açmak;
+# Mesa'nın llvmpipe yazılım rasterizer'ı üzerinden gelen bağlam Kivy'nin
+# OpenGL şartını karşılıyor. Bkz. .github/workflows/build-linux.yml.
+#
+# Çıktı:
+#   Windows: dist/Archlence/Archlence.exe (+ yanındaki DLL/kaynak klasörü)
+#   Linux:   dist/Archlence/Archlence     (+ yanındaki .so/kaynak klasörü)
+#   İkisi de "onedir" build, tek dosya DEĞİL. Kivy uygulamaları PyInstaller'da
+#   --onefile ile sık sorun çıkarır; onedir çok daha güvenilir. Windows'ta
+#   installer/archlence.iss, Linux'ta AppImage bu onedir çıktısını tek
+#   dosyaya sarmalıyor (bkz. .github/workflows/build-linux.yml).
 #
 # İkonun vektör kaynağı assets/icon_source.svg; masaüstü paketleri için
 # üretilmiş PNG ve çok çözünürlüklü ICO sürümleri assets/ altında tutulur.
+# PyInstaller'ın EXE(icon=...) parametresi yalnızca Windows/macOS'ta ikiliye
+# gömülür; Linux'ta hiçbir etkisi yok — Linux masaüstü ikonu
+# assets/archlence.desktop'taki Icon= alanından ve AppImage'ın kendi
+# ikonundan gelir, bu yüzden Linux derlemesinde icon= hiç verilmiyor.
+import sys
+
+IS_WINDOWS = sys.platform.startswith("win")
 
 # KIVY_GL_BACKEND ortam değişkeni, PyInstaller BU DOSYAYI Python olarak
 # çalıştırırken (aşağıdaki `collect_all("kivymd")` satırında) zaten devrede
@@ -44,8 +70,11 @@
 # Kivy'ye pencere+GL sağlayıcısı olarak ANGLE'ı kullanmasını söylüyor;
 # native "GDI Generic" sürücüsüne hiç dokunmuyor.
 import os
-from kivy_deps import sdl2, glew, angle
+
 from PyInstaller.utils.hooks import collect_all
+
+if IS_WINDOWS:
+    from kivy_deps import sdl2, glew, angle
 
 block_cipher = None
 PROJECT_ROOT = os.path.abspath(".")
@@ -139,7 +168,10 @@ exe = EXE(
     #      bir sorun. Kazanılan birkaç on MB, bu riske değmiyor.
     upx=False,
     console=False,   # arka planda siyah konsol penceresi açılmasın
-    icon="assets/icon.ico",
+    # Linux'ta icon= parametresinin hiçbir etkisi yok (yukarıdaki nota bak);
+    # None vermek PyInstaller'ı .ico dosyasını Windows/macOS formatı olarak
+    # ayrıştırmaya zorlamaktan kaçınıyor.
+    icon="assets/icon.ico" if IS_WINDOWS else None,
 )
 
 coll = COLLECT(
@@ -150,7 +182,10 @@ coll = COLLECT(
     # angle.dep_bins de paketleniyor: son kullanıcının makinesinde de GPU/
     # sürücü zayıf çıkarsa (özellikle sanal makine/RDP oturumları) uygulama
     # aynı ANGLE geri dönüşünü çalışma anında kullanabilsin diye.
-    *[Tree(p) for p in sdl2.dep_bins + glew.dep_bins + angle.dep_bins],
+    # (sdl2/glew/angle yalnızca Windows'ta import edildi — Linux'ta bundle
+    # edilecek ayrı bir DLL/Tree yok, Kivy'nin kendi SDL2'si yeterli.)
+    *([Tree(p) for p in sdl2.dep_bins + glew.dep_bins + angle.dep_bins]
+      if IS_WINDOWS else []),
     strip=False,
     upx=False,   # EXE'deki ile aynı gerekçe (hız + numpy/pandas bozulması)
     name="Archlence",

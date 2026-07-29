@@ -144,6 +144,60 @@ class FinancialAdvicePerformanceTest(unittest.TestCase):
         self.assertIn("%50.0", text)  # (1000-500)/1000 tasarruf oranı
 
 
+class WealthVisibilityTogglePerformanceTest(unittest.TestCase):
+    """DÜZELTME (kasma, Aşama 2 madde 1.8 — stabilizasyon analizi): göz
+    ikonuna her basışta `toggle_wealth_visibility` -> `update_wealth_card`
+    `today_liquid_delta`'yı vermeden çağrılıyordu; bu, "eski senkron
+    çağıranlar için" bırakılan yolu tetikleyip DB sorgusu + N adet
+    `decrypt()`'i DOĞRUDAN UI thread'inde çalıştırıyordu. Görünürlük
+    değiştirmek yeni veri gerektirmez — son hesaplanan değer artık
+    `update_wealth_card` içinde önbelleğe alınıp yeniden kullanılıyor."""
+
+    def _make_app(self):
+        from main import ArchlenceApp
+        app = ArchlenceApp.__new__(ArchlenceApp)
+        app.root = None
+        app._wealth_visible = True
+        app._assets_cache = [{"total_value": 1000.0, "pnl_amount": 5.0}]
+        app._liquid_balance_cache = 500.0
+        return app
+
+    def test_toggle_does_not_touch_db_when_cache_is_warm(self):
+        # NOT: update_wealth_card, _compute_today_liquid_delta'yı kendi
+        # try/except'i içinde çağırıyor — bir side_effect exception'ı orada
+        # sessizce yutulup testi yanlışlıkla "geçti" gösterebilirdi. Bunun
+        # yerine mock'un GERÇEKTEN çağrılıp çağrılmadığını doğrudan kontrol
+        # ediyoruz (assert_not_called), exception fırlatmaya güvenmiyoruz.
+        app = self._make_app()
+        app._today_liquid_delta_cache = 42.0
+        app._compute_today_liquid_delta = mock.Mock()
+
+        app.toggle_wealth_visibility()
+
+        app._compute_today_liquid_delta.assert_not_called()
+        self.assertFalse(app._wealth_visible)
+
+    def test_update_wealth_card_caches_the_delta_it_computes(self):
+        app = self._make_app()
+        app._compute_today_liquid_delta = lambda: 7.5
+
+        app.update_wealth_card(app._assets_cache)
+
+        self.assertEqual(app._today_liquid_delta_cache, 7.5)
+
+    def test_first_ever_toggle_before_any_cache_does_not_crash(self):
+        """Hiç veri yüklenmeden (önbellek hiç kurulmadan) ilk kez göze
+        basılırsa bile çökmemeli — getattr varsayılanı 0.0'a düşer."""
+        app = self._make_app()
+        app._compute_today_liquid_delta = mock.Mock(
+            side_effect=AssertionError("çağrılmamalıydı"))
+
+        app.toggle_wealth_visibility()
+
+        self.assertFalse(app._wealth_visible)
+        app._compute_today_liquid_delta.assert_not_called()
+
+
 class VacuumDatabasePerformanceTest(unittest.TestCase):
     def setUp(self):
         fd, self.db_path = tempfile.mkstemp(suffix=".db")

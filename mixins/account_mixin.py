@@ -18,14 +18,11 @@ from ui.i18n import tr as _t
 from kivy.uix.widget import Widget
 from kivymd.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
-from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
-from kivymd.uix.spinner import MDSpinner
 
 import ui.theme as ftheme
 from services.account_service import (
     ACCOUNT_TYPE_LABELS,
-    CHECKING,
     CREDIT_CARD,
     AccountService
 )
@@ -76,8 +73,7 @@ class AccountMixin:
         hata gösterilmiştir, diyalog AÇIK kalmalıdır ki kullanıcı düzeltebilsin.
         """
         from kivymd.uix.dialog import MDDialog
-        from kivymd.uix.button import MDRaisedButton, MDFlatButton
-        from kivymd.uix.textfield import MDTextField
+        from kivymd.uix.button import MDFlatButton, MDRaisedButton
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivymd.uix.segmentedcontrol import MDSegmentedControl, MDSegmentedControlItem
         from kivy.metrics import dp
@@ -301,7 +297,6 @@ class AccountMixin:
         """
         from kivy.uix.scrollview import ScrollView
         from kivymd.uix.dialog import MDDialog
-        from kivymd.uix.button import MDFlatButton
         from kivymd.uix.list import MDList
         from services.transaction_service import TransactionService
 

@@ -33,6 +33,7 @@ _BRANDS = (
     (("mubi",), "mubi", "mubi.com"),
     (("deezer",), "deezer", "deezer.com"),
     (("tod tv", "tod"), "tod", "todtv.com.tr"),
+    (("tabii",), "tabii", "tabii.com"),
 
     # ── Video/yayın (ek) ────────────────────────────────────────────────
     (("twitch",), "twitch", "twitch.tv"),
@@ -43,6 +44,12 @@ _BRANDS = (
     # ── Müzik ───────────────────────────────────────────────────────────
     (("tidal",), "tidal", "tidal.com"),
     (("soundcloud", "soundcloud go"), "soundcloud", "soundcloud.com"),
+
+    # ── Kitap / sesli kitap ─────────────────────────────────────────────
+    (("storytel",), "storytel", "storytel.com"),
+    (("audible",), "audible", "audible.com"),
+    (("kindle unlimited",), "kindle-unlimited", "amazon.com"),
+    (("blinkist",), "blinkist", "blinkist.com"),
 
     # ── Oyun ────────────────────────────────────────────────────────────
     (("playstation plus", "ps plus", "psn"), "playstation-plus", "playstation.com"),
@@ -65,6 +72,43 @@ _BRANDS = (
     (("slack",), "slack", "slack.com"),
     (("zoom",), "zoom", "zoom.us"),
     (("linkedin premium", "linkedin"), "linkedin", "linkedin.com"),
+    (("figma",), "figma", "figma.com"),
+    (("jetbrains",), "jetbrains", "jetbrains.com"),
+    (("1password", "1 password"), "1password", "1password.com"),
+    (("lastpass", "last pass"), "lastpass", "lastpass.com"),
+    (("claude", "anthropic"), "claude", "claude.ai"),
+    (("gemini advanced", "google gemini", "gemini"), "gemini", "gemini.google.com"),
+
+    # ── Eğitim ───────────────────────────────────────────────────────────
+    (("udemy",), "udemy", "udemy.com"),
+    (("coursera",), "coursera", "coursera.org"),
+    (("duolingo",), "duolingo", "duolingo.com"),
+    (("skillshare",), "skillshare", "skillshare.com"),
+
+    # ── Spor / sağlık ────────────────────────────────────────────────────
+    (("macfit", "mac fit"), "macfit", "macfit.com"),
+    (("club sporium", "clubsporium", "sporium"), "sporium", "clubsporium.com.tr"),
+    (("strava",), "strava", "strava.com"),
+    (("headspace",), "headspace", "headspace.com"),
+
+    # ── Üyelik / destek ──────────────────────────────────────────────────
+    (("patreon",), "patreon", "patreon.com"),
+    (("wikipedia", "wikimedia"), "wikipedia", "wikipedia.org"),
+
+    # ── Proton gizlilik paketi ───────────────────────────────────────────
+    # Ürün adları genel "proton" girdisinden önce olmalı; böylece her ürünün
+    # önbelleği bağımsız kalır ve VPN kendi alan adının ikonunu kullanabilir.
+    (("proton vpn", "protonvpn"), "proton-vpn", "protonvpn.com"),
+    (("proton mail", "protonmail"), "proton-mail", "proton.me"),
+    (("proton pass", "protonpass"), "proton-pass", "proton.me"),
+    (("proton drive", "protondrive"), "proton-drive", "proton.me"),
+    (("proton calendar", "protoncalendar"), "proton-calendar", "proton.me"),
+    (
+        ("proton unlimited", "proton duo", "proton family",
+         "proton visionary", "proton"),
+        "proton",
+        "proton.me",
+    ),
 
     # ── Sosyal medya ────────────────────────────────────────────────────
     # Instagram'ın kendisi ücretsizdir; tanınan asıl ürün rozet/destek

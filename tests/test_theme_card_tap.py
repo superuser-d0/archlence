@@ -29,8 +29,15 @@ class _FakeCard:
         if "on_touch_up" in kwargs:
             self._touch_up_handler = kwargs["on_touch_up"]
 
-    def fire_touch_up(self, pos=(0, 0)):
-        touch = mock.Mock(pos=pos)
+    def fire_touch_up(self, pos=(0, 0), touch=None):
+        # `ud` gerçek bir dict olmalı — gerçek Kivy Touch nesnelerinde de
+        # öyledir (bkz. ui/theme.py::bind_card_tap'in touch.ud tabanlı
+        # tekilleştirme notu). Bare bir Mock() burada YANLIŞ olurdu: `touch.ud`
+        # kendiliğinden başka bir Mock üretir, `.get(...)` da o Mock'u döner —
+        # her zaman "truthy" olur ve callback'i hiç çalıştırmadan yanlışlıkla
+        # "zaten işlendi" sanır.
+        if touch is None:
+            touch = mock.Mock(pos=pos, ud={})
         return self._touch_up_handler(self, touch)
 
 
@@ -58,6 +65,41 @@ class BindCardTapTest(unittest.TestCase):
         bind_card_tap(card, callback)
         card.fire_touch_up()
         callback.assert_not_called()
+
+    def test_same_touch_dispatched_twice_only_fires_callback_once(self):
+        """DÜZELTME (2026-07-29 — "her şeye tıklasam iki kez açılıyor"):
+        `ripple_behavior`li bir MDCard'ın kendi ButtonBehavior zinciri
+        dokunuşu `touch.grab()` ile yakalıyor; Kivy'nin gerçek olay döngüsü
+        aynı `on_touch_up`'ı hem normal ağaç gezinmesiyle HEM DE
+        `touch.grab_list` redispatch'iyle AYRI AYRI çağırıyor — yani aynı
+        `touch` nesnesi bu handler'a iki kez ulaşıyor. Kullanıcı gerçek
+        cihazda bunu "her şeye tıklasam iki kez açılıyor, çift sekme
+        şeklinde" diye bildirdi. `touch.ud` tabanlı tekilleştirme bunu
+        önlemeli: aynı touch nesnesiyle iki dispatch, tek çağrı üretmeli."""
+        from ui.theme import bind_card_tap
+        card = _FakeCard(collides=True)
+        callback = mock.Mock()
+        bind_card_tap(card, callback)
+
+        shared_touch = mock.Mock(pos=(0, 0), ud={})
+        card.fire_touch_up(touch=shared_touch)   # normal propagation
+        card.fire_touch_up(touch=shared_touch)   # grab_list redispatch (AYNI touch)
+
+        callback.assert_called_once_with()
+
+    def test_different_touches_each_fire_the_callback(self):
+        """Tekilleştirme dokunuş BAŞINA olmalı — iki AYRI gerçek tıklama
+        (iki farklı touch nesnesi) callback'i iki kez tetiklemeli, aksi
+        halde kart ilk tıklamadan sonra kalıcı olarak ölü kalırdı."""
+        from ui.theme import bind_card_tap
+        card = _FakeCard(collides=True)
+        callback = mock.Mock()
+        bind_card_tap(card, callback)
+
+        card.fire_touch_up(touch=mock.Mock(pos=(0, 0), ud={}))
+        card.fire_touch_up(touch=mock.Mock(pos=(0, 0), ud={}))
+
+        self.assertEqual(callback.call_count, 2)
 
     def test_handler_never_raises_regardless_of_return_value(self):
         """Ripple'ın kendi on_touch_up'ı bağımsız çalışmaya devam etmeli;

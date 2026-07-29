@@ -7,8 +7,6 @@ Archlence KivyMD Application - Main Entry Point
 # =========================================================================
 import os
 import sys
-import csv
-import math
 import logging
 import datetime
 import faulthandler
@@ -144,23 +142,17 @@ Config.set("kivy", "log_maxfiles", 2)  # Keep only 2 log files
 
 from kivy.metrics import dp
 from kivy.lang import Builder
-from kivy.factory import Factory
 from kivy.clock import Clock
 from kivy.animation import Animation
 from kivy.storage.jsonstore import JsonStore
 from kivy.properties import (
     StringProperty,
-    NumericProperty,
     ColorProperty,
-    BooleanProperty,
 )
 
-from kivy.graphics import Color, Ellipse, Rectangle, RoundedRectangle, Line
-from kivy.core.text import Label as CoreLabel
 from kivy.uix.widget import Widget
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.scrollview import ScrollView
 
 # Graceful Window Mocking
 try:
@@ -311,34 +303,22 @@ except (ImportError, AttributeError) as exc:
 # =========================================================================
 # 4. LOCAL MODULE IMPORTS
 # =========================================================================
-from utils.crypto import encrypt, decrypt
+from utils.crypto import decrypt
 from database.init_db import initialize_database
 from database.db import (
     get_connection,
-    ACCOUNT,
-    record_balance_event,
+    managed_connection,
     COMPLETED_TX,
     COMPLETED_TX_T,
     migrate_legacy_database_location,
 )
-from services.transaction_service import TransactionService
-from services.queries import CategoryService
 
 from ui.charts import (
-    CurvedTrendChart,
     HorizontalBarChart,
-    LiquidWaveWidget,
-    PieChart,
-    DashboardChartManager,
-    ConfettiWidget,
     ScenarioComparisonChart,
 )
 from ui.components import (
     CategorySettingItem,
-    RightButtonsContainer,
-    BudgetListItem,
-    LegendItem,
-    LegendWidget,
 )
 from ui.theme import (
     apply_premium_theme,
@@ -366,9 +346,9 @@ from mixins.history_mixin import HistoryMixin
 from mixins.scenario_mixin import ScenarioMixin
 from mixins.subscription_mixin import SubscriptionMixin
 from mixins.pending_mixin import PendingMixin
+from mixins.calendar_mixin import CalendarMixin
 from security.security_service import LoginThrottle, SecurityService
 from services.history_service import write_daily_snapshot
-from services.projection_service import project_final_wealth
 
 # =========================================================================
 # 5. CONSTANTS
@@ -435,6 +415,7 @@ class ArchlenceApp(
     ScenarioMixin,
     SubscriptionMixin,
     PendingMixin,
+    CalendarMixin,
 ):
     title = "Archlence"
     icon = "assets/icon.png"
@@ -594,6 +575,30 @@ class ArchlenceApp(
 
     def on_start(self):
         self._normalize_card_shadows()
+
+        # DÜZELTME: Araçlar ızgarasındaki TÜM kareler düz MDCard + `on_release:`
+        # idi — ripple_behavior ButtonBehavior miras almadığından bu SESSİZCE
+        # hiç ateşlenmiyordu (bkz. ui/theme.py::bind_card_tap docstring'i,
+        # aynı kökten "Daha fazla seçenek"/tutar alanı hatalarıyla). KV'deki
+        # ölü `on_release:` satırları kaldırıldı, gerçek tıklama burada
+        # kuruluyor. Kart-callback eşlemesi tek yerde tutulsun diye liste.
+        tool_card_bindings = (
+            ("budget_tool_card", self.show_budget_planner),
+            ("calendar_tool_card", self.open_calendar_view),
+            ("calc_basic_tool_card", lambda: self.open_calculator("basic")),
+            ("calc_interest_tool_card", lambda: self.open_calculator("interest")),
+            ("calc_compound_tool_card", lambda: self.open_calculator("compound")),
+            ("calc_loan_tool_card", lambda: self.open_calculator("loan")),
+            ("calc_savings_goal_tool_card",
+                lambda: self.open_calculator("savings_goal")),
+            ("scenario_tool_card", self.open_scenario_sandbox),
+            ("reset_data_tool_card", self.confirm_delete_all_data),
+        )
+        for card_id, callback in tool_card_bindings:
+            try:
+                ftheme.bind_card_tap(self.root.ids[card_id], callback)
+            except Exception as e:
+                print(f"'{card_id}' karesi tıklanabilir yapılamadı:", e)
 
         logging.getLogger("yfinance").setLevel(logging.CRITICAL)
         logging.getLogger("requests_cache").setLevel(logging.CRITICAL)
@@ -844,10 +849,9 @@ class ArchlenceApp(
 
         def _work():
             try:
-                conn = get_connection()
-                conn.execute("VACUUM")
-                conn.commit()
-                conn.close()
+                with managed_connection() as conn:
+                    conn.execute("VACUUM")
+                    conn.commit()
                 print("Database VACUUM completed.")
             except Exception as e:
                 print(f"VACUUM failed: {e}")
@@ -893,16 +897,13 @@ class ArchlenceApp(
 
     def _compute_dashboard_metrics(self):
         """Yalnızca veri üretir, hiçbir widget'a dokunmaz (thread güvenli)."""
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(f"""
-            SELECT t.amount, t.type, IFNULL(c.importance, 'extra')
-            FROM transactions t
-            LEFT JOIN categories c ON t.category = c.name
-            WHERE {COMPLETED_TX_T}
-        """)
-        rows = cursor.fetchall()
-        conn.close()
+        with managed_connection() as conn:
+            rows = conn.execute(f"""
+                SELECT t.amount, t.type, IFNULL(c.importance, 'extra')
+                FROM transactions t
+                LEFT JOIN categories c ON t.category = c.name
+                WHERE {COMPLETED_TX_T}
+            """).fetchall()
 
         ana_gelir = ek_gelir = temel_gider = ekstra_gider = 0.0
 
@@ -938,9 +939,6 @@ class ArchlenceApp(
 
         period_income = period_expense = period_net = 0.0
         try:
-            conn2 = get_connection()
-            cursor2 = conn2.cursor()
-
             if filter_text == "1 Hafta":
                 date_cond = ">= date('now', '-7 days', 'localtime')"
             elif filter_text == "1 Ay":
@@ -952,11 +950,13 @@ class ArchlenceApp(
             else:
                 date_cond = "= date('now', 'localtime')"
 
-            cursor2.execute(
-                f"SELECT amount, type FROM transactions"
-                f" WHERE date(transaction_date) {date_cond} AND {COMPLETED_TX}"
-            )
-            for t_amt, t_typ in cursor2.fetchall():
+            with managed_connection() as conn2:
+                period_rows = conn2.execute(
+                    f"SELECT amount, type FROM transactions"
+                    f" WHERE date(transaction_date) {date_cond}"
+                    f" AND {COMPLETED_TX}"
+                ).fetchall()
+            for t_amt, t_typ in period_rows:
                 try:
                     val = float(decrypt(str(t_amt), SECRET_KEY))
                 except Exception:
@@ -968,23 +968,20 @@ class ArchlenceApp(
                 elif t_typ in ("expense", "Gider"):
                     period_expense += val
                     period_net -= val
-            conn2.close()
         except Exception:
             pass
 
         # ── 30 günlük ODE projeksiyonu girdileri ─────────────────────────────
         inc_30 = exp_30 = 0.0
         try:
-            conn_pred = get_connection()
-            cursor_pred = conn_pred.cursor()
-            cursor_pred.execute(f"""
-                SELECT type, amount
-                FROM transactions
-                WHERE date(transaction_date) >= date('now', '-30 days', 'localtime')
-                  AND {COMPLETED_TX}
-            """)
-            rows = cursor_pred.fetchall()
-            conn_pred.close()
+            with managed_connection() as conn_pred:
+                rows = conn_pred.execute(f"""
+                    SELECT type, amount
+                    FROM transactions
+                    WHERE date(transaction_date) >=
+                          date('now', '-30 days', 'localtime')
+                      AND {COMPLETED_TX}
+                """).fetchall()
 
             for t_type, amount in rows:
                 try:
@@ -1000,13 +997,6 @@ class ArchlenceApp(
 
         daily_income = inc_30 / 30.0
         daily_expense = exp_30 / 30.0
-        projected_wealth = project_final_wealth(
-            initial_wealth=total_balance,
-            daily_income=daily_income,
-            daily_expense=daily_expense,
-            days=30,
-            r=0.0001,
-        )
 
         try:
             change_rate = self.calculate_monthly_change_rate()
@@ -1022,7 +1012,6 @@ class ArchlenceApp(
             "period_income": period_income,
             "period_expense": period_expense,
             "period_net": period_net,
-            "projected_wealth": projected_wealth,
             "projection_daily_income": daily_income,
             "projection_daily_expense": daily_expense,
             "change_rate": change_rate,
@@ -1146,67 +1135,6 @@ class ArchlenceApp(
         except Exception:
             pass
 
-        # ── ODE projeksiyon kartı ────────────────────────────────────────────
-        try:
-
-            def _fmt(val):
-                return (
-                    f"{val:,.2f} ₺".replace(",", "X")
-                    .replace(".", ",")
-                    .replace("X", ".")
-                )
-
-            projected_wealth = m["projected_wealth"]
-            net_change = projected_wealth - total_balance
-
-            ode_label = translate(
-                f"ODE Simülasyonu: Mevcut ivme ve %3,65 yıllık parametre ile "
-                f"30 gün sonraki beklenen varlık: {_fmt(projected_wealth)}"
-            )
-
-            pred_icon = self.root.ids.prediction_icon
-            pred_text = self.root.ids.prediction_text
-
-            if projected_wealth < 0:
-                _set_changed(pred_icon, "icon", "alert-circle-outline")
-                _set_changed(
-                    pred_icon, "text_color", ftheme.accent(self.theme_cls, "red")
-                )
-                _set_changed(
-                    pred_text,
-                    "text",
-                    translate(
-                        f"{ode_label}\nDikkat: ODE modeli varlığınızın eksiye düşeceğini gösteriyor. Harcamalarınızı acilen gözden geçirin!"
-                    ),
-                )
-            elif net_change < 0:
-                _set_changed(pred_icon, "icon", "trending-down")
-                _set_changed(
-                    pred_icon, "text_color", ftheme.accent(self.theme_cls, "amber")
-                )
-                _set_changed(
-                    pred_text,
-                    "text",
-                    translate(
-                        f"{ode_label}\nGider ivmeniz gelirinizi aşıyor; varlığınız {_fmt(abs(net_change))} azalabilir."
-                    ),
-                )
-            else:
-                _set_changed(pred_icon, "icon", "trending-up")
-                _set_changed(
-                    pred_icon, "text_color", ftheme.accent(self.theme_cls, "green")
-                )
-                _set_changed(
-                    pred_text,
-                    "text",
-                    translate(
-                        f"{ode_label}\nMevcut gelir-gider dengesiyle varlığınız {_fmt(net_change)} artış gösterebilir."
-                    ),
-                )
-
-        except Exception:
-            pass
-
         # ── Alt metrik kartları: KV'de sabit yerlerinde, tek seferde dolar ───
         if "metric_val_income" in self.root.ids:
             total_income = m["total_income"]
@@ -1295,21 +1223,30 @@ class ArchlenceApp(
             pass
 
     def toggle_wealth_visibility(self):
+        # DÜZELTME (kasma): today_liquid_delta hiç verilmeden çağrıldığında
+        # update_wealth_card "eski senkron çağıranlar için" yolu izleyip
+        # _compute_today_liquid_delta()'yı DOĞRUDAN UI thread'inde
+        # çalıştırıyordu (DB sorgusu + N adet decrypt) — göz ikonuna her
+        # basışta. Görünürlük değiştirmek yeni veri gerektirmez; son bilinen
+        # değeri (update_wealth_card'ın kendisi her çağrıda önbelleğe alır)
+        # yeniden kullanmak yeterli.
         self._wealth_visible = not self._wealth_visible
-        self.update_wealth_card(self._assets_cache)
+        self.update_wealth_card(
+            self._assets_cache,
+            getattr(self, "_today_liquid_delta_cache", 0.0),
+        )
 
     def _compute_today_liquid_delta(self):
         """Bugünkü nakit hareket toplamı (gelir − gider). Yalnızca veri üretir;
         arka plan thread'inden çağrılabilir."""
         today_liquid_delta = 0.0
-        conn_t = get_connection()
-        cur_t = conn_t.cursor()
-        cur_t.execute(
-            "SELECT amount, type FROM transactions "
-            "WHERE date(transaction_date) = date('now', 'localtime') "
-            f"AND {COMPLETED_TX}"
-        )
-        for t_amt, t_typ in cur_t.fetchall():
+        with managed_connection() as conn_t:
+            rows = conn_t.execute(
+                "SELECT amount, type FROM transactions "
+                "WHERE date(transaction_date) = date('now', 'localtime') "
+                f"AND {COMPLETED_TX}"
+            ).fetchall()
+        for t_amt, t_typ in rows:
             try:
                 val = float(decrypt(str(t_amt), SECRET_KEY))
             except Exception:
@@ -1318,7 +1255,6 @@ class ArchlenceApp(
                 today_liquid_delta += val
             elif t_typ in ("expense", "Gider"):
                 today_liquid_delta -= val
-        conn_t.close()
         return today_liquid_delta
 
     def update_wealth_card(self, enriched_assets, today_liquid_delta=None):
@@ -1345,6 +1281,10 @@ class ArchlenceApp(
                 today_liquid_delta = 0.0
         if today_liquid_delta is None:
             today_liquid_delta = 0.0
+        # toggle_wealth_visibility gibi yeni veri gerektirmeyen çağıranlar
+        # (yalnızca görünürlük değişimi) DB'ye hiç dokunmadan bu son bilinen
+        # değeri yeniden kullanabilsin diye önbelleğe alınır.
+        self._today_liquid_delta_cache = today_liquid_delta
 
         today_pnl = asset_pnl + today_liquid_delta
         self._update_wealth_label(total_wealth, today_pnl if enriched_assets else None)
@@ -1376,14 +1316,11 @@ class ArchlenceApp(
             prev_start = now - datetime.timedelta(days=1)
             prev_end = now
 
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT amount, type, transaction_date FROM transactions"
-            f" WHERE {COMPLETED_TX}"
-        )
-        rows = cursor.fetchall()
-        conn.close()
+        with managed_connection() as conn:
+            rows = conn.execute(
+                "SELECT amount, type, transaction_date FROM transactions"
+                f" WHERE {COMPLETED_TX}"
+            ).fetchall()
 
         current_net = prev_net = 0.0
 
@@ -1419,14 +1356,6 @@ class ArchlenceApp(
             change_rate = ((current_net - prev_net) / abs(prev_net)) * 100
 
         return change_rate
-
-    def update_change_rate_ui(self):
-        """Eski senkron giriş noktası — hesap ana thread'de yapılır. Dashboard
-        tazelemesi artık oranı arka planda hesaplayıp _apply_change_rate çağırır."""
-        try:
-            self._apply_change_rate(self.calculate_monthly_change_rate())
-        except Exception as e:
-            print("Error updating change rate UI:", e)
 
     def _apply_change_rate(self, rate):
         try:
@@ -1491,9 +1420,8 @@ class ArchlenceApp(
         import threading
 
         try:
-            # update_metrics_and_goals artık arka planda hesaplar ve değişim
-            # oranını da aynı pakette getirir — burada ayrıca ana thread'de
-            # update_change_rate_ui koşturmak hem donduruyor hem işi ikiliyordu.
+            # update_metrics_and_goals metrikleri ve değişim oranını aynı
+            # arka-plan paketinde hesaplar.
             self.update_metrics_and_goals()
             if self.root and "chart_master_box" in self.root.ids:
                 self.root.ids.chart_master_box.refresh_dashboard(
@@ -1969,45 +1897,43 @@ class ArchlenceApp(
 
     def _compute_financial_advice_text(self):
         """Yalnızca veri üretir, hiçbir widget'a dokunmaz (thread güvenli)."""
-        conn = get_connection()
-        cursor = conn.cursor()
+        with managed_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT category, amount FROM transactions WHERE type='expense' AND strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime') AND {COMPLETED_TX}"
+            )
+            expense_rows_this_month = cursor.fetchall()
 
-        cursor.execute(
-            f"SELECT category, amount FROM transactions WHERE type='expense' AND strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime') AND {COMPLETED_TX}"
-        )
-        expense_rows_this_month = cursor.fetchall()
+            cat_sums, this_month_exp = {}, 0.0
+            for cat, amount in expense_rows_this_month:
+                try:
+                    val = float(decrypt(str(amount), SECRET_KEY))
+                except (ValueError, TypeError):
+                    val = 0.0
+                cat_sums[cat] = cat_sums.get(cat, 0.0) + val
+                this_month_exp += val
 
-        cat_sums, this_month_exp = {}, 0.0
-        for cat, amount in expense_rows_this_month:
-            try:
-                val = float(decrypt(str(amount), SECRET_KEY))
-            except (ValueError, TypeError):
-                val = 0.0
-            cat_sums[cat] = cat_sums.get(cat, 0.0) + val
-            this_month_exp += val
+            highest_cat_name = (
+                max(cat_sums, key=lambda k: cat_sums[k]) if cat_sums else "Yok"
+            )
 
-        highest_cat_name = (
-            max(cat_sums, key=lambda k: cat_sums[k]) if cat_sums else "Yok"
-        )
+            cursor.execute(
+                f"SELECT amount FROM transactions WHERE type='expense' AND strftime('%m', transaction_date) = strftime('%m', 'now', '-1 month', 'localtime') AND {COMPLETED_TX}"
+            )
+            last_month_exp = sum(
+                float(decrypt(str(amt[0]), SECRET_KEY))
+                for amt in cursor.fetchall()
+                if amt[0]
+            )
 
-        cursor.execute(
-            f"SELECT amount FROM transactions WHERE type='expense' AND strftime('%m', transaction_date) = strftime('%m', 'now', '-1 month', 'localtime') AND {COMPLETED_TX}"
-        )
-        last_month_exp = sum(
-            float(decrypt(str(amt[0]), SECRET_KEY))
-            for amt in cursor.fetchall()
-            if amt[0]
-        )
-
-        cursor.execute(
-            f"SELECT amount FROM transactions WHERE type='income' AND strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime') AND {COMPLETED_TX}"
-        )
-        this_month_inc = sum(
-            float(decrypt(str(amt[0]), SECRET_KEY))
-            for amt in cursor.fetchall()
-            if amt[0]
-        )
-        conn.close()
+            cursor.execute(
+                f"SELECT amount FROM transactions WHERE type='income' AND strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime') AND {COMPLETED_TX}"
+            )
+            this_month_inc = sum(
+                float(decrypt(str(amt[0]), SECRET_KEY))
+                for amt in cursor.fetchall()
+                if amt[0]
+            )
 
         if last_month_exp > 0:
             change_percent = ((this_month_exp - last_month_exp) / last_month_exp) * 100
@@ -2025,69 +1951,109 @@ class ArchlenceApp(
             else 0
         )
 
-        return translate(
+        advice_text = translate(
             f"Bu ay harcamalarınız geçen döneme kıyasla {change_text}.\n"
             f"En çok harcama yapılan alan: {translate(highest_cat_name)}.\n"
             f"Bu ayki net tasarruf oranınız: %{savings_rate:.1f}. Harika birikim dönemi!"
         )
 
+        forecast_text, forecast_state = self._compute_monthly_forecast_text()
+        self._advice_forecast_state = forecast_state
+        return advice_text + "\n\n" + forecast_text
+
+    def _compute_monthly_forecast_text(self):
+        """Son 3 aylık nakit-akışına dayanan ay-sonu bakiye öngörüsü.
+
+        `services.insights_service.generate_monthly_forecast` günlük
+        gelir/gider ortalamasını RK4 projeksiyonuyla ay sonuna kadar ileri
+        sürer. Yeterli geçmiş yoksa (< ~3 ay) yanıltıcı bir sayı üretmek
+        yerine bunu açıkça söyler. Döner: (metin, "positive"|"negative"|
+        "warning"|"neutral" durumu — ikon rengi seçimi için).
+        """
+        from services.insights_service import generate_monthly_forecast
+
+        def _fmt(v):
+            return (
+                f"{v:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
+            )
+
+        forecast = generate_monthly_forecast()
+        if forecast["insufficient_data"]:
+            return (
+                translate(
+                    "Son 3 ayın istatistiğine göre ay sonu öngörüsü: "
+                    "en az 3 aylık işlem geçmişi biriktiğinde burada görünecek."
+                ),
+                "neutral",
+            )
+
+        month_end = _fmt(forecast["projected_month_end_balance"])
+        surplus = forecast["projected_surplus"]
+
+        if forecast["projected_month_end_balance"] < 0:
+            return (
+                translate(
+                    f"Son 3 ayın istatistiğine göre bu ay sonunda bakiyenizin {month_end} "
+                    "olması bekleniyor. Dikkat: Model bakiyenizin eksiye düşebileceğini "
+                    "gösteriyor, harcamalarınızı gözden geçirin."
+                ),
+                "negative",
+            )
+        if surplus < 0:
+            return (
+                translate(
+                    f"Son 3 ayın istatistiğine göre mevcut harcama eğiliminiz sürerse bu "
+                    f"ay sonunda bakiyeniz {month_end} seviyesine gerileyebilir."
+                ),
+                "warning",
+            )
+        if surplus > 0 and forecast["savings_rate"] >= 0.10:
+            return (
+                translate(
+                    f"Son 3 ayın istatistiğine göre bu ay sonunda cebinizde {month_end} "
+                    "kalacak; bunu bir yatırım aracı olarak değerlendirebilirsiniz."
+                ),
+                "positive",
+            )
+        return (
+            translate(
+                f"Son 3 ayın istatistiğine göre bu ay sonunda bakiyenizin yaklaşık "
+                f"{month_end} olması bekleniyor."
+            ),
+            "neutral",
+        )
+
     def _apply_financial_advice_text(self, advice_text):
         """Ana thread'de çağrılır: yalnızca widget güncellemesi yapar."""
+        state_colors = {
+            "positive": "green",
+            "warning": "amber",
+            "negative": "red",
+            "neutral": "blue",
+        }
+        state_icons = {
+            "positive": "trending-up",
+            "warning": "trending-down",
+            "negative": "alert-circle-outline",
+            "neutral": "robot-outline",
+        }
+        state = getattr(self, "_advice_forecast_state", "neutral")
+
         try:
             app = MDApp.get_running_app()
             if app and app.root and "prediction_text" in app.root.ids:
                 app.root.ids.prediction_text.text = advice_text
-                app.root.ids.prediction_icon.icon = "robot-outline"
+                app.root.ids.prediction_icon.icon = state_icons[state]
                 app.root.ids.prediction_icon.text_color = ftheme.accent(
-                    app.theme_cls, "blue"
+                    app.theme_cls, state_colors[state]
                 )
         except Exception:
             pass
-
-        if self.root and "advice_label" in self.root.ids:
-            self.root.ids.advice_label.text = advice_text
-            self.root.ids.advice_icon.icon = "robot-outline"
-            self.root.ids.advice_icon.text_color = ftheme.accent(self.theme_cls, "blue")
 
     # -------------------------------------------------------------------------
     # -------------------------------------------------------------------------
     # Dialogs & Reset Functionality
     # -------------------------------------------------------------------------
-    def show_calendar_view(self):
-        # DÜZELTME (çökme): burada doğrudan `from kivymd.uix.pickers import
-        # MDDatePicker` çağrılıyordu. Kivy 2.3.1'in .kv ayrıştırıcısı,
-        # Python 3.14'te kaldırılan `ast.Str` API'sini hâlâ kullanıyor;
-        # MDDatePicker'ın renk seçici alt modülü ilk kez burada import
-        # edildiğinde ayrıştırıcı patlayıp UYGULAMAYI ÇÖKERTİYORDU (Araçlar >
-        # Takvim karesine her tıklamada). HistoryMixin._open_date_picker
-        # (bkz. mixins/history_mixin.py) aynı importtan önce dar kapsamlı bir
-        # `ast.Str = ast.Constant` yaması kuruyor ve TransactionMixin/
-        # PendingMixin zaten bu ortak yoldan geçiyor; burası da aynı yola
-        # geçirilir — yamayı ikinci kez kopyalamak yerine.
-        import datetime
-
-        self._open_date_picker(datetime.date.today(), self.on_calendar_date_save)
-
-    def on_calendar_date_save(self, instance, value, date_range):
-        # value is a datetime.date object
-        import datetime
-        from kivymd.toast import toast
-        from services.transaction_service import get_connection
-
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT COUNT(*) as cnt FROM transactions WHERE date(transaction_date) = ?",
-            (value.strftime("%Y-%m-%d"),),
-        )
-        count = cursor.fetchone()["cnt"]
-        conn.close()
-
-        msg = f"{value.strftime('%d.%m.%Y')} - " + self.tr(
-            f"{count} işlem bulundu.", self.language
-        )
-        toast(msg)
-
     def contact_us(self):
         import webbrowser
 
@@ -2188,6 +2154,7 @@ class ArchlenceApp(
 
             invalidate_asset_data_cache()
             self._liquid_balance_cache = 0.0
+            self._today_liquid_delta_cache = 0.0
             self._assets_cache = []
             self._asset_ui_loaded_at = 0.0
             self._asset_load_inflight = False

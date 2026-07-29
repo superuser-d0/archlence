@@ -1,0 +1,110 @@
+name: Build Linux AppImage
+
+# build-windows.yml ile aynı tetikleyici/concurrency deseni — PyInstaller
+# çapraz derleme yapamadığı için bu iş yalnızca Linux runner'ında çalışır.
+#
+# İKİ artifact üretir:
+#   - Archlence-Linux: ham "onedir" klasörü (Archlence ikilisi + yanındaki
+#     .so/kaynak klasörü) — geliştirici/debug amaçlı.
+#   - Archlence-AppImage: tek dosyalık Archlence-x86_64.AppImage — son
+#     kullanıcı/test için, çalıştırma izni verip çift tıklayarak/`./` ile
+#     doğrudan çalıştırılır, kurulum gerektirmez.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+concurrency:
+  group: build-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Kodu çek
+        uses: actions/checkout@v4
+
+      - name: Python kur
+        # KARAR (kilitli, 2026-07-29) — build-windows.yml'deki notla aynı:
+        # paketleme her iki platformda da 3.12'ye sabit, yerel geliştirme
+        # ortamından (3.14.6) bilerek bağımsız. Tutarlılık için değiştirilecekse
+        # ikisi birden güncellenmeli.
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Bağımlılıkları kur
+        # requirements-runtime.txt Windows'takiyle aynı dosya — kivy_deps
+        # (sdl2/glew/angle) yalnızca Windows'a özgü DLL bundling paketleri,
+        # burada gerekmiyor (bkz. archlence.spec'teki IS_WINDOWS dalı).
+        # xvfb: aşağıdaki derleme adımı gerçek bir OpenGL bağlamı gerektiriyor
+        # (bkz. o adımdaki not) — ubuntu-latest imajında hazır gelmiyor.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb
+          python -m pip install --upgrade pip
+          pip install -r requirements-runtime.txt
+          pip install pyinstaller
+
+      - name: PyInstaller ile derle
+        # archlence.spec'teki `collect_all("kivymd")` kivymd'yi gerçekten
+        # import ediyor; kivymd/material_resources.py modül seviyesinde
+        # `dp(400)` çağırıyor, bu da Kivy'nin Window/GL singleton'ını GERÇEKTEN
+        # tetikliyor (bkz. archlence.spec'teki not). Windows'ta bu ANGLE ile
+        # çözülüyor. Burada önce SDL'nin "dummy" video sürücüsü denendi
+        # (run_tests.py'nin headless test deseni) ama İŞE YARAMADI — dummy
+        # sürücü hiçbir OpenGL yüzeyi sağlamıyor ("OpenGL support is either
+        # not configured in SDL or not available in current SDL video driver
+        # (dummy)"), oysa bu adım gerçek (yazılım da olsa) bir GL bağlamı
+        # istiyor. Çözüm: `xvfb-run` ile sanal ama GERÇEK bir X11 ekranı
+        # açmak — Mesa'nın llvmpipe yazılım rasterizer'ı üzerinden çalışan
+        # bağlam Kivy'nin OpenGL şartını karşılıyor. Yerel bir Linux
+        # makinesinde `xvfb-run -a pyinstaller ... archlence.spec` ile
+        # doğrulandı (dist/Archlence/Archlence üretildi, ~290 MB onedir).
+        run: xvfb-run -a pyinstaller --noconfirm --log-level WARN archlence.spec
+        timeout-minutes: 20
+
+      - name: Ham dizini artifact olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Archlence-Linux
+          path: dist/Archlence/
+          if-no-files-found: error
+
+      - name: AppDir oluştur
+        # archlence.spec bilerek "onedir" derliyor (bkz. o dosyadaki not) —
+        # AppRun bu klasörün TAMAMINI olduğu gibi kopyalayıp içindeki gerçek
+        # ikiliyi çalıştırıyor, PyInstaller'ın iç düzenini bilmesi gerekmiyor
+        # (bkz. installer/appimage/AppRun'daki not).
+        run: |
+          mkdir -p AppDir/usr/bin
+          cp -r dist/Archlence AppDir/usr/bin/Archlence
+          cp installer/appimage/AppRun AppDir/AppRun
+          chmod +x AppDir/AppRun
+          cp assets/archlence.desktop AppDir/Archlence.desktop
+          cp assets/icon.png AppDir/archlence.png
+
+      - name: appimagetool indir
+        # AppImage projesinin resmi "continuous" sürümü — appimagetool'un
+        # kendisi de bir AppImage; --appimage-extract-and-run FUSE'a ihtiyaç
+        # duymadan çalıştırır (ubuntu-latest runner'larında libfuse2 artık
+        # varsayılan kurulu değil).
+        run: |
+          wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
+          chmod +x appimagetool
+
+      - name: AppImage oluştur
+        run: ./appimagetool --appimage-extract-and-run AppDir dist/Archlence-x86_64.AppImage
+
+      - name: AppImage'ı artifact olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: Archlence-AppImage
+          path: dist/Archlence-x86_64.AppImage
+          if-no-files-found: error
