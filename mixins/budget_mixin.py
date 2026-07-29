@@ -635,20 +635,39 @@ class BudgetMixin:
         # zaten düzeltilmiş kasmanın ta kendisi, buraya hiç uygulanmamıştı.
         # Kullanıcı yazmayı bitirene kadar (300ms sessizlik) yeniden çizimi
         # ertele — asset_mixin.py::_on_search ile birebir aynı desen.
+        previous_search = getattr(
+            self, "_budget_category_search_event", None,
+        )
+        if previous_search is not None:
+            previous_search.cancel()
         self._budget_category_search_event = None
 
         def _on_search(_field, value):
             if self._budget_category_search_event:
                 self._budget_category_search_event.cancel()
-            self._budget_category_search_event = Clock.schedule_once(
-                lambda dt: populate(value), 0.3
-            )
+            event = None
+
+            def _populate_if_current(_dt):
+                if self._budget_category_search_event is event:
+                    self._budget_category_search_event = None
+                    populate(value)
+
+            event = Clock.schedule_once(_populate_if_current, 0.3)
+            self._budget_category_search_event = event
 
         search.bind(text=_on_search)
         populate()
         self.bp_category_dialog = MDDialog(
             title=_t("Kategori Seç"), type="custom", content_cls=content,
         )
+
+        def _cancel_pending_search(*_args):
+            event = getattr(self, "_budget_category_search_event", None)
+            if event is not None:
+                event.cancel()
+                self._budget_category_search_event = None
+
+        self.bp_category_dialog.bind(on_dismiss=_cancel_pending_search)
         self.bp_category_dialog.open()
 
     def _select_budget_category(self, category):

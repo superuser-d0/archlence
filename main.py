@@ -7,8 +7,6 @@ Archlence KivyMD Application - Main Entry Point
 # =========================================================================
 import os
 import sys
-import csv
-import math
 import logging
 import datetime
 import faulthandler
@@ -144,23 +142,17 @@ Config.set("kivy", "log_maxfiles", 2)  # Keep only 2 log files
 
 from kivy.metrics import dp
 from kivy.lang import Builder
-from kivy.factory import Factory
 from kivy.clock import Clock
 from kivy.animation import Animation
 from kivy.storage.jsonstore import JsonStore
 from kivy.properties import (
     StringProperty,
-    NumericProperty,
     ColorProperty,
-    BooleanProperty,
 )
 
-from kivy.graphics import Color, Ellipse, Rectangle, RoundedRectangle, Line
-from kivy.core.text import Label as CoreLabel
 from kivy.uix.widget import Widget
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.gridlayout import GridLayout
-from kivy.uix.scrollview import ScrollView
 
 # Graceful Window Mocking
 try:
@@ -311,34 +303,22 @@ except (ImportError, AttributeError) as exc:
 # =========================================================================
 # 4. LOCAL MODULE IMPORTS
 # =========================================================================
-from utils.crypto import encrypt, decrypt
+from utils.crypto import decrypt
 from database.init_db import initialize_database
 from database.db import (
     get_connection,
-    ACCOUNT,
-    record_balance_event,
+    managed_connection,
     COMPLETED_TX,
     COMPLETED_TX_T,
     migrate_legacy_database_location,
 )
-from services.transaction_service import TransactionService
-from services.queries import CategoryService
 
 from ui.charts import (
-    CurvedTrendChart,
     HorizontalBarChart,
-    LiquidWaveWidget,
-    PieChart,
-    DashboardChartManager,
-    ConfettiWidget,
     ScenarioComparisonChart,
 )
 from ui.components import (
     CategorySettingItem,
-    RightButtonsContainer,
-    BudgetListItem,
-    LegendItem,
-    LegendWidget,
 )
 from ui.theme import (
     apply_premium_theme,
@@ -869,10 +849,9 @@ class ArchlenceApp(
 
         def _work():
             try:
-                conn = get_connection()
-                conn.execute("VACUUM")
-                conn.commit()
-                conn.close()
+                with managed_connection() as conn:
+                    conn.execute("VACUUM")
+                    conn.commit()
                 print("Database VACUUM completed.")
             except Exception as e:
                 print(f"VACUUM failed: {e}")
@@ -918,16 +897,13 @@ class ArchlenceApp(
 
     def _compute_dashboard_metrics(self):
         """Yalnızca veri üretir, hiçbir widget'a dokunmaz (thread güvenli)."""
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(f"""
-            SELECT t.amount, t.type, IFNULL(c.importance, 'extra')
-            FROM transactions t
-            LEFT JOIN categories c ON t.category = c.name
-            WHERE {COMPLETED_TX_T}
-        """)
-        rows = cursor.fetchall()
-        conn.close()
+        with managed_connection() as conn:
+            rows = conn.execute(f"""
+                SELECT t.amount, t.type, IFNULL(c.importance, 'extra')
+                FROM transactions t
+                LEFT JOIN categories c ON t.category = c.name
+                WHERE {COMPLETED_TX_T}
+            """).fetchall()
 
         ana_gelir = ek_gelir = temel_gider = ekstra_gider = 0.0
 
@@ -963,9 +939,6 @@ class ArchlenceApp(
 
         period_income = period_expense = period_net = 0.0
         try:
-            conn2 = get_connection()
-            cursor2 = conn2.cursor()
-
             if filter_text == "1 Hafta":
                 date_cond = ">= date('now', '-7 days', 'localtime')"
             elif filter_text == "1 Ay":
@@ -977,11 +950,13 @@ class ArchlenceApp(
             else:
                 date_cond = "= date('now', 'localtime')"
 
-            cursor2.execute(
-                f"SELECT amount, type FROM transactions"
-                f" WHERE date(transaction_date) {date_cond} AND {COMPLETED_TX}"
-            )
-            for t_amt, t_typ in cursor2.fetchall():
+            with managed_connection() as conn2:
+                period_rows = conn2.execute(
+                    f"SELECT amount, type FROM transactions"
+                    f" WHERE date(transaction_date) {date_cond}"
+                    f" AND {COMPLETED_TX}"
+                ).fetchall()
+            for t_amt, t_typ in period_rows:
                 try:
                     val = float(decrypt(str(t_amt), SECRET_KEY))
                 except Exception:
@@ -993,23 +968,20 @@ class ArchlenceApp(
                 elif t_typ in ("expense", "Gider"):
                     period_expense += val
                     period_net -= val
-            conn2.close()
         except Exception:
             pass
 
         # ── 30 günlük ODE projeksiyonu girdileri ─────────────────────────────
         inc_30 = exp_30 = 0.0
         try:
-            conn_pred = get_connection()
-            cursor_pred = conn_pred.cursor()
-            cursor_pred.execute(f"""
-                SELECT type, amount
-                FROM transactions
-                WHERE date(transaction_date) >= date('now', '-30 days', 'localtime')
-                  AND {COMPLETED_TX}
-            """)
-            rows = cursor_pred.fetchall()
-            conn_pred.close()
+            with managed_connection() as conn_pred:
+                rows = conn_pred.execute(f"""
+                    SELECT type, amount
+                    FROM transactions
+                    WHERE date(transaction_date) >=
+                          date('now', '-30 days', 'localtime')
+                      AND {COMPLETED_TX}
+                """).fetchall()
 
             for t_type, amount in rows:
                 try:
@@ -1268,14 +1240,13 @@ class ArchlenceApp(
         """Bugünkü nakit hareket toplamı (gelir − gider). Yalnızca veri üretir;
         arka plan thread'inden çağrılabilir."""
         today_liquid_delta = 0.0
-        conn_t = get_connection()
-        cur_t = conn_t.cursor()
-        cur_t.execute(
-            "SELECT amount, type FROM transactions "
-            "WHERE date(transaction_date) = date('now', 'localtime') "
-            f"AND {COMPLETED_TX}"
-        )
-        for t_amt, t_typ in cur_t.fetchall():
+        with managed_connection() as conn_t:
+            rows = conn_t.execute(
+                "SELECT amount, type FROM transactions "
+                "WHERE date(transaction_date) = date('now', 'localtime') "
+                f"AND {COMPLETED_TX}"
+            ).fetchall()
+        for t_amt, t_typ in rows:
             try:
                 val = float(decrypt(str(t_amt), SECRET_KEY))
             except Exception:
@@ -1284,7 +1255,6 @@ class ArchlenceApp(
                 today_liquid_delta += val
             elif t_typ in ("expense", "Gider"):
                 today_liquid_delta -= val
-        conn_t.close()
         return today_liquid_delta
 
     def update_wealth_card(self, enriched_assets, today_liquid_delta=None):
@@ -1346,14 +1316,11 @@ class ArchlenceApp(
             prev_start = now - datetime.timedelta(days=1)
             prev_end = now
 
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT amount, type, transaction_date FROM transactions"
-            f" WHERE {COMPLETED_TX}"
-        )
-        rows = cursor.fetchall()
-        conn.close()
+        with managed_connection() as conn:
+            rows = conn.execute(
+                "SELECT amount, type, transaction_date FROM transactions"
+                f" WHERE {COMPLETED_TX}"
+            ).fetchall()
 
         current_net = prev_net = 0.0
 
@@ -1389,14 +1356,6 @@ class ArchlenceApp(
             change_rate = ((current_net - prev_net) / abs(prev_net)) * 100
 
         return change_rate
-
-    def update_change_rate_ui(self):
-        """Eski senkron giriş noktası — hesap ana thread'de yapılır. Dashboard
-        tazelemesi artık oranı arka planda hesaplayıp _apply_change_rate çağırır."""
-        try:
-            self._apply_change_rate(self.calculate_monthly_change_rate())
-        except Exception as e:
-            print("Error updating change rate UI:", e)
 
     def _apply_change_rate(self, rate):
         try:
@@ -1461,9 +1420,8 @@ class ArchlenceApp(
         import threading
 
         try:
-            # update_metrics_and_goals artık arka planda hesaplar ve değişim
-            # oranını da aynı pakette getirir — burada ayrıca ana thread'de
-            # update_change_rate_ui koşturmak hem donduruyor hem işi ikiliyordu.
+            # update_metrics_and_goals metrikleri ve değişim oranını aynı
+            # arka-plan paketinde hesaplar.
             self.update_metrics_and_goals()
             if self.root and "chart_master_box" in self.root.ids:
                 self.root.ids.chart_master_box.refresh_dashboard(
@@ -1939,45 +1897,43 @@ class ArchlenceApp(
 
     def _compute_financial_advice_text(self):
         """Yalnızca veri üretir, hiçbir widget'a dokunmaz (thread güvenli)."""
-        conn = get_connection()
-        cursor = conn.cursor()
+        with managed_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT category, amount FROM transactions WHERE type='expense' AND strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime') AND {COMPLETED_TX}"
+            )
+            expense_rows_this_month = cursor.fetchall()
 
-        cursor.execute(
-            f"SELECT category, amount FROM transactions WHERE type='expense' AND strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime') AND {COMPLETED_TX}"
-        )
-        expense_rows_this_month = cursor.fetchall()
+            cat_sums, this_month_exp = {}, 0.0
+            for cat, amount in expense_rows_this_month:
+                try:
+                    val = float(decrypt(str(amount), SECRET_KEY))
+                except (ValueError, TypeError):
+                    val = 0.0
+                cat_sums[cat] = cat_sums.get(cat, 0.0) + val
+                this_month_exp += val
 
-        cat_sums, this_month_exp = {}, 0.0
-        for cat, amount in expense_rows_this_month:
-            try:
-                val = float(decrypt(str(amount), SECRET_KEY))
-            except (ValueError, TypeError):
-                val = 0.0
-            cat_sums[cat] = cat_sums.get(cat, 0.0) + val
-            this_month_exp += val
+            highest_cat_name = (
+                max(cat_sums, key=lambda k: cat_sums[k]) if cat_sums else "Yok"
+            )
 
-        highest_cat_name = (
-            max(cat_sums, key=lambda k: cat_sums[k]) if cat_sums else "Yok"
-        )
+            cursor.execute(
+                f"SELECT amount FROM transactions WHERE type='expense' AND strftime('%m', transaction_date) = strftime('%m', 'now', '-1 month', 'localtime') AND {COMPLETED_TX}"
+            )
+            last_month_exp = sum(
+                float(decrypt(str(amt[0]), SECRET_KEY))
+                for amt in cursor.fetchall()
+                if amt[0]
+            )
 
-        cursor.execute(
-            f"SELECT amount FROM transactions WHERE type='expense' AND strftime('%m', transaction_date) = strftime('%m', 'now', '-1 month', 'localtime') AND {COMPLETED_TX}"
-        )
-        last_month_exp = sum(
-            float(decrypt(str(amt[0]), SECRET_KEY))
-            for amt in cursor.fetchall()
-            if amt[0]
-        )
-
-        cursor.execute(
-            f"SELECT amount FROM transactions WHERE type='income' AND strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime') AND {COMPLETED_TX}"
-        )
-        this_month_inc = sum(
-            float(decrypt(str(amt[0]), SECRET_KEY))
-            for amt in cursor.fetchall()
-            if amt[0]
-        )
-        conn.close()
+            cursor.execute(
+                f"SELECT amount FROM transactions WHERE type='income' AND strftime('%m', transaction_date) = strftime('%m', 'now', 'localtime') AND {COMPLETED_TX}"
+            )
+            this_month_inc = sum(
+                float(decrypt(str(amt[0]), SECRET_KEY))
+                for amt in cursor.fetchall()
+                if amt[0]
+            )
 
         if last_month_exp > 0:
             change_percent = ((this_month_exp - last_month_exp) / last_month_exp) * 100
@@ -2198,6 +2154,7 @@ class ArchlenceApp(
 
             invalidate_asset_data_cache()
             self._liquid_balance_cache = 0.0
+            self._today_liquid_delta_cache = 0.0
             self._assets_cache = []
             self._asset_ui_loaded_at = 0.0
             self._asset_load_inflight = False
