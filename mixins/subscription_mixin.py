@@ -19,7 +19,6 @@ from kivymd.uix.button import MDFlatButton, MDRaisedButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.label import MDLabel
 from kivymd.uix.list import MDList
-from kivymd.uix.textfield import MDTextField
 
 import ui.theme as ftheme
 from ui.i18n import tr as _t
@@ -185,7 +184,13 @@ class SubscriptionMixin:
                 from services.recurring_service import update_subscription_amount
                 update_subscription_amount(payment["id"], new_amount)
             except ValueError as exc:
-                Clock.schedule_once(lambda dt: toast(_t(str(exc))), 0)
+                # Python except bloğundan çıkarken `exc` adını temizler.
+                # Gecikmeli lambda doğrudan exc'yi kapatırsa Kivy ana thread'i
+                # callback'i çalıştırdığında NameError oluşur.
+                message = str(exc)
+                Clock.schedule_once(
+                    lambda dt, value=message: toast(_t(value)), 0,
+                )
                 return
             except Exception as exc:
                 print("Abonelik ücreti güncellenemedi:", exc)

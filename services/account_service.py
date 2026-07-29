@@ -362,7 +362,7 @@ class AccountService:
             record_balance_event(cursor, ACCOUNT, credit_card_id, amount, new_card_balance, "card_payment")
 
             # İşlemi transactions tablosuna yaz
-            from services.transaction_service import TransactionService, SECRET_KEY
+            from services.transaction_service import SECRET_KEY
             from utils.crypto import encrypt
             import datetime
             date_now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -432,6 +432,12 @@ class AccountService:
             if cursor.rowcount != 1:
                 raise ValueError("Kredi kartı bulunamadı.")
             conn.commit()
+            # UI dışından yapılan servis çağrıları da mümkündür. Silme yolu
+            # balance_events'i bilinçli olarak kaldırdığı için normal
+            # record_balance_event choke point'inden geçmez; cache'i burada
+            # açıkça bayatlatmak zorundayız.
+            from services.asset_service import mark_account_cache_stale
+            mark_account_cache_stale()
         except Exception:
             conn.rollback()
             raise

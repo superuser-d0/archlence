@@ -17,7 +17,6 @@ from kivymd.uix.dialog import MDDialog
 from ui.i18n import tr as _t
 from utils.formatters import attach_amount_mask, read_amount
 from kivymd.uix.label import MDLabel
-from kivymd.uix.textfield import MDTextField
 from kivymd.uix.menu import MDDropdownMenu
 
 from typing import Any
