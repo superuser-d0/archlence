@@ -51,6 +51,24 @@ class StartupImportTest(unittest.TestCase):
     exit code 0 ile) atlanıyordu. Bu dosya artık üç ayrı gerçek senaryoyu
     doğruluyor."""
 
+    def test_mouse_multitouch_debug_rings_are_disabled(self):
+        """Sağ tık/Alt-Tab, Kivy'nin kırmızı sahte-touch halkalarını çizmemeli."""
+        completed = _run(
+            """
+            import main
+            from kivy.config import Config
+            assert Config.get("input", "mouse") == "mouse,disable_multitouch"
+            print("mouse-multitouch-disabled")
+            """,
+            extra_env={"ARCHLENCE_HEADLESS": "1"},
+            strip_display=True,
+        )
+        self.assertEqual(
+            completed.returncode, 0,
+            msg=completed.stderr or completed.stdout,
+        )
+        self.assertIn("mouse-multitouch-disabled", completed.stdout)
+
     @unittest.skipUnless(
         _HAS_REAL_DISPLAY, "gerçek bir display sunucusu yok (ör. CI runner)"
     )

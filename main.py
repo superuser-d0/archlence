@@ -139,6 +139,13 @@ from kivy.config import Config
 
 Config.set("kivy", "log_level", "error")  # Only log errors
 Config.set("kivy", "log_maxfiles", 2)  # Keep only 2 log files
+# Kivy'nin mouse provider'ı varsayılan olarak sağ/orta tık ve Ctrl+sol tık
+# hareketlerini sahte çoklu-dokunma olarak yorumlayıp ekrana kırmızı temas
+# halkaları çizer. Alt-Tab sonrasında SDL modifier durumu takılı kaldığında
+# düz sol tıklar da bu moda sızabiliyor ve halkalar pencere boyunca kalıyor.
+# Archlence mouse ile multitouch emülasyonu kullanmıyor; gerçek dokunmatik
+# sağlayıcıları (hidinput/mtdev) bu ayardan bağımsızdır.
+Config.set("input", "mouse", "mouse,disable_multitouch")
 
 from kivy.metrics import dp
 from kivy.lang import Builder
