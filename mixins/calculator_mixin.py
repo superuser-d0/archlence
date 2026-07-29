@@ -1,4 +1,3 @@
-import os
 import math
 from kivy.metrics import dp
 from kivymd.toast import toast
@@ -12,6 +11,7 @@ from kivymd.uix.segmentedcontrol import MDSegmentedControl, MDSegmentedControlIt
 from kivymd.uix.label import MDLabel
 import ui.theme as ftheme
 from ui.i18n import tr as _t
+from utils.calculator import evaluate_calculator_expression
 
 
 class CalculatorMixin:
@@ -65,12 +65,9 @@ class CalculatorMixin:
                     self.calc_input.text = ""
                 elif btn_text == '=':
                     try:
-                        safe_dict = {
-                            "sin": math.sin, "cos": math.cos, "tan": math.tan,
-                            "sqrt": math.sqrt, "log": math.log10, 
-                            "pi": math.pi, "e": math.e
-                        }
-                        result = str(eval(current_text, {"__builtins__": None}, safe_dict))
+                        result = str(
+                            evaluate_calculator_expression(current_text)
+                        )
                         self.calc_input.text = result
                     except Exception:
                         self.calc_input.text = _t("Hata")

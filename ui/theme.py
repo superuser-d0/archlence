@@ -325,12 +325,34 @@ def bind_card_tap(card, callback):
     algılaması kurulur — `MDRaisedButton`/`MDFlatButton` gibi gerçek
     `ButtonBehavior` tabanlı widget'lara ihtiyaç duymadan, karmaşık iç
     yerleşimli (ikon+etiket+chevron) kartları tıklanabilir yapar.
+
+    DÜZELTME (2026-07-29 — "her şeye tıklasam iki kez açılıyor"): `on_release`
+    dispatch edilmese bile `ripple_behavior=True` olan bir MDCard, ripple
+    zincirinin (`RectangularRippleBehavior` -> `super()`) ALTINDA gerçekten
+    `kivy.uix.behaviors.button.ButtonBehavior.on_touch_down`'a ulaşıyor ve o,
+    dokunuşu KENDİSİ `touch.grab(self)` ile yakalıyor (ampirik olarak
+    doğrulandı: `ripple_behavior=True` bir karta dokunulduğunda
+    `touch.grab_list` o kartı içeriyor). Kivy'nin gerçek olay döngüsü
+    (`EventLoopBase.post_dispatch_input`) `on_touch_up`'ı ÖNCE normal ağaç
+    gezinmesiyle, SONRA `touch.grab_list`'teki her widget'a AYRICA tekrar
+    dispatch ediyor — yani bu callback'e `.bind(on_touch_up=...)` ile
+    bağlanan HER dinleyici, kart kendi dokunuşunu grab ettiği sürece dokunuş
+    başına İKİ KEZ çağrılıyor. `touch.ud` (bu dokunuş nesnesine özel, tüm
+    dispatch'ler arasında paylaşılan sözlük) ile widget başına "bu dokunuşu
+    zaten işledim" işareti konarak tekilleştiriliyor.
     """
     def _on_touch_up(widget, touch):
         if widget.disabled:
             return False
-        if widget.collide_point(*touch.pos):
-            callback()
+        if not widget.collide_point(*touch.pos):
+            return False
+        # Aynı dokunuş bu widget'a ikinci kez ulaşırsa (grab redispatch'i)
+        # callback'i tekrar çalıştırma.
+        handled_key = f"_archlence_bind_card_tap_{id(widget)}"
+        if touch.ud.get(handled_key):
+            return False
+        touch.ud[handled_key] = True
+        callback()
         return False
     card.bind(on_touch_up=_on_touch_up)
 

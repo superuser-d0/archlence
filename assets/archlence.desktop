@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Archlence
+GenericName=Personal Finance Manager
+Comment=Local-first personal finance tracking, budgeting, and portfolio overview
+Exec=Archlence
+Icon=archlence
+Categories=Office;Finance;
+Terminal=false
+StartupWMClass=Archlence
+StartupNotify=true

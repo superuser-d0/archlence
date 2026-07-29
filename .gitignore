@@ -22,6 +22,11 @@ build/
 dist/
 *.build/
 
+# AppImage paketleme için CI'nin (ve yerel test derlemesinin) topladığı
+# geçici AppDir — build-linux.yml her seferinde yeniden oluşturur
+AppDir/
+*.AppImage
+
 # Inno Setup çıktısı — installer/archlence.iss'ten CI her seferinde üretir
 installer_output/
 

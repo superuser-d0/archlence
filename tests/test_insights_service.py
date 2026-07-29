@@ -520,6 +520,65 @@ class InsightsServiceTestCase(AccountFixtureMixin, unittest.TestCase):
         self.assertEqual(score_label(20), "Zayıf")
         self.assertEqual(score_label(0), "Kritik")
 
+    # ─── 5. Aylık algoritmik öngörü ──────────────────────────────────────────
+
+    def test_no_history_is_insufficient_data(self):
+        from services.insights_service import generate_monthly_forecast
+
+        result = generate_monthly_forecast()
+        self.assertTrue(result["insufficient_data"])
+        self.assertEqual(result["days_available"], 0)
+
+    def test_less_than_three_months_of_history_is_insufficient_data(self):
+        from services.insights_service import generate_monthly_forecast
+
+        # Yalnızca son birkaç günün verisi var — "en az 3 aylık" koşulunu
+        # sağlamıyor, yanıltıcı bir öngörü üretilmemeli.
+        self._add_tx(5000, "income", "Maaş", "maaş", days_ago=2)
+        self._add_tx(1000, "expense", "Süpermarket", "market", days_ago=1)
+
+        result = generate_monthly_forecast()
+        self.assertTrue(result["insufficient_data"])
+        self.assertLess(result["days_available"], 85)
+
+    def test_comfortable_surplus_projects_positive_and_uses_account_balance(self):
+        from services.insights_service import generate_monthly_forecast
+
+        for days_ago in (89, 60, 30, 5):
+            self._add_tx(5000, "income", "Maaş", "maaş", days_ago=days_ago)
+        for days_ago in (85, 55, 25, 3):
+            self._add_tx(2000, "expense", "Süpermarket", "market", days_ago=days_ago)
+
+        result = generate_monthly_forecast()
+
+        self.assertFalse(result["insufficient_data"])
+        self.assertGreaterEqual(result["days_available"], 85)
+        # _add_tx ham SQL insert yapar, accounts.balance'a dokunmaz — bu yüzden
+        # fixture bakiyesi (100.000) aynen DashboardService.get_total_balance
+        # üzerinden geri gelmeli.
+        self.assertEqual(result["current_balance"], 100_000.0)
+        # >= değil > kullanmıyoruz: bulunulan ayın SON gününde days_remaining=0
+        # olur ve projeksiyon o durumda taban bakiyeyle eşleşir (RK4 hiç
+        # adım atmaz) — testin ayın hangi gününde çalıştığından etkilenmemesi
+        # gerekiyor.
+        self.assertGreaterEqual(result["projected_surplus"], 0)
+        self.assertGreaterEqual(result["projected_month_end_balance"], 100_000.0)
+        self.assertGreater(result["savings_rate"], 0.10)
+
+    def test_heavy_spending_projects_a_negative_surplus(self):
+        from services.insights_service import generate_monthly_forecast
+
+        for days_ago in (89, 60, 30, 5):
+            self._add_tx(2000, "income", "Maaş", "maaş", days_ago=days_ago)
+        for days_ago in (85, 55, 25, 3):
+            self._add_tx(5000, "expense", "Süpermarket", "market", days_ago=days_ago)
+
+        result = generate_monthly_forecast()
+
+        self.assertFalse(result["insufficient_data"])
+        self.assertLessEqual(result["projected_surplus"], 0)
+        self.assertLessEqual(result["projected_month_end_balance"], 100_000.0)
+
 
 if __name__ == "__main__":
     unittest.main()

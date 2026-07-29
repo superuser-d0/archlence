@@ -630,7 +630,21 @@ class BudgetMixin:
                 )
                 listing.add_widget(item)
 
-        search.bind(text=lambda _field, value: populate(value))
+        # DÜZELTME (kasma): her tuş vuruşunda tüm listeyi yeniden çizmek —
+        # asset_mixin.py'deki BIST/kripto arama kutusunda aynı sebeple
+        # zaten düzeltilmiş kasmanın ta kendisi, buraya hiç uygulanmamıştı.
+        # Kullanıcı yazmayı bitirene kadar (300ms sessizlik) yeniden çizimi
+        # ertele — asset_mixin.py::_on_search ile birebir aynı desen.
+        self._budget_category_search_event = None
+
+        def _on_search(_field, value):
+            if self._budget_category_search_event:
+                self._budget_category_search_event.cancel()
+            self._budget_category_search_event = Clock.schedule_once(
+                lambda dt: populate(value), 0.3
+            )
+
+        search.bind(text=_on_search)
         populate()
         self.bp_category_dialog = MDDialog(
             title=_t("Kategori Seç"), type="custom", content_cls=content,
@@ -744,11 +758,22 @@ class BudgetMixin:
             text_col = MDBoxLayout(
                 orientation="vertical", size_hint_x=1,
             )
-            text_col.add_widget(MDLabel(
+            # Aşama 2, madde 1.4: gelir kalemleri sağa, gider kalemleri sola
+            # hizalanmalı. halign tek başına yeterli değil — MDLabel varsayılan
+            # olarak text_size'ı boyutuna bağlamaz, bu yüzden hizalama görünür
+            # olması için genişliğe bind edilmesi gerekiyor.
+            align = "right" if item["type"] == "income" else "left"
+
+            def _aligned_label(**kwargs):
+                label = MDLabel(halign=align, **kwargs)
+                label.bind(size=label.setter("text_size"))
+                return label
+
+            text_col.add_widget(_aligned_label(
                 text=item["name"], font_style="Body1",
                 size_hint_y=None, height=dp(24),
             ))
-            text_col.add_widget(MDLabel(
+            text_col.add_widget(_aligned_label(
                 text=f"{_t('Gelir' if item['type'] == 'income' else 'Gider')} · {_fmt(item['amount'])}"
                      + (_t(" · Şablon") if item.get("is_template") else ""),
                 font_style="Caption", theme_text_color="Secondary",
@@ -769,7 +794,7 @@ class BudgetMixin:
                     f" ({carry:+.2f} TL {_t('geçen aydan devir')})"
                     if carry else ""
                 )
-                text_col.add_widget(MDLabel(
+                text_col.add_widget(_aligned_label(
                     text=(
                         f"{_t('Gerçekleşen')}: {_fmt(progress['actual'])} / "
                         f"{_fmt(effective)}{carry_text}"

@@ -44,7 +44,7 @@ The repository is public to support transparent development, technical review, a
 
 ### Dashboard and financial health
 
-The dashboard combines current balance, period comparisons, algorithmic projections, a financial health score, active subscriptions, upcoming obligations, and recent activity.
+The dashboard combines current balance, period comparisons, a trend-based month-end balance forecast with actionable recommendations, a financial health score, active subscriptions, upcoming obligations, and recent activity.
 
 
 ### Portfolio overview
@@ -288,7 +288,6 @@ Archlence is a personal finance management tool. It is not a bank, brokerage ser
 - More consistent recurring-payment detection and presentation
 - Natural-language queries over local financial history
 - Local receipt parsing and categorization
-- More explainable forecasts and budget recommendations
 - Additional portfolio data sources and reporting options
 - Automated smoke-testing of packaged builds in CI (currently a manual step)
 - Contributor documentation and architecture decision records

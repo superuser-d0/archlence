@@ -50,6 +50,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Python kur
+        # KARAR (kilitli — kasıtlı, 2026-07-29): paketleme için Python 3.12,
+        # yerel geliştirme ortamının (3.14.6) BİLEREK gerisinde tutuluyor.
+        # Kivy 2.3.1/PyInstaller/kivy_deps.angle'ın en geniş test edilmiş ve
+        # stabil olduğu sürüm bandı budur; daha yeni bir Python'a geçmek
+        # burada ikili uyumluluk/DLL riskini test etmeden almak demektir.
+        # Değiştirilecekse bilinçli, ayrı bir karar olmalı — sürüm burada
+        # ve build-linux.yml/tests.yml'de TUTARLI tutulmalı.
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -83,6 +90,54 @@ jobs:
           KIVY_GL_BACKEND: angle_sdl2
         run: pyinstaller --noconfirm --log-level WARN archlence.spec
         timeout-minutes: 20
+
+      - name: "Smoke test: Archlence.exe gerçekten açılıyor mu"
+        # Bu adım build-windows.yml'in eskiden hiç sahip olmadığı tek şeydi:
+        # derleme başarısı EXE'nin gerçekten çalıştığının kanıtı DEĞİL — az
+        # yukarıdaki KIVY_GL_BACKEND notunun tarif ettiği tam senaryo (Window
+        # sessizce None kalıp süreç "başarıyla" kapanması) yalnızca derleme
+        # ADIMINI değil, ÇALIŞMA ANINI da etkiler. Bu yüzden `KIVY_GL_BACKEND`
+        # burada da (yalnızca derleme adımında değil) set ediliyor — aksi
+        # halde bu smoke test, gerçek bir regresyon olmadan da GDI Generic/
+        # OpenGL 1.1 yüzünden yanlışlıkla kırmızı yanabilirdi.
+        #
+        # Kontrol ettikleri: (1) süreç 10 saniye sonra hâlâ ayakta mı (kendi
+        # kendine sessizce kapanmadı mı — PR #16'daki asıl hata TAM BUDUR),
+        # (2) main.py'nin platformdirs tabanlı crash.log'una bu çalıştırma
+        # sırasında yeni bir şey yazılmadı mı (yakalanmış ama sessiz kalan
+        # bir istisna sinyali). İkisi de geçerse süreç temizlenip adım OK
+        # döner; geçmezse crash.log'un son satırları basılıp adım kırmızı olur.
+        shell: pwsh
+        env:
+          KIVY_GL_BACKEND: angle_sdl2
+        run: |
+          $crashLogDir = python -c "from utils.app_paths import log_dir; print(log_dir())"
+          $crashLogPath = Join-Path $crashLogDir "crash.log"
+          $beforeSize = if (Test-Path $crashLogPath) { (Get-Item $crashLogPath).Length } else { 0 }
+
+          $proc = Start-Process -FilePath "dist\Archlence\Archlence.exe" -PassThru
+          Start-Sleep -Seconds 10
+
+          $stillAlive = -not $proc.HasExited
+          if (-not $stillAlive) {
+            Write-Host "::error::Archlence.exe 10 saniye içinde kendiliğinden kapandı (exit code: $($proc.ExitCode)) — muhtemelen Window sessizce None kaldı (bkz. archlence.spec'teki KIVY_GL_BACKEND notu)."
+          }
+
+          $afterSize = if (Test-Path $crashLogPath) { (Get-Item $crashLogPath).Length } else { 0 }
+          $crashLogGrew = $afterSize -gt $beforeSize
+          if ($crashLogGrew) {
+            Write-Host "::error::crash.log bu çalıştırma sırasında büyüdü — yakalanmış ama sessiz kalmış bir istisna olabilir. Son satırlar:"
+            Get-Content $crashLogPath -Tail 40
+          }
+
+          if ($stillAlive) {
+            Stop-Process -Id $proc.Id -Force
+          }
+
+          if ((-not $stillAlive) -or $crashLogGrew) {
+            exit 1
+          }
+          Write-Host "Smoke test geçti: Archlence.exe 10 saniye sonra hâlâ çalışıyordu, crash.log'a yeni yazı yok."
 
       - name: Ham .exe klasörünü artifact olarak yükle
         uses: actions/upload-artifact@v4

@@ -93,18 +93,20 @@ Improvement decisions:
 
 **Windows — to be completed via existing `archlence.spec` + `.github/workflows/build-windows.yml` (2026-07-23 audit report):**
 - [x] Application icon — Multi-sized `assets/icon.ico` (16/32/48/64/128/256px) and `assets/icon.png` (1024×1024 RGBA) generated, linked in spec (`archlence.spec:67`).
-- [ ] Post-build smoke test — still missing. Workflow only builds and uploads artifact, doesn't verify `Archlence.exe` actually launches without crashing.
-- [ ] Python version consistency — still missing. Local env is actually 3.14.6, CI installs 3.12; no decision/compatibility matrix.
+- [~] Post-build smoke test — step WRITTEN 2026-07-29 (`build-windows.yml`, launches `Archlence.exe`, checks it's still alive after 10s and that `crash.log` didn't grow) but **NOT YET VERIFIED** — PyInstaller can't cross-compile, this repo's dev session had no Windows machine and no Linux-side way to run a real `.exe`, so the step's correctness (including whether `KIVY_GL_BACKEND=angle_sdl2` is actually needed/sufficient at *runtime*, not just at PyInstaller's analysis step) has only been reasoned from existing comments, never observed. Only a real run on `windows-latest` (push/PR triggers it) proves it; don't upgrade this to `[x]` until a CI run has actually gone green with this step present.
+- [x] Python version consistency — **decided and locked 2026-07-29**: Python 3.12 for all packaging CI (Windows + Linux), deliberately behind local dev's 3.14.6, to avoid untested binary/DLL risk with Kivy+PyInstaller. Documented directly in `build-windows.yml`/`build-linux.yml` next to the `setup-python` step.
 - [ ] Version/naming — still missing. No Git tag, artifact comes out with a static `Archlence-Windows` name.
 - [~] Code signing — not implemented but consciously documented as non-mandatory and deferred for V1.0.
 - [~] Installer wizard (Inno Setup/NSIS) — undefined but documented as a separate out-of-V1.0 decision.
 
-**Linux — to be built from scratch (all still missing):**
-- [ ] `build-linux.yml` — missing, only `build-windows.yml` exists.
-- [ ] `.desktop` file — not found.
-- [ ] AppImage generation — no script/workflow/definition.
-- [ ] Linux-appropriate spec settings — `archlence.spec` still imports Windows-specific `kivy_deps.sdl2`/`glew` packages directly, no platform branching.
-- [ ] Same Python version consistency check as on Windows.
+**Linux — built 2026-07-29 (separate session):**
+- [x] `archlence.spec` — platform-branched on `IS_WINDOWS = sys.platform.startswith("win")`: `kivy_deps` (sdl2/glew/angle) import, the ANGLE `KIVY_GL_BACKEND`, `EXE(icon=...)`, and the `Tree()` DLL bundling are all Windows-only now; Linux build carries none of them.
+- [x] `.github/workflows/build-linux.yml` — mirrors `build-windows.yml`'s trigger/concurrency pattern on `ubuntu-latest`. Key finding: `collect_all("kivymd")` forces a real Kivy Window/GL context during the PyInstaller analysis step (same root cause as the Windows ANGLE requirement) — SDL's "dummy" video driver (the test suite's headless trick) does NOT satisfy this, it provides no GL surface at all. Fixed with `xvfb-run` (real virtual X11 display, Mesa llvmpipe software GL) instead.
+- [x] `assets/archlence.desktop` — standard freedesktop entry, passes `desktop-file-validate`.
+- [x] `installer/appimage/AppRun` — layout-agnostic wrapper script that execs the onedir's inner binary directly, so it doesn't care whether PyInstaller nests output under `_internal/` or not (version-dependent).
+- [x] End-to-end verified on a real Linux machine (not just written blind): `xvfb-run -a pyinstaller archlence.spec` → `dist/Archlence/Archlence` (ELF 64-bit, ~290 MB onedir) → AppDir assembled → `appimagetool --appimage-extract-and-run` → `Archlence-x86_64.AppImage` (~114 MB), valid ELF PIE executable. Full test suite re-run after: 463/463 green, no regressions.
+- [ ] Python version consistency (local 3.14.6 vs CI 3.12) — still open, deliberately not decided here; `build-linux.yml` only matches `build-windows.yml`'s existing CI pin (3.12) for CI-to-CI consistency, not a resolution of the local/CI question.
+- [ ] Not yet done: actually running the produced AppImage to confirm it launches/looks right. Recommend the user double-click/run the AppImage themselves once, the normal way, before trusting it fully.
 
 **Rename audit:** A scan excluding out-of-scope folders found zero remaining "Finora" references. The project folder name (`Documents/finora`) and `graphify-out/` cache were consciously left unchanged per instructions (the cache should be deleted and regenerated later).
 
@@ -164,7 +166,7 @@ The large "Monthly Budget Plan" card on the home page was moved to a minimal car
 - Changes touching the logic layer like `services/*`, `database/*` are considered major refactors, to be handled with separate care (see "Unchanging files" principle in ANTIGRAVITY_TASKS files).
 
 ## Quality and Performance Tracking
-- [ ] UI/mixin tests for `mixins/insights_mixin.py` renders and user actions: health score render, adding/dismissing subscriptions, and error states. Headless tests added for add-to-subscription and anomaly dismissal actions; widget render and error paths still open.
+- [x] UI/mixin tests for `mixins/insights_mixin.py` — health score render (happy path, green/red band selection, error state) and dismiss-recurring-candidate action now covered (2026-07-29), on top of the existing add-to-subscription/anomaly-dismissal action tests. Found and fixed a real coverage gap in the process: the error-state test explicitly checks it's distinguishable from "insufficient data" (both used to look identical — same "--" score — before the 2026-07-23 insufficient-data fix). Still open: full candidate/anomaly CARD content assertions (brand icon presence, amount formatting inside the built widget tree) — only their empty-state renders are tested; would need richer kivymd stubs (FitImage/MDIcon are stubbed but untested with real data) or a `services.brand_icon_service` mocking pass.
 - [ ] Measure insights refresh time when transaction volume reaches a few thousand. Not urgent yet as accounts run on a background thread; if necessary, cache results until a new transaction/change occurs.
 - [ ] The test suite has a harmless but repeating `ResourceWarning: unclosed database` (seen in 2026-07-23 QA round) — does not cause test failures, but a connection might be left without being `close()`d somewhere; does not block V1.0, can be cleaned up as noise.
 

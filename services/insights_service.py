@@ -584,6 +584,65 @@ def get_health_history(limit=30):
     return history
 
 
+# ── 4. Aylık algoritmik öngörü ─────────────────────────────────────────────
+
+def generate_monthly_forecast(lookback_days=90, min_days=85):
+    """En az ~3 aylık nakit-akışı istatistiğine dayanan ay-sonu bakiye öngörüsü.
+
+    `lookback_days`'lik gelir/gider ortalaması RK4 projeksiyonuna (bkz.
+    services/projection_service) günlük girdi olarak verilir ve bulunulan
+    ayın son gününe kadar ileri sürülür. En eski kayıt `min_days`'ten daha
+    yakınsa (yani gerçekte 3 aya yakın geçmiş yoksa) güvenilmez bir tahmin
+    üretmek yerine insufficient_data=True döner.
+    """
+    from calendar import monthrange
+
+    from services.projection_service import project_final_wealth
+    from services.queries import DashboardService
+
+    expenses = _load_transactions(lookback_days, _EXPENSE_TYPES)
+    incomes = _load_transactions(lookback_days, _INCOME_TYPES)
+    records = expenses + incomes
+
+    if not records:
+        return {"insufficient_data": True, "days_available": 0}
+
+    earliest = min(r["date"] for r in records)
+    days_available = (datetime.now().date() - earliest).days
+    if days_available < min_days:
+        return {"insufficient_data": True, "days_available": days_available}
+
+    total_expense = sum(r["amount"] for r in expenses)
+    total_income = sum(r["amount"] for r in incomes)
+    daily_income = total_income / lookback_days
+    daily_expense = total_expense / lookback_days
+
+    current_balance = DashboardService.get_total_balance()
+    today = datetime.now().date()
+    days_remaining = max(0, monthrange(today.year, today.month)[1] - today.day)
+
+    projected_month_end_balance = project_final_wealth(
+        initial_wealth=current_balance,
+        daily_income=daily_income,
+        daily_expense=daily_expense,
+        days=days_remaining,
+        r=0.0001,
+    )
+    savings_rate = (
+        (total_income - total_expense) / total_income if total_income > 0 else 0.0
+    )
+
+    return {
+        "insufficient_data": False,
+        "days_available": days_available,
+        "current_balance": round(current_balance, 2),
+        "projected_month_end_balance": round(projected_month_end_balance, 2),
+        "projected_surplus": round(projected_month_end_balance - current_balance, 2),
+        "savings_rate": round(savings_rate, 4),
+        "days_remaining": days_remaining,
+    }
+
+
 def score_label(score):
     """Skoru Türkçe etikete çevirir — UI hem etiketi hem rengi buradan alsın."""
     if score >= 80:
