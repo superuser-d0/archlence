@@ -89,6 +89,7 @@ class ResetFlowTest(unittest.TestCase):
         app.render_accounts = mock.Mock()
         app._assets_cache = [{"id": 99}]
         app._liquid_balance_cache = 36710.01
+        app._today_liquid_delta_cache = 125.0
         app._asset_ui_loaded_at = time.monotonic()
         app._asset_load_inflight = True
         app._recurring_candidates = [{"name": "Eski aday"}]
@@ -135,6 +136,7 @@ class ResetFlowTest(unittest.TestCase):
         )
         self.assertEqual(app._assets_cache, [])
         self.assertEqual(app._liquid_balance_cache, 0.0)
+        self.assertEqual(app._today_liquid_delta_cache, 0.0)
         self.assertEqual(app._recurring_candidates, [])
         self.assertFalse(app._asset_load_inflight)
         self.assertEqual(app._asset_ui_loaded_at, 0.0)
