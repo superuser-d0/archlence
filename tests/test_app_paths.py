@@ -35,22 +35,16 @@ class PathResolutionTest(unittest.TestCase):
 
     @staticmethod
     def _home_override(root):
-        """Platformun kullanıcı-dizini değişkenlerini sandbox'a çeker.
+        """Yolları sandbox'a çeken PLATFORMDAN BAĞIMSIZ yönlendirme.
 
-        Linux/macOS `platformdirs` XDG_* okur; WINDOWS OKUMAZ — orada
-        `LOCALAPPDATA`/`APPDATA` geçerlidir. Testi yalnız XDG üzerinden yazmak,
-        Windows'ta yol yönlendirmesinin hiç çalışmadığını gizliyordu.
+        Eskiden burada yalnız XDG_* vardı. XDG Windows'ta ÇALIŞMAZ:
+        `platformdirs` orada ortam değişkenlerine hiç bakmaz, `ctypes` ile
+        `SHGetFolderPathW` çağırır. Yani bu test Linux'ta yeşil olup Windows'ta
+        yol yönlendirmesinin tamamen kırık olduğunu GİZLİYORDU — ve test
+        paketinin kendi izolasyonu da aynı kırık mekanizmaya dayanıyordu.
+        `ARCHLENCE_HOME` (utils/app_paths.py) her platformda geçerlidir.
         """
-        if os.name == "nt":
-            return {
-                "LOCALAPPDATA": os.path.join(root, "local"),
-                "APPDATA": os.path.join(root, "roaming"),
-            }
-        return {
-            "XDG_DATA_HOME": os.path.join(root, "data"),
-            "XDG_CACHE_HOME": os.path.join(root, "cache"),
-            "XDG_STATE_HOME": os.path.join(root, "state"),
-        }
+        return {"ARCHLENCE_HOME": root}
 
     def test_data_cache_log_dirs_are_distinct(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -73,11 +67,38 @@ class PathResolutionTest(unittest.TestCase):
                     "platformda yol yönlendirmesi ÇALIŞMIYOR demektir.",
                 )
 
+    @unittest.skipIf(
+        os.name == "nt",
+        "platformdirs Windows'ta ortam değişkenlerini yok sayar (ctypes ile "
+        "SHGetFolderPathW); bu test XDG üzerinden VARSAYILAN çözümlemeyi "
+        "sınıyor ve orada yönlendirilemez.",
+    )
     def test_resolved_dirs_are_namespaced_under_the_app_name(self):
+        """VARSAYILAN (yönlendirmesiz) çözümleme uygulama adıyla isimlenmeli.
+
+        `ARCHLENCE_HOME` burada AÇIKÇA temizlenir: bu test platformdirs'in
+        varsayılan davranışını sınıyor, geçersiz kılma yolunu değil. Test
+        paketi kendi izolasyonu için o değişkeni global olarak ayarlıyor
+        (run_tests.py) — temizlemezsek burada yanlış kod yolunu ölçerdik.
+        """
         with tempfile.TemporaryDirectory() as tmp:
-            with mock.patch.dict(os.environ, {"XDG_DATA_HOME": tmp}):
+            with mock.patch.dict(
+                os.environ, {"XDG_DATA_HOME": tmp, "ARCHLENCE_HOME": ""}
+            ):
                 d = data_dir()
             self.assertIn("Archlence", d)
+
+    def test_home_override_wins_over_platform_defaults(self):
+        """`ARCHLENCE_HOME` her platformda çözümlemeyi yönlendirmeli.
+
+        Bu, test paketi izolasyonunun dayandığı sözleşmedir; kırılırsa
+        testler geliştiricinin GERÇEK veri dizinine yazmaya başlar.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(os.environ, {"ARCHLENCE_HOME": tmp}):
+                self.assertTrue(data_dir().startswith(tmp))
+                self.assertTrue(cache_dir().startswith(tmp))
+                self.assertTrue(log_dir().startswith(tmp))
 
 
 class ResourceDirTest(unittest.TestCase):
