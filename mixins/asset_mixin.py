@@ -81,6 +81,13 @@ def format_price_tl(price):
     return f"{price:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + " ₺"
 
 
+def responsive_dialog_content_height(
+    window_height, preferred, reserved, minimum
+):
+    """Keep custom content between MDDialog's title and action row."""
+    return max(minimum, min(preferred, window_height - reserved))
+
+
 def _parse_price_str(s):
     """'400,00' (Türkçe) veya '1,500,000.0000' (eski/İngilizce) gibi bir sayı
     metnini float'a çevirir. Son geçen '.' veya ',' ondalık ayracı kabul edilir."""
@@ -310,6 +317,8 @@ class AssetMixin:
         from kivymd.uix.textfield import MDTextField
         from kivymd.uix.scrollview import MDScrollView
         from kivymd.uix.list import MDList, TwoLineAvatarIconListItem, IconLeftWidget, ImageLeftWidget
+        from kivy.core.window import Window
+        from kivy.metrics import dp
         import time
         from services.asset_service import fetch_bist100_prices
 
@@ -321,7 +330,9 @@ class AssetMixin:
             orientation="vertical",
             spacing="8dp",
             size_hint_y=None,
-            height="420dp",
+            height=responsive_dialog_content_height(
+                Window.height, dp(420), dp(170), dp(240)
+            ),
             padding=["0dp", "4dp", "0dp", "0dp"],
         )
 
@@ -450,7 +461,7 @@ class AssetMixin:
                                           Clock.schedule_once(lambda dt: self.show_add_asset_dialog(), 0.15)),
                 ),
                 MDFlatButton(
-                    text=_t("SEÇ  ✓"),
+                    text=_t("SEÇ"),
                     theme_text_color="Custom",
                     text_color=(0.08, 0.72, 0.42, 1),
                     on_release=_confirm_stock,
@@ -542,37 +553,11 @@ class AssetMixin:
         asset_type = "Hisse"
 
         self._stock_price_dialog.dismiss()
-
-        import threading
-        def _insert():
-            try:
-                from datetime import datetime
-                from database.db import insert_asset, insert_asset_transaction, DEFAULT_ACCOUNT_ID
-                purchase_date   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                invested_amount = purchase_price * quantity
-                insert_asset(asset_name, asset_code, asset_type,
-                             purchase_price, quantity, purchase_date)
-                desc = (
-                    f"{asset_name} ({asset_code}) alındı — "
-                    f"{quantity:g} adet, birim fiyat {format_price_tl(purchase_price)}"
-                )
-                insert_asset_transaction(
-                    account_id=DEFAULT_ACCOUNT_ID,
-                    amount=invested_amount,
-                    tx_type="expense",
-                    category="Varlık Alımı",
-                    description=desc,
-                )
-                Clock.schedule_once(lambda dt: toast(_t("Hisse eklendi! Fiyatlar güncelleniyor…")), 0)
-                Clock.schedule_once(lambda dt: self.load_active_assets(), 0)
-                Clock.schedule_once(lambda dt: self.load_asset_history(), 0)
-                Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
-                Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
-            except Exception as e:
-                print("Stock insert error:", e)
-                Clock.schedule_once(lambda dt: toast(_t("Hisse eklenirken hata oluştu!")), 0)
-
-        threading.Thread(target=_insert, daemon=True).start()
+        self._submit_asset_purchase(
+            asset_name, asset_code, asset_type, purchase_price, quantity,
+            _t("Hisse eklendi! Fiyatlar güncelleniyor…"),
+            _t("Hisse eklenirken hata oluştu!"),
+        )
 
     def _show_crypto_picker(self):
         """Kripto para listesini arama destekli MDDialog'da gösterir."""
@@ -828,37 +813,11 @@ class AssetMixin:
         asset_type = "Kripto"
 
         self._crypto_price_dialog.dismiss()
-
-        import threading
-        def _insert():
-            try:
-                from datetime import datetime
-                from database.db import insert_asset, insert_asset_transaction, DEFAULT_ACCOUNT_ID
-                purchase_date   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                invested_amount = purchase_price * quantity
-                insert_asset(asset_name, asset_code, asset_type,
-                             purchase_price, quantity, purchase_date)
-                desc = (
-                    f"{asset_name} ({asset_code}) alındı — "
-                    f"{quantity:g} adet, birim fiyat {format_price_tl(purchase_price)}"
-                )
-                insert_asset_transaction(
-                    account_id=DEFAULT_ACCOUNT_ID,
-                    amount=invested_amount,
-                    tx_type="expense",
-                    category="Varlık Alımı",
-                    description=desc,
-                )
-                Clock.schedule_once(lambda dt: toast(_t("Kripto eklendi! Fiyatlar güncelleniyor…")), 0)
-                Clock.schedule_once(lambda dt: self.load_active_assets(), 0)
-                Clock.schedule_once(lambda dt: self.load_asset_history(), 0)
-                Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
-                Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
-            except Exception as e:
-                print("Crypto insert error:", e)
-                Clock.schedule_once(lambda dt: toast(_t("Kripto eklenirken hata oluştu!")), 0)
-
-        threading.Thread(target=_insert, daemon=True).start()
+        self._submit_asset_purchase(
+            asset_name, asset_code, asset_type, purchase_price, quantity,
+            _t("Kripto eklendi! Fiyatlar güncelleniyor…"),
+            _t("Kripto eklenirken hata oluştu!"),
+        )
 
     def _show_other_asset_dialog(self):
         """Hisse dışı varlıklar için serbest form diyaloğu."""
@@ -866,6 +825,9 @@ class AssetMixin:
         from kivymd.uix.button import MDFlatButton, MDRaisedButton
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivymd.uix.textfield import MDTextField
+        from kivymd.uix.scrollview import MDScrollView
+        from kivy.core.window import Window
+        from kivy.metrics import dp
 
         is_gold = self._asset_selected_type == "Altın"
         quick_picks = self._get_quick_picks(self._asset_selected_type)
@@ -980,10 +942,19 @@ class AssetMixin:
         content.add_widget(self._asset_price_input)
         content.add_widget(self._asset_qty_input)
 
+        scroll_content = MDScrollView(
+            size_hint_y=None,
+            height=responsive_dialog_content_height(
+                Window.height, dp(390), dp(170), dp(220)
+            ),
+            bar_width=0,
+        )
+        scroll_content.add_widget(content)
+
         self.asset_dialog = MDDialog(
             title=_t(f"Yeni {self._asset_selected_type} Ekle"),
             type="custom",
-            content_cls=content,
+            content_cls=scroll_content,
             buttons=[
                 MDFlatButton(
                     text=_t("GERİ"),
@@ -1191,43 +1162,84 @@ class AssetMixin:
             asset_name = asset_code.upper()
 
         self.asset_dialog.dismiss()
+        self._submit_asset_purchase(
+            asset_name, asset_code, asset_type, purchase_price, quantity,
+            _t("Varlık eklendi! Fiyatlar güncelleniyor…"),
+            _t("Varlık eklenirken hata oluştu!"),
+        )
 
-        def _insert():
-            try:
-                from datetime import datetime
-                from database.db import insert_asset, insert_asset_transaction, DEFAULT_ACCOUNT_ID
-                purchase_date   = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                invested_amount = purchase_price * quantity
+    def _submit_asset_purchase(
+        self,
+        asset_name,
+        asset_code,
+        asset_type,
+        purchase_price,
+        quantity,
+        success_message,
+        failure_message,
+    ):
+        """Persist once, then refresh UI through independent main-thread jobs."""
+        if getattr(self, "_asset_purchase_inflight", False):
+            return
+        self._asset_purchase_inflight = True
 
-                # 1. Varlığı portföye ekle
-                insert_asset(asset_name, asset_code, asset_type,
-                             purchase_price, quantity, purchase_date)
+        def work(_cancel):
+            from services.asset_purchase_service import AssetPurchaseService
 
-                # 2. Cüzdandan düş: expense + 'Varlık Alımı' kategorisi
-                desc = (
-                    f"{asset_name} ({asset_code.upper()}) alındı — "
-                    f"{quantity:g} adet, birim fiyat {format_price_tl(purchase_price)}"
-                )
-                insert_asset_transaction(
-                    account_id=DEFAULT_ACCOUNT_ID,
-                    amount=invested_amount,
-                    tx_type="expense",
-                    category="Varlık Alımı",
-                    description=desc,
-                )
+            return AssetPurchaseService.create_purchase(
+                asset_name=asset_name,
+                asset_code=asset_code,
+                asset_type=asset_type,
+                purchase_price=purchase_price,
+                quantity=quantity,
+            )
 
+        def success(_result):
+            self._asset_purchase_inflight = False
+            toast(success_message)
+            # Her yenileme ayrı Clock olayıdır. Bir widget yaşam-döngüsü
+            # hatası diğer yenilemeleri veya DB sonucunu geriye dönük olarak
+            # "kayıt başarısız" durumuna çeviremez.
+            refreshes = (
+                lambda: self.load_active_assets(force_refresh=True),
+                self.load_asset_history,
+                self.load_recent_transactions,
+                self.safe_refresh_charts,
+            )
+            for refresh in refreshes:
                 Clock.schedule_once(
-                    lambda dt: toast(_t("Varlık eklendi! Fiyatlar güncelleniyor…")), 0)
-                Clock.schedule_once(lambda dt: self.load_active_assets(), 0)
-                Clock.schedule_once(lambda dt: self.load_asset_history(), 0)
-                Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
-                Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
-            except Exception as e:
-                print("Asset insert error:", e)
-                Clock.schedule_once(
-                    lambda dt: toast(_t("Varlık eklenirken hata oluştu!")), 0)
+                    lambda _dt, callback=refresh:
+                    self._run_asset_refresh(callback),
+                    0,
+                )
 
-        threading.Thread(target=_insert, daemon=True).start()
+        def failure(exc):
+            from utils.logging_config import get_logger
+
+            self._asset_purchase_inflight = False
+            get_logger().error(
+                "Asset purchase failed",
+                exc_info=(type(exc), exc, exc.__traceback__),
+            )
+            toast(failure_message)
+
+        self.background_tasks.submit(
+            "asset-purchase",
+            work,
+            on_success=success,
+            on_error=failure,
+            replace=False,
+        )
+
+    @staticmethod
+    def _run_asset_refresh(callback):
+        """Keep post-commit presentation failures outside the DB boundary."""
+        from utils.logging_config import get_logger
+
+        try:
+            callback()
+        except (AttributeError, KeyError, RuntimeError, TypeError):
+            get_logger().exception("Post-purchase asset UI refresh failed")
 
     def refresh_asset_prices(self):
         """Kullanıcının tetiklediği manuel fiyat yenileme işlemi.
