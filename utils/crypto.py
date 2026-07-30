@@ -81,6 +81,11 @@ def key_protection_status():
     return _get_key_provider().status
 
 
+def active_key_provider():
+    """Return the process-cached provider used by encryption operations."""
+    return _get_key_provider()
+
+
 def encrypt(data, password: str = DEFAULT_PASSWORD) -> str:
     """Veriyi AES-256-GCM (AEAD) ile şifreler; `AEADv1:` önekli base64 döner.
 

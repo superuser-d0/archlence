@@ -76,6 +76,45 @@ class SecureDataUiFlowTest(unittest.TestCase):
             for call in toast.call_args_list
         ))
 
+    def test_recovery_export_reports_only_verified_backend_result(self):
+        app = _App()
+        provider = object()
+        with tempfile.TemporaryDirectory() as temp, mock.patch(
+            "utils.app_paths.data_dir", return_value=temp
+        ), mock.patch(
+            "utils.crypto.active_key_provider", return_value=provider
+        ), mock.patch(
+            "services.key_recovery_service.export_recovery_package",
+            return_value=str(Path(temp) / "recovery.json"),
+        ) as export, mock.patch(
+            "mixins.migration_mixin.toast"
+        ) as toast:
+            app._export_key_recovery("uzun-kurtarma-parolasi")
+        export.assert_called_once()
+        self.assertTrue(any(
+            "doğrulandı" in str(call.args[0])
+            for call in toast.call_args_list
+        ))
+
+    def test_recovery_import_failure_does_not_report_success(self):
+        app = _App()
+        with mock.patch(
+            "services.key_recovery_service.import_recovery_package",
+            side_effect=RuntimeError("injected"),
+        ), mock.patch(
+            "utils.crypto.active_key_provider", return_value=object()
+        ), mock.patch(
+            "utils.logging_config.get_logger"
+        ), mock.patch(
+            "mixins.migration_mixin.toast"
+        ) as toast:
+            app._import_key_recovery(
+                "/tmp/tampered.json", "uzun-kurtarma-parolasi"
+            )
+        messages = [str(call.args[0]) for call in toast.call_args_list]
+        self.assertTrue(any("içe aktarılamadı" in item for item in messages))
+        self.assertFalse(any("içe aktarıldı" in item for item in messages))
+
 
 if __name__ == "__main__":
     unittest.main()
