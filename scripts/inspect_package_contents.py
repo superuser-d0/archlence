@@ -74,11 +74,13 @@ def main():
     else:
         files = [(target.name, target.read_bytes())]
     findings = inspect_files(files)
-    print(f"İncelenen dosya: {len(files)}")
+    # Windows runner stdout'u bazı imajlarda cp1252'dir; kalite kapısının
+    # kendi durum metni yüzünden çökmesini önlemek için CLI çıktısı ASCII.
+    print(f"Inspected files: {len(files)}")
     if findings:
         print("\n".join(findings))
         raise SystemExit(1)
-    print("Paket içerik/secret taraması temiz.")
+    print("Package content/secret scan passed.")
 
 
 if __name__ == "__main__":
