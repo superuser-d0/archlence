@@ -168,6 +168,10 @@ class CalendarMixin:
         weeks = _calendar_module.monthcalendar(year, month)
         self._calendar_grid_container.height = dp(40) * len(weeks)
         self._calendar_grid_container.clear_widgets()
+        # Gün hücrelerini tarihe göre sakla: seçim değiştiğinde ızgarayı baştan
+        # kurmak yerine yalnızca ETKİLENEN iki hücre yeniden boyanır
+        # (bkz. _select_calendar_day).
+        self._calendar_day_cells = {}
 
         today = datetime.date.today()
         selected = self._calendar_selected_date
@@ -181,51 +185,96 @@ class CalendarMixin:
                     row.add_widget(MDBoxLayout())  # ay dışı boş hücre
                     continue
                 cell_date = datetime.date(year, month, day)
-                row.add_widget(self._build_calendar_day_cell(
+                cell = self._build_calendar_day_cell(
                     cell_date,
                     has_tx=day in days_with_tx,
                     is_selected=(cell_date == selected),
                     is_today=(cell_date == today),
-                ))
+                )
+                self._calendar_day_cells[cell_date] = cell
+                row.add_widget(cell)
             self._calendar_grid_container.add_widget(row)
 
     def _build_calendar_day_cell(self, cell_date, has_tx, is_selected, is_today):
-        style = self.theme_cls.theme_style
         card = MDCard(
             orientation="vertical", radius=[10], padding=0,
         )
+        label = MDLabel(
+            text=str(cell_date.day),
+            halign="center",
+            theme_text_color="Custom",
+        )
+        card.add_widget(label)
+        # Yeniden boyama için gereken sabit bilgiler hücrenin üzerinde taşınır;
+        # aksi halde her seferinde ay sorgusunu tekrar çalıştırmak gerekirdi.
+        card._archlence_label = label
+        card._archlence_has_tx = has_tx
+        card._archlence_is_today = is_today
+        self._style_calendar_day_cell(card, is_selected)
+        ftheme.bind_card_tap(card, lambda d=cell_date: self._select_calendar_day(d))
+        return card
+
+    def _style_calendar_day_cell(self, card, is_selected):
+        """Tek hücrenin seçili/seçili değil görünümünü uygular.
+
+        Kurulum ve seçim değişimi AYNI yolu kullanır; iki ayrı boyama kodu
+        olsaydı seçim vurgusu ile ilk çizim zamanla ayrışabilirdi.
+        """
+        style = self.theme_cls.theme_style
+        has_tx = getattr(card, "_archlence_has_tx", False)
+        is_today = getattr(card, "_archlence_is_today", False)
+
         if is_selected:
             card.md_bg_color = self.theme_cls.primary_color
             card.line_color = self.theme_cls.primary_color
             text_color = ftheme.on_primary(self.theme_cls)
         else:
-            ftheme.apply_card_theme(card, self.theme_cls, tint="green" if has_tx else None)
+            ftheme.apply_card_theme(
+                card, self.theme_cls, tint="green" if has_tx else None)
             text_color = (
                 ftheme.accent(style, "green") if has_tx
                 else ftheme.inactive_control_text(style)
             )
 
-        label = MDLabel(
-            text=str(cell_date.day),
-            halign="center",
-            bold=is_today or is_selected,
-            theme_text_color="Custom",
-            text_color=text_color,
-        )
-        card.add_widget(label)
-        ftheme.bind_card_tap(card, lambda d=cell_date: self._select_calendar_day(d))
-        return card
+        label = getattr(card, "_archlence_label", None)
+        if label is not None:
+            label.bold = is_today or is_selected
+            label.text_color = text_color
 
     # ─── Seçili günün işlemleri ──────────────────────────────────────────────
 
     def _select_calendar_day(self, date_obj):
-        """Bir gün hücresine dokunulduğunda o günün işlemlerini yükler."""
+        """Bir gün hücresine dokunulduğunda o günün işlemlerini yükler.
+
+        PERFORMANS SÖZLEŞMESİ (v1.1.0'da düzeltildi): bu fonksiyon hızlı ve
+        tekrarlı dokunuşlara dayanmak ZORUNDA. Eski hâli her dokunuşta iki
+        pahalı iş yapıyordu ve ikisi de dokunuş sayısıyla doğrusal büyüyordu:
+
+          1. `_render_calendar_month()` ile 42 hücrelik ızgaranın TAMAMINI
+             (her biri yeni MDCard + MDLabel + tema + dokunma bağlaması)
+             UI thread'inde senkron yeniden kuruyordu — üstelik ay sorgusunu
+             da tekrar çalıştırarak.
+          2. Her dokunuşta SINIRSIZ yeni `threading.Thread` açıp her birinde
+             ayrı bir SQLite bağlantısı kuruyordu.
+
+        Sonuç: hızlı tıklamada arayüz kilitleniyor ve eşzamanlı bağlantı
+        yığılması uygulamayı çökertebiliyordu (kullanıcı raporu, Windows).
+
+        Şimdi: (1) yalnızca ETKİLENEN iki hücre yeniden boyanır, (2) DB okuması
+        debounce edilir — art arda dokunuşlarda yalnız SONUNCUSU thread açar.
+        """
         previous = self._calendar_selected_date
         self._calendar_selected_date = date_obj
-        # Ay değişmediyse yalnızca seçim vurgusu için ızgarayı yenile;
-        # ay geçişinde zaten _render_calendar_month tüm ızgarayı kuruyor.
-        if previous and previous.month == date_obj.month and previous.year == date_obj.year:
-            self._render_calendar_month()
+
+        # Seçim vurgusu: ızgarayı yeniden kurmadan, yalnız eski ve yeni hücre.
+        cells = getattr(self, "_calendar_day_cells", None) or {}
+        if previous is not None and previous != date_obj:
+            old_cell = cells.get(previous)
+            if old_cell is not None:
+                self._style_calendar_day_cell(old_cell, False)
+        new_cell = cells.get(date_obj)
+        if new_cell is not None:
+            self._style_calendar_day_cell(new_cell, True)
 
         self._calendar_selected_label.text = _t(
             f"{date_obj.strftime('%d.%m.%Y')} işlemleri yükleniyor..."
@@ -250,7 +299,20 @@ class CalendarMixin:
 
             Clock.schedule_once(apply, 0)
 
-        threading.Thread(target=work, daemon=True).start()
+        # Debounce: bekleyen okuma varsa iptal et. Aynı kalıp bu codebase'de
+        # zaten kullanılıyor (asset_mixin BIST/kripto araması, budget_mixin
+        # kategori araması); takvime uygulanmamıştı.
+        pending = getattr(self, "_calendar_load_event", None)
+        if pending is not None:
+            pending.cancel()
+
+        def launch(_dt):
+            self._calendar_load_event = None
+            if generation != getattr(self, "_calendar_generation", 0):
+                return  # bu istek eskidi, thread'i hiç açma
+            threading.Thread(target=work, daemon=True).start()
+
+        self._calendar_load_event = Clock.schedule_once(launch, 0.12)
 
     def _apply_calendar_day(self, date_obj, items):
         if items is None:

@@ -235,16 +235,38 @@ class CalendarDaySelectionTest(unittest.TestCase):
         self.assertIn("okunamadı", self.host._calendar_selected_label.text)
         self.assertNotIn("işlem yok", self.host._calendar_selected_label.text)
 
-    def test_selecting_a_day_in_the_same_month_refreshes_grid_for_highlight(
+    def test_selecting_a_day_updates_the_highlight_without_rebuilding_grid(
             self):
-        """Seçim değişince ızgara yeniden çizilmeli ki seçili gün vurgusu
-        (is_selected) güncellensin — aksi halde eski gün seçili görünür."""
+        """Seçim vurgusu güncellenmeli — ama ızgara BAŞTAN KURULMADAN.
+
+        Bu test eskiden `_render_calendar_month` çağrıldığını doğruluyordu,
+        yani vurgunun 42 hücrelik ızgaranın tamamı yeniden inşa edilerek
+        güncellenmesini KİLİTLİYORDU. Gereksinim vurgunun doğru olması;
+        bunun tam yeniden inşayla yapılması hızlı tıklamada arayüzü
+        kilitliyordu (bkz. tests/test_rapid_tap_performance.py). Artık
+        yalnızca ETKİLENEN iki hücre yeniden boyanır — gereksinim aynı,
+        maliyet sabit.
+        """
+        old_day = self.host._calendar_selected_date   # 2026-03-01
+        new_day = datetime.date(2026, 3, 10)
+        old_cell, new_cell = mock.Mock(name="old"), mock.Mock(name="new")
+        self.host._calendar_day_cells = {old_day: old_cell, new_day: new_cell}
+        self.host._style_calendar_day_cell = mock.Mock()
+        self.host._calendar_load_event = None
+
         with mock.patch(
                 "services.calendar_service.get_day_transactions",
                 return_value=[]):
-            self._select(datetime.date(2026, 3, 10))
+            self._select(new_day)
 
-        self.host._render_calendar_month.assert_called_once_with()
+        self.host._render_calendar_month.assert_not_called()
+        self.assertEqual(self.host._calendar_selected_date, new_day)
+        # Eski hücre söndürülür, yeni hücre yakılır — başka hücreye dokunulmaz.
+        self.host._style_calendar_day_cell.assert_has_calls(
+            [mock.call(old_cell, False), mock.call(new_cell, True)],
+            any_order=False,
+        )
+        self.assertEqual(self.host._style_calendar_day_cell.call_count, 2)
 
 
 if __name__ == "__main__":

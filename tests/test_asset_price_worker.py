@@ -69,14 +69,27 @@ class SubprocessInvocationTest(unittest.TestCase):
         self.assertEqual(captured["kwargs"].get("stdout"), subprocess.PIPE)
 
     def test_nonzero_exit_is_logged_not_swallowed(self):
-        """Alt süreç çökerse stderr loglanmalı (eskiden hiç iz kalmıyordu)."""
+        """Alt süreç çökerse stderr KALICI log'a yazılmalı.
+
+        Bu test eskiden `builtins.print`i gözlüyordu. Ama paketlenmiş Windows
+        uygulaması `console=False` ile derleniyor (archlence.spec:180), yani
+        print çıktısı hiçbir yere gitmiyor — "loglandı" demek orada pratikte
+        "kayboldu" demekti. Artık gerçek rotating logger'a yazıldığını
+        doğruluyoruz; kullanıcının gönderebileceği tek kanıt o dosya.
+        """
         fake_proc = subprocess.CompletedProcess(
             args=[], returncode=1, stdout="",
             stderr="ModuleNotFoundError: No module named 'services'")
-        with mock.patch("builtins.print") as fake_print:
+        fake_logger = mock.Mock()
+        with mock.patch("utils.logging_config.get_logger",
+                        return_value=fake_logger):
             self._run_isolated(fake_proc)
+
         logged = " ".join(
-            str(a) for call in fake_print.call_args_list for a in call.args)
+            str(part)
+            for call in fake_logger.error.call_args_list
+            for part in call.args
+        )
         self.assertIn("ModuleNotFoundError", logged)
 
 
