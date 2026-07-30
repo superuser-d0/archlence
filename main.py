@@ -497,6 +497,13 @@ class ArchlenceApp(
         # yok; bu sınır yalnızca Builder'ın sonlu yerleşim zincirinin aynı
         # karede tamamlanabilmesi için ölçülü biçimde yükseltilir.
         Clock.max_iteration = 50
+        from services.background_task_manager import BackgroundTaskManager
+
+        self.background_tasks = BackgroundTaskManager(
+            schedule=lambda callback: Clock.schedule_once(
+                lambda _dt: callback(), 0
+            )
+        )
         self._warm_crypto_key_in_background()
         # docs/ROADMAP.md Faz 1 madde 4. initialize_database()'DEN ÖNCE:
         # eski BASE_DIR/finance.db varsa (var olan bir kurulumdan geçiş)
@@ -680,6 +687,8 @@ class ArchlenceApp(
         except Exception as exc:
             # Kapanış yolu hiçbir koşulda hata fırlatmamalı.
             print("Arka plan tazeleme durdurulamadı:", exc)
+        if hasattr(self, "background_tasks"):
+            self.background_tasks.shutdown(wait=False)
 
     # -------------------------------------------------------------------------
     # Theming & Visuals
@@ -916,34 +925,27 @@ class ArchlenceApp(
         sonuç hazır olunca arayüze TEK Clock çağrısıyla property güncellemesi
         yapar. (Eski sürüm bu taramaları ana thread'de koşturuyordu — sekme
         geçişindeki donmanın ana kaynağı buydu.)"""
-        import threading
-
-        self._metrics_generation = getattr(self, "_metrics_generation", 0) + 1
-        generation = self._metrics_generation
-
-        def _work():
-            try:
-                payload = self._compute_dashboard_metrics()
-            except FinancialDataIntegrityError as exc:
+        def _error(exc):
+            if isinstance(exc, FinancialDataIntegrityError):
                 from utils.logging_config import log_integrity_error
                 error_id = log_integrity_error(exc)
-                Clock.schedule_once(
-                    lambda dt: self._apply_dashboard_integrity_error(error_id),
-                    0,
+                self._apply_dashboard_integrity_error(error_id)
+            else:
+                from utils.logging_config import get_logger
+
+                get_logger().exception(
+                    "Dashboard metrik görevi başarısız.",
+                    exc_info=(type(exc), exc, exc.__traceback__),
                 )
-                return
-            except Exception as e:
-                print("Metrik hesaplama hatası:", e)
-                return
 
-            def _apply(dt):
-                if generation != self._metrics_generation:
-                    return  # bayat sonuç — daha yeni bir tazeleme başladı
-                self._apply_dashboard_metrics(payload)
-
-            Clock.schedule_once(_apply, 0)
-
-        threading.Thread(target=_work, daemon=True).start()
+        self.background_tasks.submit(
+            "dashboard-metrics",
+            lambda cancel_event: self._compute_dashboard_metrics(),
+            on_success=self._apply_dashboard_metrics,
+            on_error=_error,
+            replace=True,
+            is_target_alive=lambda: bool(self.root),
+        )
 
     def _compute_dashboard_metrics(self):
         """Yalnızca veri üretir, hiçbir widget'a dokunmaz (thread güvenli)."""
