@@ -380,6 +380,7 @@ EN = {
     "İnternet Alışverişi": "Online Shopping",
     "İnternet Alışverişi Tercihi": "Online Shopping Preference",
     "Yalnızca tercih olarak saklanır": "Stored as a preference only",
+    "Bazı kayıtlar okunamadığı için gösterilemiyor": "Unavailable because some records could not be read",
     "Bu kart dondurulduğu için işlem yapılamaz. İşlem yapmak için önce kartın dondurmasını kaldırın.": "This card is frozen. Unfreeze it before making a transaction.",
     "Kartı Dondur": "Freeze Card",
     "Son Hareketler": "Recent Transactions",

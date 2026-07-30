@@ -1,14 +1,17 @@
-import io
 import sys
 import os
 import unittest
-from contextlib import redirect_stdout
 from unittest import mock
 
 # Proje kökünü (tests/'in bir üstü) sys.path'e ekle ki utils.crypto bulunsun
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.crypto import DEFAULT_PASSWORD, encrypt, decrypt
+from utils.errors import (
+    DecryptionError,
+    EncryptionError,
+    IntegrityVerificationError,
+)
 
 def run_crypto_test():
     original_text = "Market Alışverişi - 150 TL"
@@ -82,23 +85,12 @@ class LegacyFormatBackwardCompatibilityTest(unittest.TestCase):
         self.assertFalse(self._REAL_LEGACY_BLOB.startswith("AEADv1:"))
 
 
-class NarrowedExceptHandlingTest(unittest.TestCase):
-    """docs/ROADMAP.md Faz 2 "except ayrımı" + Faz 1 madde 5. DAVRANIŞ
-    BİLEREK DEĞİŞMEDİ — gerçek şifreleme/çözme hatası hâlâ aynı fail-open
-    değerine düşüyor (decrypt -> "[Şifreli Veri]", encrypt -> düz metin),
-    format (eski CBC / yeni AEAD) fark etmeksizin. Değişen: (1) loglanıyor,
-    (2) yalnızca gerçekten olabilecek hata tipleri yakalanıyor — alakasız
-    bir programlama hatası artık bu yoldan sessizce yutulmuyor."""
+class FailClosedHandlingTest(unittest.TestCase):
+    """Compatibility dispatcher never converts failures into usable data."""
 
-    def test_corrupted_ciphertext_still_falls_back_gracefully(self):
-        """Gerçek bozuk/kurcalanmış veri (geçersiz base64, AEADv1: öneki
-        yok -> eski yol) davranışı korunmalı — hâlâ çöküş yok, hâlâ yerine
-        geçen değer."""
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            result = decrypt("bu-gecerli-bir-base64-degil-!!!")
-        self.assertEqual(result, "[Şifreli Veri]")
-        self.assertIn("VERİ BÜTÜNLÜĞÜ", buf.getvalue())
+    def test_corrupted_legacy_ciphertext_raises(self):
+        with self.assertRaises(DecryptionError):
+            decrypt("bu-gecerli-bir-base64-degil-!!!")
 
     def test_truncated_ciphertext_still_falls_back_gracefully(self):
         """16 byte'tan kısa (IV'siz) bir yük geçerli base64 olabilir ama
@@ -106,19 +98,14 @@ class NarrowedExceptHandlingTest(unittest.TestCase):
         yol, AEADv1: öneki yok)."""
         import base64
         short_payload = base64.b64encode(b"kisa").decode("utf-8")
-        result = decrypt(short_payload)
-        self.assertEqual(result, "[Şifreli Veri]")
+        with self.assertRaises(DecryptionError):
+            decrypt(short_payload)
 
-    def test_corrupted_new_format_ciphertext_also_falls_back_gracefully(self):
-        """Aynı sözleşme YENİ (AEAD) yol için de geçerli — kurcalanmış bir
-        AEADv1: zarfı da sessizce '[Şifreli Veri]'ye düşmeli, çökmemeli."""
-        buf = io.StringIO()
+    def test_corrupted_new_format_ciphertext_raises_integrity_error(self):
         token = encrypt("hassas veri")
         tampered = token[:-4] + "XXXX"  # base64 kuyruğunu boz
-        with redirect_stdout(buf):
-            result = decrypt(tampered)
-        self.assertEqual(result, "[Şifreli Veri]")
-        self.assertIn("VERİ BÜTÜNLÜĞÜ", buf.getvalue())
+        with self.assertRaises(IntegrityVerificationError):
+            decrypt(tampered)
 
     def test_unrelated_bug_inside_legacy_decrypt_still_propagates(self):
         """Eski CBC yolunun İÇİNDE, şifre çözmeyle ilgisi olmayan bir hata
@@ -154,20 +141,12 @@ class NarrowedExceptHandlingTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 encrypt("test verisi")
 
-    def test_encrypt_failure_still_falls_back_to_plaintext_and_logs(self):
-        """DAVRANIŞ BİLEREK DEĞİŞMEDİ (Faz 1'in kalan konusu — fail-open'ı
-        raise'e çevirmek ayrı, GUI-doğrulaması gerektiren bir karar) — ama
-        artık en azından loglanıyor. Gerçekçi bir başarısızlık senaryosu
-        kullanılıyor: `_get_aead_key`'in yanlış uzunlukta bir anahtar
-        döndürmesi, `aead_crypto.encrypt`'in kendi `_require_key_length`
-        korumasını GERÇEKTEN tetikler — mock'lanan iç bir detay değil."""
-        buf = io.StringIO()
+    def test_encrypt_failure_never_returns_plaintext(self):
         with mock.patch(
             "utils.crypto._get_aead_key", return_value=b"cok-kisa"
-        ), redirect_stdout(buf):
-            result = encrypt("hassas veri")
-        self.assertEqual(result, "hassas veri")
-        self.assertIn("GÜVENLİK", buf.getvalue())
+        ):
+            with self.assertRaises(EncryptionError):
+                encrypt("hassas veri")
 
 
 class AeadKeyLazyResolutionTest(unittest.TestCase):

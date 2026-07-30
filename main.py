@@ -338,6 +338,7 @@ from ui.theme import (
 import ui.theme as ftheme
 from ui.i18n import tr as translate, set_language as set_active_language
 from utils.currency import format_try
+from utils.errors import FinancialDataIntegrityError
 
 from mixins.asset_mixin import AssetMixin
 from mixins.debt_mixin import DebtMixin
@@ -916,6 +917,14 @@ class ArchlenceApp(
         def _work():
             try:
                 payload = self._compute_dashboard_metrics()
+            except FinancialDataIntegrityError as exc:
+                from utils.logging_config import log_integrity_error
+                error_id = log_integrity_error(exc)
+                Clock.schedule_once(
+                    lambda dt: self._apply_dashboard_integrity_error(error_id),
+                    0,
+                )
+                return
             except Exception as e:
                 print("Metrik hesaplama hatası:", e)
                 return
@@ -933,33 +942,17 @@ class ArchlenceApp(
         """Yalnızca veri üretir, hiçbir widget'a dokunmaz (thread güvenli)."""
         with managed_connection() as conn:
             rows = conn.execute(f"""
-                SELECT t.amount, t.type, IFNULL(c.importance, 'extra')
+                SELECT t.id, t.amount, t.type,
+                       IFNULL(c.importance, 'extra') AS importance
                 FROM transactions t
                 LEFT JOIN categories c ON t.category = c.name
                 WHERE {COMPLETED_TX_T}
             """).fetchall()
 
-        ana_gelir = ek_gelir = temel_gider = ekstra_gider = 0.0
-
-        for amount, t_type, importance in rows:
-            try:
-                decrypted_amount = float(decrypt(str(amount), SECRET_KEY))
-            except Exception:
-                decrypted_amount = 0.0
-
-            if t_type in ("income", "Gelir"):
-                if importance == "main":
-                    ana_gelir += decrypted_amount
-                else:
-                    ek_gelir += decrypted_amount
-            elif t_type in ("expense", "Gider"):
-                if importance == "main":
-                    temel_gider += decrypted_amount
-                else:
-                    ekstra_gider += decrypted_amount
-
-        total_income = ana_gelir + ek_gelir
-        total_expense = temel_gider + ekstra_gider
+        from services.financial_summary_service import summarize_transactions
+        summary = summarize_transactions(rows)
+        total_income = float(summary.total_income)
+        total_expense = float(summary.total_expense)
         # "Cüzdanım" toplamı, işlem nakit-akışına (gelir − gider) hesapların
         # AÇILIŞ bakiyelerini de ekler. Açılış bakiyesi transactions'a değil
         # accounts.balance + balance_events'e yazıldığından, bu taban olmadan
@@ -1050,6 +1043,27 @@ class ArchlenceApp(
             "projection_daily_expense": daily_expense,
             "change_rate": change_rate,
         }
+
+    def _apply_dashboard_integrity_error(self, error_id):
+        """Invalidate financial totals instead of displaying partial zeros."""
+        if not self.root:
+            return
+        unavailable = translate("Bazı kayıtlar okunamadığı için gösterilemiyor")
+        for widget_id in (
+            "home_total_balance",
+            "total_card_amount",
+            "period_income_label",
+            "period_expense_label",
+            "period_net_label",
+            "metric_val_income",
+            "metric_val_expense",
+            "metric_val_savings",
+            "metric_val_trend",
+        ):
+            widget = self.root.ids.get(widget_id)
+            if widget is not None:
+                widget.text = "—"
+        toast(f"{unavailable} (Hata: {error_id})")
 
     def _apply_dashboard_metrics(self, m):
         """Hazır metrik paketini arayüze TEK seferde, yalnızca property
