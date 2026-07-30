@@ -72,6 +72,7 @@ class BackgroundTaskManager:
                 current = self._tasks.get(key)
                 valid = (
                     not self._shutdown
+                    and current is not None
                     and current is task
                     and current.generation == task.generation
                     and not task.cancel_event.is_set()
