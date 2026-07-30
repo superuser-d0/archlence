@@ -7,7 +7,7 @@ name: Release
 # ancak bir GitHub **Release** varlığıyla olur — bu workflow onu üretir.
 #
 # Kullanım (sürümü kesmek):
-#   git tag v1.0.0 && git push origin v1.0.0
+#   git tag v1.0.1 && git push origin v1.0.1
 # Etiketin `v` ile başlaması yeterli; sürüm numarası etiketten türetilir ve
 # Inno Setup kurulumuna gömülür (bkz. installer/archlence.iss'in #ifndef bloğu).
 #
@@ -131,7 +131,8 @@ jobs:
       - name: Sürüm notlarını yaz
         shell: bash
         run: |
-          cp docs/releases/v1.0.0.md release-notes.md
+          cp "docs/releases/v${{ needs.version.outputs.version }}.md" \
+             release-notes.md
           cat release-notes.md
 
       - name: Draft release oluştur ve varlıkları ekle

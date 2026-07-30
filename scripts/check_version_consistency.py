@@ -20,6 +20,7 @@ def require(pattern, path, description):
 
 def main():
     escaped = re.escape(APP_VERSION)
+    release_notes = f"docs/releases/v{APP_VERSION}.md"
     require(
         rf'#define MyAppVersion "{escaped}"',
         "installer/archlence.iss",
@@ -42,17 +43,17 @@ def main():
     )
     require(
         rf"# Archlence v{escaped}",
-        "docs/releases/v1.0.0.md",
+        release_notes,
         "Release notu başlığı",
     )
     require(
         rf"ArchlenceSetup-{escaped}\.exe",
-        "docs/releases/v1.0.0.md",
+        release_notes,
         "Windows release dosya adı",
     )
     require(
         rf"Archlence-{escaped}-x86_64\.AppImage",
-        "docs/releases/v1.0.0.md",
+        release_notes,
         "Linux release dosya adı",
     )
     require(
