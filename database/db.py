@@ -348,6 +348,12 @@ def insert_asset_transaction(account_id, amount, tx_type, category, description)
     transactions table so the liquid wallet balance is updated correctly.
     """
     from datetime import datetime
+    from services.account_service import AccountService
+    allowed, reason = AccountService.check_spending_allowed(
+        account_id, amount, tx_type,
+    )
+    if not allowed:
+        raise ValueError(reason)
     # adjust_account_balance hesap yoksa ValueError fırlatır — o durumda
     # commit'e hiç ulaşılmaz (yarım kayıt yok, doğru davranış) ama eskiden
     # close() de çalışmıyordu. Bağlantı artık her çıkış yolunda kapanıyor.
@@ -552,6 +558,12 @@ def process_due_recurring_payment(payment):
         ).strip().lower()
         if transaction_type not in ("income", "expense"):
             raise ValueError("Geçersiz tekrarlanan işlem türü.")
+        from services.account_service import AccountService
+        allowed, reason = AccountService.check_spending_allowed(
+            payment["account_id"], payment["amount"], transaction_type,
+        )
+        if not allowed:
+            raise ValueError(reason)
         enc_amount = encrypt(str(payment["amount"]), SECRET_KEY)
         enc_desc = encrypt(f"{payment['name']} (Otomatik)", SECRET_KEY)
         tx_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

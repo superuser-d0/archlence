@@ -906,6 +906,10 @@ class AccountMixin:
             card.network_logo = acc.get("network_logo", "")
             card.available_limit = _fmt(acc["available_limit"])
             card.current_debt = _fmt(acc["debt"])
+            card.is_frozen = bool(acc.get("is_frozen", False))
+            card.online_payments_enabled = bool(
+                acc.get("online_payments_enabled", True)
+            )
             signature = repr(recent_items)
             if getattr(card, "_archlence_recent_signature", None) != signature:
                 self._fill_card_recent(card, acc["id"], recent_items)
@@ -914,12 +918,17 @@ class AccountMixin:
         elif has_card:
             card = existing if isinstance(existing, PremiumDebitCardWidget) else None
             if card is None:
-                card = PremiumDebitCardWidget()
+                card = PremiumDebitCardWidget(account_id=acc["id"])
                 container_cards.add_widget(card)
+            card.account_id = acc["id"]
             card.card_name = _t(acc["name"])
             card.masked_number = acc.get("masked_number", "**** **** **** 0000")
             card.network_logo = acc.get("network_logo", "")
             card.balance = _fmt(acc["balance"])
+            card.is_frozen = bool(acc.get("is_frozen", False))
+            card.online_payments_enabled = bool(
+                acc.get("online_payments_enabled", True)
+            )
             signature = repr(recent_items)
             if getattr(card, "_archlence_recent_signature", None) != signature:
                 self._fill_card_recent(card, acc["id"], recent_items)

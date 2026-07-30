@@ -281,6 +281,19 @@ so they're intended for development and testing rather than general use.
 
 Full history is on the [Releases page](https://github.com/superuser-d0/archlence/releases).
 
+### 1.0.1 — card controls and live-language refresh
+
+- Frozen cards/accounts now persist their state and reject new income, expense,
+  installment, pending, recurring, and direct asset transactions. Debt payments
+  remain available so a frozen credit card can still be paid down.
+- The internet-shopping switch is now a persistent preference. Transactions do
+  not currently identify their channel, so the UI explicitly avoids presenting
+  this preference as an enforceable online-payment security control.
+- Changing the language refreshes the open screen and bottom-navigation labels
+  immediately.
+- The time-bucket regression test is deterministic, and obsolete/dangerous
+  development helpers have been removed or moved under `scripts/dev/`.
+
 ### 1.0.0 — first stable release
 
 **Identical code to 0.9.0** — this release carries no functional changes, only

@@ -37,7 +37,7 @@ on:
         description: "Kurulum paketine gömülecek sürüm (etiketten türetilir)."
         required: false
         type: string
-        default: "1.0.0"
+        default: "1.0.1"
 
 # Arka arkaya push'ta eski derleme iptal edilsin; iki Windows runner'ını aynı
 # anda meşgul etmenin anlamı yok. PR'larda github.ref `refs/pull/<no>/merge`
@@ -170,11 +170,11 @@ jobs:
         #
         # /DMyAppVersion: sürüm etiketten gelir (bkz. installer/archlence.iss'in
         # #ifndef bloğu). workflow_call DIŞINDA tetiklendiğinde `inputs` boştur,
-        # o yüzden 1.0.0'a düşülür — normal main/PR derlemeleri etkilenmez.
+        # o yüzden güncel kararlı sürüme düşülür — normal main/PR derlemeleri etkilenmez.
         run: |
           choco install innosetup -y --no-progress
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-            "/DMyAppVersion=${{ inputs.version || '1.0.0' }}" `
+            "/DMyAppVersion=${{ inputs.version || '1.0.1' }}" `
             installer\archlence.iss
 
       - name: Kurulum paketini artifact olarak yükle

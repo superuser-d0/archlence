@@ -75,10 +75,15 @@ class TransactionService:
             if installments == 1:
                 installments = None  # 1 taksit = tek çekim; plan kaydı gereksiz.
 
-        if enforce_credit_limit and transaction_type in ("expense", "Gider"):
-            allowed, reason = AccountService.check_spending_allowed(account_id, amount)
-            if not allowed:
-                raise ValueError(reason)
+        # Donma kuralı gelir/gider ayrımı yapmadan ve CSV'nin geçmiş-limit
+        # istisnasından bağımsız uygulanır. `enforce_credit_limit=False`
+        # yalnız eski limit aşımını kabul eder; donmuş hesabı bypass etmez.
+        allowed, reason = AccountService.check_spending_allowed(
+            account_id, amount, transaction_type,
+            enforce_limits=enforce_credit_limit,
+        )
+        if not allowed:
+            raise ValueError(reason)
 
         # Hesabın varlığını burada doğrula: ileri tarihli (pending) kayıtlar
         # adjust_account_balance'ı HİÇ çağırmaz, dolayısıyla oradaki koruma bu
@@ -197,15 +202,22 @@ class TransactionService:
         try:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT id, account_id, amount, type FROM transactions"
+                "SELECT t.id, t.account_id, t.amount, t.type,"
+                " COALESCE(a.is_frozen, 0) AS is_frozen"
+                " FROM transactions AS t"
+                " LEFT JOIN accounts AS a ON a.id = t.account_id"
                 " WHERE status = 'pending' AND date(execution_date) <= date(?)"
-                " ORDER BY date(execution_date), id",
+                " ORDER BY date(execution_date), t.id",
                 (reference_day,),
             )
             due_rows = cursor.fetchall()
 
             settled = 0
             for row in due_rows:
+                # Planlandıktan sonra hesap dondurulmuş olabilir. Vade gelince
+                # donmayı bypass edip bakiyeyi değiştirme; kayıt pending kalsın.
+                if bool(row["is_frozen"]):
+                    continue
                 try:
                     amount = float(decrypt(str(row["amount"]), SECRET_KEY))
                 except (ValueError, TypeError) as e:

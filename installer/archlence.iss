@@ -22,10 +22,10 @@
 #define MyAppName "Archlence"
 ; Sürüm dışarıdan verilebilir: `ISCC /DMyAppVersion=1.2.3 archlence.iss`.
 ; #ifndef ŞART: düz bir `#define` komut satırından geleni EZERDİ, yani
-; etiketten türeyen sürüm sessizce 1.0.0'a döner ve her release aynı sürüm
-; numarasıyla çıkardı. Bu hâliyle CLI kazanır, yerel derlemede 1.0.0 kalır.
+; etiketten türeyen sürüm sessizce varsayılana döner ve her release aynı sürüm
+; numarasıyla çıkardı. Bu hâliyle CLI kazanır, yerel derlemede güncel sürüm kalır.
 #ifndef MyAppVersion
-  #define MyAppVersion "1.0.0"
+  #define MyAppVersion "1.0.1"
 #endif
 #define MyAppPublisher "Mehmet Cem Çakırgöz"
 #define MyAppExeName "Archlence.exe"
