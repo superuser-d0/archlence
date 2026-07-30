@@ -137,5 +137,86 @@ class BudgetRapidMonthTapTest(unittest.TestCase):
         self.assertEqual(app.generate_next_month_projection.call_count, 1)
 
 
+class CategoryToggleRapidTapTest(unittest.TestCase):
+    """Kategori anahtarlarını hızlı çevirince grafik bir kez tazelenmeli.
+
+    Kullanıcı raporu: "kategori ayarlarında ayar kapatıp açarken kasmalar".
+    Her dokunuş tam bir pasta+trend yeniden hesabı/çizimi tetikliyordu.
+    """
+
+    def test_rapid_toggles_coalesce_chart_refresh(self):
+        import main as archlence_main
+
+        app = archlence_main.ArchlenceApp.__new__(archlence_main.ArchlenceApp)
+        app._category_chart_refresh_event = None
+        app.safe_refresh_charts = mock.Mock()
+
+        clock = _FakeClock()
+        conn = mock.MagicMock()
+        with mock.patch.object(archlence_main, "Clock", clock), \
+                mock.patch.object(archlence_main, "get_connection",
+                                  return_value=conn):
+            for index in range(10):
+                app.update_category_importance(f"Kategori {index}", index % 2 == 0)
+
+            # Tercih ANINDA yazılmalı — kaybolmamalı.
+            self.assertEqual(conn.cursor.return_value.execute.call_count, 10)
+            self.assertEqual(app.safe_refresh_charts.call_count, 0)
+            clock.advance()
+
+        self.assertEqual(
+            app.safe_refresh_charts.call_count, 1,
+            "10 hızlı anahtar dokunuşu tek grafik tazelemesine inmeli.",
+        )
+
+
+class TransactionRefreshFrameSpreadTest(unittest.TestCase):
+    """İşlem eklendikten sonraki ağır tazelemeler tek kareyi bloklamamalı.
+
+    Kullanıcı raporu: "her yeni işlem eklendiğinde aşırı kasıyor".
+    """
+
+    def _app(self):
+        from mixins.transaction_mixin import TransactionMixin
+        return TransactionMixin.__new__(TransactionMixin)
+
+    def test_each_refresh_runs_in_its_own_frame(self):
+        import mixins.transaction_mixin as tx_module
+
+        app = self._app()
+        calls = []
+        jobs = [lambda: calls.append(n) for n in range(4)]
+
+        clock = _FakeClock()
+        with mock.patch.object(tx_module, "Clock", clock):
+            app._run_refresh_jobs_across_frames(jobs)
+            self.assertEqual(len(calls), 1, "İlk iş hemen, kalanı sonraki karelerde.")
+            for expected in (2, 3, 4):
+                clock.advance()
+                self.assertEqual(len(calls), expected)
+
+    def test_a_failing_refresh_does_not_cancel_the_rest(self):
+        import mixins.transaction_mixin as tx_module
+
+        app = self._app()
+        done = []
+
+        def boom():
+            raise RuntimeError("sunum katmani patladi")
+
+        jobs = [boom, lambda: done.append("sonraki")]
+        clock = _FakeClock()
+        with mock.patch.object(tx_module, "Clock", clock), \
+                mock.patch("utils.logging_config.get_logger"):
+            app._run_refresh_jobs_across_frames(jobs)
+            clock.advance()
+
+        self.assertEqual(
+            done, ["sonraki"],
+            "Kayıt zaten commit edildi; bir sunum hatası kalan tazelemeleri "
+            "iptal etmemeli.",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

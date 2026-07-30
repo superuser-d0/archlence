@@ -39,6 +39,11 @@ _GROUPED_PATTERN = re.compile(r"^\d{1,3}(?:\.\d{3})+$")
 # Maskelenmiş alanın kanonik değerini taşıdığı attribute.
 _CANONICAL_ATTR = "_archlence_amount_value"
 
+# Tutar alanına yazılabilecek en fazla TAM KISIM hanesi (bkz.
+# filter_amount_keystroke). float64'ün tam-sayı kesinlik sınırının
+# (2**53) güvenli tarafında kalır.
+MAX_INTEGER_DIGITS = 12
+
 
 def _digits_and_decimal(text):
     """Metni (tamsayı_hane_dizisi, ondalık_hane_dizisi | None) hâline getirir."""
@@ -184,11 +189,28 @@ def filter_amount_keystroke(substring, existing_text=""):
     ve "1500.5" sessizce 15005 olurdu.
     """
     text = str(substring or "")
-    already_has_decimal = DECIMAL_SEPARATOR in str(existing_text or "")
+    current = str(existing_text or "")
+    already_has_decimal = DECIMAL_SEPARATOR in current
+
+    # Tam kısımdaki hane sayısı ÜST SINIRI. Kullanıcı raporu: alana çok uzun
+    # sayılar girilince uygulama "sapıtıyor" (ekran görüntüsünde
+    # ₺112.955.698.541.615.249.872.910,00 gibi toplamlar). Sebep yalnız görsel
+    # değil: float64 yalnızca 2**53 (~9,007e15) değerine kadar TAM SAYIYI
+    # birebir taşır; ötesinde toplama/çıkarma sessizce yuvarlanır ve bakiye
+    # matematiği anlamını yitirir. MAX_INTEGER_DIGITS bu sınırın güvenli
+    # tarafında kalır (999.999.999.999 = 12 hane) ve kişisel finans için
+    # fazlasıyla yeterlidir. Sınır girdi ANINDA uygulanır: mevcut kayıtlar
+    # etkilenmez, kullanıcı sadece yeni absürt değer yazamaz.
+    integer_part = current.split(DECIMAL_SEPARATOR)[0]
+    integer_digits = sum(1 for char in integer_part if char.isdigit())
 
     result = []
     for char in text:
         if char.isdigit():
+            if not already_has_decimal and integer_digits >= MAX_INTEGER_DIGITS:
+                continue  # tam kısım doldu, yeni hane kabul edilmez
+            if not already_has_decimal:
+                integer_digits += 1
             result.append(char)
         elif char in (DECIMAL_SEPARATOR, GROUP_SEPARATOR):
             if not already_has_decimal:
@@ -223,7 +245,7 @@ def attach_amount_mask(field):
       hanenin hemen ardında bırakılır.
     - Kanonik sayısal değer widget üzerinde saklanır; `read_amount` onu okur.
 
-    İMLEÇ HATASI (v1.1.0'da düzeltildi). Yeniden biçimlendirme eskiden
+    İMLEÇ HATASI (v0.0.1'de düzeltildi). Yeniden biçimlendirme eskiden
     `bind(text=...)` ile, yani Kivy'nin `on_text` olayında yapılıyordu. Kivy
     `TextInput.insert_text` içinde ÖNCE `self.text`i değiştirir, imleci ANCAK
     SONRA ilerletir — dolayısıyla `on_text` sırasında okunan `cursor_index()`

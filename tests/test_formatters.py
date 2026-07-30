@@ -212,7 +212,7 @@ class _FakeField:
     def insert_text(self, substring, from_undo=False):
         """filtre -> metni yaz (on_text burada) -> imleci İLERLET.
 
-        DÜZELTME (v1.1.0): bu sınıf eskiden imleci metinden ÖNCE
+        DÜZELTME (v1.1.0, geri çekildi): bu sınıf eskiden imleci metinden ÖNCE
         güncelliyordu ve `type_at` docstring'i bunu "gerçek insert_text
         akışı" diye anlatıyordu. Gerçek Kivy'de sıra TAM TERSİ. Yanlış model
         yüzünden buradaki imleç testleri, üretimde sayıyı bozan bir hatayı
@@ -390,3 +390,38 @@ class AmountMaskScramblingRegressionTest(unittest.TestCase):
     def test_typed_value_round_trips_through_read_amount(self):
         from utils.formatters import read_amount
         self.assertEqual(read_amount(self._type("1234567")), 1234567.0)
+
+
+class AmountUpperBoundTest(unittest.TestCase):
+    """Absürt tutarlar alana hiç girememeli.
+
+    Kullanıcı raporu: çok uzun sayı girilince uygulama "sapıtıyor" —
+    ekranda ₺112.955.698.541.615.249.872.910,00 gibi toplamlar çıkıyordu.
+    float64 yalnız 2**53'e (~9,007e15) kadar tam sayıyı birebir taşır;
+    ötesinde bakiye aritmetiği sessizce yuvarlanır. Sınır GİRDİ anında
+    uygulanır, böylece mevcut kayıtlar etkilenmez.
+    """
+
+    def test_integer_part_is_capped(self):
+        limit = formatters.MAX_INTEGER_DIGITS
+        full = "9" * limit
+        self.assertEqual(
+            filter_amount_keystroke("9", full), "",
+            "Tam kısım sınıra ulaştığında yeni hane kabul edilmemeli.",
+        )
+
+    def test_below_the_cap_still_accepts_digits(self):
+        almost = "9" * (formatters.MAX_INTEGER_DIGITS - 1)
+        self.assertEqual(filter_amount_keystroke("9", almost), "9")
+
+    def test_cap_stays_within_float64_exact_integer_range(self):
+        biggest = 10 ** formatters.MAX_INTEGER_DIGITS - 1
+        self.assertLess(
+            biggest, 2 ** 53,
+            "Sınır, float64'ün tam sayı kesinlik aralığının içinde kalmalı.",
+        )
+
+    def test_decimals_are_unaffected_by_the_integer_cap(self):
+        """Sınır yalnız TAM kısma uygulanır; kuruş yazımı engellenmemeli."""
+        capped = "9" * formatters.MAX_INTEGER_DIGITS + ",5"
+        self.assertEqual(filter_amount_keystroke("0", capped), "0")

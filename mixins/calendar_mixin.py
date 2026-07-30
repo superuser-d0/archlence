@@ -246,7 +246,7 @@ class CalendarMixin:
     def _select_calendar_day(self, date_obj):
         """Bir gün hücresine dokunulduğunda o günün işlemlerini yükler.
 
-        PERFORMANS SÖZLEŞMESİ (v1.1.0'da düzeltildi): bu fonksiyon hızlı ve
+        PERFORMANS SÖZLEŞMESİ (v0.0.1'de düzeltildi): bu fonksiyon hızlı ve
         tekrarlı dokunuşlara dayanmak ZORUNDA. Eski hâli her dokunuşta iki
         pahalı iş yapıyordu ve ikisi de dokunuş sayısıyla doğrusal büyüyordu:
 

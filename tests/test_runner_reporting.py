@@ -1,6 +1,6 @@
 """Test raporunun Kivy'nin stderr ele geçirmesine dayanıklı olduğunu kilitler.
 
-BAĞLAM (v1.1.0'da bulundu): Kivy, `import kivy` sırasında `sys.stderr`i kendi
+BAĞLAM (v0.0.1'de bulundu): Kivy, `import kivy` sırasında `sys.stderr`i kendi
 `ProcessingStream`iyle değiştiriyor (kivy/logger.py, KIVY_NO_CONSOLELOG ayarlı
 değilse) ve o akış kendisine yazılan her şeyi Kivy logger'ına huniliyor.
 

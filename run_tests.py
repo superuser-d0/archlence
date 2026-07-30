@@ -8,7 +8,7 @@ import unittest
 # Logger.warning)`, yalnızca KIVY_NO_CONSOLELOG ayarlı DEĞİLSE). O akış kendisine
 # yazılan her şeyi Kivy'nin logger'ına huniliyor.
 #
-# Sonuç (v1.1.0'da ölçüldü): tam paket koşusunda Kivy çekirdeği ilk kez derinden
+# Sonuç (v0.0.1'de ölçüldü): tam paket koşusunda Kivy çekirdeği ilk kez derinden
 # import edildiği anda — ~69. test civarı — unittest'in raporu bu huniye düşüp
 # KAYBOLUYORDU. Kaybolanlar: kalan ~505 testin adları, assertion mesajları,
 # traceback'ler ve en önemlisi "Ran N tests" + "OK"/"FAILED (failures=N)" özeti.

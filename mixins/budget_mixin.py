@@ -86,7 +86,7 @@ class BudgetMixin:
     def change_budget_month(self, month_index, year=None):
         """Aktif bütçe ayını değiştirir ve listeyi/projeksiyonu tazeler.
 
-        PERFORMANS SÖZLEŞMESİ (v1.1.0'da düzeltildi): ay butonlarına hızlı ve
+        PERFORMANS SÖZLEŞMESİ (v0.0.1'de düzeltildi): ay butonlarına hızlı ve
         art arda basılabilir. Eski hâli her basışta `load_budget_list()` (tüm
         kalem listesini temizleyip birkaç servis sorgusuyla yeniden kuran) ve
         `generate_next_month_projection()` çağrılarını UI thread'inde SENKRON

@@ -31,7 +31,7 @@ from datetime import date
 def _log():
     """Fiyat/portföy hata kaydı için merkezi rotating log.
 
-    NEDEN (v1.1.0'da düzeltildi): bu modüldeki fiyat çekme hataları `print()`
+    NEDEN (v0.0.1'de düzeltildi): bu modüldeki fiyat çekme hataları `print()`
     ile bildiriliyordu. Paketlenmiş Windows uygulaması `console=False` ile
     derleniyor (archlence.spec) — yani stdout/stderr hiçbir yere gitmiyor ve o
     mesajlar TAMAMEN kayboluyordu. Sonuç: "Windows'ta altın fiyatı yüklenmiyor"

@@ -8,16 +8,63 @@ share one SQLite transaction.
 from datetime import datetime
 
 from database.db import (
-    DEFAULT_ACCOUNT_ID,
     SECRET_KEY,
     adjust_account_balance,
     get_connection,
 )
-from services.account_service import AccountService
+from services.account_service import AccountService, _fmt_try
 from utils.crypto import encrypt
 
 
 class AssetPurchaseService:
+
+    @staticmethod
+    def _pick_funding_account(invested_amount):
+        """Alımın düşüleceği vadesiz hesabı seçer.
+
+        NEDEN (kullanıcı raporu: "Windows'ta altın eklenmiyor"): burası
+        eskiden koşulsuz `DEFAULT_ACCOUNT_ID` (=1) kullanıyordu. İki ayrı
+        şekilde patlıyordu:
+
+          * Uygulama artık açılışta varsayılan hesap SEED ETMİYOR, yani taze
+            kurulumda id=1 diye bir satır hiç olmayabiliyor.
+          * Kullanıcının parası başka bir hesapta olsa bile alım hep 1
+            numaralı hesaptan düşülmeye çalışılıyordu.
+
+        Sonuç: "Yetersiz Bakiye! Bu hesap eksiye düşemez." — kullanıcı ise
+        ekranda dolu bir bakiye görüyordu. Artık tutarı KARŞILAYABİLEN ilk
+        vadesiz hesap seçilir; hiçbiri yetmiyorsa mesaj neyin eksik olduğunu
+        söyler (eskiden hangi hesabın kastedildiği bile belli değildi).
+
+        Kredi kartları bilinçli olarak dışarıda: varlık alımını karta borç
+        yazmak ayrı bir ürün kararı ve burada sessizce yapılmamalı.
+        """
+        from services.account_service import CHECKING
+
+        accounts = [
+            account for account in AccountService.get_accounts()
+            if account["account_type"] == CHECKING
+        ]
+        if not accounts:
+            raise ValueError(
+                "Varlık alımı için vadesiz/nakit hesap bulunamadı. "
+                "Önce Kartlarım sekmesinden bir hesap ekleyin."
+            )
+
+        affordable = [
+            account for account in accounts
+            if float(account["balance"]) >= invested_amount
+        ]
+        if affordable:
+            return affordable[0]["id"]
+
+        richest = max(accounts, key=lambda account: float(account["balance"]))
+        raise ValueError(
+            "Yetersiz bakiye: bu alım için "
+            f"{_fmt_try(invested_amount)} gerekiyor, en yüksek vadesiz hesap "
+            f"bakiyeniz ({richest['name']}) {_fmt_try(float(richest['balance']))}."
+        )
+
     @staticmethod
     def create_purchase(
         *,
@@ -26,7 +73,7 @@ class AssetPurchaseService:
         asset_type,
         purchase_price,
         quantity,
-        account_id=DEFAULT_ACCOUNT_ID,
+        account_id=None,
         purchase_date=None,
     ):
         price = float(purchase_price)
@@ -34,6 +81,11 @@ class AssetPurchaseService:
         if price <= 0 or qty <= 0:
             raise ValueError("Fiyat ve miktar sıfırdan büyük olmalıdır.")
         invested_amount = price * qty
+
+        if account_id is None:
+            account_id = AssetPurchaseService._pick_funding_account(
+                invested_amount)
+
         allowed, reason = AccountService.check_spending_allowed(
             account_id, invested_amount, "expense"
         )
