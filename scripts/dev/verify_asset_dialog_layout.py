@@ -23,6 +23,7 @@ class DialogHarness(AssetMixin, MDApp):
         super().__init__(**kwargs)
         self.output = Path(output)
         self.report = []
+        self._bist_settle_retries = 0
 
     def build(self):
         self.theme_cls.theme_style = "Dark"
@@ -72,6 +73,15 @@ class DialogHarness(AssetMixin, MDApp):
         Clock.schedule_once(self._bist_done, 0.8)
 
     def _bist_done(self, _dt):
+        # KivyMD's open animation is markedly slower under Mesa llvmpipe.
+        # Do not measure the transient 100px start frame as final geometry.
+        if (
+            self._bist_dialog.height < 300
+            and self._bist_settle_retries < 6
+        ):
+            self._bist_settle_retries += 1
+            Clock.schedule_once(self._bist_done, 0.5)
+            return
         self._capture("bist-small-window", self._bist_dialog)
         self._bist_dialog.dismiss()
         report = self.output / "asset-dialog-report.json"
