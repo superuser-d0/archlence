@@ -136,16 +136,13 @@ Notable implementation details include:
 
 ## Project status
 
-Archlence v0.0.1 is a **pre-release**. It is not stable and is not recommended
-for day-to-day finance tracking yet.
+Archlence v0.0.1 is a **pre-release** — the first public build. It is not
+stable and is not recommended for day-to-day finance tracking yet.
 
-The version number was deliberately reset to 0.0.x: the earlier 1.x tags were
-withdrawn after user testing surfaced defects that broke everyday use — most
-seriously, a cursor bug in the amount field that silently recorded a *different*
-number than the one typed. That class of bug makes a finance app untrustworthy,
-so the release line restarted rather than pretending to be stable.
-
-See CHANGELOG.md for what is fixed and what is still known-broken.
+The package installs and runs, and the flows listed in the changelog are
+covered by tests, but the 0.0.x line exists precisely to signal that the app is
+still being shaken out against real usage. See CHANGELOG.md for what is covered
+and what is still known-broken before trusting it with real data.
 
 The current focus is:
 
@@ -298,37 +295,6 @@ so they're intended for development and testing rather than general use.
   stall the UI; rapid taps coalesce instead of doing linear work per tap.
 - Asset purchases pick an account that can actually fund them.
 - Test reporting restored: the runner's output was being swallowed by Kivy.
-
-### 1.1.0 — financial reliability and release automation (withdrawn)
-
-- Financial budget/dashboard paths fail closed and use shared Decimal rules.
-- Price provenance and cache freshness are explicit.
-- Release notes derive from CHANGELOG; CI adds visual contracts and SBOM.
-
-### 1.0.1 — asset creation and dialog reliability
-
-- Asset purchases are atomic across the portfolio row, liquid-account
-  transaction, balance mutation and ledger event.
-- Post-commit UI refresh failures no longer masquerade as database failures.
-- Asset forms and the BIST picker fit small windows without overlapping their
-  titles or clipping action buttons.
-
-### 1.0.0 — stable security and reliability release
-
-- Encryption and financial aggregation are fail-closed: failed encryption
-  cannot write plaintext and unreadable records invalidate totals.
-- Verified backup/restore includes password-protected recovery material and
-  checks that the database and key match before restoring.
-- Legacy CBC records migrate transactionally to AEAD after a verified backup.
-- Windows uses DPAPI and Linux uses Secret Service/KWallet when available.
-  File fallback is explicitly disclosed in Settings.
-- Recovery-package import/export and rollback-safe key rotation are supported.
-- A process lock prevents two instances from mutating the same profile.
-- Search/header render seams are removed with a single-surface search control.
-- CI blocks critical undefined names, bare exceptions and new broad exception
-  handlers. Benchmarks cover 1K, 10K and 50K transactions.
-
-See [CHANGELOG.md](CHANGELOG.md) for the complete release record.
 
 ## Tests
 
