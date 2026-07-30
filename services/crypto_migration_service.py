@@ -7,9 +7,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from database.db import DB_NAME, SECRET_KEY
-from services.backup_service import ENCRYPTED_FIELDS, create_backup
+from services.backup_service import ENCRYPTED_FIELDS, _key_provider, create_backup
 from utils import aead_crypto
-from utils.crypto import _get_aead_key, decrypt
+from utils.crypto import decrypt
 from utils.errors import DataMigrationError, DecryptionError
 
 _AEAD_PREFIX = "AEADv1:"
@@ -71,6 +71,7 @@ def migrate_legacy_encryption(
     *,
     db_path=DB_NAME,
     key_path=None,
+    key_provider=None,
     _failure_hook=None,
 ):
     """Backup, migrate atomically, verify, and remain safe to run repeatedly."""
@@ -92,8 +93,12 @@ def migrate_legacy_encryption(
         passphrase,
         db_path=db_path,
         key_path=key_path,
+        key_provider=key_provider,
     )
-    key = _get_aead_key()
+    provider = _key_provider(key_path, key_provider)
+    key = provider.load_key()
+    if key is None:
+        raise DataMigrationError("Migration anahtarı bulunamadı.")
     migrated = 0
     try:
         with closing(sqlite3.connect(db_path)) as conn:

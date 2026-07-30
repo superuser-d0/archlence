@@ -43,13 +43,8 @@ class CryptoMigrationIntegrationTest(unittest.TestCase):
         self.crypto_key_patch = mock.patch(
             "utils.crypto._get_aead_key", return_value=self.key
         )
-        self.migration_key_patch = mock.patch(
-            "services.crypto_migration_service._get_aead_key",
-            return_value=self.key,
-        )
         self.db_patch.start()
         self.crypto_key_patch.start()
-        self.migration_key_patch.start()
 
         from database.init_db import initialize_database
 
@@ -70,7 +65,6 @@ class CryptoMigrationIntegrationTest(unittest.TestCase):
             conn.commit()
 
     def tearDown(self):
-        self.migration_key_patch.stop()
         self.crypto_key_patch.stop()
         self.db_patch.stop()
         self.tempdir.cleanup()
