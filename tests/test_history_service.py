@@ -69,16 +69,24 @@ class _LedgerTestBase(AccountFixtureMixin, unittest.TestCase):
         conn.close()
 
     def _add_snapshot(self, days_ago, total, goals=None):
+        # try/finally ŞART: bu yardımcı bilerek IntegrityError fırlatan bir
+        # senaryoda da çağrılıyor (test_snapshot_date_is_unique). try/finally
+        # olmadan istisna `conn.close()` satırını atlıyor, bağlantı sızıyor ve
+        # Windows dosyayı kilitli tuttuğu için tearDown'daki `os.unlink`
+        # "WinError 32" ile patlıyor. Linux'ta açık dosya silinebildiği için
+        # bu sızıntı görünmüyordu.
         conn = sqlite3.connect(self.db_path)
         import json
-        conn.execute(
-            "INSERT INTO daily_balance_snapshot (snapshot_date, total_balance,"
-            " breakdown_json) VALUES (?,?,?)",
-            (self._day(days_ago), total,
-             json.dumps({"accounts": {}, "savings_goals": goals or {}})),
-        )
-        conn.commit()
-        conn.close()
+        try:
+            conn.execute(
+                "INSERT INTO daily_balance_snapshot (snapshot_date,"
+                " total_balance, breakdown_json) VALUES (?,?,?)",
+                (self._day(days_ago), total,
+                 json.dumps({"accounts": {}, "savings_goals": goals or {}})),
+            )
+            conn.commit()
+        finally:
+            conn.close()
 
     def _clear_ledger(self):
         """Defteri boşaltır — sentetik replay senaryoları için.

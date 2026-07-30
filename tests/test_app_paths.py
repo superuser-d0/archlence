@@ -33,29 +33,72 @@ class PathResolutionTest(unittest.TestCase):
                 log_dir()
             self.assertFalse(os.path.exists(fake_home))
 
+    @staticmethod
+    def _home_override(root):
+        """Yolları sandbox'a çeken PLATFORMDAN BAĞIMSIZ yönlendirme.
+
+        Eskiden burada yalnız XDG_* vardı. XDG Windows'ta ÇALIŞMAZ:
+        `platformdirs` orada ortam değişkenlerine hiç bakmaz, `ctypes` ile
+        `SHGetFolderPathW` çağırır. Yani bu test Linux'ta yeşil olup Windows'ta
+        yol yönlendirmesinin tamamen kırık olduğunu GİZLİYORDU — ve test
+        paketinin kendi izolasyonu da aynı kırık mekanizmaya dayanıyordu.
+        `ARCHLENCE_HOME` (utils/app_paths.py) her platformda geçerlidir.
+        """
+        return {"ARCHLENCE_HOME": root}
+
     def test_data_cache_log_dirs_are_distinct(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(
                 os.environ,
-                {
-                    "XDG_DATA_HOME": os.path.join(tmp, "data"),
-                    "XDG_CACHE_HOME": os.path.join(tmp, "cache"),
-                    "XDG_STATE_HOME": os.path.join(tmp, "state"),
-                },
+                self._home_override(tmp),
             ):
                 d, c, log = data_dir(), cache_dir(), log_dir()
+            # SÖZLEŞME: üç dizin birbirinden AYRI olmalı ve hepsi platformun
+            # kendi "kullanıcı dizini" değişkeniyle yönlendirilebilmeli.
+            # Yönlendirilebilirlik kritik: test paketi izolasyonu (run_tests.py)
+            # tam olarak buna dayanıyor.
             self.assertNotEqual(d, c)
             self.assertNotEqual(d, log)
             self.assertNotEqual(c, log)
-            self.assertTrue(d.startswith(os.path.join(tmp, "data")))
-            self.assertTrue(c.startswith(os.path.join(tmp, "cache")))
-            self.assertTrue(log.startswith(os.path.join(tmp, "state")))
+            for resolved in (d, c, log):
+                self.assertTrue(
+                    resolved.startswith(tmp),
+                    f"{resolved!r} sandbox {tmp!r} altında değil — bu "
+                    "platformda yol yönlendirmesi ÇALIŞMIYOR demektir.",
+                )
 
+    @unittest.skipIf(
+        os.name == "nt",
+        "platformdirs Windows'ta ortam değişkenlerini yok sayar (ctypes ile "
+        "SHGetFolderPathW); bu test XDG üzerinden VARSAYILAN çözümlemeyi "
+        "sınıyor ve orada yönlendirilemez.",
+    )
     def test_resolved_dirs_are_namespaced_under_the_app_name(self):
+        """VARSAYILAN (yönlendirmesiz) çözümleme uygulama adıyla isimlenmeli.
+
+        `ARCHLENCE_HOME` burada AÇIKÇA temizlenir: bu test platformdirs'in
+        varsayılan davranışını sınıyor, geçersiz kılma yolunu değil. Test
+        paketi kendi izolasyonu için o değişkeni global olarak ayarlıyor
+        (run_tests.py) — temizlemezsek burada yanlış kod yolunu ölçerdik.
+        """
         with tempfile.TemporaryDirectory() as tmp:
-            with mock.patch.dict(os.environ, {"XDG_DATA_HOME": tmp}):
+            with mock.patch.dict(
+                os.environ, {"XDG_DATA_HOME": tmp, "ARCHLENCE_HOME": ""}
+            ):
                 d = data_dir()
             self.assertIn("Archlence", d)
+
+    def test_home_override_wins_over_platform_defaults(self):
+        """`ARCHLENCE_HOME` her platformda çözümlemeyi yönlendirmeli.
+
+        Bu, test paketi izolasyonunun dayandığı sözleşmedir; kırılırsa
+        testler geliştiricinin GERÇEK veri dizinine yazmaya başlar.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(os.environ, {"ARCHLENCE_HOME": tmp}):
+                self.assertTrue(data_dir().startswith(tmp))
+                self.assertTrue(cache_dir().startswith(tmp))
+                self.assertTrue(log_dir().startswith(tmp))
 
 
 class ResourceDirTest(unittest.TestCase):

@@ -1,8 +1,15 @@
 name: Tests
 
 # Windows build (build-windows.yml) packages the app; this workflow verifies
-# it's actually correct. Runs on Linux — the unit test suite and lint don't
-# need PyInstaller or a Windows runner, and this is far cheaper/faster.
+# it's actually correct. Lint, type-check ve görsel regresyon Linux'ta koşar
+# (ucuz ve hızlı); test paketi HEM Linux HEM Windows'ta koşar.
+#
+# Windows'ta neden ayrıca koşuyoruz: build-windows.yml yalnızca "kuruluyor,
+# açılıyor, kaldırılıyor" diyordu — uygulama MANTIĞININ orada da doğru olduğunu
+# hiçbir şey doğrulamıyordu. Kullanıcı tarafından bildirilen hataların (tutar
+# alanının yazılandan farklı sayı kaydetmesi, hızlı dokunmada kasma) hepsi
+# platformdan bağımsız mantık hatalarıydı ama ilk kez Windows'ta fark edildi;
+# geliştirme Linux'ta yapıldığı için Windows tarafında hiç kanıt üretilmiyordu.
 on:
   push:
     branches: [ main ]
@@ -58,6 +65,43 @@ jobs:
         # before main.py ever runs), so this is redundant on purpose:
         # explicit at the workflow level too, rather than relying solely on
         # a default buried in a script.
+        env:
+          KIVY_NO_ARGS: "1"
+          ARCHLENCE_HEADLESS: "1"
+          SDL_VIDEODRIVER: "dummy"
+          KIVY_WINDOW: "sdl2"
+        run: python run_tests.py
+
+  test-windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # Paketlemeyle AYNI sürüm (bkz. build-windows.yml). Testin,
+          # kullanıcıya giden .exe'nin çalıştırdığı yorumlayıcıyı temsil
+          # etmesi gerekiyor.
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        # kivy_deps.*: Kivy'nin Windows'taki SDL2/GLEW/ANGLE DLL'lerini
+        # sağlar. `SDL_VIDEODRIVER=dummy` ile bile SDL2 DLL'i yüklenmek
+        # zorunda — Linux'ta bunlar sistem paketlerinden geliyor, Windows'ta
+        # gelmiyor.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-runtime.txt
+          pip install kivy_deps.sdl2 kivy_deps.glew kivy_deps.angle
+
+      - name: Run test suite
+        # Linux job'ıyla AYNI headless sözleşmesi (gerekçeler orada ayrıntılı).
+        # run_tests.py bunları kendisi de set eder; burada açıkça tekrar
+        # edilmesi bilinçli.
         env:
           KIVY_NO_ARGS: "1"
           ARCHLENCE_HEADLESS: "1"

@@ -59,18 +59,48 @@ def resource_dir() -> str:
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+# Tüm kullanıcı dizinlerini tek bir köke yönlendiren AÇIK geçersiz kılma.
+#
+# NEDEN GEREKLİ: `platformdirs` Windows'ta yolları ORTAM DEĞİŞKENLERİNDEN
+# çözmez — `ctypes` varsa (pratikte hep vardır) `SHGetFolderPathW`i çağıran
+# `get_win_folder_via_ctypes` kullanılır ve LOCALAPPDATA/APPDATA tamamen YOK
+# SAYILIR. Linux/macOS'ta XDG_* değişkenleri işe yarar, Windows'ta yaramaz.
+#
+# Bunun somut bedeli vardı: test paketi kendini gerçek kullanıcı verisinden
+# XDG_* ile ayırıyordu ve bu ayrım Windows'ta HİÇ çalışmıyordu — testler
+# geliştiricinin gerçek `%LOCALAPPDATA%\Archlence` dizinine, yani şifreleme
+# anahtarının yanına yazıyordu. Windows test job'ı eklenince ortaya çıktı.
+#
+# Değişken ayarlı DEĞİLSE davranış eskisiyle birebir aynıdır.
+HOME_OVERRIDE_ENV = "ARCHLENCE_HOME"
+
+
+def _override_root() -> str | None:
+    root = os.environ.get(HOME_OVERRIDE_ENV, "").strip()
+    return root or None
+
+
 def data_dir() -> str:
     """SQLite veritabanı + JSON config dosyaları için kalıcı kullanıcı verisi."""
+    root = _override_root()
+    if root:
+        return os.path.join(root, "data")
     return _dirs().user_data_dir
 
 
 def cache_dir() -> str:
     """Marka ikonu gibi yeniden üretilebilir/atılabilir dosyalar için."""
+    root = _override_root()
+    if root:
+        return os.path.join(root, "cache")
     return _dirs().user_cache_dir
 
 
 def log_dir() -> str:
     """crash.log için."""
+    root = _override_root()
+    if root:
+        return os.path.join(root, "logs")
     return _dirs().user_log_dir
 
 

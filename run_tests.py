@@ -1,7 +1,32 @@
+import multiprocessing
 import os
 import sys
 import tempfile
 import unittest
+
+# ── Konsol kodlaması: Türkçe metin Windows'ta süreci ÖLDÜRMESİN ─────────────
+# Windows'ta `sys.stdout`/`sys.stderr` konsolun kod sayfasını kullanır (çoğu
+# Türkçe kurulumda cp1252). Bu kod sayfası 'ı', 'ğ', 'ş' gibi karakterleri
+# KODLAYAMAZ ve `print()` bir `UnicodeEncodeError` fırlatır.
+#
+# Bu teorik bir incelik değil: uygulamanın hata mesajları Türkçe ve bunların
+# çoğu `except` bloklarının İÇİNDE basılıyor. Orada `print` patlayınca hata
+# yutulmuyor — istisna dışarı sızıp asıl işlemi öldürüyor. Windows CI'da
+# ampirik olarak ölçüldü: `TransactionService.add_transaction` içindeki
+# "Abonelik radarına yazılamadı" satırı, abonelik radarı hata verdiğinde
+# İŞLEMİN TAMAMINI kaybettiriyordu (tests/test_subscription_interceptor.py
+# ::test_radar_failure_does_not_lose_the_transaction Windows'ta bu yüzden
+# kırmızıydı, Linux'ta yeşildi).
+#
+# errors="replace": kodlanamayan karakter '?' olur ama süreç ASLA durmaz.
+# Teşhis çıktısı kısmen bozulabilir; veri kaybetmekten sonsuz kez iyidir.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        # Paketlenmiş pencereli derlemede (console=False) bu akışlar None ya
+        # da yeniden yapılandırılamaz olabilir; o durumda zaten yazılmıyor.
+        pass
 
 # Kivy, `import kivy` sırasında sys.stderr'i KENDİ akışıyla değiştiriyor
 # (.venv/.../kivy/logger.py:631 -> `sys.stderr = ProcessingStream("stderr",
@@ -67,14 +92,35 @@ if "XDG_DATA_HOME" not in os.environ:
     os.environ["XDG_CACHE_HOME"] = os.path.join(_sandbox, "cache")
     os.environ["XDG_STATE_HOME"] = os.path.join(_sandbox, "state")
 
-loader = unittest.TestLoader()
-suite = loader.discover("tests")
-runner = unittest.TextTestRunner(verbosity=2, stream=_REAL_STDERR)
-result = runner.run(suite)
+    # XDG_* TEK BAŞINA YETMEZ: `platformdirs` Windows'ta ortam değişkenlerine
+    # HİÇ bakmaz — `ctypes` varsa (pratikte hep vardır) `SHGetFolderPathW`
+    # çağrılır. Yani yukarıdaki üç satır Windows'ta hiçbir şey yapmaz ve test
+    # paketi GERÇEK `%LOCALAPPDATA%\Archlence` dizinine, kullanıcının kendi
+    # şifreleme anahtarının yanına yazar. Windows test job'ı eklenince ortaya
+    # çıktı. `ARCHLENCE_HOME` (utils/app_paths.py) platformdan BAĞIMSIZ,
+    # açık bir yönlendirme sağlar.
+    os.environ["ARCHLENCE_HOME"] = os.path.join(_sandbox, "home")
 
-# Eskiden burada sys.exit yoktu: başarısız test bile exit code 0 ile
-# bitiyordu. Yereldeki geliştiriciyi etkilemez (çıktıyı gözle okur) ama
-# CI'daki bir "zorunlu" kontrolü tamamen anlamsız kılar — build hiçbir zaman
-# kırmızı olamaz. Faz 0 (CI'a gerçek test job'ı) bu düzeltme olmadan sahte bir
-# güvenlik hissi verirdi.
-sys.exit(0 if result.wasSuccessful() else 1)
+def main():
+    """Test paketini koşturur ve süreç çıkış kodunu döndürür.
+
+    `if __name__ == "__main__"` GUARD'I ŞART — süs değil. Windows'ta
+    `multiprocessing` varsayılan olarak `spawn` kullanır ve her alt süreç ANA
+    MODÜLÜ YENİDEN İÇE AKTARIR. Guard olmadan, çocuk süreç açan her test
+    (tests/test_single_instance.py) tüm 599 testlik paketi çocuk içinde BAŞTAN
+    çalıştırıyordu. Windows CI log'unda "Ran 599 tests" ÜÇ KEZ görünmesinin
+    sebebi buydu; ayrıca çocuk süreçler zamanında bitmediği için
+    single-instance testleri "process hâlâ canlı" diye düşüyordu.
+    """
+    loader = unittest.TestLoader()
+    suite = loader.discover("tests")
+    runner = unittest.TextTestRunner(verbosity=2, stream=_REAL_STDERR)
+    result = runner.run(suite)
+    return 0 if result.wasSuccessful() else 1
+
+
+if __name__ == "__main__":
+    # Donmuş (PyInstaller) bir yapıda spawn'ın doğru çalışması için gerekir;
+    # normal yorumlayıcıda zararsız bir no-op'tur.
+    multiprocessing.freeze_support()
+    sys.exit(main())

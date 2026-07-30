@@ -44,7 +44,12 @@ class TransactionEncryptionFailureTest(unittest.TestCase):
                     secret_description,
                 )
 
-        with sqlite3.connect(self.db_path) as conn:
+        # `with sqlite3.connect(...)` bağlantıyı KAPATMAZ — o yalnızca bir
+        # transaction context manager'ıdır. Linux açık bir dosyanın silinmesine
+        # izin verdiği için fark görünmüyordu; Windows dosyayı kilitli tutuyor
+        # ve tearDown'daki `os.unlink` "WinError 32" ile patlıyordu.
+        conn = sqlite3.connect(self.db_path)
+        try:
             rows = conn.execute(
                 "SELECT amount, description FROM transactions"
             ).fetchall()
@@ -52,6 +57,8 @@ class TransactionEncryptionFailureTest(unittest.TestCase):
                 "SELECT balance FROM accounts WHERE id = ?",
                 (self.account_id,),
             ).fetchone()[0]
+        finally:
+            conn.close()
 
         self.assertEqual(rows, [])
         self.assertEqual(balance, 1000.0)
