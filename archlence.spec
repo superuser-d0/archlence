@@ -71,7 +71,7 @@ IS_WINDOWS = sys.platform.startswith("win")
 # native "GDI Generic" sürücüsüne hiç dokunmuyor.
 import os
 
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 if IS_WINDOWS:
     from kivy_deps import sdl2, glew, angle
@@ -115,6 +115,7 @@ a = Analysis(
         "peewee",
         "playhouse.sqlite_ext",
         "Crypto.Cipher.AES",
+        *collect_submodules("keyring.backends"),
         *kivymd_hidden,
     ],
     hookspath=[],

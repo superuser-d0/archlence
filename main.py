@@ -339,6 +339,7 @@ import ui.theme as ftheme
 from ui.i18n import tr as translate, set_language as set_active_language
 from utils.currency import format_try
 from utils.errors import FinancialDataIntegrityError
+from utils.version import APP_VERSION
 
 from mixins.asset_mixin import AssetMixin
 from mixins.debt_mixin import DebtMixin
@@ -441,6 +442,7 @@ class ArchlenceApp(
     theme_name = StringProperty("standard")
     language = StringProperty("tr")
     key_protection_text = StringProperty("Anahtar koruması denetleniyor…")
+    version = StringProperty(APP_VERSION)
 
     _wealth_visible = True
     _liquid_balance_cache = 0.0

@@ -103,3 +103,6 @@ jobs:
           utils/errors.py
           services/financial_summary_service.py
           services/background_task_manager.py
+
+      - name: Sürüm metadata tutarlılığı
+        run: python scripts/check_version_consistency.py

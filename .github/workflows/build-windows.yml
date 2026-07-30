@@ -37,7 +37,7 @@ on:
         description: "Kurulum paketine gömülecek sürüm (etiketten türetilir)."
         required: false
         type: string
-        default: "1.0.1"
+        default: "1.0.0"
 
 # Arka arkaya push'ta eski derleme iptal edilsin; iki Windows runner'ını aynı
 # anda meşgul etmenin anlamı yok. PR'larda github.ref `refs/pull/<no>/merge`
@@ -149,6 +149,9 @@ jobs:
           }
           Write-Host "Smoke test geçti: Archlence.exe 10 saniye sonra hâlâ çalışıyordu, crash.log'a yeni yazı yok."
 
+      - name: Paket içeriği ve secret taraması
+        run: python scripts/inspect_package_contents.py dist/Archlence
+
       - name: Ham .exe klasörünü artifact olarak yükle
         uses: actions/upload-artifact@v4
         with:
@@ -174,8 +177,43 @@ jobs:
         run: |
           choco install innosetup -y --no-progress
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-            "/DMyAppVersion=${{ inputs.version || '1.0.1' }}" `
+            "/DMyAppVersion=${{ inputs.version || '1.0.0' }}" `
             installer\archlence.iss
+
+      - name: "Smoke test: installer kur, çalıştır ve kaldır"
+        shell: pwsh
+        env:
+          KIVY_GL_BACKEND: angle_sdl2
+        run: |
+          $installDir = Join-Path $env:RUNNER_TEMP "Archlence-Installed"
+          $installer = (Resolve-Path "installer_output\ArchlenceSetup.exe").Path
+          $setup = Start-Process -FilePath $installer -Wait -PassThru `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", `
+              "/SP-", "/DIR=$installDir"
+          if ($setup.ExitCode -ne 0) {
+            Write-Host "::error::Installer başarısız (exit=$($setup.ExitCode))."
+            exit 1
+          }
+          $exe = Join-Path $installDir "Archlence.exe"
+          if (-not (Test-Path $exe)) {
+            Write-Host "::error::Kurulan Archlence.exe bulunamadı."
+            exit 1
+          }
+          $proc = Start-Process -FilePath $exe -WorkingDirectory $installDir -PassThru
+          Start-Sleep -Seconds 10
+          if ($proc.HasExited) {
+            Write-Host "::error::Kurulu uygulama erken kapandı (exit=$($proc.ExitCode))."
+            exit 1
+          }
+          Stop-Process -Id $proc.Id -Force
+          $uninstaller = Join-Path $installDir "unins000.exe"
+          $remove = Start-Process -FilePath $uninstaller -Wait -PassThru `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
+          if ($remove.ExitCode -ne 0 -or (Test-Path $exe)) {
+            Write-Host "::error::Kaldırma doğrulanamadı."
+            exit 1
+          }
+          Write-Host "Installer smoke testi geçti."
 
       - name: Kurulum paketini artifact olarak yükle
         uses: actions/upload-artifact@v4
