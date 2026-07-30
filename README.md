@@ -279,6 +279,14 @@ so they're intended for development and testing rather than general use.
 
 ## Changelog
 
+### 1.0.1 — asset creation and dialog reliability
+
+- Asset purchases are atomic across the portfolio row, liquid-account
+  transaction, balance mutation and ledger event.
+- Post-commit UI refresh failures no longer masquerade as database failures.
+- Asset forms and the BIST picker fit small windows without overlapping their
+  titles or clipping action buttons.
+
 ### 1.0.0 — stable security and reliability release
 
 - Encryption and financial aggregation are fail-closed: failed encryption

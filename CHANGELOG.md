@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.1] — 2026-07-30
+
+- Varlık alımı, karşılık gelen hesap işlemi, bakiye değişimi ve ledger olayı
+  tek SQLite transaction içinde atomik hale getirildi.
+- Başarılı DB kaydından sonraki UI yenileme hataları artık yanlış kayıt-hatası
+  mesajı üretmiyor.
+- Yeni varlık liste ve portföy özetlerinde otomatik görünüyor; bayat arka plan
+  sonucu yeni listeyi ezemiyor.
+- Hızlı çift gönderim tek satın alma göreviyle birleştiriliyor.
+- Altın ekleme ve BIST seçim dialogları küçük pencerelerde başlık, içerik ve
+  aksiyon satırı çakışmayacak şekilde responsive hale getirildi.
+
 ## [1.0.0] — 2026-07-30
 
 - Şifreleme ve finansal toplamlar fail-closed hâle getirildi.
