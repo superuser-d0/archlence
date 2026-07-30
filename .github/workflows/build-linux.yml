@@ -15,6 +15,11 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch: {}
+  # release.yml tarafından çağrılır — bkz. build-windows.yml'deki aynı not.
+  # AppImage dosya adı bilerek sürümsüz/sabit tutuluyor; sürümlü isim release
+  # yayınlama adımında yeniden adlandırılarak veriliyor, böylece burada
+  # çalışan derleme/artifact yollarına hiç dokunulmuyor.
+  workflow_call: {}
 
 concurrency:
   group: build-linux-${{ github.ref }}
