@@ -3,7 +3,20 @@
 ## Name and Brand Decision (2026-07-23)
 The product name has been finalized as **Archlence**. The name was chosen to be distinguishable, suitable for international use, and to create a unique brand identity in the fintech domain.
 
-**Brand identity:** A white monogram on a black background (`#141414`), building the letter "A" from fragile petal forms; supported by semi-transparent additional rays radiating outwards to create a "burst" effect (see `assets/icon_source.svg`). This SVG is the final source for the desktop app icon.
+**Brand identity (revised 2026-07-30):** A bold white "A" monogram on the brand
+blue (`#5444E5`) — deliberately the *same* value as `ARCHLENCE_PRIMARY_HEX` in
+`ui/theme.py`, so the app icon matches the Premium Mavi Tema primary rather than
+drifting into a second, unmanaged brand colour. The letterform takes a cue from
+sharp geometric distro marks (pointed apex, concave outer edges so the legs flare
+out, open triangular notch at the baseline) while staying distinct: the curved
+crossbar band is Archlence's own signature, inherited from the previous mark.
+See `assets/icon_source.svg` — still the single source for `icon.png`/`icon.ico`.
+
+*Why it changed:* the original identity was a white monogram on black (`#141414`)
+built from fragile petal forms plus semi-transparent "burst" rays. Verified
+empirically at real icon sizes: those thin rays disappear entirely by 48px
+(taskbar/tray), leaving the mark unreadable. The new solid letterform stays
+legible down to 16px.
 
 **Applied changes (in this session):**
 - [x] `README.md` — Title, feature list, roadmap, and contact address updated to Archlence; former name change added as a note.

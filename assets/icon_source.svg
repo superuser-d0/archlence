@@ -1,11 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 360">
-  <rect x="0" y="0" width="360" height="360" rx="80" fill="#141414"/>
-  <path d="M180,205 Q170,142.5 180,80 Q190,142.5 180,205 Z" fill="#FFFFFF" opacity="0.55"/>
-  <path d="M180,205 Q137.0,169.7 85,150 Q128.0,185.3 180,205 Z" fill="#FFFFFF" opacity="0.55"/>
-  <path d="M180,205 Q223.0,169.7 275,150 Q232.0,185.3 180,205 Z" fill="#FFFFFF" opacity="0.55"/>
-  <path d="M180,205 Q123.2,209.7 70,230 Q126.8,225.3 180,205 Z" fill="#FFFFFF" opacity="0.55"/>
-  <path d="M180,205 Q236.8,209.7 290,230 Q233.2,225.3 180,205 Z" fill="#FFFFFF" opacity="0.55"/>
-  <path d="M180,110 Q132.6,189.3 115,280 Q162.4,200.7 180,110 Z" fill="#FFFFFF"/>
-  <path d="M180,110 Q197.6,200.7 245,280 Q227.4,189.3 180,110 Z" fill="#FFFFFF"/>
-  <path d="M148,225 Q180,235 212,225 Q180,215 148,225 Z" fill="#FFFFFF"/>
+  <!-- Zemin: ARCHLENCE_PRIMARY_HEX (#5444E5) — ui/theme.py'deki Premium Mavi
+       Tema'nın primary rengiyle birebir aynı, logo arayüzle uyumlu kalsın. -->
+  <rect x="0" y="0" width="360" height="360" rx="80" fill="#5444E5"/>
+  <!-- "A" gövdesi: keskin tepe, içe kavisli (concave) dış kenarlar sayesinde
+       dışa açılan bacaklar ve tabanda açık üçgen boşluk. Eski yaprak/huzme
+       formunun yerini aldı: o form 48px'te (görev çubuğu, sistem tepsisi)
+       ince huzmeleri kaybolduğu için tamamen okunmaz hâle geliyordu. -->
+  <path d="M180,56 Q218,168 294,302 L232,302 Q200,212 180,150 Q160,212 128,302 L66,302 Q142,168 180,56 Z" fill="#FFFFFF"/>
+  <!-- Orta çizgi: kavisli bant — eski logodan devralınan imza öğe. Uçları
+       BİLEREK bacakların içine taşar; uçları sıfıra incelen mercek biçimi
+       bacaklara bağlanmayıp boşlukta yüzen bir leke gibi görünüyordu. -->
+  <path d="M138,228 Q180,240 222,228 L222,254 Q180,266 138,254 Z" fill="#FFFFFF"/>
 </svg>
