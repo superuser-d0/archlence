@@ -85,6 +85,8 @@ Archlence highlights unusual spending, tracks active debts and installment progr
 
 The tools workspace includes monthly budgets, a calendar, general and compound-interest calculators, loan planning, savings goals, what-if scenarios, and local data operations.
 
+The calendar is a month grid that marks the days carrying activity; selecting a day lists that day's transactions with their times and signed amounts.
+
 ![Financial tools](docs/screenshots/financial-tools.png)
 
 ### Personalization and privacy controls
@@ -141,7 +143,6 @@ The current focus is:
 - OS-keystore-backed key storage and migrating records still using the previous encryption scheme;
 - stabilizing credit-card and recurring-payment workflows;
 - expanding automated and regression test coverage;
-- automated verification that packaged builds actually launch correctly;
 - documenting architectural decisions;
 - making the project easier for outside contributors to understand and extend.
 
@@ -154,7 +155,10 @@ Archlence should not yet be treated as production financial infrastructure.
 The following areas are actively being improved:
 
 - OS-keystore-backed key storage (currently a random key generated per install, stored in a local file) and migrating records still using the previous encryption scheme;
-- automated end-to-end verification that packaged builds actually launch — Windows now ships a real installer, but nothing in CI yet confirms the built app opens a window, which is how a real launch-time crash reached a tester before being caught and fixed;
+- code signing — both packages are unsigned, so Windows SmartScreen warns on
+  first run; the Linux AppImage is unsigned too;
+- the packaged builds have only been exercised on the maintainer's own machines
+  and in CI, not across a range of real Windows and Linux installations;
 - consistency of sample-data presentation;
 - selected credit-card and recurring-payment flows;
 - some loading, localization, and UI edge cases;
@@ -272,6 +276,66 @@ Actions artifacts ([Windows](https://github.com/superuser-d0/archlence/actions/w
 Those require a signed-in GitHub account to download and expire after 90 days,
 so they're intended for development and testing rather than general use.
 
+## Changelog
+
+Full history is on the [Releases page](https://github.com/superuser-d0/archlence/releases);
+the notes below cover what is new in the current pre-release.
+
+### 0.9.0 — first public pre-release
+
+The first version distributed as a downloadable package rather than source only.
+
+**Distribution**
+
+- Linux packaging built from scratch: a single-file `.AppImage` that bundles its
+  own SDL2 and needs no system packages, produced by a
+  [CI workflow](.github/workflows/build-linux.yml) alongside a
+  platform-branched PyInstaller spec, a freedesktop `.desktop` entry, and an
+  `AppRun` launcher.
+- Tagged releases now publish both packages automatically, with the installer
+  version derived from the git tag.
+- The Windows build verifies after packaging that `Archlence.exe` actually
+  starts and stays running, and that it writes nothing to its crash log —
+  previously a launch-time crash could ship undetected, which had already
+  happened once.
+- Packaging is pinned to Python 3.12 as a deliberate, documented decision.
+
+**Features**
+
+- Month-end balance forecast: at least three months of history are averaged and
+  projected to the end of the current month, then turned into a plain-language
+  recommendation. With less than roughly three months of data it says so
+  instead of showing an unreliable number.
+- A real calendar view — a month grid marking days with activity, and a
+  per-day transaction list — replacing a date picker that only reported a count.
+- Recurring income alongside recurring expenses, plus dashboard caching.
+
+**Fixes**
+
+- Every card in the Tools grid was silently unclickable. `MDCard`'s ripple
+  effect does not carry Kivy's button behaviour, so the declared handlers never
+  fired; this affected the budget planner, all five calculators, the what-if
+  sandbox, and the reset-data action.
+- Once those were wired up, each tap fired twice — the card grabs the touch, so
+  Kivy delivers the release event through both normal propagation and the grab
+  list — which opened every dialog in duplicate.
+- Right-clicking or alt-tabbing painted red circles on the window: Kivy's mouse
+  provider was emulating multi-touch and drawing its debug rings.
+- The forecast card's text overflowed its fixed height and drew over its own
+  heading once the longer forecast text landed.
+- Toggling balance visibility ran a database query and decrypted rows on the UI
+  thread on every click; the budget category search rebuilt its whole list on
+  every keystroke.
+- The calculator evaluated input with `eval()`; it now walks a restricted
+  syntax tree instead.
+- Income and expense rows in the budget planner are aligned to opposite sides,
+  as intended.
+
+**Brand**
+
+- New app icon: a bold "A" on the brand blue, replacing a mark whose thin rays
+  disappeared entirely below about 48 pixels.
+
 ## Tests
 
 The repository includes automated coverage for the ledger, transactions, accounts, subscriptions, pricing, budgeting, history, projections, security, and UI contracts.
@@ -333,7 +397,7 @@ Archlence is a personal finance management tool. It is not a bank, brokerage ser
 - Natural-language queries over local financial history
 - Local receipt parsing and categorization
 - Additional portfolio data sources and reporting options
-- Automated smoke-testing of packaged builds in CI (currently a manual step)
+- Code signing for the Windows installer and the Linux AppImage
 - Contributor documentation and architecture decision records
 
 ## Contributing
