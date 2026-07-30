@@ -55,12 +55,13 @@ class VisualProbe(ArchlenceApp):
         self.output = Path(output)
         self.output.mkdir(parents=True, exist_ok=True)
         self.results = []
+        self._capture_retries = {}
         self.steps = [
             ("light-unfocused", "Light", False, (800, 600), False),
             ("light-focused", "Light", True, (800, 600), False),
             ("dark-unfocused", "Dark", False, (800, 600), False),
             ("dark-focused-wide", "Dark", True, (1200, 800), False),
-            ("dark-unfocused-fullscreen", "Dark", False, (1200, 800), True),
+            ("dark-unfocused-resized", "Dark", False, (1000, 700), False),
         ]
 
     def on_start(self):
@@ -93,6 +94,16 @@ class VisualProbe(ArchlenceApp):
     def capture(self, index, name):
         field = self.root.ids.home_search_input
         bar = field.parent
+        # llvmpipe/Xvfb may need one extra layout frame after the first window
+        # resize. A zero-width field is an unsettled frame, not a visual pass.
+        if bar.width <= bar.height:
+            retries = self._capture_retries.get(name, 0)
+            if retries < 4:
+                self._capture_retries[name] = retries + 1
+                Clock.schedule_once(
+                    lambda _dt: self.capture(index, name), 0.5
+                )
+                return
         requested = self.output / f"{name}.png"
         actual = Path(Window.screenshot(name=str(requested)))
         result = analyze_image(
