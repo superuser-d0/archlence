@@ -1,6 +1,6 @@
 """Varlık alımının hangi hesaptan düşüleceği.
 
-KULLANICI RAPORU (Windows, v1.1.0): "ne altın fiyatı yükleniyor, ne de
+KULLANICI RAPORU (Windows): "ne altın fiyatı yükleniyor, ne de
 ekleniyor". Gönderilen log'da gerçek sebep çıktı:
 
     ValueError: Yetersiz Bakiye! Bu hesap eksiye düşemez.

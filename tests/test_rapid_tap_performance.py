@@ -1,6 +1,6 @@
 """Takvim ve bütçe ekranlarında hızlı/tekrarlı dokunma dayanıklılığı.
 
-BAĞLAM (kullanıcı raporu, Windows, v1.1.0): "Takvim ve aylık bütçe ayarlama
+BAĞLAM (kullanıcı raporu, Windows): "Takvim ve aylık bütçe ayarlama
 kısmında hızlı hızlı tıklayınca kasıyor ve uygulama çöküyor."
 
 Kök neden iki yerde de aynı sınıftaydı: her dokunuş, dokunuş sayısıyla doğrusal

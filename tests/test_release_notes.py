@@ -16,16 +16,16 @@ class ReleaseNotesFromChangelogTest(unittest.TestCase):
             "Kurulum ve checksum doğrulaması",
         )
         body = "\n".join(f"### {heading}\n\n- x" for heading in headings)
-        changelog = f"# Changelog\n\n## [1.1.0] — 2026-07-30\n\n{body}\n\n## [1.0.1]\n"
-        notes = extract_release_notes(changelog, "1.1.0")
-        self.assertTrue(notes.startswith("# Archlence v1.1.0"))
-        self.assertNotIn("## [1.0.1]", notes)
+        changelog = f"# Changelog\n\n## [0.0.2] — 2026-07-30\n\n{body}\n\n## [0.0.1]\n"
+        notes = extract_release_notes(changelog, "0.0.2")
+        self.assertTrue(notes.startswith("# Archlence v0.0.2"))
+        self.assertNotIn("## [0.0.1]", notes)
 
     def test_missing_required_heading_fails_release(self):
         with self.assertRaises(ValueError):
             extract_release_notes(
-                "# Changelog\n\n## [1.1.0] — 2026-07-30\n\n- incomplete",
-                "1.1.0",
+                "# Changelog\n\n## [0.0.2] — 2026-07-30\n\n- incomplete",
+                "0.0.2",
             )
 
 
