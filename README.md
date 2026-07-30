@@ -288,6 +288,15 @@ so they're intended for development and testing rather than general use.
 
 ## Changelog
 
+### 0.0.2 — Windows console encoding and instance-lock crash fixes
+
+- Turkish error text no longer crashes the process on a legacy Windows
+  console (a transaction could be silently lost when the subscription
+  radar failed mid-write).
+- The single-instance lock no longer risks crashing on shutdown on Windows.
+- The test suite now runs on Windows in CI, not just Linux — both fixes
+  above were only reachable because of that.
+
 ### 0.0.1 — pre-release: input correctness and UI responsiveness
 
 - Amount field no longer scrambles typed digits (it recorded wrong values).

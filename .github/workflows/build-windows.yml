@@ -37,7 +37,7 @@ on:
         description: "Kurulum paketine gömülecek sürüm (etiketten türetilir)."
         required: false
         type: string
-        default: "0.0.1"
+        default: "0.0.2"
 
 # Arka arkaya push'ta eski derleme iptal edilsin; iki Windows runner'ını aynı
 # anda meşgul etmenin anlamı yok. PR'larda github.ref `refs/pull/<no>/merge`
@@ -193,13 +193,17 @@ jobs:
           # döndü ve TÜM Windows derlemesi (dolayısıyla yayın) kırıldı —
           # testin kendisiyle ilgisi olmayan bir sebeple.
           #
-          # Şu an taban YOK: v0.0.1 ilk yayın, yükseltilecek önceki sürüm
-          # gerçekten mevcut değil. Bu bir testi zayıflatma değil, dünyanın
-          # doğru tarifi. v0.0.2 kesilirken buraya "v0.0.1" ve onun hash'i
-          # yazılarak yükseltme kapısı yeniden açılmalıdır.
-          UPGRADE_BASELINE_TAG: ""
-          UPGRADE_BASELINE_ASSET: ""
-          UPGRADE_BASELINE_SHA256: ""
+          # v0.0.2 ile dolduruldu: taban artık v0.0.1, GitHub'dan yeniden
+          # indirilip doğrulanmış SHA-256'sıyla (bkz. o release'in kendi
+          # SHA256SUMS.txt'i). Bu, "v0.0.1 -> v0.0.2 yükseltme kullanıcı
+          # verisini koruyor mu" kapısının GERÇEKTEN çalıştığı ilk sürümdür.
+          #
+          # SONRAKİ sürümü keserken: buraya YENİ sürümü YAZMAYIN — bu hâlâ
+          # v0.0.1'i taban almalı (bir önceki KULLANICIYA ULAŞMIŞ sürüm), ta ki
+          # v0.0.2'nin kendisi bir taban olarak anlamlı hale gelene kadar.
+          UPGRADE_BASELINE_TAG: "v0.0.1"
+          UPGRADE_BASELINE_ASSET: "ArchlenceSetup-0.0.1.exe"
+          UPGRADE_BASELINE_SHA256: "32ec1aa3d02d863f9ccc7b5d3b979fdcc8bba9ed6a089c322616f9b84588a950"
         run: |
           $ErrorActionPreference = "Stop"
           if ([string]::IsNullOrWhiteSpace($env:UPGRADE_BASELINE_TAG)) {
