@@ -181,13 +181,51 @@ The large "Monthly Budget Plan" card on the home page was moved to a minimal car
 ## Quality and Performance Tracking
 - [x] UI/mixin tests for `mixins/insights_mixin.py` — health score render (happy path, green/red band selection, error state) and dismiss-recurring-candidate action now covered (2026-07-29), on top of the existing add-to-subscription/anomaly-dismissal action tests. Found and fixed a real coverage gap in the process: the error-state test explicitly checks it's distinguishable from "insufficient data" (both used to look identical — same "--" score — before the 2026-07-23 insufficient-data fix). Still open: full candidate/anomaly CARD content assertions (brand icon presence, amount formatting inside the built widget tree) — only their empty-state renders are tested; would need richer kivymd stubs (FitImage/MDIcon are stubbed but untested with real data) or a `services.brand_icon_service` mocking pass.
 - [ ] Measure insights refresh time when transaction volume reaches a few thousand. Not urgent yet as accounts run on a background thread; if necessary, cache results until a new transaction/change occurs.
-- [ ] The test suite has a harmless but repeating `ResourceWarning: unclosed database` (seen in 2026-07-23 QA round) — does not cause test failures, but a connection might be left without being `close()`d somewhere; does not block V1.0, can be cleaned up as noise.
+- [x] `ResourceWarning: unclosed database` — resolved 2026-07-29. `main.py`'s
+  dashboard-metrics / advice / change-rate paths were pairing
+  `get_connection()` with a manual `conn.close()`, which is skipped if a query
+  raises mid-block; they now use the existing `managed_connection()` context
+  manager (`database/db.py`). Verified by re-running the whole suite under
+  `python -W always::ResourceWarning`: **zero** occurrences remain (previously
+  it repeated on most runs).
+
+## Current Status Snapshot (2026-07-30 audit, re-verified)
+
+Overall V1.0 vision completion estimate: **~95%**. Every claim below was checked
+against the code at the time of writing, not carried over from an earlier pass.
+
+- **Product scope (Items 1-5, security, budget planner overhaul, minimal
+  dashboard/subscription interceptor, Pending Work brand list/i18n/polish):
+  done.**
+- **Packaging (Item 6): now largely done, both platforms.** Windows: post-build
+  smoke test added and observed green on a real `windows-latest` run; Python
+  3.12 locked as the deliberate packaging target. Linux: `build-linux.yml`,
+  `assets/archlence.desktop`, `installer/appimage/AppRun`, and a
+  platform-branched `archlence.spec` — the resulting AppImage was built, run,
+  and confirmed launching on a real Linux desktop.
+- **The two bugs the previous snapshot listed as open are both fixed** (that
+  snapshot was written before the fixes landed and should not be trusted as
+  current):
+  1. The Tools-tab budget card is a 140dp grid tile like the other tool cards
+     (`ui/dashboard.kv`, `id: budget_tool_card`), not a full-width panel.
+  2. The yfinance price worker no longer swallows failures — it captures
+     `stdout`/`stderr` via `PIPE` and prints the reason on a non-zero exit
+     (`services/asset_service.py`). The original silent `DEVNULL` was in fact
+     hiding a real `ModuleNotFoundError`.
+- **Quality tracking: 2 of 3 done** (insights_mixin render/error-state tests;
+  `ResourceWarning` eliminated). One open, non-blocking: measuring insights
+  refresh time at a few thousand transactions.
 
 ## Next Steps
-All five killer features (Items 1-5) are completed, the name/brand change (Finora → Archlence) is finished, icon generated. The main hurdles before packaging (2026-07-23 audit report): CI smoke test, Python version decision, version/tag system, and the entirety of Linux packaging infrastructure.
 
-1. Add CI smoke test (verify Windows EXE actually launches without crashing) — low effort, high confidence.
-2. Decide Python version (whether to test 3.12, 3.14, or both).
-3. Establish version/naming system tied to Git tags.
-4. Build Linux packaging infrastructure from scratch (`build-linux.yml`, `.desktop`, AppImage, platform-specific spec settings).
-5. The two open items in quality tracking (insights widget render tests, performance measurement) do not block V1.0; can be addressed in parallel or later.
+Remaining before a public V1.0, in order:
+
+1. **Cut the first tagged release.** The release plumbing exists
+   (`.github/workflows/release.yml`: pushing a `v*` tag publishes a GitHub
+   Release with `ArchlenceSetup.exe` and the Linux `.AppImage` attached, with
+   the installer version derived from the tag). What's left is the human
+   decision to push `v1.0.0` — CI artifacts alone are login-only and expire,
+   so a Release is what actually gives end users a permanent download link.
+2. Measure insights refresh time at scale (quality tracking, non-blocking).
+3. Code signing and an installer wizard remain consciously deferred
+   out-of-V1.0 decisions (see the Windows list above).

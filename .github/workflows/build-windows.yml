@@ -28,6 +28,16 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch: {}
+  # release.yml bu workflow'u ÇAĞIRIR (derleme tarifini kopyalamak yerine).
+  # Kopyalamak, ANGLE/Inno Setup/smoke-test adımlarının zamanla iki dosyada
+  # birbirinden ayrışması demekti; tek kaynak burada kalıyor.
+  workflow_call:
+    inputs:
+      version:
+        description: "Kurulum paketine gömülecek sürüm (etiketten türetilir)."
+        required: false
+        type: string
+        default: "1.0.0"
 
 # Arka arkaya push'ta eski derleme iptal edilsin; iki Windows runner'ını aynı
 # anda meşgul etmenin anlamı yok. PR'larda github.ref `refs/pull/<no>/merge`
@@ -157,9 +167,15 @@ jobs:
         # kaynak klasörü, bkz. archlence.spec) — son kullanıcı zip açıp
         # klasör bütünlüğünü kendi koruma zorunda kalmasın diye installer/
         # archlence.iss bunu TEK bir ArchlenceSetup.exe'ye sarmalıyor.
+        #
+        # /DMyAppVersion: sürüm etiketten gelir (bkz. installer/archlence.iss'in
+        # #ifndef bloğu). workflow_call DIŞINDA tetiklendiğinde `inputs` boştur,
+        # o yüzden 1.0.0'a düşülür — normal main/PR derlemeleri etkilenmez.
         run: |
           choco install innosetup -y --no-progress
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\archlence.iss
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=${{ inputs.version || '1.0.0' }}" `
+            installer\archlence.iss
 
       - name: Kurulum paketini artifact olarak yükle
         uses: actions/upload-artifact@v4

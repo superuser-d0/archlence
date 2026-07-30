@@ -1,0 +1,159 @@
+name: Release
+
+# NEDEN BU DOSYA VAR: build-windows.yml / build-linux.yml yalnızca **artifact**
+# üretir. GitHub Actions artifact'leri son kullanıcıya dağıtım için uygun DEĞİL:
+# indirmek için GitHub hesabıyla oturum açmak gerekir ve varsayılan olarak 90
+# günde silinirler. Kalıcı, herkese açık, doğrudan indirilebilir bir bağlantı
+# ancak bir GitHub **Release** varlığıyla olur — bu workflow onu üretir.
+#
+# Kullanım (sürümü kesmek):
+#   git tag v1.0.0 && git push origin v1.0.0
+# Etiketin `v` ile başlaması yeterli; sürüm numarası etiketten türetilir ve
+# Inno Setup kurulumuna gömülür (bkz. installer/archlence.iss'in #ifndef bloğu).
+#
+# Derleme tarifleri BURADA TEKRARLANMAZ: iki platform workflow'u `workflow_call`
+# ile çağrılır. Kopyalamak, ANGLE arka ucu / xvfb / smoke test gibi zor kazanılmış
+# ayrıntıların zamanla iki yerde birbirinden ayrışması anlamına gelirdi.
+on:
+  push:
+    tags: [ "v*" ]
+  # Etiket atmadan uçtan uca denemek için (taslak release üretir).
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Deneme sürümü (ör. 0.0.0-test)"
+        required: true
+        type: string
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false   # yayın işini yarıda kesmek istemiyoruz
+
+permissions:
+  contents: write   # release oluşturmak/varlık yüklemek için gerekli
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.derive.outputs.version }}
+    steps:
+      - name: Sürümü belirle
+        id: derive
+        shell: bash
+        # Etiketle tetiklendiyse `refs/tags/v1.2.3` -> `1.2.3`; elle
+        # tetiklendiyse girdideki değer kullanılır.
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            version="${GITHUB_REF#refs/tags/}"
+            version="${version#v}"
+          else
+            version="${{ inputs.version }}"
+          fi
+          if [ -z "$version" ]; then
+            echo "::error::Sürüm belirlenemedi."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Sürüm: $version"
+
+  build-windows:
+    needs: version
+    uses: ./.github/workflows/build-windows.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  build-linux:
+    needs: version
+    uses: ./.github/workflows/build-linux.yml
+
+  publish:
+    needs: [version, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Windows kurulum paketini indir
+        uses: actions/download-artifact@v4
+        with:
+          name: Archlence-Setup
+          path: assets-in/windows
+
+      - name: Linux AppImage'ı indir
+        uses: actions/download-artifact@v4
+        with:
+          name: Archlence-AppImage
+          path: assets-in/linux
+
+      - name: Varlıkları sürümlü adlarla hazırla
+        shell: bash
+        # Derleme tarafındaki dosya adları bilerek sabit (Archlence-x86_64.
+        # AppImage / ArchlenceSetup.exe). Sürümü yalnızca burada, yayınlanacak
+        # kopyaya ekliyoruz: kullanıcı birkaç sürümü aynı klasöre indirdiğinde
+        # dosyalar birbirini ezmesin.
+        run: |
+          set -euo pipefail
+          v="${{ needs.version.outputs.version }}"
+          mkdir -p release-assets
+          cp "assets-in/windows/ArchlenceSetup.exe" \
+             "release-assets/ArchlenceSetup-${v}.exe"
+          cp "assets-in/linux/Archlence-x86_64.AppImage" \
+             "release-assets/Archlence-${v}-x86_64.AppImage"
+          ls -la release-assets
+
+      - name: Sürüm notlarını yaz
+        shell: bash
+        run: |
+          v="${{ needs.version.outputs.version }}"
+          cat > release-notes.md <<EOF
+          ## Kurulum
+
+          **Windows** — \`ArchlenceSetup-${v}.exe\` indirip çift tıklayın.
+          Yönetici izni gerekmez (kullanıcı başına kurulum); Başlat Menüsü
+          kısayolu ve kaldırıcı otomatik gelir.
+
+          **Linux** — \`Archlence-${v}-x86_64.AppImage\` indirip çalıştırma
+          izni verin:
+
+          \`\`\`bash
+          chmod +x Archlence-${v}-x86_64.AppImage
+          ./Archlence-${v}-x86_64.AppImage
+          \`\`\`
+
+          (Çalıştırma izni ayrıca gerekiyor çünkü GitHub Actions artifact'leri
+          dosya izinlerini korumaz — indirilen AppImage'ın exec biti düşer.)
+
+          Paketler imzalanmamıştır; Windows SmartScreen veya benzeri bir uyarı
+          görebilirsiniz — kod imzalama bilinçli olarak V1.0 kapsamı dışında
+          bırakıldı.
+
+          Verileriniz cihazınızda yereldir; kurulum dizininden bağımsız bir
+          kullanıcı-verisi klasöründe tutulur.
+          EOF
+          cat release-notes.md
+
+      - name: Release'i oluştur ve varlıkları ekle
+        shell: bash
+        # `gh` runner'da hazır kurulu geliyor. Üçüncü taraf bir release action'ı
+        # yerine bilinçli olarak bu tercih edildi: bu iş `contents: write`
+        # yetkisiyle koşuyor ve o yetkiyi repo dışı bir action'a açmak gereksiz
+        # bir tedarik zinciri yüzeyi olurdu.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          v="${{ needs.version.outputs.version }}"
+          if [ "${{ github.event_name }}" = "push" ]; then
+            tag="${{ github.ref_name }}"
+            draft_flag=""
+          else
+            # Elle tetiklenen denemeler TASLAK kalır ve etiketi workflow
+            # tarafından oluşturulur; yayına yalnızca gerçek bir etiket
+            # push'uyla çıkılır, yanlışlıkla duyuru yapılmasın.
+            tag="v${v}"
+            draft_flag="--draft"
+          fi
+          gh release create "$tag" release-assets/* \
+            --title "Archlence ${v}" \
+            --notes-file release-notes.md \
+            --target "${{ github.sha }}" \
+            $draft_flag
+          echo "Yayınlandı: $(gh release view "$tag" --json url -q .url)"

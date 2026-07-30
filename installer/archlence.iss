@@ -20,7 +20,13 @@
 ; Çıktı: installer_output\ArchlenceSetup.exe
 
 #define MyAppName "Archlence"
-#define MyAppVersion "1.0.0"
+; Sürüm dışarıdan verilebilir: `ISCC /DMyAppVersion=1.2.3 archlence.iss`.
+; #ifndef ŞART: düz bir `#define` komut satırından geleni EZERDİ, yani
+; etiketten türeyen sürüm sessizce 1.0.0'a döner ve her release aynı sürüm
+; numarasıyla çıkardı. Bu hâliyle CLI kazanır, yerel derlemede 1.0.0 kalır.
+#ifndef MyAppVersion
+  #define MyAppVersion "1.0.0"
+#endif
 #define MyAppPublisher "Mehmet Cem Çakırgöz"
 #define MyAppExeName "Archlence.exe"
 
