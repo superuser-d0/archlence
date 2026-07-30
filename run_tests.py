@@ -3,6 +3,25 @@ import sys
 import tempfile
 import unittest
 
+# Kivy, `import kivy` sırasında sys.stderr'i KENDİ akışıyla değiştiriyor
+# (.venv/.../kivy/logger.py:631 -> `sys.stderr = ProcessingStream("stderr",
+# Logger.warning)`, yalnızca KIVY_NO_CONSOLELOG ayarlı DEĞİLSE). O akış kendisine
+# yazılan her şeyi Kivy'nin logger'ına huniliyor.
+#
+# Sonuç (v0.0.1'de ölçüldü): tam paket koşusunda Kivy çekirdeği ilk kez derinden
+# import edildiği anda — ~69. test civarı — unittest'in raporu bu huniye düşüp
+# KAYBOLUYORDU. Kaybolanlar: kalan ~505 testin adları, assertion mesajları,
+# traceback'ler ve en önemlisi "Ran N tests" + "OK"/"FAILED (failures=N)" özeti.
+# Testlerin hepsi gerçekten koşuyor ve çıkış kodu DOĞRU kalıyordu (kasıtlı bir
+# hatayla doğrulandı: exit 1), ama log'a bakan hiç kimse NEYİN neden
+# başarısız olduğunu göremiyordu — CI çıktısı yeşil bir koşuyla ayırt edilemez
+# hâle geliyordu.
+#
+# Çözüm: gerçek akışı, herhangi bir Kivy importundan ÖNCE yakala ve runner'a
+# açıkça ver. Kivy'nin kendi davranışına dokunmuyoruz (kendi [INFO]/[CRITICAL]
+# satırları görünmeye devam etsin); yalnızca test raporunun hedefini sabitliyoruz.
+_REAL_STDERR = sys.stderr
+
 # Discovery HERHANGİ bir test dosyasını içe aktarmadan önce set edilmeli.
 # main.py'yi import eden birden fazla test dosyası var; main.py aynı süreçte
 # yalnızca İLK kez gerçekten çalışır (sys.modules önbelleği), sonraki
@@ -50,7 +69,7 @@ if "XDG_DATA_HOME" not in os.environ:
 
 loader = unittest.TestLoader()
 suite = loader.discover("tests")
-runner = unittest.TextTestRunner(verbosity=2)
+runner = unittest.TextTestRunner(verbosity=2, stream=_REAL_STDERR)
 result = runner.run(suite)
 
 # Eskiden burada sys.exit yoktu: başarısız test bile exit code 0 ile

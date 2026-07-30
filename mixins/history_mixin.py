@@ -108,8 +108,13 @@ class HistoryMixin:
             lambda dt: threading.Thread(target=work, daemon=True).start(), 0.4
         )
 
-    def _open_date_picker(self, initial_date, on_save):
-        """KivyMD tarih seçicisini ortak callback sözleşmesiyle açar."""
+    def _open_date_picker(self, initial_date, on_save, min_date=None):
+        """KivyMD tarih seçicisini ortak callback sözleşmesiyle açar.
+
+        `min_date` verilirse o tarihten ÖNCESİ seçilemez. Geçmiş dönem
+        raporları (bu modülün kendi kullanımı) sınırsız kalır; sınırı yalnız
+        işlem tarihi seçicisi kullanır (bkz. TransactionMixin).
+        """
         # Picker modülü import sırasında Window sağlayıcısı ister; uygulamanın
         # headless import/test yolunu bozmamak için yalnız etkileşim anında yükle.
         # Kivy 2.3.1 parser'ı Python 3.14'te kaldırılan ast.Str API'sini hâlâ
@@ -121,12 +126,20 @@ class HistoryMixin:
         if not hasattr(ast.Constant, "s"):
             ast.Constant.s = property(lambda node: node.value)
         from kivymd.uix.pickers import MDDatePicker
+        picker_kwargs = {}
+        if min_date is not None:
+            picker_kwargs["min_date"] = min_date
+            # MDDatePicker, başlangıç tarihi min_date'in gerisindeyse açılışta
+            # tutarsız duruma düşer; başlangıcı sınıra çekiyoruz.
+            if initial_date < min_date:
+                initial_date = min_date
         picker = MDDatePicker(
             year=initial_date.year,
             month=initial_date.month,
             day=initial_date.day,
             title=_t("TARİH SEÇ"),
             title_input=_t("TARİH GİR"),
+            **picker_kwargs,
         )
         picker.ids.ok_button.text = _t("TAMAM")
         picker.ids.cancel_button.text = _t("İPTAL")

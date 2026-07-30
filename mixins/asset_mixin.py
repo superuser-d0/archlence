@@ -1221,7 +1221,18 @@ class AssetMixin:
                 "Asset purchase failed",
                 exc_info=(type(exc), exc, exc.__traceback__),
             )
-            toast(failure_message)
+            # ValueError, servis katmanının KULLANICIYA YÖNELİK doğrulama
+            # mesajıdır ("Yetersiz Bakiye! Bu hesap eksiye düşemez.",
+            # "Fiyat ve miktar sıfırdan büyük olmalıdır." gibi). Eskiden bu
+            # mesaj yutulup yerine genel "Varlık eklenirken hata oluştu!"
+            # gösteriliyordu — kullanıcı NEDEN eklenemediğini asla öğrenemiyor,
+            # ağ/fiyat sorunu sanıyordu. Gerçek sebep yalnızca log dosyasında
+            # kalıyordu. Beklenmedik hata türlerinde genel mesaj korunur:
+            # ham traceback metnini arayüze basmak doğru olmaz.
+            if isinstance(exc, ValueError) and str(exc).strip():
+                toast(_t(str(exc)))
+            else:
+                toast(failure_message)
 
         self.background_tasks.submit(
             "asset-purchase",

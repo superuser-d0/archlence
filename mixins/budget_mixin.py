@@ -84,13 +84,35 @@ class BudgetMixin:
             container.add_widget(button)
 
     def change_budget_month(self, month_index, year=None):
+        """Aktif bütçe ayını değiştirir ve listeyi/projeksiyonu tazeler.
+
+        PERFORMANS SÖZLEŞMESİ (v0.0.1'de düzeltildi): ay butonlarına hızlı ve
+        art arda basılabilir. Eski hâli her basışta `load_budget_list()` (tüm
+        kalem listesini temizleyip birkaç servis sorgusuyla yeniden kuran) ve
+        `generate_next_month_projection()` çağrılarını UI thread'inde SENKRON
+        çalıştırıyordu — 12 aya hızlı tıklamak 12 tam yeniden inşa demekti ve
+        arayüz kilitleniyordu (kullanıcı raporu, Windows).
+
+        Durum ataması ANINDA kalır (çağıranlar `active_budget_month`'u hemen
+        okuyabilsin); yalnızca PAHALI tazeleme coalesce edilir — art arda
+        basışlarda tek bir yeniden inşa çalışır.
+        """
         self.active_budget_month = int(month_index)
         if year is not None:
             self.active_budget_year = int(year)
         elif not hasattr(self, "active_budget_year"):
             self.active_budget_year = datetime.date.today().year
-        self.load_budget_list()
-        self.generate_next_month_projection()
+
+        pending = getattr(self, "_budget_month_refresh_event", None)
+        if pending is not None:
+            pending.cancel()
+
+        def refresh(_dt):
+            self._budget_month_refresh_event = None
+            self.load_budget_list()
+            self.generate_next_month_projection()
+
+        self._budget_month_refresh_event = Clock.schedule_once(refresh, 0.12)
 
     # ─── Bütçe özeti (saf hesap) ─────────────────────────────────────────────
 

@@ -27,6 +27,24 @@ import threading
 import time
 from datetime import date
 
+
+def _log():
+    """Fiyat/portföy hata kaydı için merkezi rotating log.
+
+    NEDEN (v0.0.1'de düzeltildi): bu modüldeki fiyat çekme hataları `print()`
+    ile bildiriliyordu. Paketlenmiş Windows uygulaması `console=False` ile
+    derleniyor (archlence.spec) — yani stdout/stderr hiçbir yere gitmiyor ve o
+    mesajlar TAMAMEN kayboluyordu. Sonuç: "Windows'ta altın fiyatı yüklenmiyor"
+    gibi bir şikâyette elimizde tek bir satır bile kanıt olmuyordu.
+
+    Logger tembel çözülür: modül import'unda çağırmak log dizinini erkenden
+    oluşturur ve testlerdeki XDG yönlendirmesinden önce çalışabilirdi.
+    """
+    from utils.logging_config import get_logger
+
+    return get_logger()
+
+
 _PORTFOLIO_CACHE_TABLE = "asset_portfolio_cache"
 _PORTFOLIO_CACHE_TTL = 300
 
@@ -194,7 +212,7 @@ def start_data_warmup(callback=None):
 
             fetch_active_non_try_total(on_non_try)
         except Exception as e:
-            print(f"Data warm-up failed: {e}")
+            _log().error("Data warm-up failed: %s", e, exc_info=True)
             # Hata durumunda da terminal snapshot yayımlanır; UI spinner/polling
             # döngüsünde sonsuza dek kalmaz.
             publish(
@@ -441,7 +459,7 @@ def fetch_bist100_prices(codes: list, callback) -> None:
                 except Exception:
                     pass
         except Exception as e:
-            print("BIST100 fiyat çekme hatası:", e)
+            _log().error("BIST100 fiyat çekme hatası: %s", e, exc_info=True)
         callback(prices)
 
     threading.Thread(target=_worker, daemon=True).start()
@@ -617,13 +635,16 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                 # Sessiz ölümü artık logluyoruz: dönüş kodu 0 değilse veya
                 # stderr doluysa neden görünür olsun (eskiden hiç iz kalmıyordu).
                 if proc.returncode != 0:
-                    print(
-                        "Fiyat worker'ı hata kodu",
-                        proc.returncode, "ile döndü:",
+                    _log().error(
+                        "Fiyat worker'ı hata kodu %s ile döndü: %s",
+                        proc.returncode,
                         (proc.stderr or "").strip()[:500],
                     )
                 elif proc.stderr and proc.stderr.strip():
-                    print("Fiyat worker uyarısı:", proc.stderr.strip()[:500])
+                    _log().warning(
+                        "Fiyat worker uyarısı: %s",
+                        proc.stderr.strip()[:500],
+                    )
                 try:
                     with open(output_path, "r", encoding="utf-8") as stream:
                         enriched = json.load(stream)
@@ -633,7 +654,7 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                     _store_cached_portfolio(enriched)
                 callback(enriched)
             except Exception as exc:
-                print("İzole fiyat worker hatası:", exc)
+                _log().error("İzole fiyat worker hatası: %s", exc, exc_info=True)
                 callback(stale or [])
             finally:
                 try:
@@ -730,7 +751,7 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                         if price is not None:
                             raw_prices[sym] = price
             except Exception as e:
-                print("Portföy fiyat çekme hatası:", e)
+                _log().error("Portföy fiyat çekme hatası: %s", e, exc_info=True)
 
         # Gram altın (₺) fiyatı: toplu istekten geldiyse onu kullan (ve
         # önbelleğe yaz), gelmediyse tekil/önbellek yedeğine düş.
@@ -787,7 +808,8 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
         except Exception as exc:
             # Import, bozuk satır veya beklenmeyen matematik hatası dahil her
             # durumda UI'ın loading durumunu kapatacak final callback gönderilir.
-            print("Portföy fiyatlandırma tamamlanamadı:", exc)
+            _log().error(
+                "Portföy fiyatlandırma tamamlanamadı: %s", exc, exc_info=True)
             fallback = _error_entries()
             if item_callback is not None:
                 for entry in fallback:
@@ -896,7 +918,9 @@ def get_active_non_try_assets() -> list:
             quantity = float(decrypt(row["quantity"], SECRET_KEY))
             purchase_price = float(decrypt(row["purchase_price"], SECRET_KEY))
         except (ValueError, TypeError) as e:
-            print(f"[VERİ BÜTÜNLÜĞÜ] active_assets id={row['id']} çözülemedi: {e}")
+            _log().error(
+                "[VERİ BÜTÜNLÜĞÜ] active_assets id=%s çözülemedi: %s",
+                row["id"], e)
             continue
         if quantity > 0:
             assets.append({

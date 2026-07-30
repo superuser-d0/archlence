@@ -202,15 +202,33 @@ jobs:
             sha256sum -c expected.txt
           )
 
-      - name: Tag push ise stable/latest olarak yayımla
+      - name: Tag push ise yayımla (ön-sürüm durumunu KORUYARAK)
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # DÜZELTME: bu adım eskiden KOŞULSUZ `--prerelease=false --latest`
+        # yapıyordu. `version` job'ı 0.x ve `-rc` gibi etiketleri doğru biçimde
+        # ön-sürüm olarak işaretliyor ve taslak da öyle oluşturuluyordu — ama
+        # burası hemen ardından o kararı eziyordu. Sonuç: bir 0.0.1 etiketi
+        # GitHub'da "Latest release" olarak, kararlı bir sürüm görünümüyle
+        # yayımlanırdı. Tam olarak kaçınılmak istenen şey buydu (bkz. version
+        # job'ındaki gerekçe yorumu).
         run: |
+          set -euo pipefail
           tag="${{ github.ref_name }}"
-          gh release edit "$tag" \
-            --repo "${{ github.repository }}" \
-            --draft=false \
-            --prerelease=false \
-            --latest
+          if [ "${{ needs.version.outputs.prerelease }}" = "true" ]; then
+            # Ön-sürüm: taslaktan çıkar ama "Latest" yapma.
+            gh release edit "$tag" \
+              --repo "${{ github.repository }}" \
+              --draft=false \
+              --prerelease=true
+            echo "Ön-sürüm olarak yayımlandı (Latest DEĞİL)."
+          else
+            gh release edit "$tag" \
+              --repo "${{ github.repository }}" \
+              --draft=false \
+              --prerelease=false \
+              --latest
+            echo "Kararlı sürüm olarak yayımlandı (Latest)."
+          fi
           echo "Yayınlandı: $(gh release view "$tag" --repo "${{ github.repository }}" --json url -q .url)"

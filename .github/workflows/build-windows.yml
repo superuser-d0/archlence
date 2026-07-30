@@ -37,7 +37,7 @@ on:
         description: "Kurulum paketine gömülecek sürüm (etiketten türetilir)."
         required: false
         type: string
-        default: "1.1.0"
+        default: "0.0.1"
 
 # Arka arkaya push'ta eski derleme iptal edilsin; iki Windows runner'ını aynı
 # anda meşgul etmenin anlamı yok. PR'larda github.ref `refs/pull/<no>/merge`
@@ -178,7 +178,7 @@ jobs:
         run: |
           choco install innosetup -y --no-progress
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-            "/DMyAppVersion=${{ inputs.version || '1.1.0' }}" `
+            "/DMyAppVersion=${{ inputs.version || '0.0.1' }}" `
             installer\archlence.iss
 
       - name: "Upgrade smoke: v1.0.1 profilini v1.1.0 ile aç"

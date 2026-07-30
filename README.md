@@ -136,9 +136,16 @@ Notable implementation details include:
 
 ## Project status
 
-Archlence v1.1.0 is the current stable desktop release line. “Stable” describes
-the tested package, data-integrity and recovery scope; it is not a banking,
-brokerage or accounting certification.
+Archlence v0.0.1 is a **pre-release**. It is not stable and is not recommended
+for day-to-day finance tracking yet.
+
+The version number was deliberately reset to 0.0.x: the earlier 1.x tags were
+withdrawn after user testing surfaced defects that broke everyday use — most
+seriously, a cursor bug in the amount field that silently recorded a *different*
+number than the one typed. That class of bug makes a finance app untrustworthy,
+so the release line restarted rather than pretending to be stable.
+
+See CHANGELOG.md for what is fixed and what is still known-broken.
 
 The current focus is:
 
@@ -284,7 +291,15 @@ so they're intended for development and testing rather than general use.
 
 ## Changelog
 
-### 1.1.0 — financial reliability and release automation
+### 0.0.1 — pre-release: input correctness and UI responsiveness
+
+- Amount field no longer scrambles typed digits (it recorded wrong values).
+- Calendar, monthly budget, category settings and transaction-add no longer
+  stall the UI; rapid taps coalesce instead of doing linear work per tap.
+- Asset purchases pick an account that can actually fund them.
+- Test reporting restored: the runner's output was being swallowed by Kivy.
+
+### 1.1.0 — financial reliability and release automation (withdrawn)
 
 - Financial budget/dashboard paths fail closed and use shared Decimal rules.
 - Price provenance and cache freshness are explicit.

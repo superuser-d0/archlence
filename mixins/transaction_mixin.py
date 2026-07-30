@@ -338,19 +338,32 @@ class TransactionMixin:
         return _t(f"Tarih: {selected.isoformat()}")
 
     def open_transaction_date_picker(self, *args):
-        """İşlem tarihi için takvimi açar (geçmiş ve gelecek serbest)."""
+        """İşlem tarihi için takvimi açar — BUGÜN ve sonrası.
+
+        Geçmişe dönük işlem ekleme kaldırıldı (kullanıcı kararı, v0.0.1).
+        Gerekçe: geçmiş tarihli bir kayıt bakiyeyi ANINDA değiştiriyor ama
+        defterde (balance_events) geriye dönük olarak doğru yere
+        oturmuyordu; bu da "Cüzdanım" ile grafik/defter toplamlarının
+        birbirinden ayrışmasına yol açan bir kaynak. İleri tarihli işlem
+        akışı olduğu gibi duruyor: bekleyenler listesine düşer ve tarihi
+        gelince bakiyeye işlenir.
+        """
         import datetime
-        initial = getattr(
-            self, "selected_transaction_date", datetime.date.today())
+        today = datetime.date.today()
+        initial = getattr(self, "selected_transaction_date", today)
+        if initial < today:
+            initial = today
 
         def on_save(_picker, selected_date, _range):
-            self.selected_transaction_date = selected_date
+            # Savunma katmanı: seçici zaten geçmişi kapatıyor, ama tarih
+            # buraya başka bir yoldan gelirse sessizce geçmişe yazmayalım.
+            self.selected_transaction_date = max(selected_date, today)
             self._refresh_transaction_date_ui()
 
         # HistoryMixin'deki seçici, Kivy 2.3.1'in Python 3.14'te ihtiyaç duyduğu
         # ast.Str yamasını ve TR/EN başlıkları zaten kuruyor; kopyalamak o yamayı
         # iki yere dağıtırdı.
-        self._open_date_picker(initial, on_save)
+        self._open_date_picker(initial, on_save, min_date=today)
 
     def _refresh_transaction_date_ui(self):
         """Buton metnini ve gelecek tarih ibaresini seçime göre günceller."""
@@ -982,17 +995,23 @@ class TransactionMixin:
                 submitted_dialog.dismiss()
             except Exception:
                 pass
-            self.refresh_dashboard_data()
-            self.generate_financial_advice()
+            # PERFORMANS (kullanıcı raporu: "her yeni işlem eklendiğinde aşırı
+            # kasıyor"): bu dört ağır tazeleme TEK Clock karesinde peş peşe
+            # çalışıyordu — dashboard metrikleri + grafikler, finansal tavsiye,
+            # tekrarlayan ödemeler ve Kartlarım listesinin tamamı. Hepsi aynı
+            # karede bittiği için kullanıcı her kayıtta gözle görülür bir donma
+            # yaşıyordu. Artık her iş KENDİ karesinde çalışıyor: Kivy aradaki
+            # karelerde girdi işleyip çizim yapabiliyor, tek kare bloklanmıyor.
+            # (Aynı "kareye yay" tekniği main.py::_add_categories_incrementally
+            # içinde zaten kullanılıyor.)
+            jobs = [self.refresh_dashboard_data, self.generate_financial_advice]
             if is_recurring and hasattr(self, "load_upcoming_recurring"):
-                self.load_upcoming_recurring()
+                jobs.append(self.load_upcoming_recurring)
             # Kartlarım listesini tazele: seçilen karta yazılan borç ve o kartın
             # "Son Hareketler" listesi anında güncellensin.
             if hasattr(self, "render_accounts"):
-                try:
-                    self.render_accounts()
-                except Exception as e:
-                    print("Kart listesi tazelenemedi:", e)
+                jobs.append(self.render_accounts)
+            self._run_refresh_jobs_across_frames(jobs)
             # İleri tarihli işlem bakiyeye yansımadı; kullanıcı "kaydettim ama
             # bakiyem değişmedi" diye tereddüt etmesin, mesaj bunu söylesin ve
             # bekleyenler paneli anında güncellensin.
@@ -1171,6 +1190,37 @@ class TransactionMixin:
                 print("Aktif varlıklar yüklenemedi:", e)
 
         self._assets_tab_load_ev = Clock.schedule_once(_load, 0.1)
+
+    def _run_refresh_jobs_across_frames(self, jobs):
+        """Verilen tazeleme işlerini HER BİRİ AYRI KAREDE çalıştırır.
+
+        `Clock.schedule_once(cb, 0)` bir tick sırasında çağrıldığında bir
+        SONRAKİ kareye düşer; işleri zincirleyerek tek bir karenin uzun süre
+        bloklanmasını önlüyoruz.
+
+        Bir işin patlaması diğerlerini iptal etmez: kayıt zaten commit edildi,
+        sunum katmanındaki bir hata kullanıcıya "işlem eklenemedi" izlenimi
+        vermemeli (aynı gerekçe asset_mixin::_run_asset_refresh'te de var).
+        """
+        def run_next(index):
+            if index >= len(jobs):
+                return
+            try:
+                jobs[index]()
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+                # Sunum katmanının gerçekçi hata kümesi: eksik/yeniden kurulmuş
+                # widget (AttributeError/KeyError), Kivy yaşam döngüsü
+                # (RuntimeError) ve veri biçimi (TypeError/ValueError). Kasıtlı
+                # olarak DAR: buradaki amaç hataları yutmak değil, zaten
+                # commit edilmiş bir kaydın ardından gelen bir çizim hatasının
+                # kalan tazelemeleri iptal etmesini önlemek. Gerçek bir
+                # programlama hatası (ör. ImportError) yukarı çıkmalı.
+                # Aynı gerekçe ve aynı küme asset_mixin::_run_asset_refresh'te.
+                from utils.logging_config import get_logger
+                get_logger().exception("İşlem sonrası tazeleme başarısız")
+            Clock.schedule_once(lambda _dt: run_next(index + 1), 0)
+
+        run_next(0)
 
     def load_recent_transactions(self, list_filter=None):
         # Bu metodun adı yalnız işlem listesini vaat ediyor. Eskiden tüm

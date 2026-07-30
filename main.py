@@ -1909,6 +1909,18 @@ class ArchlenceApp(
             )
 
     def update_category_importance(self, category_name, is_active):
+        """Kategori 'ana kaynak' bayrağını yazar ve grafikleri tazeler.
+
+        PERFORMANS (kullanıcı raporu: "kategori ayarlarında ayar kapatıp
+        açarken kasmalar"): burası her anahtar dokunuşunda `safe_refresh_charts()`
+        çağırıyordu — pasta + trend grafiğinin tam yeniden hesabı ve yeniden
+        çizimi. Listede 30-50 anahtar var; birkaçını art arda çevirmek aynı
+        sayıda tam grafik yeniden inşası demekti ve arayüz kilitleniyordu.
+
+        Yazma ANINDA kalır (tercih asla kaybolmasın), yalnız PAHALI tazeleme
+        coalesce edilir: art arda dokunuşlarda tek bir yeniden çizim çalışır.
+        Aynı kalıp takvim ve bütçe ay geçişlerinde de kullanılıyor.
+        """
         new_importance = "main" if is_active else "extra"
         conn = get_connection()
         cursor = conn.cursor()
@@ -1918,7 +1930,16 @@ class ArchlenceApp(
         )
         conn.commit()
         conn.close()
-        self.safe_refresh_charts()
+
+        pending = getattr(self, "_category_chart_refresh_event", None)
+        if pending is not None:
+            pending.cancel()
+
+        def refresh(_dt):
+            self._category_chart_refresh_event = None
+            self.safe_refresh_charts()
+
+        self._category_chart_refresh_event = Clock.schedule_once(refresh, 0.25)
 
     def generate_financial_advice(self, *args):
         """3 SQL sorgusu + decrypt döngüsünü arka planda bitirir, sonucu TEK

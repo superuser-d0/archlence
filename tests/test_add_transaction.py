@@ -221,8 +221,9 @@ class TransactionDateWidgetTest(unittest.TestCase):
         chosen = date.today() + timedelta(days=11)
         captured = {}
 
-        def fake_picker(initial, on_save):
+        def fake_picker(initial, on_save, min_date=None):
             captured["initial"] = initial
+            captured["min_date"] = min_date
             on_save(None, chosen, None)
 
         app._open_date_picker = fake_picker
@@ -231,6 +232,50 @@ class TransactionDateWidgetTest(unittest.TestCase):
         self.assertEqual(captured["initial"], date.today())
         self.assertEqual(app.selected_transaction_date, chosen)
         self.assertIn(chosen.isoformat(), app.date_button.text)
+
+    def test_past_dates_are_not_selectable(self):
+        """Geçmişe dönük işlem ekleme kaldırıldı (v0.0.1).
+
+        İki katman birlikte doğrulanır: seçiciye `min_date=bugün` veriliyor
+        (kullanıcı geçmişi hiç göremez) VE geri dönen tarih yine de geçmişse
+        bugüne çekiliyor (savunma katmanı). İleri tarihli işlem akışı
+        bozulmamalı — o ayrı testle kapsanıyor.
+        """
+        app = self._make_app()
+        app.selected_transaction_date = date.today()
+        past = date.today() - timedelta(days=30)
+        captured = {}
+
+        def fake_picker(initial, on_save, min_date=None):
+            captured["initial"] = initial
+            captured["min_date"] = min_date
+            on_save(None, past, None)   # seçici atlansa bile geçmiş gelmesin
+
+        app._open_date_picker = fake_picker
+        app.open_transaction_date_picker()
+
+        self.assertEqual(
+            captured["min_date"], date.today(),
+            "Tarih seçicisi bugünden öncesini göstermemeli.",
+        )
+        self.assertEqual(
+            app.selected_transaction_date, date.today(),
+            "Geçmiş tarih geldiğinde bugüne çekilmeli.",
+        )
+
+    def test_stale_past_selection_is_clamped_when_reopening(self):
+        """Önceden kalmış geçmiş bir seçim, seçici yeniden açılınca bugüne çekilir."""
+        app = self._make_app()
+        app.selected_transaction_date = date.today() - timedelta(days=5)
+        captured = {}
+
+        def fake_picker(initial, on_save, min_date=None):
+            captured["initial"] = initial
+
+        app._open_date_picker = fake_picker
+        app.open_transaction_date_picker()
+
+        self.assertEqual(captured["initial"], date.today())
 
 
 if __name__ == "__main__":
