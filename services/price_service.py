@@ -9,7 +9,13 @@ import threading
 from typing import Callable, Iterable
 from zoneinfo import ZoneInfo
 
-from database.models import ASSET_PRICE_CACHE_SCHEMA, AssetPriceCache
+from database.models import (
+    ASSET_PRICE_CACHE_SCHEMA,
+    AssetPriceCache,
+    AssetPriceStatus,
+    PriceFreshness,
+)
+from utils.financial_decimal import decimal_from
 from utils.ticker_mapper import (
     gold_multiplier,
     normalize_asset_type,
@@ -23,6 +29,10 @@ MARKET_OPEN = clock_time(9, 55)
 MARKET_CLOSE = clock_time(18, 10)
 INFINITE_TTL = math.inf
 GRAMS_PER_TROY_OUNCE = 31.1034768
+PRICE_SOURCE = "Yahoo Finance"
+# A cache may still be useful after its refresh TTL, but after this multiple
+# it must not be presented as a definitive current valuation.
+MAX_STALE_TTL_MULTIPLIER = 6
 
 _inflight: set[str] = set()
 _inflight_lock = threading.Lock()
@@ -145,6 +155,53 @@ def get_cached_prices(symbols: Iterable[str]) -> dict[str, float]:
     return {
         symbol: row.price for symbol, row in _read_cache(symbols).items()
     }
+
+
+def get_price_status(
+    symbol: str,
+    asset_type: str = "FX_GOLD",
+    *,
+    now: datetime | None = None,
+) -> AssetPriceStatus:
+    """Return price provenance and freshness without triggering network I/O."""
+    key = (symbol or "").strip().upper()
+    row = _read_cache({key}).get(key)
+    if row is None:
+        return AssetPriceStatus(
+            symbol=key,
+            price=None,
+            source=PRICE_SOURCE,
+            updated_at=None,
+            cache_age_seconds=None,
+            freshness=PriceFreshness.UNAVAILABLE,
+        )
+
+    current = now or _now()
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=ISTANBUL)
+    age = max(0, int((current - row.updated_at).total_seconds()))
+    ttl = get_ttl_minutes(asset_type, key, current)
+    if ttl == INFINITE_TTL:
+        # Closed-market values are last-known/delayed, never live.
+        freshness = PriceFreshness.DELAYED
+    elif age <= ttl * 60:
+        freshness = PriceFreshness.CURRENT
+    elif age <= ttl * 60 * MAX_STALE_TTL_MULTIPLIER:
+        freshness = PriceFreshness.DELAYED
+    else:
+        freshness = PriceFreshness.UNAVAILABLE
+    return AssetPriceStatus(
+        symbol=key,
+        price=(
+            decimal_from(row.price)
+            if freshness is not PriceFreshness.UNAVAILABLE
+            else None
+        ),
+        source=PRICE_SOURCE,
+        updated_at=row.updated_at,
+        cache_age_seconds=age,
+        freshness=freshness,
+    )
 
 
 def get_price(

@@ -25,5 +25,20 @@ Aynı migration yeniden çalıştırılabilir. `AEADv1:` alanlar atlanır; legac
 alan kalmadığında DB veya backup dosyası değiştirilmez.
 
 Migration sırasında aynı kullanıcı profilini kullanan ikinci Archlence
-örneği çalışmamalıdır. Single-instance kilidi tamamlanmadan migration akışı
-stable üretim sürümünde etkinleştirilmemelidir.
+örneği çalışamaz; single-instance kilidi migration'dan önce alınır.
+
+## Legacy okuma yolunun kaldırılma koşulları
+
+CBC okuma desteği yeni veri yazamaz, deprecated ve yalnız migration/restore
+uyumluluğu için izole edilmiştir. Aşağıdaki koşulların tamamı sağlanmadan
+kaldırılmayacaktır:
+
+1. Desteklenen tüm profillerde envanter sıfır legacy alan raporlar.
+2. v1.0.x backup'ları güncel sürümde restore edilip kontrollü migration'dan
+   geçirilebilir.
+3. En az bir tam kararlı sürüm boyunca migration telemetrisi yerine
+   kullanıcının yerel envanter ekranı sıfır kayıt gösterir.
+4. Backup saklama politikası ve son legacy-okuyabilen sürüm açıkça belgelenir.
+
+Bu koşullar sağlanana kadar `_decrypt_legacy_cbc` yalnız geriye dönük okuma
+testleriyle korunur; yeni yazım yalnız `AEADv1` üretir.

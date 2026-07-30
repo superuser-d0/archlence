@@ -1,5 +1,7 @@
 # Archlence stable-readiness audit — 2026-07-30
 
+> **ARCHIVED BASELINE — CURRENT STATUS DEĞİLDİR**
+
 Audited commit: `ecf582ae` (`main`)
 
 This report records the live-code baseline before remediation. No finding below

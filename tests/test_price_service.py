@@ -187,6 +187,34 @@ class PriceServiceTest(unittest.TestCase):
             thread.join(1)
             self.assertFalse(thread.is_alive())
 
+    def test_price_status_exposes_source_age_and_freshness(self):
+        from database.models import PriceFreshness
+        from services import price_service
+
+        now = datetime(2026, 7, 24, 12, 0, tzinfo=ISTANBUL)
+        price_service._store_cache(
+            {"BTC": 3_000_000}, {"BTC": "CRYPTO"},
+            updated_at=now - timedelta(minutes=2),
+        )
+        status = price_service.get_price_status("BTC", "CRYPTO", now=now)
+        self.assertEqual(status.freshness, PriceFreshness.CURRENT)
+        self.assertEqual(status.source, "Yahoo Finance")
+        self.assertEqual(status.cache_age_seconds, 120)
+        self.assertEqual(str(status.price), "3000000.0")
+
+    def test_very_old_price_is_unavailable_for_definitive_valuation(self):
+        from database.models import PriceFreshness
+        from services import price_service
+
+        now = datetime(2026, 7, 24, 12, 0, tzinfo=ISTANBUL)
+        price_service._store_cache(
+            {"BTC": 3_000_000}, {"BTC": "CRYPTO"},
+            updated_at=now - timedelta(minutes=30),
+        )
+        status = price_service.get_price_status("BTC", "CRYPTO", now=now)
+        self.assertEqual(status.freshness, PriceFreshness.UNAVAILABLE)
+        self.assertIsNone(status.price)
+
 
 if __name__ == "__main__":
     unittest.main()

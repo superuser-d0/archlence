@@ -37,7 +37,7 @@ on:
         description: "Kurulum paketine gömülecek sürüm (etiketten türetilir)."
         required: false
         type: string
-        default: "1.0.1"
+        default: "1.1.0"
 
 # Arka arkaya push'ta eski derleme iptal edilsin; iki Windows runner'ını aynı
 # anda meşgul etmenin anlamı yok. PR'larda github.ref `refs/pull/<no>/merge`
@@ -177,8 +177,68 @@ jobs:
         run: |
           choco install innosetup -y --no-progress
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-            "/DMyAppVersion=${{ inputs.version || '1.0.1' }}" `
+            "/DMyAppVersion=${{ inputs.version || '1.1.0' }}" `
             installer\archlence.iss
+
+      - name: "Upgrade smoke: v1.0.1 profilini v1.1.0 ile aç"
+        shell: pwsh
+        env:
+          KIVY_GL_BACKEND: angle_sdl2
+        run: |
+          $installDir = Join-Path $env:RUNNER_TEMP "Archlence-Upgrade"
+          $oldInstaller = Join-Path $env:RUNNER_TEMP "ArchlenceSetup-1.0.1.exe"
+          Invoke-WebRequest `
+            "https://github.com/superuser-d0/archlence/releases/download/v1.0.1/ArchlenceSetup-1.0.1.exe" `
+            -OutFile $oldInstaller
+          $oldHash = (Get-FileHash $oldInstaller -Algorithm SHA256).Hash.ToLower()
+          if ($oldHash -ne "db40cfb3096f9903cb8bb2aa6bc60eb79e1e67fd55e2331a357146e4062ace2a") {
+            Write-Host "::error::Downloaded v1.0.1 installer hash mismatch."
+            exit 1
+          }
+          $oldSetup = Start-Process $oldInstaller -Wait -PassThru `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", `
+              "/SP-", "/DIR=$installDir"
+          if ($oldSetup.ExitCode -ne 0) { exit 1 }
+          $oldExe = Join-Path $installDir "Archlence.exe"
+          $oldProc = Start-Process $oldExe -WorkingDirectory $installDir -PassThru
+          Start-Sleep -Seconds 8
+          if ($oldProc.HasExited) {
+            Write-Host "::error::v1.0.1 did not remain running."
+            exit 1
+          }
+          Stop-Process -Id $oldProc.Id -Force
+
+          $db = Get-ChildItem $env:LOCALAPPDATA -Filter finance.db -Recurse |
+            Where-Object { $_.FullName -match "Archlence" } |
+            Select-Object -First 1
+          if (-not $db) {
+            Write-Host "::error::v1.0.1 profile database was not created."
+            exit 1
+          }
+          python -c "import sqlite3; p=r'$($db.FullName)'; c=sqlite3.connect(p); c.execute('INSERT INTO accounts (name,type,balance) VALUES (?,?,?)',('upgrade-sentinel','bank',1234.56)); c.commit(); c.close()"
+
+          $newInstaller = (Resolve-Path "installer_output\ArchlenceSetup.exe").Path
+          $upgrade = Start-Process $newInstaller -Wait -PassThru `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", `
+              "/SP-", "/DIR=$installDir"
+          if ($upgrade.ExitCode -ne 0) { exit 1 }
+          $newProc = Start-Process $oldExe -WorkingDirectory $installDir -PassThru
+          Start-Sleep -Seconds 8
+          if ($newProc.HasExited) {
+            Write-Host "::error::Upgraded v1.1.0 did not remain running."
+            exit 1
+          }
+          Stop-Process -Id $newProc.Id -Force
+          python -c "import sqlite3; p=r'$($db.FullName)'; c=sqlite3.connect(p); assert c.execute('pragma integrity_check').fetchone()[0]=='ok'; assert c.execute(\"select balance from accounts where name='upgrade-sentinel'\").fetchone()[0]==1234.56; c.close()"
+
+          $uninstaller = Join-Path $installDir "unins000.exe"
+          $remove = Start-Process $uninstaller -Wait -PassThru `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
+          if ($remove.ExitCode -ne 0 -or -not (Test-Path $db.FullName)) {
+            Write-Host "::error::Upgrade uninstall did not preserve user data."
+            exit 1
+          }
+          Write-Host "v1.0.1 -> v1.1.0 upgrade/profile preservation passed."
 
       - name: "Smoke test: installer kur, çalıştır ve kaldır"
         shell: pwsh

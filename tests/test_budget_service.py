@@ -2,6 +2,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from decimal import Decimal
 from datetime import date
 from unittest import mock
 
@@ -197,8 +198,8 @@ class BudgetTrackingServiceTest(AccountFixtureMixin, unittest.TestCase):
             "2026-08-31", False, recurrence_day=31,
         )
         result = calculate_monthly_budget(8, 2026)
-        self.assertEqual(result["reserved_recurring"], 229.99)
-        self.assertEqual(result["remaining_budget"], 770.01)
+        self.assertEqual(result["reserved_recurring"], Decimal("229.99"))
+        self.assertEqual(result["remaining_budget"], Decimal("770.01"))
         self.assertEqual(
             calculate_monthly_budget(7, 2026)["reserved_recurring"], 0
         )

@@ -136,7 +136,9 @@ Notable implementation details include:
 
 ## Project status
 
-Archlence is an early-stage open-source desktop application under active development.
+Archlence v1.1.0 is the current stable desktop release line. “Stable” describes
+the tested package, data-integrity and recovery scope; it is not a banking,
+brokerage or accounting certification.
 
 The current focus is:
 
@@ -148,7 +150,10 @@ The current focus is:
 
 Some workflows, interface elements, sample-data states, and security components are still being refined.
 
-Archlence should not yet be treated as production financial infrastructure.
+See the single current
+[Security and reliability status](docs/SECURITY_RELIABILITY_STATUS.md) for the
+exact guarantees and limitations. Dated audit documents are archived baselines,
+not current status.
 
 ## Known limitations
 
@@ -278,6 +283,12 @@ Those require a signed-in GitHub account to download and expire after 90 days,
 so they're intended for development and testing rather than general use.
 
 ## Changelog
+
+### 1.1.0 — financial reliability and release automation
+
+- Financial budget/dashboard paths fail closed and use shared Decimal rules.
+- Price provenance and cache freshness are explicit.
+- Release notes derive from CHANGELOG; CI adds visual contracts and SBOM.
 
 ### 1.0.1 — asset creation and dialog reliability
 

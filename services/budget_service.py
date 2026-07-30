@@ -6,25 +6,36 @@ yapılmaz; tüm parasal toplamlar Python'da çözülüp hesaplanır.
 
 from collections import defaultdict
 from datetime import date
+from decimal import Decimal
 
 from database.db import (
     COMPLETED_TX, get_active_recurring_payments, get_connection,
 )
 from utils.crypto import decrypt
+from utils.errors import (
+    DecryptionError,
+    FinancialDataIntegrityError,
+    KeyUnavailableError,
+)
+from utils.financial_decimal import decimal_from, fiat, percentage
 
 SECRET_KEY = "fi" + "nora_secure_2026"
 EXPENSE_TYPES = {"expense", "Gider"}
 
 
-def _amount(value):
+def _amount(value, *, table, record_id, field="amount"):
+    """Read an amount or invalidate the complete derived budget result."""
     try:
-        return float(value)
+        return decimal_from(value)
     except (TypeError, ValueError):
         try:
-            return float(decrypt(str(value), SECRET_KEY))
-        except (ValueError, TypeError) as e:
-            print(f"[VERİ BÜTÜNLÜĞÜ] bütçe tutarı çözülemedi: {e}")
-            return 0.0
+            return decimal_from(decrypt(str(value), SECRET_KEY))
+        except KeyUnavailableError:
+            raise
+        except (DecryptionError, ValueError, TypeError) as exc:
+            raise FinancialDataIntegrityError(
+                table, record_id, field, reason=exc
+            ) from exc
 
 
 def _month_shift(year, month, delta):
@@ -87,7 +98,8 @@ def _occurrences_in_month(payment, year, month):
 
     due = date.fromisoformat(payment["next_due_date"])
     month_start = date(year, month, 1)
-    month_end = date(*_month_shift(year, month, 1), 1)
+    next_year, next_month = _month_shift(year, month, 1)
+    month_end = date(next_year, next_month, 1)
     guard = 0
     while due < month_start and guard < 800:
         due = advance(due)
@@ -113,7 +125,9 @@ def get_reserved_recurring_items(target_month, target_year):
             continue
         item = dict(payment)
         item["occurrences"] = occurrences
-        item["reserved_amount"] = round(payment["amount"] * occurrences, 2)
+        item["reserved_amount"] = fiat(
+            decimal_from(payment["amount"]) * occurrences
+        )
         items.append(item)
     return items
 
@@ -127,22 +141,26 @@ def calculate_monthly_budget(target_month, target_year=None):
 
     rows = get_effective_plan_items(target_month, target_year)
     planned_income = sum(
-        _amount(row["amount"]) for row in rows
+        _amount(
+            row["amount"], table="monthly_budget_plan", record_id=row["id"]
+        ) for row in rows
         if row["type"] in ("Gelir", "income")
     )
     planned_expense = sum(
-        _amount(row["amount"]) for row in rows
+        _amount(
+            row["amount"], table="monthly_budget_plan", record_id=row["id"]
+        ) for row in rows
         if row["type"] in EXPENSE_TYPES
     )
     recurring_items = get_reserved_recurring_items(target_month, target_year)
-    reserved = sum(item["reserved_amount"] for item in recurring_items)
+    reserved = sum(
+        (item["reserved_amount"] for item in recurring_items), Decimal("0")
+    )
     return {
-        "planned_income": round(planned_income, 2),
-        "planned_expense": round(planned_expense, 2),
-        "reserved_recurring": round(reserved, 2),
-        "remaining_budget": round(
-            planned_income - planned_expense - reserved, 2
-        ),
+        "planned_income": fiat(planned_income),
+        "planned_expense": fiat(planned_expense),
+        "reserved_recurring": fiat(reserved),
+        "remaining_budget": fiat(planned_income - planned_expense - reserved),
     }
 
 
@@ -203,7 +221,7 @@ def _actual_category_totals(target_month, target_year):
         # "Gerçekleşen" harcama = bakiyeye işlenmiş harcama. İleri tarihli
         # (pending) kayıt henüz para çıkışı değil, bütçe ilerlemesini şişirmemeli.
         rows = conn.execute(
-            "SELECT category, amount FROM transactions "
+            "SELECT id, category, amount FROM transactions "
             "WHERE type IN ('expense', 'Gider') "
             "AND strftime('%m', transaction_date) = ? "
             "AND strftime('%Y', transaction_date) = ? "
@@ -212,35 +230,39 @@ def _actual_category_totals(target_month, target_year):
         ).fetchall()
     finally:
         conn.close()
-    totals = defaultdict(float)
-    for category, amount in rows:
-        totals[str(category or "")] += _amount(amount)
+    totals: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
+    for record_id, category, amount in rows:
+        totals[str(category or "")] += _amount(
+            amount, table="transactions", record_id=record_id
+        )
     return totals
 
 
 def get_category_budget_progress(target_month, target_year):
     """Kategori planlarını aynı ay/yıldaki gerçek giderlerle karşılaştırır."""
-    plan_totals = defaultdict(float)
+    plan_totals: dict[str, Decimal] = defaultdict(lambda: Decimal("0"))
     thresholds = {}
     rollover_flags = {}
     for row in get_effective_plan_items(target_month, target_year):
         category = row.get("category_name")
         if not category or row["type"] not in EXPENSE_TYPES:
             continue
-        plan_totals[category] += _amount(row["amount"])
+        plan_totals[category] += _amount(
+            row["amount"], table="monthly_budget_plan", record_id=row["id"]
+        )
         thresholds[category] = int(row.get("alert_threshold_pct") or 80)
         rollover_flags[category] = bool(row.get("rollover_enabled"))
 
     actuals = _actual_category_totals(target_month, target_year)
     result = []
     for category, planned in plan_totals.items():
-        actual = actuals.get(category, 0.0)
+        actual = actuals.get(category, Decimal("0"))
         result.append({
             "category": category,
-            "planned": round(planned, 2),
-            "actual": round(actual, 2),
-            "pct": round(actual / planned * 100, 2) if planned else None,
-            "remaining": round(planned - actual, 2),
+            "planned": fiat(planned),
+            "actual": fiat(actual),
+            "pct": percentage(actual / planned * 100) if planned else None,
+            "remaining": fiat(planned - actual),
             "alert_threshold_pct": thresholds[category],
             "rollover_enabled": rollover_flags[category],
         })

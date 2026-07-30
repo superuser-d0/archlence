@@ -1,6 +1,7 @@
 """Production logging with rotation, redaction and user-facing error IDs."""
 
 import logging
+import os
 import re
 import uuid
 from logging.handlers import RotatingFileHandler
@@ -51,7 +52,10 @@ def get_logger():
         "%(message)s"
     ))
     logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
+    debug = os.environ.get("ARCHLENCE_DEBUG", "").strip().lower() in {
+        "1", "true", "yes",
+    }
+    logger.setLevel(logging.DEBUG if debug else logging.INFO)
     logger.propagate = False
     _configured = True
     return logger
@@ -66,6 +70,26 @@ def log_integrity_error(error):
         error.table,
         error.record_id,
         error.field,
+        exc_info=(type(error), error, error.__traceback__),
+    )
+    return error_id
+
+
+def report_error(event, error, **safe_metadata):
+    """Record a redacted traceback and return a user-displayable support ID.
+
+    Callers must pass identifiers/state only in ``safe_metadata``; financial
+    values, plaintext, ciphertext, keys and credentials are forbidden.
+    """
+    error_id = uuid.uuid4().hex[:12]
+    metadata = " ".join(
+        f"{key}={value}" for key, value in sorted(safe_metadata.items())
+    )
+    get_logger().error(
+        "error_id=%s event=%s %s",
+        error_id,
+        str(event),
+        metadata,
         exc_info=(type(error), error, error.__traceback__),
     )
     return error_id

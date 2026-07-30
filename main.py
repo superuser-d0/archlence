@@ -962,79 +962,57 @@ class ArchlenceApp(
 
         from services.financial_summary_service import summarize_transactions
         summary = summarize_transactions(rows)
-        total_income = float(summary.total_income)
-        total_expense = float(summary.total_expense)
+        total_income = summary.total_income
+        total_expense = summary.total_expense
         # "Cüzdanım" toplamı, işlem nakit-akışına (gelir − gider) hesapların
         # AÇILIŞ bakiyelerini de ekler. Açılış bakiyesi transactions'a değil
         # accounts.balance + balance_events'e yazıldığından, bu taban olmadan
         # açılış tutarı "Kartlarım"da görünüp "Cüzdanım"da görünmüyordu.
         from services.queries import DashboardService
 
-        opening_baseline = DashboardService.get_opening_baseline()
+        from utils.financial_decimal import decimal_from
+
+        opening_baseline = decimal_from(
+            DashboardService.get_opening_baseline()
+        )
         total_balance = total_income - total_expense + opening_baseline
 
         filter_text = getattr(self, "home_filter", "Bugün")
 
-        period_income = period_expense = period_net = 0.0
-        try:
-            if filter_text == "1 Hafta":
-                date_cond = ">= date('now', '-7 days', 'localtime')"
-            elif filter_text == "1 Ay":
-                date_cond = ">= date('now', '-1 month', 'localtime')"
-            elif filter_text == "1 Yıl":
-                date_cond = ">= date('now', '-1 year', 'localtime')"
-            elif filter_text == "Hayat Boyu":
-                date_cond = "> '2000-01-01'"
-            else:
-                date_cond = "= date('now', 'localtime')"
+        if filter_text == "1 Hafta":
+            date_cond = ">= date('now', '-7 days', 'localtime')"
+        elif filter_text == "1 Ay":
+            date_cond = ">= date('now', '-1 month', 'localtime')"
+        elif filter_text == "1 Yıl":
+            date_cond = ">= date('now', '-1 year', 'localtime')"
+        elif filter_text == "Hayat Boyu":
+            date_cond = "> '2000-01-01'"
+        else:
+            date_cond = "= date('now', 'localtime')"
 
-            with managed_connection() as conn2:
-                period_rows = conn2.execute(
-                    f"SELECT amount, type FROM transactions"
-                    f" WHERE date(transaction_date) {date_cond}"
-                    f" AND {COMPLETED_TX}"
-                ).fetchall()
-            for t_amt, t_typ in period_rows:
-                try:
-                    val = float(decrypt(str(t_amt), SECRET_KEY))
-                except Exception:
-                    val = 0.0
-
-                if t_typ in ("income", "Gelir"):
-                    period_income += val
-                    period_net += val
-                elif t_typ in ("expense", "Gider"):
-                    period_expense += val
-                    period_net -= val
-        except Exception:
-            pass
+        with managed_connection() as conn2:
+            period_rows = conn2.execute(
+                f"SELECT id, amount, type, 'extra' AS importance "
+                f"FROM transactions WHERE date(transaction_date) {date_cond}"
+                f" AND {COMPLETED_TX}"
+            ).fetchall()
+        period = summarize_transactions(period_rows)
+        period_income = period.total_income
+        period_expense = period.total_expense
+        period_net = period.net
 
         # ── 30 günlük ODE projeksiyonu girdileri ─────────────────────────────
-        inc_30 = exp_30 = 0.0
-        try:
-            with managed_connection() as conn_pred:
-                rows = conn_pred.execute(f"""
-                    SELECT type, amount
-                    FROM transactions
-                    WHERE date(transaction_date) >=
-                          date('now', '-30 days', 'localtime')
-                      AND {COMPLETED_TX}
-                """).fetchall()
-
-            for t_type, amount in rows:
-                try:
-                    val = float(decrypt(str(amount), SECRET_KEY))
-                except Exception:
-                    val = 0.0
-                if t_type in ("income", "Gelir"):
-                    inc_30 += val
-                elif t_type in ("expense", "Gider"):
-                    exp_30 += val
-        except Exception:
-            pass
-
-        daily_income = inc_30 / 30.0
-        daily_expense = exp_30 / 30.0
+        with managed_connection() as conn_pred:
+            rows = conn_pred.execute(f"""
+                SELECT id, type, amount, 'extra' AS importance
+                FROM transactions
+                WHERE date(transaction_date) >=
+                      date('now', '-30 days', 'localtime')
+                  AND {COMPLETED_TX}
+            """).fetchall()
+        recent = summarize_transactions(rows)
+        daily_income = recent.total_income / 30
+        daily_expense = recent.total_expense / 30
 
         try:
             change_rate = self.calculate_monthly_change_rate()
@@ -1298,48 +1276,52 @@ class ArchlenceApp(
     def _compute_today_liquid_delta(self):
         """Bugünkü nakit hareket toplamı (gelir − gider). Yalnızca veri üretir;
         arka plan thread'inden çağrılabilir."""
-        today_liquid_delta = 0.0
         with managed_connection() as conn_t:
             rows = conn_t.execute(
-                "SELECT amount, type FROM transactions "
+                "SELECT id, amount, type, 'extra' AS importance "
+                "FROM transactions "
                 "WHERE date(transaction_date) = date('now', 'localtime') "
                 f"AND {COMPLETED_TX}"
             ).fetchall()
-        for t_amt, t_typ in rows:
-            try:
-                val = float(decrypt(str(t_amt), SECRET_KEY))
-            except Exception:
-                val = 0.0
-            if t_typ in ("income", "Gelir"):
-                today_liquid_delta += val
-            elif t_typ in ("expense", "Gider"):
-                today_liquid_delta -= val
-        return today_liquid_delta
+        from services.financial_summary_service import summarize_transactions
+
+        return summarize_transactions(rows).net
 
     def update_wealth_card(self, enriched_assets, today_liquid_delta=None):
         """Toplam Varlık kartını günceller. `today_liquid_delta` arka planda
         hesaplanıp verilmişse DB'ye hiç dokunulmaz; verilmemişse (eski senkron
         çağıranlar için) yalnızca gerektiğinde yerinde hesaplanır."""
-        liquid_cash = getattr(self, "_liquid_balance_cache", 0.0)
+        from utils.financial_decimal import decimal_from
+
+        liquid_cash = decimal_from(
+            getattr(self, "_liquid_balance_cache", 0)
+        )
 
         portfolio_live = sum(
-            a["total_value"]
-            for a in enriched_assets
-            if a.get("total_value") is not None
+            (
+                decimal_from(a["total_value"])
+                for a in enriched_assets
+                if a.get("total_value") is not None
+            ),
+            decimal_from(0),
         )
         total_wealth = liquid_cash + portfolio_live
 
         asset_pnl = sum(
-            a["pnl_amount"] for a in enriched_assets if a.get("pnl_amount") is not None
+            (
+                decimal_from(a["pnl_amount"])
+                for a in enriched_assets
+                if a.get("pnl_amount") is not None
+            ),
+            decimal_from(0),
         )
 
         if today_liquid_delta is None and enriched_assets:
-            try:
-                today_liquid_delta = self._compute_today_liquid_delta()
-            except Exception:
-                today_liquid_delta = 0.0
+            today_liquid_delta = self._compute_today_liquid_delta()
         if today_liquid_delta is None:
-            today_liquid_delta = 0.0
+            today_liquid_delta = decimal_from(0)
+        else:
+            today_liquid_delta = decimal_from(today_liquid_delta)
         # toggle_wealth_visibility gibi yeni veri gerektirmeyen çağıranlar
         # (yalnızca görünürlük değişimi) DB'ye hiç dokunmadan bu son bilinen
         # değeri yeniden kullanabilsin diye önbelleğe alınır.
