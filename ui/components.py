@@ -14,6 +14,12 @@ from ui.i18n import tr as _t
 from ui import theme as ftheme
 
 
+class SearchBar(MDBoxLayout):
+    """Single-surface search control; focus belongs to its inner TextInput."""
+
+    focused = BooleanProperty(False)
+
+
 def is_read_only_asset_account(account):
     """Ana aktif-varlık/vadesiz-varlık hesabını tek noktadan tanır.
 
