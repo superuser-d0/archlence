@@ -157,8 +157,9 @@ The following areas are actively being improved:
 - OS-keystore-backed key storage (currently a random key generated per install, stored in a local file) and migrating records still using the previous encryption scheme;
 - code signing — both packages are unsigned, so Windows SmartScreen warns on
   first run; the Linux AppImage is unsigned too;
-- the packaged builds have only been exercised on the maintainer's own machines
-  and in CI, not across a range of real Windows and Linux installations;
+- the packaged builds have been verified in CI, on the maintainer's own Linux
+  machine, and on a second Windows machine — but that is still a small sample
+  rather than a broad range of real installations;
 - consistency of sample-data presentation;
 - selected credit-card and recurring-payment flows;
 - some loading, localization, and UI edge cases;
@@ -278,8 +279,19 @@ so they're intended for development and testing rather than general use.
 
 ## Changelog
 
-Full history is on the [Releases page](https://github.com/superuser-d0/archlence/releases);
-the notes below cover what is new in the current pre-release.
+Full history is on the [Releases page](https://github.com/superuser-d0/archlence/releases).
+
+### 1.0.0 — first stable release
+
+**Identical code to 0.9.0** — this release carries no functional changes, only
+this changelog entry. It exists because the one thing 0.9.0 was holding back
+for has now happened: the packaged Windows installer was launched and checked
+on a second, independent Windows machine, not just in CI and on the
+maintainer's own hardware. That was the last open question about whether the
+packaging actually works outside the environment that produced it.
+
+Code signing remains deliberately out of scope, so first-run SmartScreen
+warnings are still expected.
 
 ### 0.9.0 — first public pre-release
 
