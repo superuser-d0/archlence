@@ -59,16 +59,17 @@ def inventory():
                     and node.type.id in {"Exception", "BaseException"}
                 )
                 if broad:
-                    normalized = ast.dump(
-                        ast.Module(body=node.body, type_ignores=[]),
-                        include_attributes=False,
-                    )
+                    # AST dumps are not a stable interchange format across
+                    # Python minors (local 3.14 vs production CI 3.12 yielded
+                    # different hashes for every existing handler). Identity
+                    # therefore uses source location semantics, while Counter
+                    # cardinality still detects a second broad handler in the
+                    # same function.
                     identity = "|".join(
                         [
                             str(path.relative_to(ROOT)),
                             ".".join(parents) or "<module>",
                             "bare" if node.type is None else node.type.id,
-                            normalized,
                         ]
                     )
                     findings.append(
