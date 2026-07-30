@@ -20,7 +20,6 @@ def require(pattern, path, description):
 
 def main():
     escaped = re.escape(APP_VERSION)
-    release_notes = f"docs/releases/v{APP_VERSION}.md"
     require(
         rf'#define MyAppVersion "{escaped}"',
         "installer/archlence.iss",
@@ -41,21 +40,19 @@ def main():
         "CHANGELOG.md",
         "CHANGELOG sürümü",
     )
-    require(
-        rf"# Archlence v{escaped}",
-        release_notes,
-        "Release notu başlığı",
-    )
-    require(
-        rf"ArchlenceSetup-{escaped}\.exe",
-        release_notes,
-        "Windows release dosya adı",
-    )
-    require(
-        rf"Archlence-{escaped}-x86_64\.AppImage",
-        release_notes,
-        "Linux release dosya adı",
-    )
+    from scripts.release_notes_from_changelog import extract_release_notes
+
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    release_notes = extract_release_notes(changelog, APP_VERSION)
+    for expected in (
+        f"# Archlence v{APP_VERSION}",
+        f"ArchlenceSetup-{APP_VERSION}.exe",
+        f"Archlence-{APP_VERSION}-x86_64.AppImage",
+    ):
+        if expected not in release_notes:
+            raise SystemExit(
+                f"CHANGELOG-derived release notes missing {expected!r}"
+            )
     require(
         r'text: "Archlence v" \+ app\.version',
         "ui/dashboard.kv",

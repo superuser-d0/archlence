@@ -31,6 +31,5 @@ backup'ı üretilir. Gelen paketin parolası yanlışsa, DB hash'i bozuksa veya
 anahtar şifreli kayıtlarla eşleşmiyorsa hedef dosyalara dokunulmaz.
 
 Backup ve restore sırasında uygulamanın başka bir örneği aynı kullanıcı
-profilini kullanmamalıdır. Single-instance koruması stable kalite kapısının
-ayrı bir maddesidir; bu koruma tamamlanana kadar bu özellik üretim için hazır
-ilan edilmez.
+profilini kullanamaz. Single-instance koruması backup/restore başlamadan önce
+aynı profil için ikinci süreci engeller.

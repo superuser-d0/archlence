@@ -121,19 +121,35 @@ jobs:
              "release-assets/ArchlenceSetup-${v}.exe"
           cp "assets-in/linux/Archlence-x86_64.AppImage" \
              "release-assets/Archlence-${v}-x86_64.AppImage"
+          cp THIRD_PARTY_NOTICES.md release-assets/
           (
             cd release-assets
             sha256sum "ArchlenceSetup-${v}.exe" \
-              "Archlence-${v}-x86_64.AppImage" > SHA256SUMS.txt
+              "Archlence-${v}-x86_64.AppImage" \
+              THIRD_PARTY_NOTICES.md > SHA256SUMS.txt
           )
           ls -la release-assets
 
-      - name: Sürüm notlarını yaz
+      - name: CHANGELOG'dan sürüm notlarını yaz
         shell: bash
         run: |
-          cp "docs/releases/v${{ needs.version.outputs.version }}.md" \
-             release-notes.md
+          python scripts/release_notes_from_changelog.py \
+            "${{ needs.version.outputs.version }}" \
+            --output release-notes.md
           cat release-notes.md
+
+      - name: CycloneDX SBOM üret
+        shell: bash
+        run: |
+          python -m pip install cyclonedx-bom
+          cyclonedx-py requirements requirements-runtime.txt \
+            --output-format JSON \
+            --output-file "release-assets/Archlence-${{ needs.version.outputs.version }}-sbom.cdx.json"
+          (
+            cd release-assets
+            sha256sum "Archlence-${{ needs.version.outputs.version }}-sbom.cdx.json" \
+              >> SHA256SUMS.txt
+          )
 
       - name: Draft release oluştur ve varlıkları ekle
         shell: bash

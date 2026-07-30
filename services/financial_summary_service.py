@@ -1,7 +1,7 @@
 """UI-independent financial aggregation with explicit data-quality failure."""
 
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from database.db import SECRET_KEY
 from utils.crypto import decrypt
@@ -10,6 +10,7 @@ from utils.errors import (
     FinancialDataIntegrityError,
     KeyUnavailableError,
 )
+from utils.financial_decimal import decimal_from
 
 
 @dataclass(frozen=True)
@@ -36,13 +37,11 @@ def decrypt_decimal(value, *, table, record_id, field="amount"):
     """Decrypt one financial value or invalidate the whole derived result."""
     try:
         plaintext = decrypt(str(value), SECRET_KEY)
-        amount = Decimal(str(plaintext))
-        if not amount.is_finite():
-            raise InvalidOperation
+        amount = decimal_from(plaintext)
         return amount
     except KeyUnavailableError:
         raise
-    except (DecryptionError, InvalidOperation, TypeError, ValueError) as exc:
+    except (DecryptionError, TypeError, ValueError) as exc:
         raise FinancialDataIntegrityError(
             table, record_id, field, reason=exc
         ) from exc
