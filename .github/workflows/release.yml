@@ -7,7 +7,7 @@ name: Release
 # ancak bir GitHub **Release** varlığıyla olur — bu workflow onu üretir.
 #
 # Kullanım (sürümü kesmek):
-#   git tag v1.0.1 && git push origin v1.0.1
+#   git tag v0.0.2 && git push origin v0.0.2
 # Etiketin `v` ile başlaması yeterli; sürüm numarası etiketten türetilir ve
 # Inno Setup kurulumuna gömülür (bkz. installer/archlence.iss'in #ifndef bloğu).
 #

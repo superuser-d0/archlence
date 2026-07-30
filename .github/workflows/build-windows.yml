@@ -188,15 +188,15 @@ jobs:
           # Yükseltmenin sınanacağı TABAN sürüm. Boş bırakılırsa adım
           # açıkça uyarı basıp atlanır.
           #
-          # NEDEN PARAMETRİK: burada eskiden v1.0.1 etiketi ve onun SHA-256'sı
-          # sabit yazılıydı. 1.x hattı geri çekilip release'ler silinince bu
-          # indirme 404 döndü ve TÜM Windows derlemesi (dolayısıyla yayın)
-          # kırıldı — testin kendisiyle ilgisi olmayan bir sebeple.
+          # NEDEN PARAMETRİK: burada eskiden bir sürüm etiketi ve onun
+          # SHA-256'sı SABİT yazılıydı. O release silindiğinde indirme 404
+          # döndü ve TÜM Windows derlemesi (dolayısıyla yayın) kırıldı —
+          # testin kendisiyle ilgisi olmayan bir sebeple.
           #
-          # Şu an taban YOK: v0.0.1 yeni hattın ilk yayını, yükseltilecek
-          # önceki sürüm gerçekten mevcut değil. Bu bir testi zayıflatma
-          # değil, dünyanın doğru tarifi. v0.0.2 kesilirken buraya "v0.0.1"
-          # ve onun hash'i yazılarak yükseltme kapısı yeniden açılmalıdır.
+          # Şu an taban YOK: v0.0.1 ilk yayın, yükseltilecek önceki sürüm
+          # gerçekten mevcut değil. Bu bir testi zayıflatma değil, dünyanın
+          # doğru tarifi. v0.0.2 kesilirken buraya "v0.0.1" ve onun hash'i
+          # yazılarak yükseltme kapısı yeniden açılmalıdır.
           UPGRADE_BASELINE_TAG: ""
           UPGRADE_BASELINE_ASSET: ""
           UPGRADE_BASELINE_SHA256: ""

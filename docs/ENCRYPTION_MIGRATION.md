@@ -34,7 +34,7 @@ uyumluluğu için izole edilmiştir. Aşağıdaki koşulların tamamı sağlanma
 kaldırılmayacaktır:
 
 1. Desteklenen tüm profillerde envanter sıfır legacy alan raporlar.
-2. v1.0.x backup'ları güncel sürümde restore edilip kontrollü migration'dan
+2. Eski backup'lar güncel sürümde restore edilip kontrollü migration'dan
    geçirilebilir.
 3. En az bir tam kararlı sürüm boyunca migration telemetrisi yerine
    kullanıcının yerel envanter ekranı sıfır kayıt gösterir.

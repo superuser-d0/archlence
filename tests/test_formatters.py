@@ -212,7 +212,7 @@ class _FakeField:
     def insert_text(self, substring, from_undo=False):
         """filtre -> metni yaz (on_text burada) -> imleci İLERLET.
 
-        DÜZELTME (v1.1.0, geri çekildi): bu sınıf eskiden imleci metinden ÖNCE
+        DÜZELTME: bu sınıf eskiden imleci metinden ÖNCE
         güncelliyordu ve `type_at` docstring'i bunu "gerçek insert_text
         akışı" diye anlatıyordu. Gerçek Kivy'de sıra TAM TERSİ. Yanlış model
         yüzünden buradaki imleç testleri, üretimde sayıyı bozan bir hatayı
