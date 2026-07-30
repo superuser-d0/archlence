@@ -10,6 +10,7 @@ import unittest
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from utils import formatters
 from utils.formatters import (
     canonical_amount_text,
     filter_amount_keystroke,
@@ -190,9 +191,9 @@ class _FakeField:
 
     @text.setter
     def text(self, value):
-        # İmlece DOKUNULMAZ: gerçek TextInput.insert_text de imleci kendisi
-        # konumlandırıp sonra on_text'i tetikliyor, maskeleme de biçimlendirme
-        # sonrası imleci açıkça yeniden kuruyor.
+        # İmlece DOKUNULMAZ. Gerçek `TextInput.insert_text` de böyle davranır:
+        # ÖNCE metni yazar (bu on_text'i tetikler), imleci ANCAK SONRA
+        # ilerletir. Bu sıralama kritik — bkz. insert_text() aşağıda.
         self._text = value
         for callback in list(self._callbacks):
             callback(self, value)
@@ -207,16 +208,40 @@ class _FakeField:
     def get_cursor_from_index(self, index):
         return (index, 0)
 
-    # --- Test yardımcısı: filtreden geçirip imleç konumuna ekler ---
-    def type_at(self, chars, index=None):
-        """Gerçek insert_text akışı: filtre -> metin+imleç güncelle -> dispatch."""
-        if index is None:
-            index = len(self._text)
-        allowed = self.input_filter(chars, False) if self.input_filter else chars
-        if not allowed:
+    # --- Kivy TextInput.insert_text'in GERÇEK sırası ---
+    def insert_text(self, substring, from_undo=False):
+        """filtre -> metni yaz (on_text burada) -> imleci İLERLET.
+
+        DÜZELTME (v1.1.0): bu sınıf eskiden imleci metinden ÖNCE
+        güncelliyordu ve `type_at` docstring'i bunu "gerçek insert_text
+        akışı" diye anlatıyordu. Gerçek Kivy'de sıra TAM TERSİ. Yanlış model
+        yüzünden buradaki imleç testleri, üretimde sayıyı bozan bir hatayı
+        (yazılan 1234567 -> alanda 1.235.674) yeşil gösteriyordu; gerçek bir
+        SDL2/GL penceresinde MDTextField ile ölçülerek doğrulandı.
+        """
+        if self.input_filter is not None:
+            substring = self.input_filter(substring, from_undo)
+        if not substring:
             return
-        self.cursor = (index + len(allowed), 0)
-        self.text = self._text[:index] + allowed + self._text[index:]
+        index = self.cursor_index()
+        self.text = self._text[:index] + substring + self._text[index:]
+        self.cursor = (index + len(substring), 0)
+
+    def do_backspace(self, from_undo=False, mode="bkspc"):
+        index = self.cursor_index()
+        if index == 0:
+            return
+        self.text = self._text[:index - 1] + self._text[index:]
+        self.cursor = (index - 1, 0)
+
+    # --- Test yardımcısı: imleci konumlandırıp gerçek giriş yolundan yazar ---
+    def type_at(self, chars, index=None):
+        if index is not None:
+            self.cursor = (index, 0)
+        else:
+            self.cursor = (len(self._text), 0)
+        for char in chars:
+            self.insert_text(char)
 
 
 class CursorPositionTest(unittest.TestCase):
@@ -328,3 +353,40 @@ class KeystrokeFilterTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AmountMaskScramblingRegressionTest(unittest.TestCase):
+    """Kullanıcı raporu: tutar yazarken rakamlar karışıyordu.
+
+    İmleç bir karakter geride kalınca SONRAKİ hane yanlış konuma giriyor ve
+    kullanıcı doğru rakamı yazdığı hâlde hesaba bambaşka bir tutar giriyordu.
+    Bu, imleç testlerinden ayrı tutuluyor: buradaki asıl iddia "imleç şu
+    indekste" değil, "yazılan sayı KORUNUYOR".
+    """
+
+    def _type(self, keys):
+        from utils.formatters import attach_amount_mask
+        field = attach_amount_mask(_FakeField())
+        field.type_at(keys)
+        return field
+
+    def test_typed_digits_are_preserved_exactly(self):
+        for keys, expected in [
+            ("1234", "1.234"),
+            ("12345", "12.345"),
+            ("123456", "123.456"),
+            ("1234567", "1.234.567"),
+            ("12345678", "12.345.678"),
+            ("100", "100"),
+        ]:
+            with self.subTest(keys=keys):
+                field = self._type(keys)
+                self.assertEqual(
+                    field.text, expected,
+                    f"'{keys}' yazıldı, alanda '{field.text}' oluştu — "
+                    f"rakam sırası bozuldu.",
+                )
+
+    def test_typed_value_round_trips_through_read_amount(self):
+        from utils.formatters import read_amount
+        self.assertEqual(read_amount(self._type("1234567")), 1234567.0)

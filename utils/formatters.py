@@ -219,31 +219,55 @@ def attach_amount_mask(field):
     """Bir `MDTextField`e canlı binlik ayraç maskelemesi bağlar.
 
     - `input_filter` ile geçersiz karakterler hiç girmez.
-    - Her metin değişiminde metin yeniden gruplanır ve İMLEÇ, kullanıcının
-      yazdığı hanenin ardında kalacak şekilde geri konumlanır (baştaki
-      "hep sona zıplıyor" davranışı bu yüzden oluşmaz).
+    - Metin her DÜZENLEMEDE yeniden gruplanır ve imleç, kullanıcının yazdığı
+      hanenin hemen ardında bırakılır.
     - Kanonik sayısal değer widget üzerinde saklanır; `read_amount` onu okur.
+
+    İMLEÇ HATASI (v1.1.0'da düzeltildi). Yeniden biçimlendirme eskiden
+    `bind(text=...)` ile, yani Kivy'nin `on_text` olayında yapılıyordu. Kivy
+    `TextInput.insert_text` içinde ÖNCE `self.text`i değiştirir, imleci ANCAK
+    SONRA ilerletir — dolayısıyla `on_text` sırasında okunan `cursor_index()`
+    bir karakter GERİDEDİR. Sonuç yalnız "imleç geri kayıyor" değildi: sonraki
+    hane yanlış konuma giriyor ve sayı BOZULUYORDU —
+
+        yazılan 1234567  ->  alanda 1.235.674   (olması gereken 1.234.567)
+
+    Yani kullanıcı doğru rakamı yazdığı hâlde hesaba bambaşka bir tutar
+    giriyordu. Düzeltme: yeniden biçimlendirme artık `on_text`te değil,
+    `insert_text`/`do_backspace` TAMAMLANDIKTAN SONRA çalışıyor; o noktada
+    `cursor_index()` gerçek konumu verir. `text` bağlaması yalnızca kanonik
+    değeri güncel tutar (programatik `field.text = ""` gibi atamalar için).
     """
     field.input_filter = lambda substring, from_undo: filter_amount_keystroke(
         substring, field.text
     )
     setattr(field, _CANONICAL_ATTR, canonical_amount_text(field.text))
 
-    # Yeniden giriş koruması: setter kendi on_text'ini tekrar tetikliyor.
+    # Yeniden giriş koruması: aşağıdaki setter kendi on_text'ini tetikliyor.
     state = {"busy": False}
 
-    def _reformat(instance, value):
+    def _sync_canonical(instance, value):
+        """Programatik metin atamalarında kanonik değeri güncel tutar."""
         if state["busy"]:
             return
+        setattr(instance, _CANONICAL_ATTR, canonical_amount_text(value))
+
+    def _regroup_and_place_cursor():
+        """Metni yeniden grupla, imleci yazılan hanenin ardında bırak.
+
+        YALNIZCA bir düzenleme tamamlandıktan sonra çağrılır; bu yüzden
+        `cursor_index()` burada güvenilirdir.
+        """
+        value = field.text
         formatted = format_amount_input(value)
-        setattr(instance, _CANONICAL_ATTR, canonical_amount_text(formatted))
+        setattr(field, _CANONICAL_ATTR, canonical_amount_text(formatted))
         if formatted == value:
             return
 
-        # İmleç, kendisinden ÖNCE kaç anlamlı karakter (hane/ondalık ayraç)
+        # İmleç, kendisinden ÖNCE kaç ANLAMLI karakter (hane/ondalık ayraç)
         # olduğuna göre yeniden bulunur; gruplama noktaları sayılmaz, çünkü
         # onların sayısı biçimlendirmeyle değişiyor.
-        cursor_index = instance.cursor_index()
+        cursor_index = field.cursor_index()
         significant_before = sum(
             1 for char in value[:cursor_index]
             if char.isdigit() or char == DECIMAL_SEPARATOR
@@ -251,7 +275,7 @@ def attach_amount_mask(field):
 
         state["busy"] = True
         try:
-            instance.text = formatted
+            field.text = formatted
         finally:
             state["busy"] = False
 
@@ -263,9 +287,22 @@ def attach_amount_mask(field):
                 break
             if char.isdigit() or char == DECIMAL_SEPARATOR:
                 seen += 1
-        else:
-            new_index = len(formatted)
-        instance.cursor = instance.get_cursor_from_index(new_index)
+        field.cursor = field.get_cursor_from_index(new_index)
 
-    field.bind(text=_reformat)
+    # Kivy `self.insert_text(...)` çağırdığı için örnek üzerindeki bu isimler
+    # sınıf metodunun önüne geçer; sınıf metodunu açıkça çağırıp ARDINDAN
+    # biçimlendiriyoruz.
+    cls = type(field)
+
+    def insert_text(substring, from_undo=False):
+        cls.insert_text(field, substring, from_undo)
+        _regroup_and_place_cursor()
+
+    def do_backspace(from_undo=False, mode="bkspc"):
+        cls.do_backspace(field, from_undo, mode)
+        _regroup_and_place_cursor()
+
+    field.insert_text = insert_text
+    field.do_backspace = do_backspace
+    field.bind(text=_sync_canonical)
     return field
