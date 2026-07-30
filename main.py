@@ -12,6 +12,30 @@ import datetime
 import faulthandler
 import traceback as _traceback
 
+# ── Konsol kodlaması: Türkçe metin Windows'ta süreci ÖLDÜRMESİN ─────────────
+# Windows'ta `sys.stdout`/`sys.stderr` konsolun kod sayfasını kullanır (çoğu
+# Türkçe kurulumda cp1252). Bu kod sayfası 'ı', 'ğ', 'ş' gibi karakterleri
+# KODLAYAMAZ ve `print()` bir `UnicodeEncodeError` fırlatır.
+#
+# Bu teorik bir incelik değil: uygulamanın hata mesajları Türkçe ve bunların
+# çoğu `except` bloklarının İÇİNDE basılıyor. Orada `print` patlayınca hata
+# yutulmuyor — istisna dışarı sızıp asıl işlemi öldürüyor. Windows CI'da
+# ampirik olarak ölçüldü: `TransactionService.add_transaction` içindeki
+# "Abonelik radarına yazılamadı" satırı, abonelik radarı hata verdiğinde
+# İŞLEMİN TAMAMINI kaybettiriyordu (tests/test_subscription_interceptor.py
+# ::test_radar_failure_does_not_lose_the_transaction Windows'ta bu yüzden
+# kırmızıydı, Linux'ta yeşildi).
+#
+# errors="replace": kodlanamayan karakter '?' olur ama süreç ASLA durmaz.
+# Teşhis çıktısı kısmen bozulabilir; veri kaybetmekten sonsuz kez iyidir.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        # Paketlenmiş pencereli derlemede (console=False) bu akışlar None ya
+        # da yeniden yapılandırılamaz olabilir; o durumda zaten yazılmıyor.
+        pass
+
 from utils.app_paths import data_dir, log_dir, migrate_legacy_path, resource_dir
 
 # Bu dosyanın kendi dizini — eski (paketlenmiş kurulumda genelde salt-okunur)
