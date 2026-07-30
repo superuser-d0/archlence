@@ -136,8 +136,8 @@ Notable implementation details include:
 
 ## Project status
 
-Archlence v0.0.1 is a **pre-release** — the first public build. It is not
-stable and is not recommended for day-to-day finance tracking yet.
+Archlence v0.0.2 is a **pre-release**. It is not stable and is not
+recommended for day-to-day finance tracking yet.
 
 The package installs and runs, and the flows listed in the changelog are
 covered by tests, but the 0.0.x line exists precisely to signal that the app is
@@ -154,10 +154,11 @@ The current focus is:
 
 Some workflows, interface elements, sample-data states, and security components are still being refined.
 
-See the single current
-[Security and reliability status](docs/SECURITY_RELIABILITY_STATUS.md) for the
-exact guarantees and limitations. Dated audit documents are archived baselines,
-not current status.
+See [Vision and scope](docs/VISION.md) for what "stable" is meant to signal
+and the platform/versioning decisions behind the current 0.0.x line, and the
+single current [Security and reliability status](docs/SECURITY_RELIABILITY_STATUS.md)
+for the exact guarantees and limitations. Dated audit documents are archived
+baselines, not current status.
 
 ## Known limitations
 
@@ -166,9 +167,10 @@ The following areas are actively being improved:
 - OS-keystore-backed key storage (currently a random key generated per install, stored in a local file) and migrating records still using the previous encryption scheme;
 - code signing — both packages are unsigned, so Windows SmartScreen warns on
   first run; the Linux AppImage is unsigned too;
-- the packaged builds have been verified in CI, on the maintainer's own Linux
-  machine, and on a second Windows machine — but that is still a small sample
-  rather than a broad range of real installations;
+- the packaged builds are verified in CI (install, launch, upgrade-from-the-
+  previous-release, and uninstall, on real `windows-latest`/`ubuntu-latest`
+  runners) and on the maintainer's own Linux machine, but real-hardware
+  confirmation on a range of actual Windows installations is still limited;
 - consistency of sample-data presentation;
 - selected credit-card and recurring-payment flows;
 - some loading, localization, and UI edge cases;
@@ -279,6 +281,22 @@ Both packages are unsigned. On Windows, SmartScreen will show an "unrecognized
 app" warning on first run — this is expected for an app without a paid
 code-signing certificate, not a sign of tampering; choose "More info" → "Run
 anyway" to proceed.
+
+**Verify what you downloaded.** Every release includes `SHA256SUMS.txt` and a
+CycloneDX SBOM (`Archlence-<version>-sbom.cdx.json`) alongside the packages.
+Since the binaries aren't code-signed, this checksum is the practical way to
+confirm the file wasn't corrupted or swapped in transit — download it from
+the same release page and check:
+
+```bash
+sha256sum -c SHA256SUMS.txt
+```
+
+```powershell
+# Windows PowerShell
+Get-FileHash ArchlenceSetup-<version>.exe -Algorithm SHA256
+# compare the printed hash by hand against the matching line in SHA256SUMS.txt
+```
 
 Untagged builds of `main` are also produced on every push, but only as GitHub
 Actions artifacts ([Windows](https://github.com/superuser-d0/archlence/actions/workflows/build-windows.yml),
