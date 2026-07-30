@@ -166,9 +166,32 @@ Known limitations are tracked openly so that progress can be reviewed over time.
 
 ### Requirements
 
-- Python 3.11 or newer
+- Python 3.11 or newer (verified on 3.14; CI packages with 3.12)
 - A desktop environment supported by Kivy
 - Git
+
+On Linux, Kivy's wheels link against the system SDL2 libraries rather than
+bundling their own, so those have to be present before `pip install`. Install
+them with your distribution's package manager first:
+
+```bash
+# Arch, CachyOS, Manjaro and other Arch-based distributions
+sudo pacman -S --needed sdl2-compat sdl2_image sdl2_ttf sdl2_mixer libglvnd
+```
+
+```bash
+# Debian, Ubuntu, Linux Mint
+sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libsdl2-ttf-2.0-0 \
+    libsdl2-mixer-2.0-0 libgl1
+```
+
+```bash
+# Fedora
+sudo dnf install SDL2 SDL2_image SDL2_ttf SDL2_mixer mesa-libGL
+```
+
+On Arch-based systems the SDL2 package is named `sdl2-compat` (it replaced the
+older `sdl2` package and provides the same `libSDL2-2.0.so.0`).
 
 ### Installation
 
@@ -216,17 +239,38 @@ pip install -r requirements.txt
 
 On first launch, Archlence guides you through creating a local PIN and setting up your first account.
 
-### Pre-built Windows installer
+### Pre-built downloads
 
-If you'd rather not build from source, every push to `main` produces a
-single-file `ArchlenceSetup.exe` via GitHub Actions — see the
-`Archlence-Setup` artifact on the latest successful run of
-[Build Windows EXE](https://github.com/superuser-d0/archlence/actions/workflows/build-windows.yml).
-It installs per-user (no admin rights required) and doesn't touch any
-existing Archlence data. The build is unsigned, so Windows SmartScreen
-will show an "unrecognized app" warning on first run — this is expected
-for an app without a paid code-signing certificate, not a sign of
-tampering; choose "More info" → "Run anyway" to proceed.
+If you'd rather not build from source, tagged releases ship ready-to-run
+packages for both platforms on the
+[Releases page](https://github.com/superuser-d0/archlence/releases).
+
+**Windows** — download `ArchlenceSetup-<version>.exe` and double-click it. It
+installs per-user (no admin rights required) and doesn't touch any existing
+Archlence data.
+
+**Linux** — download `Archlence-<version>-x86_64.AppImage` and make it
+executable. No installation step, and no system SDL2 packages needed: the
+AppImage bundles everything.
+
+```bash
+chmod +x Archlence-<version>-x86_64.AppImage
+./Archlence-<version>-x86_64.AppImage
+```
+
+The `chmod` is required because GitHub does not preserve the executable bit on
+release assets.
+
+Both packages are unsigned. On Windows, SmartScreen will show an "unrecognized
+app" warning on first run — this is expected for an app without a paid
+code-signing certificate, not a sign of tampering; choose "More info" → "Run
+anyway" to proceed.
+
+Untagged builds of `main` are also produced on every push, but only as GitHub
+Actions artifacts ([Windows](https://github.com/superuser-d0/archlence/actions/workflows/build-windows.yml),
+[Linux](https://github.com/superuser-d0/archlence/actions/workflows/build-linux.yml)).
+Those require a signed-in GitHub account to download and expire after 90 days,
+so they're intended for development and testing rather than general use.
 
 ## Tests
 
