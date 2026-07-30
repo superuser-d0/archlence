@@ -191,9 +191,12 @@ class WorkingDirectoryIndependenceTest(unittest.TestCase):
             completed = _run(
                 """
                 import os
-                before = os.getcwd()
+                # realpath: Windows'ta %TEMP% 8.3 kısa biçimde gelebiliyor
+                # (or. RUNNER~1 gibi) ve ebeveyn surecteki uzun bicimle
+                # metin olarak eşleşmiyordu. İki taraf da aynı biçime çekilir.
+                before = os.path.realpath(os.getcwd())
                 import main
-                after = os.getcwd()
+                after = os.path.realpath(os.getcwd())
                 print(f"BEFORE={before}")
                 print(f"AFTER={after}")
                 """,
@@ -202,8 +205,13 @@ class WorkingDirectoryIndependenceTest(unittest.TestCase):
                 strip_display=True,
             )
         self.assertEqual(completed.returncode, 0, msg=completed.stderr)
-        self.assertIn(f"BEFORE={os.path.realpath(wrong_cwd)}", completed.stdout)
-        self.assertIn(f"AFTER={os.path.realpath(PROJECT_ROOT)}", completed.stdout)
+        # normcase: Windows'ta sürücü harfi/ayraç büyük-küçük farkı eşleşmeyi
+        # bozmasın (POSIX'te normcase kimlik fonksiyonudur, etkisi yok).
+        stdout = os.path.normcase(completed.stdout)
+        self.assertIn(
+            os.path.normcase(f"BEFORE={os.path.realpath(wrong_cwd)}"), stdout)
+        self.assertIn(
+            os.path.normcase(f"AFTER={os.path.realpath(PROJECT_ROOT)}"), stdout)
 
     @unittest.skipUnless(
         _HAS_REAL_DISPLAY, "gerçek bir display sunucusu yok (ör. CI runner)"

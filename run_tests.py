@@ -91,6 +91,17 @@ if "XDG_DATA_HOME" not in os.environ:
     os.environ["XDG_CACHE_HOME"] = os.path.join(_sandbox, "cache")
     os.environ["XDG_STATE_HOME"] = os.path.join(_sandbox, "state")
 
+    # WINDOWS: XDG_* değişkenleri burada HİÇBİR ŞEY yapmaz. `platformdirs`
+    # Windows'ta yolları `LOCALAPPDATA`/`APPDATA` üzerinden çözer
+    # (platformdirs.windows.get_win_folder_from_env_vars). Yani yukarıdaki üç
+    # satır tek başına bırakılırsa test paketi Windows'ta GERÇEK
+    # `%LOCALAPPDATA%\Archlence` dizinine — geliştiricinin/kullanıcının kendi
+    # şifreleme anahtarının ve verisinin yanına — yazar. Bu boşluk, Windows
+    # test job'ı eklendiğinde ortaya çıktı.
+    if os.name == "nt":
+        os.environ["LOCALAPPDATA"] = os.path.join(_sandbox, "local")
+        os.environ["APPDATA"] = os.path.join(_sandbox, "roaming")
+
 loader = unittest.TestLoader()
 suite = loader.discover("tests")
 runner = unittest.TextTestRunner(verbosity=2, stream=_REAL_STDERR)

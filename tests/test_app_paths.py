@@ -33,23 +33,45 @@ class PathResolutionTest(unittest.TestCase):
                 log_dir()
             self.assertFalse(os.path.exists(fake_home))
 
+    @staticmethod
+    def _home_override(root):
+        """Platformun kullanıcı-dizini değişkenlerini sandbox'a çeker.
+
+        Linux/macOS `platformdirs` XDG_* okur; WINDOWS OKUMAZ — orada
+        `LOCALAPPDATA`/`APPDATA` geçerlidir. Testi yalnız XDG üzerinden yazmak,
+        Windows'ta yol yönlendirmesinin hiç çalışmadığını gizliyordu.
+        """
+        if os.name == "nt":
+            return {
+                "LOCALAPPDATA": os.path.join(root, "local"),
+                "APPDATA": os.path.join(root, "roaming"),
+            }
+        return {
+            "XDG_DATA_HOME": os.path.join(root, "data"),
+            "XDG_CACHE_HOME": os.path.join(root, "cache"),
+            "XDG_STATE_HOME": os.path.join(root, "state"),
+        }
+
     def test_data_cache_log_dirs_are_distinct(self):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.dict(
                 os.environ,
-                {
-                    "XDG_DATA_HOME": os.path.join(tmp, "data"),
-                    "XDG_CACHE_HOME": os.path.join(tmp, "cache"),
-                    "XDG_STATE_HOME": os.path.join(tmp, "state"),
-                },
+                self._home_override(tmp),
             ):
                 d, c, log = data_dir(), cache_dir(), log_dir()
+            # SÖZLEŞME: üç dizin birbirinden AYRI olmalı ve hepsi platformun
+            # kendi "kullanıcı dizini" değişkeniyle yönlendirilebilmeli.
+            # Yönlendirilebilirlik kritik: test paketi izolasyonu (run_tests.py)
+            # tam olarak buna dayanıyor.
             self.assertNotEqual(d, c)
             self.assertNotEqual(d, log)
             self.assertNotEqual(c, log)
-            self.assertTrue(d.startswith(os.path.join(tmp, "data")))
-            self.assertTrue(c.startswith(os.path.join(tmp, "cache")))
-            self.assertTrue(log.startswith(os.path.join(tmp, "state")))
+            for resolved in (d, c, log):
+                self.assertTrue(
+                    resolved.startswith(tmp),
+                    f"{resolved!r} sandbox {tmp!r} altında değil — bu "
+                    "platformda yol yönlendirmesi ÇALIŞMIYOR demektir.",
+                )
 
     def test_resolved_dirs_are_namespaced_under_the_app_name(self):
         with tempfile.TemporaryDirectory() as tmp:

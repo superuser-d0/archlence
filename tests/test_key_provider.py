@@ -116,11 +116,38 @@ class FileKeyProviderTest(unittest.TestCase):
         leftovers = [n for n in os.listdir(self.tmpdir) if ".tmp." in n]
         self.assertEqual(leftovers, [])
 
+    @unittest.skipIf(
+        os.name == "nt",
+        "POSIX mod bitleri Windows'ta anlam taşımıyor — aşağıdaki Windows "
+        "testine bakın.",
+    )
     def test_key_file_is_owner_only_readable(self):
         provider = FileKeyProvider(self.key_path)
         provider.get_or_create_key()
         mode = stat.S_IMODE(os.stat(self.key_path).st_mode)
         self.assertEqual(mode, 0o600)
+
+    @unittest.skipUnless(os.name == "nt", "yalnızca Windows davranışı")
+    def test_key_file_exists_on_windows_where_chmod_cannot_express_0600(self):
+        """Windows'ta `chmod(0o600)` istenen kısıtlamayı ÜRETMEZ.
+
+        Ölçüldü (Windows CI): `os.stat().st_mode` 0o666 döner, 0o600 değil.
+        Windows POSIX izin bitlerini gerçek bir erişim denetimi olarak
+        uygulamaz; koruma ACL'lerden gelir. Bu testi 0o600 bekleyecek şekilde
+        bırakmak, var olmayan bir garantiyi doğruluyormuş gibi yapardı.
+
+        Windows'ta dosya anahtarı zaten YEDEK yoldur: birincil sağlayıcı
+        DPAPI'dir (utils/key_provider.py::WindowsDPAPIKeyProvider) ve anahtarı
+        kullanıcı hesabına bağlar. Dosya da kullanıcı profili altında durur,
+        yani varsayılan ACL'i zaten kullanıcıya özeldir.
+
+        Burada doğrulanan: anahtar dosyası gerçekten oluşuyor ve düz bir
+        dosya. Gerçek ACL doğrulaması pywin32 gerektirir ve ayrı bir iştir —
+        `docs/KEY_MANAGEMENT.md` bu sınırı açıkça yazmalı.
+        """
+        provider = FileKeyProvider(self.key_path)
+        provider.get_or_create_key()
+        self.assertTrue(os.path.isfile(self.key_path))
 
 
 class _FakeKeyringBackend:
