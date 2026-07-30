@@ -1,5 +1,7 @@
 import os
 import threading
+from datetime import datetime
+from pathlib import Path
 
 from kivy.clock import Clock
 from kivymd.toast import toast
@@ -112,7 +114,7 @@ class MigrationMixin:
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivy.metrics import dp
         
-        content = MDBoxLayout(orientation="vertical", size_hint_y=None, height=dp(112))
+        content = MDBoxLayout(orientation="vertical", size_hint_y=None, height=dp(224))
         md_list = MDList()
         
         export_item = OneLineIconListItem(text=_t("CSV Olarak Dışa Aktar"))
@@ -127,6 +129,35 @@ class MigrationMixin:
         
         md_list.add_widget(export_item)
         md_list.add_widget(import_item)
+
+        backup_item = OneLineIconListItem(text=_t("Güvenli Backup Oluştur"))
+        backup_item.add_widget(IconLeftWidget(icon="backup-restore"))
+        backup_item.bind(
+            on_release=lambda _x: self._on_backup_selected(
+                self._data_privacy_dialog
+            )
+        )
+        restore_item = OneLineIconListItem(text=_t("Backup Geri Yükle"))
+        restore_item.add_widget(IconLeftWidget(icon="database-import-outline"))
+        restore_item.bind(
+            on_release=lambda _x: self._on_restore_selected(
+                self._data_privacy_dialog
+            )
+        )
+        migration_item = OneLineIconListItem(
+            text=_t("Legacy Şifrelemeyi Taşı")
+        )
+        migration_item.add_widget(IconLeftWidget(icon="shield-sync-outline"))
+        migration_item.bind(
+            on_release=lambda _x: self._on_migration_selected(
+                self._data_privacy_dialog
+            )
+        )
+
+        md_list.add_widget(backup_item)
+        md_list.add_widget(restore_item)
+        md_list.add_widget(migration_item)
+        content.height = dp(280)
         content.add_widget(md_list)
         
         self._data_privacy_dialog = MDDialog(
@@ -143,3 +174,215 @@ class MigrationMixin:
     def _on_import_selected(self, dialog):
         dialog.dismiss()
         self.show_import_csv_dialog()
+
+    def _password_dialog(self, title, explanation, callback):
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.button import MDFlatButton, MDRaisedButton
+        from kivymd.uix.boxlayout import MDBoxLayout
+        from kivymd.uix.label import MDLabel
+        from kivymd.uix.textfield import MDTextField
+        from kivy.metrics import dp
+
+        content = MDBoxLayout(
+            orientation="vertical", size_hint_y=None, height=dp(150),
+            spacing=dp(8),
+        )
+        content.add_widget(MDLabel(
+            text=explanation,
+            theme_text_color="Secondary",
+            font_style="Caption",
+        ))
+        password = MDTextField(
+            hint_text=_t("Kurtarma Parolası (en az 12 karakter)"),
+            password=True,
+            multiline=False,
+        )
+        content.add_widget(password)
+
+        def confirm(_button):
+            value = password.text
+            if len(value) < 12:
+                toast(_t("Kurtarma parolası en az 12 karakter olmalıdır."))
+                return
+            dialog.dismiss()
+            callback(value)
+
+        dialog = MDDialog(
+            title=title,
+            type="custom",
+            content_cls=content,
+            buttons=[
+                MDFlatButton(
+                    text=_t("İPTAL"),
+                    on_release=lambda _x: dialog.dismiss(),
+                ),
+                MDRaisedButton(text=_t("DEVAM"), on_release=confirm),
+            ],
+        )
+        dialog.open()
+
+    def _on_backup_selected(self, dialog):
+        dialog.dismiss()
+        self._password_dialog(
+            _t("Güvenli Backup"),
+            _t("Parola uygulama tarafından saklanmaz. Kaybedilirse backup açılamaz."),
+            self._create_verified_backup,
+        )
+
+    def _create_verified_backup(self, passphrase):
+        from utils.app_paths import data_dir
+
+        destination = (
+            Path(data_dir()) / "backups"
+            / f"archlence-{datetime.now():%Y%m%d-%H%M%S}.backup"
+        )
+        toast(_t("Backup oluşturuluyor ve doğrulanıyor…"))
+
+        def work(_cancel):
+            from services.backup_service import create_backup
+
+            return create_backup(destination, passphrase)
+
+        self.background_tasks.submit(
+            "secure-backup",
+            work,
+            on_success=lambda result: toast(
+                _t(f"Backup doğrulandı:\n{result['path']}")
+            ),
+            on_error=lambda exc: self._secure_operation_error(
+                "Backup oluşturulamadı", exc
+            ),
+            replace=False,
+        )
+
+    def _on_restore_selected(self, dialog):
+        dialog.dismiss()
+        self.show_restore_backup_dialog()
+
+    def show_restore_backup_dialog(self):
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.button import MDFlatButton, MDRaisedButton
+        from kivymd.uix.boxlayout import MDBoxLayout
+        from kivy.uix.filechooser import FileChooserListView
+        from kivy.metrics import dp
+
+        chooser = FileChooserListView(
+            path=os.path.expanduser("~"),
+            filters=["*.backup", "*.archlence-backup", "*.zip"],
+        )
+        content = MDBoxLayout(
+            orientation="vertical", size_hint_y=None, height=dp(420)
+        )
+        content.add_widget(chooser)
+
+        def choose(_button):
+            if not chooser.selection:
+                toast(_t("Lütfen bir backup dosyası seçin!"))
+                return
+            selected = chooser.selection[0]
+            file_dialog.dismiss()
+            self._password_dialog(
+                _t("Backup Geri Yükle"),
+                _t("Mevcut verinin güvenlik backup'ı alınacak. Doğrulama "
+                   "başarısızsa hiçbir dosya değiştirilmeyecek."),
+                lambda password: self._restore_verified_backup(
+                    selected, password
+                ),
+            )
+
+        file_dialog = MDDialog(
+            title=_t("Backup Dosyası Seç"),
+            type="custom",
+            content_cls=content,
+            buttons=[
+                MDFlatButton(
+                    text=_t("İPTAL"),
+                    on_release=lambda _x: file_dialog.dismiss(),
+                ),
+                MDRaisedButton(text=_t("SEÇ"), on_release=choose),
+            ],
+        )
+        file_dialog.open()
+
+    def _restore_verified_backup(self, package, passphrase):
+        toast(_t("Backup doğrulanıyor; mevcut veri güvenceye alınıyor…"))
+
+        def work(_cancel):
+            from services.backup_service import restore_backup
+
+            return restore_backup(package, passphrase)
+
+        def success(result):
+            toast(_t(
+                "Restore tamamlandı. Güvenlik backup'ı:\n"
+                f"{result['safety_backup_path']}"
+            ))
+            self.refresh_dashboard_data()
+
+        self.background_tasks.submit(
+            "secure-restore",
+            work,
+            on_success=success,
+            on_error=lambda exc: self._secure_operation_error(
+                "Restore başarısız; mevcut veri korundu", exc
+            ),
+            replace=False,
+        )
+
+    def _on_migration_selected(self, dialog):
+        dialog.dismiss()
+        from services.crypto_migration_service import inspect_legacy_encryption
+        from database.db import DB_NAME
+
+        plan = inspect_legacy_encryption(db_path=DB_NAME)
+        if plan.legacy_fields == 0:
+            toast(_t("Taşınacak legacy şifreli kayıt bulunamadı."))
+            return
+        self._password_dialog(
+            _t("Legacy Şifreleme Migration'ı"),
+            _t(
+                f"{plan.legacy_fields} alan / {plan.affected_records} kayıt "
+                "taşınacak. Önce doğrulanmış backup alınır; hata olursa "
+                "transaction geri alınır."
+            ),
+            lambda password: self._run_legacy_migration(password),
+        )
+
+    def _run_legacy_migration(self, passphrase):
+        from utils.app_paths import data_dir
+
+        backup = (
+            Path(data_dir()) / "backups"
+            / f"pre-migration-{datetime.now():%Y%m%d-%H%M%S}.backup"
+        )
+        toast(_t("Migration başladı; veriler transaction içinde taşınıyor…"))
+
+        def work(_cancel):
+            from services.crypto_migration_service import (
+                migrate_legacy_encryption,
+            )
+
+            return migrate_legacy_encryption(passphrase, backup)
+
+        self.background_tasks.submit(
+            "legacy-migration",
+            work,
+            on_success=lambda result: toast(_t(
+                f"Migration tamamlandı: {result['migrated_fields']} alan. "
+                f"Backup: {result['backup_path']}"
+            )),
+            on_error=lambda exc: self._secure_operation_error(
+                "Migration geri alındı", exc
+            ),
+            replace=False,
+        )
+
+    @staticmethod
+    def _secure_operation_error(message, exc):
+        from utils.logging_config import get_logger
+
+        get_logger().error(
+            "%s", message,
+            exc_info=(type(exc), exc, exc.__traceback__),
+        )
+        toast(_t(f"{message}. Ayrıntılar uygulama loguna kaydedildi."))
