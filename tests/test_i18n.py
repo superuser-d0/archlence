@@ -1,6 +1,8 @@
 import re
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 from ui.i18n import EN, get_language, set_language, tr
 
@@ -54,6 +56,34 @@ class I18nTestCase(unittest.TestCase):
         self.assertEqual(tr("Değişim (Bugün)"), "Change (Today)")
         self.assertEqual(tr("Nakit / Vadesiz"), "Cash / Checking")
         self.assertEqual(tr("3 TL dışı varlık • Canlı değer"), "3 non-TRY assets • Live value")
+
+    def test_language_refresh_reconciles_bottom_navigation_header_texture(self):
+        """KivyMD header tab.text'i kopyalasa da son dil dokusu zorla uzlaştırılır."""
+        import os
+        os.environ.setdefault("ARCHLENCE_HEADLESS", "1")
+        from main import ArchlenceApp
+
+        label = SimpleNamespace(text="Ayarlar", texture_update=mock.Mock())
+        header = SimpleNamespace(
+            ids=SimpleNamespace(_label=label),
+            canvas=SimpleNamespace(ask_update=mock.Mock()),
+        )
+        tab = SimpleNamespace(text="Settings", header=header)
+        nav = SimpleNamespace(
+            ids=SimpleNamespace(
+                tab_manager=SimpleNamespace(screens=[tab])
+            )
+        )
+        app = ArchlenceApp.__new__(ArchlenceApp)
+        app.root = SimpleNamespace(ids={"bottom_nav": nav})
+        app._refresh_text_textures = mock.Mock()
+
+        app._refresh_language_widgets()
+
+        self.assertEqual(label.text, "Settings")
+        label.texture_update.assert_called_once_with()
+        header.canvas.ask_update.assert_called_once_with()
+        app._refresh_text_textures.assert_called_once_with()
 
 
 if __name__ == "__main__":

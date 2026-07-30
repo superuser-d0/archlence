@@ -562,6 +562,33 @@ class ArchlenceApp(
             Clock.schedule_once(lambda dt: self.refresh_dashboard_data(), 0)
             Clock.schedule_once(lambda dt: self.load_active_debts(), 0.05)
             Clock.schedule_once(lambda dt: self.load_upcoming_recurring(), 0.1)
+            # KV property'leri doğru dili aynı anda alır; KivyMD 1.2'nin
+            # önceden oluşturduğu bottom-navigation header/Label texture'ları
+            # ise bazen bir sonraki gerçek çizim karesine kadar eski dokuyu
+            # taşır. Property state'i ile piksel çıktısını aynı karede
+            # uzlaştır; tema değişimindeki _refresh_text_textures ile aynı
+            # sınıf güvenli tazeleme.
+            Clock.schedule_once(self._refresh_language_widgets, 0)
+
+    def _refresh_language_widgets(self, *args):
+        """Dil property'leri değiştikten sonra KivyMD kopya/dokularını uzlaştır."""
+        if not self.root:
+            return
+        nav = self.root.ids.get("bottom_nav")
+        if nav is not None:
+            try:
+                tabs = nav.ids.tab_manager.screens
+            except (AttributeError, KeyError):
+                tabs = []
+            for tab in tabs:
+                header = getattr(tab, "header", None)
+                try:
+                    header.ids._label.text = tab.text
+                    header.ids._label.texture_update()
+                    header.canvas.ask_update()
+                except (AttributeError, KeyError):
+                    pass
+        self._refresh_text_textures()
 
     def open_language_dialog(self):
         """Türkçe/İngilizce dil seçicisini açar."""

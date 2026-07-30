@@ -40,6 +40,27 @@ def is_read_only_asset_account(account):
         "asset",
     }
 
+
+def _persist_card_preference(widget, field, value):
+    """KV property senkronunu DB yazımından ayırır.
+
+    Kart ilk çizilirken ``active: root.<property>`` de ``on_active`` üretir.
+    DB'deki değer zaten aynıysa hiçbir yazım yapılmaz; böylece yeniden
+    kullanılan/yeniden çizilen widget yanlış hesaba gereksiz state yazamaz.
+    """
+    account_id = int(getattr(widget, "account_id", 0) or 0)
+    if account_id <= 0:
+        return
+    from services.account_service import AccountService
+
+    current = AccountService.get_account(account_id)
+    if current is None or bool(current.get(field)) == bool(value):
+        return
+    if field == "is_frozen":
+        AccountService.set_card_frozen(account_id, value)
+    elif field == "online_payments_enabled":
+        AccountService.set_online_payments(account_id, value)
+
 class RecycleListRow(RecycleDataViewBehavior, TwoLineIconListItem):
     """Varlık Geçmişi ve Son İşlemler listelerinin RecycleView satırı.
 
@@ -417,19 +438,25 @@ Builder.load_string('''
                 font_size: "15sp"
                 pos_hint: {"center_y": 0.5}
                 theme_text_color: "Secondary"
-            MDLabel:
-                text: app.tr("İnternet Alışverişi", app.language)
-                font_style: "Caption"
+            MDBoxLayout:
+                orientation: "vertical"
                 size_hint_x: 1
-                halign: "left"
-                valign: "center"
-                pos_hint: {"center_y": 0.5}
+                MDLabel:
+                    text: app.tr("İnternet Alışverişi Tercihi", app.language)
+                    font_style: "Caption"
+                    valign: "bottom"
+                MDLabel:
+                    text: app.tr("Yalnızca tercih olarak saklanır", app.language)
+                    font_style: "Caption"
+                    theme_text_color: "Hint"
+                    valign: "top"
             MDSwitch:
-                active: True
+                active: root.online_payments_enabled
                 widget_style: "ios"
                 size_hint: None, None
                 size: "40dp", "24dp"
                 pos_hint: {"center_y": 0.5}
+                on_active: root.persist_online_payments(self.active)
 
         MDBoxLayout:
             size_hint_y: None
@@ -452,11 +479,12 @@ Builder.load_string('''
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
-                active: False
+                active: root.is_frozen
                 widget_style: "ios"
                 size_hint: None, None
                 size: "40dp", "24dp"
                 pos_hint: {"center_y": 0.5}
+                on_active: root.persist_frozen(self.active)
 
     MDSeparator:
         size_hint_y: None
@@ -638,19 +666,25 @@ Builder.load_string('''
                 font_size: "15sp"
                 pos_hint: {"center_y": 0.5}
                 theme_text_color: "Secondary"
-            MDLabel:
-                text: app.tr("İnternet Alışverişi", app.language)
-                font_style: "Caption"
+            MDBoxLayout:
+                orientation: "vertical"
                 size_hint_x: 1
-                halign: "left"
-                valign: "center"
-                pos_hint: {"center_y": 0.5}
+                MDLabel:
+                    text: app.tr("İnternet Alışverişi Tercihi", app.language)
+                    font_style: "Caption"
+                    valign: "bottom"
+                MDLabel:
+                    text: app.tr("Yalnızca tercih olarak saklanır", app.language)
+                    font_style: "Caption"
+                    theme_text_color: "Hint"
+                    valign: "top"
             MDSwitch:
-                active: True
+                active: root.online_payments_enabled
                 widget_style: "ios"
                 size_hint: None, None
                 size: "40dp", "24dp"
                 pos_hint: {"center_y": 0.5}
+                on_active: root.persist_online_payments(self.active)
 
         MDBoxLayout:
             size_hint_y: None
@@ -673,11 +707,12 @@ Builder.load_string('''
                 valign: "center"
                 pos_hint: {"center_y": 0.5}
             MDSwitch:
-                active: False
+                active: root.is_frozen
                 widget_style: "ios"
                 size_hint: None, None
                 size: "40dp", "24dp"
                 pos_hint: {"center_y": 0.5}
+                on_active: root.persist_frozen(self.active)
 
     MDSeparator:
         size_hint_y: None
@@ -1154,12 +1189,29 @@ class PremiumCreditCardWidget(MDCard):
     network_logo = StringProperty("")
     available_limit = StringProperty("₺0,00")
     current_debt = StringProperty("₺0,00")
+    is_frozen = BooleanProperty(False)
+    online_payments_enabled = BooleanProperty(True)
+
+    def persist_frozen(self, value):
+        _persist_card_preference(self, "is_frozen", value)
+
+    def persist_online_payments(self, value):
+        _persist_card_preference(self, "online_payments_enabled", value)
 
 class PremiumDebitCardWidget(MDCard):
+    account_id = NumericProperty(0)
     card_name = StringProperty("")
     masked_number = StringProperty("**** **** **** 0000")
     network_logo = StringProperty("")
     balance = StringProperty("₺0,00")
+    is_frozen = BooleanProperty(False)
+    online_payments_enabled = BooleanProperty(True)
+
+    def persist_frozen(self, value):
+        _persist_card_preference(self, "is_frozen", value)
+
+    def persist_online_payments(self, value):
+        _persist_card_preference(self, "online_payments_enabled", value)
 
 class PremiumAssetMirrorWidget(MDCard):
     account_name = StringProperty("Aktif Varlıklarım")

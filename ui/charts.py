@@ -858,7 +858,8 @@ class DashboardChartManager(MDBoxLayout):
                 continue
         raise ValueError(f"Tanınmayan işlem tarihi: {raw!r}")
 
-    def _build_time_buckets(self, raw_data, filter_text, opening_events=None):
+    def _build_time_buckets(
+            self, raw_data, filter_text, opening_events=None, now=None):
         """Return list of {label, income, expense, opening} dicts for the period.
 
         `opening_events` hesap açılış bakiyeleridir (bkz. TransactionService.
@@ -875,7 +876,7 @@ class DashboardChartManager(MDBoxLayout):
         sessizce çizilmezdi — birleşik liste bunu da çözer.
         """
         import datetime
-        now = datetime.datetime.now()
+        now = now or datetime.datetime.now()
         result = []
 
         def new_bucket():

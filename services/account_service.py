@@ -161,6 +161,19 @@ class AccountService:
         )
         masked_number = row["masked_number"] if has_masked_number else "**** **** **** 0000"
         network_logo = (row["network_logo"] or "") if "network_logo" in row.keys() else ""
+        is_frozen = bool(
+            row["is_frozen"]
+            if "is_frozen" in row.keys() and row["is_frozen"] is not None
+            else 0
+        )
+        online_payments_enabled = bool(
+            row["online_payments_enabled"]
+            if (
+                "online_payments_enabled" in row.keys()
+                and row["online_payments_enabled"] is not None
+            )
+            else 1
+        )
 
         if account_type == CREDIT_CARD:
             if balance > 0:
@@ -185,6 +198,8 @@ class AccountService:
             "available_limit": round(available_limit, 2),
             "masked_number": masked_number,
             "network_logo": network_logo,
+            "is_frozen": is_frozen,
+            "online_payments_enabled": online_payments_enabled,
             # Arayüz hangi kart widget'ını çizeceğine buna bakarak karar verir.
             # Maskelenmiş metni ("**** **** **** 0000") karşılaştırmak kırılgandı:
             # numarası gerçekten 0000 ile biten bir kart kartsız sanılırdı.
@@ -264,17 +279,70 @@ class AccountService:
         }
 
     @staticmethod
-    def check_spending_allowed(account_id, amount):
-        """Karttan yapılacak harcamanın limiti aşıp aşmadığını kontrol eder.
+    def _set_card_preference(account_id, column, enabled):
+        """Kart kullanım tercihini kalıcılaştırır ve RAM snapshot'ını yeniler."""
+        if column not in {"is_frozen", "online_payments_enabled"}:
+            raise ValueError("Bilinmeyen kart tercihi.")
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"UPDATE accounts SET {column} = ? WHERE id = ?",
+                (int(bool(enabled)), int(account_id)),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("Hesap bulunamadı.")
+            conn.commit()
+        finally:
+            conn.close()
 
-        (izin_var, hata_mesajı) döndürür. Vadesiz hesaplar için her zaman izin
-        verilir — eksi bakiye uygulamada zaten kırmızı uyarıyla gösteriliyor,
-        işlemi engellemiyoruz. Kredi kartında ise limit aşımı gerçek hayatta da
-        bankaca reddedilir, o yüzden burada engelliyoruz.
+        # render_accounts SQL okumaz; tercih bir sonraki çizimde geri
+        # dönmesin diye mevcut snapshot da aynı anda güncellenir.
+        from services.asset_service import refresh_account_cache_snapshot
+        refresh_account_cache_snapshot()
+        return True
+
+    @staticmethod
+    def set_card_frozen(account_id, frozen):
+        """Hesabın yeni gelir/gider işlemlerine kapalı olmasını kalıcılaştırır."""
+        return AccountService._set_card_preference(
+            account_id, "is_frozen", frozen
+        )
+
+    @staticmethod
+    def set_online_payments(account_id, enabled):
+        """İnternet alışverişi tercihini saklar.
+
+        İşlem modelinde online/offline niteliği bulunmadığı için bu tercih
+        bugün harcamayı bloke etmez; UI bunu açıkça "tercih" olarak gösterir.
+        """
+        return AccountService._set_card_preference(
+            account_id, "online_payments_enabled", enabled
+        )
+
+    @staticmethod
+    def check_spending_allowed(
+            account_id, amount, transaction_type="expense",
+            enforce_limits=True):
+        """Hesabın yeni bir gelir/gider işlemine uygunluğunu kontrol eder.
+
+        (izin_var, hata_mesajı) döndürür. Donmuş hesaplarda gelir ve gider
+        dahil yeni işlemlerin tamamı reddedilir. Donmamış vadesiz hesaplarda
+        gider kullanılabilir bakiyeyi aşamaz; kredi kartında limit uygulanır.
+        Borç ödeme bu fonksiyondan geçmez ve dondurulmuş karta yapılabilir.
         """
         acc = AccountService.get_account(account_id)
         if not acc:
             return False, "Hesap bulunamadı."
+        if acc["is_frozen"]:
+            return False, (
+                "Bu kart dondurulduğu için işlem yapılamaz. "
+                "İşlem yapmak için önce kartın dondurmasını kaldırın."
+            )
+        if transaction_type not in ("expense", "Gider"):
+            return True, ""
+        if not enforce_limits:
+            return True, ""
         if acc["account_type"] != CREDIT_CARD:
             try:
                 amount_f = float(amount)

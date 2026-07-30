@@ -58,6 +58,22 @@ def initialize_database():
         cursor.execute("ALTER TABLE accounts ADD COLUMN masked_number TEXT")
     if "network_logo" not in existing_account_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN network_logo TEXT")
+    if "is_frozen" not in existing_account_cols:
+        cursor.execute(
+            "ALTER TABLE accounts ADD COLUMN is_frozen INTEGER DEFAULT 0"
+        )
+        cursor.execute(
+            "UPDATE accounts SET is_frozen = 0 WHERE is_frozen IS NULL"
+        )
+    if "online_payments_enabled" not in existing_account_cols:
+        cursor.execute(
+            "ALTER TABLE accounts ADD COLUMN "
+            "online_payments_enabled INTEGER DEFAULT 1"
+        )
+        cursor.execute(
+            "UPDATE accounts SET online_payments_enabled = 1 "
+            "WHERE online_payments_enabled IS NULL"
+        )
 
     # Tek seferlik geri dolgu + temizlik migration'ı. Idempotent: ikinci
     # çalıştırmada `card_number_full IS NOT NULL` koşulunu karşılayan satır
