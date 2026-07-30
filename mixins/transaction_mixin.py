@@ -1207,10 +1207,17 @@ class TransactionMixin:
                 return
             try:
                 jobs[index]()
-            except Exception as exc:
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+                # Sunum katmanının gerçekçi hata kümesi: eksik/yeniden kurulmuş
+                # widget (AttributeError/KeyError), Kivy yaşam döngüsü
+                # (RuntimeError) ve veri biçimi (TypeError/ValueError). Kasıtlı
+                # olarak DAR: buradaki amaç hataları yutmak değil, zaten
+                # commit edilmiş bir kaydın ardından gelen bir çizim hatasının
+                # kalan tazelemeleri iptal etmesini önlemek. Gerçek bir
+                # programlama hatası (ör. ImportError) yukarı çıkmalı.
+                # Aynı gerekçe ve aynı küme asset_mixin::_run_asset_refresh'te.
                 from utils.logging_config import get_logger
-                get_logger().exception(
-                    "İşlem sonrası tazeleme başarısız: %s", exc)
+                get_logger().exception("İşlem sonrası tazeleme başarısız")
             Clock.schedule_once(lambda _dt: run_next(index + 1), 0)
 
         run_next(0)
