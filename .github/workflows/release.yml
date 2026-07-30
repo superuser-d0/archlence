@@ -136,6 +136,12 @@ jobs:
         # yerine bilinçli olarak bu tercih edildi: bu iş `contents: write`
         # yetkisiyle koşuyor ve o yetkiyi repo dışı bir action'a açmak gereksiz
         # bir tedarik zinciri yüzeyi olurdu.
+        #
+        # --repo ZORUNLU: bu iş yalnızca artifact indiriyor, kaynak ağacı
+        # checkout ETMİYOR. `gh` hedef repoyu normalde git remote'undan
+        # çıkarır; checkout olmadığı için `fatal: not a git repository` ile
+        # düşüyordu (ilk deneme koşusunda böyle yakalandı). Sadece bu bayrak
+        # için koca bir checkout eklemek gereksiz olurdu.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -152,8 +158,9 @@ jobs:
             draft_flag="--draft"
           fi
           gh release create "$tag" release-assets/* \
+            --repo "${{ github.repository }}" \
             --title "Archlence ${v}" \
             --notes-file release-notes.md \
             --target "${{ github.sha }}" \
             $draft_flag
-          echo "Yayınlandı: $(gh release view "$tag" --json url -q .url)"
+          echo "Yayınlandı: $(gh release view "$tag" --repo "${{ github.repository }}" --json url -q .url)"
