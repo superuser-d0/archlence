@@ -93,6 +93,46 @@ class InsightsServiceTestCase(AccountFixtureMixin, unittest.TestCase):
         self.assertAlmostEqual(c["average_amount"], 149.90, places=2)
         self.assertEqual(c["occurrences"], 6)
 
+    def test_corrupt_amount_invalidates_recurring_candidates(self):
+        """Bozuk tutar 0 sayılıp eksik/güvenilir görünen sonuç üretmemeli."""
+        from services.insights_service import detect_recurring_candidates
+        from utils.errors import FinancialDataIntegrityError
+
+        transaction_id = self._add_tx(
+            149.90, "expense", "Dijital Platformlar", "Netflix", days_ago=1
+        )
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "UPDATE transactions SET amount = ? WHERE id = ?",
+            ("aead:v1:kurcalanmis", transaction_id),
+        )
+        conn.commit()
+        conn.close()
+
+        with self.assertRaises(FinancialDataIntegrityError) as caught:
+            detect_recurring_candidates(lookback_days=30)
+        self.assertEqual(caught.exception.record_id, transaction_id)
+
+    def test_corrupt_description_invalidates_anomaly_result(self):
+        """Bozuk açıklama boş metne çevrilerek analizden gizlenmemeli."""
+        from services.insights_service import detect_anomalies
+        from utils.errors import FinancialDataIntegrityError
+
+        transaction_id = self._add_tx(
+            500.0, "expense", "Market", "Kurcalanacak", days_ago=1
+        )
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "UPDATE transactions SET description = ? WHERE id = ?",
+            ("aead:v1:kurcalanmis", transaction_id),
+        )
+        conn.commit()
+        conn.close()
+
+        with self.assertRaises(FinancialDataIntegrityError) as caught:
+            detect_anomalies(lookback_days=30)
+        self.assertEqual(caught.exception.record_id, transaction_id)
+
     def test_amount_tolerance_allows_small_drift(self):
         """%10 tolerans içindeki zam adayı elemez (kur/zam oynaması normal)."""
         from services.insights_service import detect_recurring_candidates

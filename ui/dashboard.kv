@@ -2,6 +2,8 @@
 #:import Window kivy.core.window.Window
 #:import RecycleListRow ui.components.RecycleListRow
 #:import ftheme ui.theme
+#:import TextInput kivy.uix.textinput.TextInput
+#:import SearchBar ui.components.SearchBar
 
 # --- 0. GLOBAL WIDGET KURALLARI ---
 # Tüm giriş alanları: karanlık temada hint/helper metinleri KivyMD varsayılanıyla
@@ -18,6 +20,28 @@
     fill_color_normal: ftheme.field_color(app.theme_cls.theme_style, 'fill')
     fill_color_focus: ftheme.field_color(app.theme_cls.theme_style, 'fill')
     line_color_normal: ftheme.field_color(app.theme_cls.theme_style, 'line')
+
+<SearchBar>:
+    # KivyMD 1.2 "round" zemini iki yarım Ellipse + kısa Rectangle ile
+    # kuruyor. Sağ yarım elipsin çapı rectangle tarafından örtülmediği için
+    # tam ortasında kesintisiz dikey bir birleşim çizgisi kalıyor. Tek bir
+    # RoundedRectangle ile aynı yüzeyi yeniden kurmak geometriyi gerçekten
+    # birleştirir; DPI/piksel ofseti veya zemin rengiyle örtme değildir.
+    orientation: "horizontal"
+    padding: ["12dp", 0, "12dp", 0]
+    spacing: "8dp"
+    canvas.before:
+        Color:
+            rgba: ftheme.field_color(app.theme_cls.theme_style, 'fill')
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [self.height / 2]
+        Color:
+            rgba: app.theme_cls.primary_color if self.focused else ftheme.field_color(app.theme_cls.theme_style, 'line')
+        SmoothLine:
+            width: dp(1)
+            rounded_rectangle: self.x, self.y, self.width, self.height, self.height / 2
 
 <MDBottomNavigationBar>:
     elevation: 0
@@ -478,13 +502,30 @@ MDScreen:
                                 theme_text_color: "Primary"
                                 on_release: bottom_nav.switch_tab("settings_tab")
                                 
-                            MDTextField:
-                                hint_text: app.tr("Archlence'ta ara...", app.language)
-                                icon_left: "magnify"
-                                mode: "round"
+                            SearchBar:
                                 size_hint_y: None
                                 height: "40dp"
                                 pos_hint: {"center_y": .5}
+                                MDIcon:
+                                    icon: "magnify"
+                                    size_hint_x: None
+                                    width: "20dp"
+                                    pos_hint: {"center_y": .5}
+                                    theme_text_color: "Hint"
+                                TextInput:
+                                    id: home_search_input
+                                    hint_text: app.tr("Archlence'ta ara...", app.language)
+                                    multiline: False
+                                    write_tab: False
+                                    background_normal: ""
+                                    background_active: ""
+                                    background_color: 0, 0, 0, 0
+                                    foreground_color: ftheme.field_color(app.theme_cls.theme_style, 'text')
+                                    hint_text_color: ftheme.field_color(app.theme_cls.theme_style, 'hint')
+                                    cursor_color: app.theme_cls.primary_color
+                                    cursor_width: "1dp"
+                                    padding: [0, "9dp", 0, "9dp"]
+                                    on_focus: self.parent.focused = self.focus
                                 
                             MDIconButton:
                                 icon: "bell-outline"
@@ -493,6 +534,11 @@ MDScreen:
                                 theme_text_color: "Primary"
 
                         ScrollView:
+                            # Bu ekran programatik bir kaydırma göstergesine
+                            # ihtiyaç duymuyor. Kivy'nin varsayılan 2px bar'ı
+                            # pencerenin en sağında bağımsız dikey çizgi gibi
+                            # görünüyordu.
+                            bar_width: 0
                             MDBoxLayout:
                                 orientation: "vertical"
                                 padding: ["20dp", "10dp", "20dp", "20dp"]
@@ -2062,6 +2108,14 @@ MDScreen:
                                         pos_hint: {"center_y": .5}
                                         theme_text_color: "Hint"
 
+                                MDLabel:
+                                    text: "Archlence v" + app.version
+                                    halign: "center"
+                                    theme_text_color: "Hint"
+                                    font_style: "Caption"
+                                    size_hint_y: None
+                                    height: "40dp"
+
                                 MDSeparator:
 
                                 ClickableSettingsRow:
@@ -2091,6 +2145,31 @@ MDScreen:
                                         icon: "chevron-right"
                                         pos_hint: {"center_y": .5}
                                         theme_text_color: "Hint"
+
+                                MDSeparator:
+
+                                MDBoxLayout:
+                                    orientation: "horizontal"
+                                    size_hint_y: None
+                                    height: "72dp"
+                                    padding: ["20dp", 0, "20dp", 0]
+                                    spacing: "20dp"
+                                    MDIcon:
+                                        icon: "key-variant"
+                                        size_hint_x: None
+                                        width: "36dp"
+                                        halign: "center"
+                                        pos_hint: {"center_y": .5}
+                                        theme_text_color: "Primary"
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        MDLabel:
+                                            text: app.tr("Şifreleme Anahtarı", app.language)
+                                            theme_text_color: "Primary"
+                                        MDLabel:
+                                            text: app.key_protection_text
+                                            font_style: "Caption"
+                                            theme_text_color: "Secondary"
 
                                 MDSeparator:
 

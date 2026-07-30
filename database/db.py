@@ -3,6 +3,7 @@ import os
 from contextlib import contextmanager
 from datetime import datetime
 from utils.crypto import encrypt, decrypt
+from utils.errors import DecryptionError, FinancialDataIntegrityError
 from utils.app_paths import data_dir, migrate_legacy_path
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -241,16 +242,10 @@ def get_active_debts():
             dec_name = decrypt(r["debt_name"], SECRET_KEY)
             dec_total = float(decrypt(r["total_amount"], SECRET_KEY))
             dec_monthly = float(decrypt(r["monthly_payment"], SECRET_KEY))
-        except (ValueError, TypeError) as e:
-            # decrypt() kendi içinde hiçbir zaman raise etmez (bkz.
-            # utils/crypto.py) — buraya ulaşan tek hata float()'ın "[Şifreli
-            # Veri]" yerine geçen değerini ya da None'ı sayıya çevirememesi.
-            # DAR TUTULDU: alakasız bir programlama hatası artık bu satırın
-            # arkasına gizlenip "Bilinmeyen Borç"a düşmüyor.
-            print(f"[VERİ BÜTÜNLÜĞÜ] active_debts id={r['id']} çözülemedi: {e}")
-            dec_name = "Bilinmeyen Borç"
-            dec_total = 0.0
-            dec_monthly = 0.0
+        except (DecryptionError, ValueError, TypeError) as exc:
+            raise FinancialDataIntegrityError(
+                "active_debts", r["id"], "encrypted_fields", reason=exc
+            ) from exc
             
         debts.append({
             "id": r["id"],
@@ -293,10 +288,11 @@ def get_all_assets():
         try:
             dec_price    = float(decrypt(r["purchase_price"], SECRET_KEY))
             dec_quantity = float(decrypt(r["quantity"],       SECRET_KEY))
-        except (ValueError, TypeError) as e:
-            print(f"[VERİ BÜTÜNLÜĞÜ] active_assets id={r['id']} çözülemedi: {e}")
-            dec_price    = 0.0
-            dec_quantity = 0.0
+        except (DecryptionError, ValueError, TypeError) as exc:
+            raise FinancialDataIntegrityError(
+                "active_assets", r["id"], "purchase_price/quantity",
+                reason=exc,
+            ) from exc
         assets.append({
             "id":             r["id"],
             "asset_name":     r["asset_name"],
@@ -326,10 +322,10 @@ def get_asset_by_id(asset_id):
     try:
         dec_price    = float(decrypt(r["purchase_price"], SECRET_KEY))
         dec_quantity = float(decrypt(r["quantity"],       SECRET_KEY))
-    except (ValueError, TypeError) as e:
-        print(f"[VERİ BÜTÜNLÜĞÜ] active_assets id={r['id']} çözülemedi: {e}")
-        dec_price    = 0.0
-        dec_quantity = 0.0
+    except (DecryptionError, ValueError, TypeError) as exc:
+        raise FinancialDataIntegrityError(
+            "active_assets", r["id"], "purchase_price/quantity", reason=exc
+        ) from exc
     return {
         "id":             r["id"],
         "asset_name":     r["asset_name"],

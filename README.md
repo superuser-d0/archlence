@@ -279,87 +279,22 @@ so they're intended for development and testing rather than general use.
 
 ## Changelog
 
-Full history is on the [Releases page](https://github.com/superuser-d0/archlence/releases).
+### 1.0.0 — stable security and reliability release
 
-### 1.0.1 — card controls and live-language refresh
+- Encryption and financial aggregation are fail-closed: failed encryption
+  cannot write plaintext and unreadable records invalidate totals.
+- Verified backup/restore includes password-protected recovery material and
+  checks that the database and key match before restoring.
+- Legacy CBC records migrate transactionally to AEAD after a verified backup.
+- Windows uses DPAPI and Linux uses Secret Service/KWallet when available.
+  File fallback is explicitly disclosed in Settings.
+- Recovery-package import/export and rollback-safe key rotation are supported.
+- A process lock prevents two instances from mutating the same profile.
+- Search/header render seams are removed with a single-surface search control.
+- CI blocks critical undefined names, bare exceptions and new broad exception
+  handlers. Benchmarks cover 1K, 10K and 50K transactions.
 
-- Frozen cards/accounts now persist their state and reject new income, expense,
-  installment, pending, recurring, and direct asset transactions. Debt payments
-  remain available so a frozen credit card can still be paid down.
-- The internet-shopping switch is now a persistent preference. Transactions do
-  not currently identify their channel, so the UI explicitly avoids presenting
-  this preference as an enforceable online-payment security control.
-- Changing the language refreshes the open screen and bottom-navigation labels
-  immediately.
-- The time-bucket regression test is deterministic, and obsolete/dangerous
-  development helpers have been removed or moved under `scripts/dev/`.
-
-### 1.0.0 — first stable release
-
-**Identical code to 0.9.0** — this release carries no functional changes, only
-this changelog entry. It exists because the one thing 0.9.0 was holding back
-for has now happened: the packaged Windows installer was launched and checked
-on a second, independent Windows machine, not just in CI and on the
-maintainer's own hardware. That was the last open question about whether the
-packaging actually works outside the environment that produced it.
-
-Code signing remains deliberately out of scope, so first-run SmartScreen
-warnings are still expected.
-
-### 0.9.0 — first public pre-release
-
-The first version distributed as a downloadable package rather than source only.
-
-**Distribution**
-
-- Linux packaging built from scratch: a single-file `.AppImage` that bundles its
-  own SDL2 and needs no system packages, produced by a
-  [CI workflow](.github/workflows/build-linux.yml) alongside a
-  platform-branched PyInstaller spec, a freedesktop `.desktop` entry, and an
-  `AppRun` launcher.
-- Tagged releases now publish both packages automatically, with the installer
-  version derived from the git tag.
-- The Windows build verifies after packaging that `Archlence.exe` actually
-  starts and stays running, and that it writes nothing to its crash log —
-  previously a launch-time crash could ship undetected, which had already
-  happened once.
-- Packaging is pinned to Python 3.12 as a deliberate, documented decision.
-
-**Features**
-
-- Month-end balance forecast: at least three months of history are averaged and
-  projected to the end of the current month, then turned into a plain-language
-  recommendation. With less than roughly three months of data it says so
-  instead of showing an unreliable number.
-- A real calendar view — a month grid marking days with activity, and a
-  per-day transaction list — replacing a date picker that only reported a count.
-- Recurring income alongside recurring expenses, plus dashboard caching.
-
-**Fixes**
-
-- Every card in the Tools grid was silently unclickable. `MDCard`'s ripple
-  effect does not carry Kivy's button behaviour, so the declared handlers never
-  fired; this affected the budget planner, all five calculators, the what-if
-  sandbox, and the reset-data action.
-- Once those were wired up, each tap fired twice — the card grabs the touch, so
-  Kivy delivers the release event through both normal propagation and the grab
-  list — which opened every dialog in duplicate.
-- Right-clicking or alt-tabbing painted red circles on the window: Kivy's mouse
-  provider was emulating multi-touch and drawing its debug rings.
-- The forecast card's text overflowed its fixed height and drew over its own
-  heading once the longer forecast text landed.
-- Toggling balance visibility ran a database query and decrypted rows on the UI
-  thread on every click; the budget category search rebuilt its whole list on
-  every keystroke.
-- The calculator evaluated input with `eval()`; it now walks a restricted
-  syntax tree instead.
-- Income and expense rows in the budget planner are aligned to opposite sides,
-  as intended.
-
-**Brand**
-
-- New app icon: a bold "A" on the brand blue, replacing a mark whose thin rays
-  disappeared entirely below about 48 pixels.
+See [CHANGELOG.md](CHANGELOG.md) for the complete release record.
 
 ## Tests
 
@@ -401,22 +336,29 @@ Archlence is designed around local data ownership:
   automatically on first launch;
 - sensitive transaction fields (amounts, descriptions) are encrypted at rest
   with AES-256-GCM authenticated encryption, using a random key generated
-  per install and stored locally — not a value shared across installs.
-  Records written before this scheme was introduced remain readable
-  through a backward-compatible path until they're naturally rewritten;
+  per install — not a value shared across installs. Windows protects the key
+  with DPAPI; Linux uses Secret Service/KWallet when available. Settings
+  explicitly warns when a 0600 local-file fallback is active;
+- legacy CBC records are moved only through the user-controlled, backup-first
+  transactional migration flow;
+- application backups contain the database and password-protected recovery
+  material together. A database copy without its matching key is not enough;
 - settings, local databases, and runtime data are excluded from Git by default;
 - the application does not include analytics or advertising trackers;
 - CSV export provides a human-readable way to move supported records elsewhere;
 - portfolio price refreshes and some visual metadata features may contact external public data sources;
 - core financial records remain local and are not intentionally uploaded by those features.
 
-Keep regular backups of your local database.
+Keep regular verified backups and store each recovery password separately.
+Losing both the active key and recovery material makes encrypted data
+unrecoverable. See [key management](docs/KEY_MANAGEMENT.md) and
+[backup/recovery](docs/BACKUP_RECOVERY.md).
 
 Archlence is a personal finance management tool. It is not a bank, brokerage service, accounting platform, or source of financial advice.
 
 ## Roadmap
 
-- OS-keystore-backed key storage and migration of existing records to the newer encryption scheme
+- Broader hardware-backed key-store coverage and recovery UX
 - Improved credit-card reliability and statement workflows
 - More consistent recurring-payment detection and presentation
 - Natural-language queries over local financial history

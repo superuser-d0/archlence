@@ -71,7 +71,7 @@ IS_WINDOWS = sys.platform.startswith("win")
 # native "GDI Generic" sürücüsüne hiç dokunmuyor.
 import os
 
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 if IS_WINDOWS:
     from kivy_deps import sdl2, glew, angle
@@ -115,6 +115,7 @@ a = Analysis(
         "peewee",
         "playhouse.sqlite_ext",
         "Crypto.Cipher.AES",
+        *collect_submodules("keyring.backends"),
         *kivymd_hidden,
     ],
     hookspath=[],
@@ -147,6 +148,15 @@ a = Analysis(
     cipher=block_cipher,
     noarchive=False,
 )
+
+# Kivy hook'u geliştiriciye yönelik opsiyonel modülleri kaynak/pycache data
+# olarak ekler (webdebugger, inspector, touchring, recorder...). Uygulama
+# bunların hiçbirini etkinleştirmiyor; üretim paketinde debug yüzeyi ve
+# `__pycache__` bırakmamak için yalnız bu veri ağacını çıkar.
+a.datas = [
+    item for item in a.datas
+    if not item[0].replace("\\", "/").startswith("kivy_install/modules/")
+]
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 

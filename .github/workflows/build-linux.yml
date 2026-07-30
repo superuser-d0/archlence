@@ -107,6 +107,25 @@ jobs:
       - name: AppImage oluştur
         run: ./appimagetool --appimage-extract-and-run AppDir dist/Archlence-x86_64.AppImage
 
+      - name: Paket içeriği ve secret taraması
+        run: python scripts/inspect_package_contents.py dist/Archlence
+
+      - name: "Smoke test: AppImage gerçek SDL penceresinde çalışıyor"
+        run: |
+          set -euo pipefail
+          chmod +x dist/Archlence-x86_64.AppImage
+          set +e
+          XDG_DATA_HOME="$RUNNER_TEMP/archlence-smoke-data" \
+          XDG_CACHE_HOME="$RUNNER_TEMP/archlence-smoke-cache" \
+          timeout 12s xvfb-run -a \
+            dist/Archlence-x86_64.AppImage --appimage-extract-and-run
+          status=$?
+          set -e
+          if [ "$status" -ne 124 ]; then
+            echo "::error::AppImage 12 saniye ayakta kalmadı (status=$status)."
+            exit 1
+          fi
+
       - name: AppImage'ı artifact olarak yükle
         uses: actions/upload-artifact@v4
         with:

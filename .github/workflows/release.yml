@@ -39,6 +39,9 @@ jobs:
       version: ${{ steps.derive.outputs.version }}
       prerelease: ${{ steps.derive.outputs.prerelease }}
     steps:
+      - name: Kodu çek
+        uses: actions/checkout@v4
+
       - name: Sürümü belirle
         id: derive
         shell: bash
@@ -53,6 +56,11 @@ jobs:
           fi
           if [ -z "$version" ]; then
             echo "::error::Sürüm belirlenemedi."
+            exit 1
+          fi
+          expected="$(python -c 'from utils.version import APP_VERSION; print(APP_VERSION)')"
+          if [ "$version" != "$expected" ]; then
+            echo "::error::Tag/input sürümü ($version) uygulama sürümüyle ($expected) eşleşmiyor."
             exit 1
           fi
 
@@ -84,6 +92,9 @@ jobs:
     needs: [version, build-windows, build-linux]
     runs-on: ubuntu-latest
     steps:
+      - name: Kodu çek
+        uses: actions/checkout@v4
+
       - name: Windows kurulum paketini indir
         uses: actions/download-artifact@v4
         with:
@@ -110,40 +121,20 @@ jobs:
              "release-assets/ArchlenceSetup-${v}.exe"
           cp "assets-in/linux/Archlence-x86_64.AppImage" \
              "release-assets/Archlence-${v}-x86_64.AppImage"
+          (
+            cd release-assets
+            sha256sum "ArchlenceSetup-${v}.exe" \
+              "Archlence-${v}-x86_64.AppImage" > SHA256SUMS.txt
+          )
           ls -la release-assets
 
       - name: Sürüm notlarını yaz
         shell: bash
         run: |
-          v="${{ needs.version.outputs.version }}"
-          cat > release-notes.md <<EOF
-          ## Kurulum
-
-          **Windows** — \`ArchlenceSetup-${v}.exe\` indirip çift tıklayın.
-          Yönetici izni gerekmez (kullanıcı başına kurulum); Başlat Menüsü
-          kısayolu ve kaldırıcı otomatik gelir.
-
-          **Linux** — \`Archlence-${v}-x86_64.AppImage\` indirip çalıştırma
-          izni verin:
-
-          \`\`\`bash
-          chmod +x Archlence-${v}-x86_64.AppImage
-          ./Archlence-${v}-x86_64.AppImage
-          \`\`\`
-
-          (Çalıştırma izni ayrıca gerekiyor çünkü GitHub Actions artifact'leri
-          dosya izinlerini korumaz — indirilen AppImage'ın exec biti düşer.)
-
-          Paketler imzalanmamıştır; Windows SmartScreen veya benzeri bir uyarı
-          görebilirsiniz — kod imzalama bilinçli olarak V1.0 kapsamı dışında
-          bırakıldı.
-
-          Verileriniz cihazınızda yereldir; kurulum dizininden bağımsız bir
-          kullanıcı-verisi klasöründe tutulur.
-          EOF
+          cp docs/releases/v1.0.0.md release-notes.md
           cat release-notes.md
 
-      - name: Release'i oluştur ve varlıkları ekle
+      - name: Draft release oluştur ve varlıkları ekle
         shell: bash
         # `gh` runner'da hazır kurulu geliyor. Üçüncü taraf bir release action'ı
         # yerine bilinçli olarak bu tercih edildi: bu iş `contents: write`
@@ -162,13 +153,8 @@ jobs:
           v="${{ needs.version.outputs.version }}"
           if [ "${{ github.event_name }}" = "push" ]; then
             tag="${{ github.ref_name }}"
-            draft_flag=""
           else
-            # Elle tetiklenen denemeler TASLAK kalır ve etiketi workflow
-            # tarafından oluşturulur; yayına yalnızca gerçek bir etiket
-            # push'uyla çıkılır, yanlışlıkla duyuru yapılmasın.
             tag="v${v}"
-            draft_flag="--draft"
           fi
           if [ "${{ needs.version.outputs.prerelease }}" = "true" ]; then
             prerelease_flag="--prerelease"
@@ -177,9 +163,37 @@ jobs:
           fi
           gh release create "$tag" release-assets/* \
             --repo "${{ github.repository }}" \
-            --title "Archlence ${v}" \
+            --title "Archlence v${v}" \
             --notes-file release-notes.md \
             --target "${{ github.sha }}" \
             $prerelease_flag \
-            $draft_flag
+            --draft
+
+      - name: GitHub'dan yeniden indir ve SHA-256 doğrula
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="v${{ needs.version.outputs.version }}"
+          mkdir downloaded
+          gh release download "$tag" \
+            --repo "${{ github.repository }}" \
+            --dir downloaded
+          cp downloaded/SHA256SUMS.txt downloaded/expected.txt
+          (
+            cd downloaded
+            sha256sum -c expected.txt
+          )
+
+      - name: Tag push ise stable/latest olarak yayımla
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${{ github.ref_name }}"
+          gh release edit "$tag" \
+            --repo "${{ github.repository }}" \
+            --draft=false \
+            --prerelease=false \
+            --latest
           echo "Yayınlandı: $(gh release view "$tag" --repo "${{ github.repository }}" --json url -q .url)"

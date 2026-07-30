@@ -51,27 +51,31 @@ _INCOME_TYPES = ("income", "Gelir")
 
 # ── Ortak yardımcılar ──────────────────────────────────────────────────────
 
-def _safe_decrypt_float(value):
-    """Şifreli tutarı float'a çevirir; çözülemezse 0.0 döner.
+def _safe_decrypt_float(value, record_id=None):
+    """Decode an amount or invalidate the complete insight result."""
+    from services.financial_summary_service import decrypt_decimal
 
-    update_metrics_and_goals'daki try/except deseninin aynısı: tek bir bozuk
-    satır tüm hesabı düşürmemeli.
-    """
-    try:
-        return float(decrypt(str(value), SECRET_KEY))
-    except (ValueError, TypeError) as e:
-        print(f"[VERİ BÜTÜNLÜĞÜ] insights tutarı çözülemedi: {e}")
-        return 0.0
+    return float(decrypt_decimal(
+        value, table="transactions", record_id=record_id
+    ))
 
 
-def _safe_decrypt_text(value):
-    """Şifreli metni çözer; çözülemezse boş string döner."""
+def _safe_decrypt_text(value, record_id=None, table="transactions"):
+    """Decode text or identify the exact unreadable contributing record."""
+    from utils.errors import (
+        DecryptionError,
+        FinancialDataIntegrityError,
+        KeyUnavailableError,
+    )
+
     try:
         return decrypt(str(value), SECRET_KEY) or ""
-    except (ValueError, TypeError):
-        # decrypt() tek başına hiçbir zaman raise etmez — pratikte
-        # tetiklenemez, aynı gerekçeyle daraltılmış hâliyle bırakıldı.
-        return ""
+    except KeyUnavailableError:
+        raise
+    except (DecryptionError, ValueError, TypeError) as exc:
+        raise FinancialDataIntegrityError(
+            table, record_id, "description", reason=exc
+        ) from exc
 
 
 def _parse_date(raw):
@@ -148,10 +152,10 @@ def _load_transactions(lookback_days, types):
             continue
         records.append({
             "id": r["id"],
-            "amount": _safe_decrypt_float(r["amount"]),
+            "amount": _safe_decrypt_float(r["amount"], r["id"]),
             "type": r["type"],
             "category": r["category"] or "Diğer",
-            "description": _safe_decrypt_text(r["description"]),
+            "description": _safe_decrypt_text(r["description"], r["id"]),
             "date": parsed,
         })
     return records
@@ -187,14 +191,28 @@ def _tracked_names():
     conn = get_connection()
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT name FROM recurring_payments WHERE is_active = 1")
+        cursor.execute(
+            "SELECT id, name FROM recurring_payments WHERE is_active = 1"
+        )
         rows = cursor.fetchall()
-    except Exception:
-        return set()
+    except sqlite3.Error:
+        # "Takip edilen ödeme yok" ile "tablo okunamadı" aynı durum değildir.
+        # Sorgu hatasını üst katmana taşıyarak hatalı abonelik önerilerinin
+        # güvenilir bir sonuç gibi gösterilmesini önleriz.
+        raise
     finally:
         conn.close()
 
-    names = {normalize_name(_safe_decrypt_text(r["name"])) for r in rows}
+    names = {
+        normalize_name(
+            _safe_decrypt_text(
+                r["name"],
+                r["id"],
+                "recurring_payments",
+            )
+        )
+        for r in rows
+    }
     return {n for n in names if n}
 
 

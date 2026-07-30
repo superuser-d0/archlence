@@ -310,7 +310,7 @@ except (ImportError, AttributeError) as exc:
 # =========================================================================
 # 4. LOCAL MODULE IMPORTS
 # =========================================================================
-from utils.crypto import decrypt
+from utils.crypto import decrypt, key_protection_status
 from database.init_db import initialize_database
 from database.db import (
     get_connection,
@@ -338,6 +338,8 @@ from ui.theme import (
 import ui.theme as ftheme
 from ui.i18n import tr as translate, set_language as set_active_language
 from utils.currency import format_try
+from utils.errors import FinancialDataIntegrityError
+from utils.version import APP_VERSION
 
 from mixins.asset_mixin import AssetMixin
 from mixins.debt_mixin import DebtMixin
@@ -439,6 +441,8 @@ class ArchlenceApp(
     savings_goals = []
     theme_name = StringProperty("standard")
     language = StringProperty("tr")
+    key_protection_text = StringProperty("Anahtar koruması denetleniyor…")
+    version = StringProperty(APP_VERSION)
 
     _wealth_visible = True
     _liquid_balance_cache = 0.0
@@ -495,6 +499,13 @@ class ArchlenceApp(
         # yok; bu sınır yalnızca Builder'ın sonlu yerleşim zincirinin aynı
         # karede tamamlanabilmesi için ölçülü biçimde yükseltilir.
         Clock.max_iteration = 50
+        from services.background_task_manager import BackgroundTaskManager
+
+        self.background_tasks = BackgroundTaskManager(
+            schedule=lambda callback: Clock.schedule_once(
+                lambda _dt: callback(), 0
+            )
+        )
         self._warm_crypto_key_in_background()
         # docs/ROADMAP.md Faz 1 madde 4. initialize_database()'DEN ÖNCE:
         # eski BASE_DIR/finance.db varsa (var olan bir kurulumdan geçiş)
@@ -523,6 +534,12 @@ class ArchlenceApp(
         if self.config_store.exists("language"):
             language = self.config_store.get("language").get("code", "tr")
         self.language = set_active_language(language)
+        protection = key_protection_status()
+        self.key_protection_text = (
+            protection.method
+            if protection.secure_store
+            else f"{protection.method} — {protection.warning}"
+        )
 
         pref = "standard"
         if self.config_store.exists("theme"):
@@ -672,6 +689,8 @@ class ArchlenceApp(
         except Exception as exc:
             # Kapanış yolu hiçbir koşulda hata fırlatmamalı.
             print("Arka plan tazeleme durdurulamadı:", exc)
+        if hasattr(self, "background_tasks"):
+            self.background_tasks.shutdown(wait=False)
 
     # -------------------------------------------------------------------------
     # Theming & Visuals
@@ -908,58 +927,43 @@ class ArchlenceApp(
         sonuç hazır olunca arayüze TEK Clock çağrısıyla property güncellemesi
         yapar. (Eski sürüm bu taramaları ana thread'de koşturuyordu — sekme
         geçişindeki donmanın ana kaynağı buydu.)"""
-        import threading
+        def _error(exc):
+            if isinstance(exc, FinancialDataIntegrityError):
+                from utils.logging_config import log_integrity_error
+                error_id = log_integrity_error(exc)
+                self._apply_dashboard_integrity_error(error_id)
+            else:
+                from utils.logging_config import get_logger
 
-        self._metrics_generation = getattr(self, "_metrics_generation", 0) + 1
-        generation = self._metrics_generation
+                get_logger().exception(
+                    "Dashboard metrik görevi başarısız.",
+                    exc_info=(type(exc), exc, exc.__traceback__),
+                )
 
-        def _work():
-            try:
-                payload = self._compute_dashboard_metrics()
-            except Exception as e:
-                print("Metrik hesaplama hatası:", e)
-                return
-
-            def _apply(dt):
-                if generation != self._metrics_generation:
-                    return  # bayat sonuç — daha yeni bir tazeleme başladı
-                self._apply_dashboard_metrics(payload)
-
-            Clock.schedule_once(_apply, 0)
-
-        threading.Thread(target=_work, daemon=True).start()
+        self.background_tasks.submit(
+            "dashboard-metrics",
+            lambda cancel_event: self._compute_dashboard_metrics(),
+            on_success=self._apply_dashboard_metrics,
+            on_error=_error,
+            replace=True,
+            is_target_alive=lambda: bool(self.root),
+        )
 
     def _compute_dashboard_metrics(self):
         """Yalnızca veri üretir, hiçbir widget'a dokunmaz (thread güvenli)."""
         with managed_connection() as conn:
             rows = conn.execute(f"""
-                SELECT t.amount, t.type, IFNULL(c.importance, 'extra')
+                SELECT t.id, t.amount, t.type,
+                       IFNULL(c.importance, 'extra') AS importance
                 FROM transactions t
                 LEFT JOIN categories c ON t.category = c.name
                 WHERE {COMPLETED_TX_T}
             """).fetchall()
 
-        ana_gelir = ek_gelir = temel_gider = ekstra_gider = 0.0
-
-        for amount, t_type, importance in rows:
-            try:
-                decrypted_amount = float(decrypt(str(amount), SECRET_KEY))
-            except Exception:
-                decrypted_amount = 0.0
-
-            if t_type in ("income", "Gelir"):
-                if importance == "main":
-                    ana_gelir += decrypted_amount
-                else:
-                    ek_gelir += decrypted_amount
-            elif t_type in ("expense", "Gider"):
-                if importance == "main":
-                    temel_gider += decrypted_amount
-                else:
-                    ekstra_gider += decrypted_amount
-
-        total_income = ana_gelir + ek_gelir
-        total_expense = temel_gider + ekstra_gider
+        from services.financial_summary_service import summarize_transactions
+        summary = summarize_transactions(rows)
+        total_income = float(summary.total_income)
+        total_expense = float(summary.total_expense)
         # "Cüzdanım" toplamı, işlem nakit-akışına (gelir − gider) hesapların
         # AÇILIŞ bakiyelerini de ekler. Açılış bakiyesi transactions'a değil
         # accounts.balance + balance_events'e yazıldığından, bu taban olmadan
@@ -1050,6 +1054,27 @@ class ArchlenceApp(
             "projection_daily_expense": daily_expense,
             "change_rate": change_rate,
         }
+
+    def _apply_dashboard_integrity_error(self, error_id):
+        """Invalidate financial totals instead of displaying partial zeros."""
+        if not self.root:
+            return
+        unavailable = translate("Bazı kayıtlar okunamadığı için gösterilemiyor")
+        for widget_id in (
+            "home_total_balance",
+            "total_card_amount",
+            "period_income_label",
+            "period_expense_label",
+            "period_net_label",
+            "metric_val_income",
+            "metric_val_expense",
+            "metric_val_savings",
+            "metric_val_trend",
+        ):
+            widget = self.root.ids.get(widget_id)
+            if widget is not None:
+                widget.text = "—"
+        toast(f"{unavailable} (Hata: {error_id})")
 
     def _apply_dashboard_metrics(self, m):
         """Hazır metrik paketini arayüze TEK seferde, yalnızca property
@@ -2263,4 +2288,21 @@ if __name__ == "__main__":
         print("ARCHLENCE_HEADLESS=1: GUI başlatılmadı, çıkılıyor.")
         raise SystemExit(0)
 
-    ArchlenceApp().run()
+    from utils.single_instance import (
+        AlreadyRunningError,
+        SingleInstanceLock,
+        notify_already_running,
+    )
+
+    _instance_lock = SingleInstanceLock(
+        os.path.join(data_dir(), "archlence.instance.lock")
+    )
+    try:
+        _instance_lock.acquire()
+    except AlreadyRunningError as exc:
+        notify_already_running(str(exc))
+        raise SystemExit(2) from exc
+    try:
+        ArchlenceApp().run()
+    finally:
+        _instance_lock.release()

@@ -18,24 +18,26 @@ devam ediyor, hiçbiri değişmedi. Değişen yalnızca İÇERİDE ne olduğu:
     bu dosyanın DEĞİŞTİRİLMEDEN ÖNCEKİ hâliyle üretilmiş gerçek bir blob'a
     karşı test ediyor).
 
-Dışa dönük davranış BİLEREK AYNI KALDI: decrypt hâlâ "[Şifreli Veri]"'ye,
-encrypt hâlâ düz metne fail-open oluyor — ikisi de loglanıyor. Bu, 103
-çağrı sitesinin ~55'inin GUI doğrulanmadan davranış değişikliğine
-uğramaması için bilinçli bir sınır (bkz. docs/ROADMAP.md Faz 2 "except
-ayrımı" notu). Bulk re-encryption migration'ı da BİLEREK YOK — roadmap'in
-kendi ayrı maddesi, mevcut satırlar yeniden yazılana kadar eski formatta
-kalmaya devam ediyor, hiçbir şey bozulmuyor.
+Dışa dönük sözleşme fail-closed'dur: şifreleme/çözme hataları typed exception
+olarak çağırana çıkar. Hassas veri hiçbir zaman şifreleme başarısız olduğu için
+düz metne dönmez; doğrulanamayan ciphertext de geçerli veri gibi gösterilmez.
+Legacy CBC yalnız geriye dönük okuma için tutulur.
 """
 import base64
 import binascii
 import functools
-import os
 
 from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import PBKDF2
 from Crypto.Util.Padding import unpad
 
 from utils import aead_crypto
+from utils.errors import (
+    DecryptionError,
+    EncryptionError,
+    IntegrityVerificationError,
+    KeyUnavailableError,
+)
 
 # PBKDF2 için sabit tuz (salt). YALNIZCA eski verinin çözülmesi için hâlâ
 # gerekli — yeni hiçbir veri artık bu yolla şifrelenmiyor. Bit düzeyinde
@@ -54,6 +56,14 @@ def _get_key(password: str) -> bytes:
 
 
 @functools.lru_cache(maxsize=1)
+def _get_key_provider():
+    from utils.app_paths import data_dir
+    from utils.key_provider import create_platform_key_provider
+
+    return create_platform_key_provider(data_dir())
+
+
+@functools.lru_cache(maxsize=1)
 def _get_aead_key() -> bytes:
     """Kurulum başına rastgele AES-256 anahtarını lazy olarak çözer ve
     süreç içinde önbelleğe alır (yukarıdaki `_get_key` ile aynı desen).
@@ -63,11 +73,17 @@ def _get_aead_key() -> bytes:
     var, salt import etmek gerçek bir anahtar dosyası yaratmamalı (bkz.
     utils/app_paths.py'deki aynı ilke, DB_NAME için de geçerliydi).
     """
-    from utils.app_paths import data_dir
-    from utils.key_provider import FileKeyProvider
+    return _get_key_provider().get_or_create_key()
 
-    key_path = os.path.join(data_dir(), "encryption.key")
-    return FileKeyProvider(key_path).get_or_create_key()
+
+def key_protection_status():
+    """Return user-displayable information; fallback is never implicit."""
+    return _get_key_provider().status
+
+
+def active_key_provider():
+    """Return the process-cached provider used by encryption operations."""
+    return _get_key_provider()
 
 
 def encrypt(data, password: str = DEFAULT_PASSWORD) -> str:
@@ -84,17 +100,18 @@ def encrypt(data, password: str = DEFAULT_PASSWORD) -> str:
         return data
 
     try:
-        token = aead_crypto.encrypt(str(data), _get_aead_key())
-        return _AEAD_PREFIX + token
-    except (ValueError, TypeError) as e:
-        # aead_crypto.encrypt'in tek gerçekçi hata kaynağı
-        # `_require_key_length` (ValueError) — FileKeyProvider her zaman 32
-        # byte döndürür, bu yüzden pratikte tetiklenmemesi beklenir. Yine de
-        # DAVRANIŞ BİLEREK DEĞİŞMEDİ: eski koddaki gibi düz metne fail-open
-        # ediyor, loglanıyor. Bunu raise'e çevirmek Faz 1'in ayrı,
-        # GUI-doğrulaması gerektiren bir kararı (bkz. modül docstring'i).
-        print(f"[GÜVENLİK] Şifreleme başarısız, veri DÜZ METİN yazılıyor: {e}")
-        return str(data)
+        key = _get_aead_key()
+    except (OSError, ValueError) as exc:
+        raise KeyUnavailableError(
+            "Şifreleme anahtarına erişilemedi; veri kaydedilmedi."
+        ) from exc
+    try:
+        token = aead_crypto.encrypt(str(data), key)
+    except (ValueError, TypeError) as exc:
+        raise EncryptionError(
+            "Veri şifrelenemedi; hiçbir düz metin kaydedilmedi."
+        ) from exc
+    return _AEAD_PREFIX + token
 
 
 def _decrypt_legacy_cbc(enc_data, password: str) -> str:
@@ -102,25 +119,17 @@ def _decrypt_legacy_cbc(enc_data, password: str) -> str:
     çözer. Yeni hiçbir veri artık bu formatta YAZILMIYOR — bu fonksiyon
     yalnızca var olan eski kayıtları okunabilir tutmak için var."""
     try:
-        encrypted_payload = base64.b64decode(str(enc_data))
+        encrypted_payload = base64.b64decode(str(enc_data), validate=True)
         iv = encrypted_payload[:16]
         ciphertext = encrypted_payload[16:]
         key = _get_key(password)
         cipher = AES.new(key, AES.MODE_CBC, iv)
         decrypted_bytes = unpad(cipher.decrypt(ciphertext), AES.block_size)
         return decrypted_bytes.decode('utf-8')
-    except (binascii.Error, ValueError, UnicodeDecodeError) as e:
-        # DAR TUTULDU (bkz. docs/ROADMAP.md Faz 2 "except ayrımı"): gerçek
-        # bozuk/kurcalanmış şifreli veri yalnızca bu üç yoldan hata verebilir
-        # — bozuk base64 (binascii.Error), yanlış IV/blok uzunluğu ya da
-        # geçersiz PKCS7 dolgu (ValueError), ya da çözülen bayt dizisi
-        # geçerli UTF-8 değilse (UnicodeDecodeError).
-        #
-        # DAVRANIŞ BİLEREK DEĞİŞMEDİ: gerçek şifre çözme hatası hâlâ
-        # "[Şifreli Veri]" yerine geçen değerine düşüyor (fail-open) — bkz.
-        # modül docstring'indeki GUI-doğrulaması gerekçesi.
-        print(f"[VERİ BÜTÜNLÜĞÜ] Şifre çözme başarısız — kayıt bozuk/kurcalanmış olabilir: {type(e).__name__}: {e}")
-        return "[Şifreli Veri]"
+    except (binascii.Error, ValueError, UnicodeDecodeError) as exc:
+        raise DecryptionError(
+            "Legacy şifreli veri çözülemedi veya biçimi geçersiz."
+        ) from exc
 
 
 def decrypt(enc_data, password: str = DEFAULT_PASSWORD) -> str:
@@ -134,12 +143,20 @@ def decrypt(enc_data, password: str = DEFAULT_PASSWORD) -> str:
     text = str(enc_data)
     if text.startswith(_AEAD_PREFIX):
         try:
-            return aead_crypto.decrypt(text[len(_AEAD_PREFIX):], _get_aead_key())
-        except (aead_crypto.DecryptionError, ValueError) as e:
-            # Aynı fail-open sözleşmesi, aynı yerine geçen değer — eski
-            # yoldan ayırt edilemez olması BİLEREK (çağıranların 40'a yakın
-            # yeri tek bir "[Şifreli Veri]" davranışına güveniyor).
-            print(f"[VERİ BÜTÜNLÜĞÜ] Şifre çözme başarısız — kayıt bozuk/kurcalanmış olabilir: {type(e).__name__}: {e}")
-            return "[Şifreli Veri]"
+            key = _get_aead_key()
+        except (OSError, ValueError) as exc:
+            raise KeyUnavailableError(
+                "Şifreleme anahtarına erişilemedi; veri açılamadı."
+            ) from exc
+        try:
+            return aead_crypto.decrypt(text[len(_AEAD_PREFIX):], key)
+        except aead_crypto.DecryptionError as exc:
+            raise IntegrityVerificationError(
+                "Şifreli verinin bütünlüğü doğrulanamadı."
+            ) from exc
+        except ValueError as exc:
+            raise KeyUnavailableError(
+                "Şifreleme anahtarı geçersiz; veri açılamadı."
+            ) from exc
 
     return _decrypt_legacy_cbc(text, password)
