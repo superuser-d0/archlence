@@ -26,7 +26,6 @@ Legacy CBC yalnız geriye dönük okuma için tutulur.
 import base64
 import binascii
 import functools
-import os
 
 from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import PBKDF2
@@ -57,6 +56,14 @@ def _get_key(password: str) -> bytes:
 
 
 @functools.lru_cache(maxsize=1)
+def _get_key_provider():
+    from utils.app_paths import data_dir
+    from utils.key_provider import create_platform_key_provider
+
+    return create_platform_key_provider(data_dir())
+
+
+@functools.lru_cache(maxsize=1)
 def _get_aead_key() -> bytes:
     """Kurulum başına rastgele AES-256 anahtarını lazy olarak çözer ve
     süreç içinde önbelleğe alır (yukarıdaki `_get_key` ile aynı desen).
@@ -66,11 +73,12 @@ def _get_aead_key() -> bytes:
     var, salt import etmek gerçek bir anahtar dosyası yaratmamalı (bkz.
     utils/app_paths.py'deki aynı ilke, DB_NAME için de geçerliydi).
     """
-    from utils.app_paths import data_dir
-    from utils.key_provider import FileKeyProvider
+    return _get_key_provider().get_or_create_key()
 
-    key_path = os.path.join(data_dir(), "encryption.key")
-    return FileKeyProvider(key_path).get_or_create_key()
+
+def key_protection_status():
+    """Return user-displayable information; fallback is never implicit."""
+    return _get_key_provider().status
 
 
 def encrypt(data, password: str = DEFAULT_PASSWORD) -> str:

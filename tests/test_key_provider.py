@@ -6,8 +6,17 @@ import stat
 import tempfile
 import threading
 import unittest
+from unittest import mock
 
-from utils.key_provider import FileKeyProvider
+from utils.errors import KeyUnavailableError
+from utils.key_provider import (
+    DpapiKeyProvider,
+    FileKeyProvider,
+    KeyringKeyProvider,
+    MigratingKeyProvider,
+    KeyProtectionStatus,
+    create_platform_key_provider,
+)
 
 
 class FileKeyProviderTest(unittest.TestCase):
@@ -61,7 +70,7 @@ class FileKeyProviderTest(unittest.TestCase):
         with open(self.key_path, "wb") as f:
             f.write(b"too-short")
         provider = FileKeyProvider(self.key_path)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(KeyUnavailableError):
             provider.get_or_create_key()
 
     def test_concurrent_first_creation_yields_one_shared_key(self):
@@ -112,6 +121,88 @@ class FileKeyProviderTest(unittest.TestCase):
         provider.get_or_create_key()
         mode = stat.S_IMODE(os.stat(self.key_path).st_mode)
         self.assertEqual(mode, 0o600)
+
+
+class _FakeKeyringBackend:
+    priority = 1
+
+
+class _FakeKeyring:
+    def __init__(self, available=True):
+        self.backend = _FakeKeyringBackend()
+        self.backend.priority = 1 if available else 0
+        self.values = {}
+
+    def get_keyring(self):
+        return self.backend
+
+    def get_password(self, service, username):
+        return self.values.get((service, username))
+
+    def set_password(self, service, username, value):
+        self.values[(service, username)] = value
+
+
+class _FakeProtector:
+    def protect(self, data):
+        return b"protected:" + data[::-1]
+
+    def unprotect(self, data):
+        if not data.startswith(b"protected:"):
+            raise OSError("tampered")
+        return data[len(b"protected:"):][::-1]
+
+
+class PlatformKeyProviderTest(unittest.TestCase):
+    def test_keyring_round_trip_survives_provider_restart(self):
+        keyring = _FakeKeyring()
+        first = KeyringKeyProvider(keyring_module=keyring)
+        key = first.get_or_create_key()
+        second = KeyringKeyProvider(keyring_module=keyring)
+        self.assertEqual(second.get_or_create_key(), key)
+
+    def test_unavailable_keyring_is_explicit(self):
+        provider = KeyringKeyProvider(
+            keyring_module=_FakeKeyring(available=False)
+        )
+        with self.assertRaises(KeyUnavailableError):
+            provider.get_or_create_key()
+
+    def test_dpapi_blob_never_contains_raw_key(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = os.path.join(temp, "key.dpapi")
+            key = DpapiKeyProvider(
+                path, protector=_FakeProtector()
+            ).get_or_create_key()
+            with open(path, "rb") as stream:
+                self.assertNotEqual(stream.read(), key)
+            restarted = DpapiKeyProvider(path, protector=_FakeProtector())
+            self.assertEqual(restarted.get_or_create_key(), key)
+
+    def test_legacy_file_is_migrated_only_after_store_verification(self):
+        with tempfile.TemporaryDirectory() as temp:
+            legacy_path = os.path.join(temp, "encryption.key")
+            legacy = FileKeyProvider(legacy_path)
+            key = legacy.get_or_create_key()
+            primary = KeyringKeyProvider(keyring_module=_FakeKeyring())
+            provider = MigratingKeyProvider(
+                primary,
+                legacy,
+                KeyProtectionStatus("test store", True),
+            )
+            self.assertEqual(provider.get_or_create_key(), key)
+            self.assertFalse(os.path.exists(legacy_path))
+            self.assertFalse(os.path.exists(legacy_path + ".migrated"))
+            self.assertEqual(primary.load_key(), key)
+
+    def test_linux_factory_reports_insecure_fallback(self):
+        with tempfile.TemporaryDirectory() as temp:
+            with mock.patch("utils.key_provider.sys.platform", "linux"):
+                provider = create_platform_key_provider(
+                    temp, keyring_module=_FakeKeyring(available=False)
+                )
+            self.assertFalse(provider.status.secure_store)
+            self.assertIsNotNone(provider.status.warning)
 
 
 if __name__ == "__main__":

@@ -142,6 +142,7 @@ EN = {
     "Premium Mavi Tema": "Premium Blue Theme",
     "Kapalıyken standart tema kullanılır": "Uses the standard theme when disabled",
     "Veriler ve Gizlilik": "Data & Privacy",
+    "Şifreleme Anahtarı": "Encryption Key",
     "Bakiye Geçmişi": "Balance History",
     "Bize Ulaşın": "Contact Us",
     "Çıkış Yap": "Sign Out",

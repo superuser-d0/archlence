@@ -46,12 +46,24 @@ def default_key_path():
     return str(Path(data_dir()) / "encryption.key")
 
 
+def _key_provider(key_path=None, provider=None):
+    if provider is not None:
+        return provider
+    if key_path is not None:
+        from utils.key_provider import FileKeyProvider
+
+        return FileKeyProvider(str(key_path))
+    from utils.key_provider import create_platform_key_provider
+
+    return create_platform_key_provider(data_dir())
+
+
 def _require_passphrase(passphrase):
     if not isinstance(passphrase, str) or len(passphrase) < 12:
         raise ValueError("Kurtarma parolası en az 12 karakter olmalıdır.")
 
 
-def _encrypt_recovery_key(key, passphrase):
+def encrypt_recovery_material(key, passphrase):
     _require_passphrase(passphrase)
     if len(key) != _KEY_LEN:
         raise KeyUnavailableError("Yedeklenecek şifreleme anahtarı geçersiz.")
@@ -76,7 +88,7 @@ def _encrypt_recovery_key(key, passphrase):
     }
 
 
-def _decrypt_recovery_key(payload, passphrase):
+def decrypt_recovery_material(payload, passphrase):
     _require_passphrase(passphrase)
     try:
         salt = base64.b64decode(payload["salt"], validate=True)
@@ -174,19 +186,19 @@ def create_backup(
     *,
     db_path=DB_NAME,
     key_path=None,
+    key_provider=None,
     config_path=None,
 ):
     """Create a self-contained backup and verify it before publication."""
-    key_path = key_path or default_key_path()
     db_path = Path(db_path)
-    key_path = Path(key_path)
     destination = Path(destination)
     if not db_path.is_file():
         raise FileNotFoundError("Yedeklenecek veritabanı bulunamadı.")
-    if not key_path.is_file():
+    provider = _key_provider(key_path, key_provider)
+    key = provider.load_key()
+    if key is None:
         raise KeyUnavailableError("Yedeklenecek şifreleme anahtarı bulunamadı.")
-    key = key_path.read_bytes()
-    recovery = _encrypt_recovery_key(key, passphrase)
+    recovery = encrypt_recovery_material(key, passphrase)
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(
@@ -275,7 +287,7 @@ def verify_backup(package_path, passphrase):
         digest = hashlib.sha256(db_copy.read_bytes()).hexdigest()
         if digest != metadata.get("database_sha256"):
             raise IntegrityVerificationError("Backup veritabanı hash'i eşleşmiyor.")
-        key = _decrypt_recovery_key(recovery, passphrase)
+        key = decrypt_recovery_material(recovery, passphrase)
         if hashlib.sha256(key).hexdigest() != metadata.get("key_fingerprint"):
             raise IntegrityVerificationError("Backup anahtar parmak izi eşleşmiyor.")
         _integrity_check(db_copy)
@@ -301,15 +313,15 @@ def restore_backup(
     *,
     db_path=DB_NAME,
     key_path=None,
+    key_provider=None,
     config_path=None,
     safety_backup_path=None,
     _failure_hook=None,
 ):
     """Verify, safety-backup, then replace DB/key with rollback on failure."""
-    key_path = Path(key_path or default_key_path())
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    key_path.parent.mkdir(parents=True, exist_ok=True)
+    provider = _key_provider(key_path, key_provider)
     config = Path(config_path) if config_path else None
     safety_backup_path = Path(
         safety_backup_path
@@ -317,12 +329,13 @@ def restore_backup(
             f"pre-restore-{datetime.now():%Y%m%d-%H%M%S}.archlence-backup"
         )
     )
-    if db_path.exists() and key_path.exists():
+    current_key = provider.load_key()
+    if db_path.exists() and current_key is not None:
         create_backup(
             safety_backup_path,
             passphrase,
             db_path=db_path,
-            key_path=key_path,
+            key_provider=provider,
             config_path=str(config) if config else None,
         )
 
@@ -343,32 +356,42 @@ def restore_backup(
         os.chmod(staged_key, 0o600)
 
         old_db = temp / "old-finance.db"
-        old_key = temp / "old-encryption.key"
         try:
             if db_path.exists():
                 os.replace(db_path, old_db)
-            if key_path.exists():
-                os.replace(key_path, old_key)
             if _failure_hook:
                 _failure_hook("after_old_files_staged")
             os.replace(staged_db, db_path)
             if _failure_hook:
                 _failure_hook("after_database_replaced")
-            os.replace(staged_key, key_path)
+            incoming_key = staged_key.read_bytes()
+            if current_key is None:
+                provider.store_key(incoming_key)
+            else:
+                provider.replace_key(
+                    incoming_key, expected_current=current_key
+                )
             if config and verification["config"] is not None:
                 config.parent.mkdir(parents=True, exist_ok=True)
                 config.write_bytes(verification["config"])
             _integrity_check(db_path)
-            verify_database_key(db_path, key_path.read_bytes())
+            verify_database_key(db_path, provider.load_key())
         except Exception as exc:
             if db_path.exists():
                 db_path.unlink()
-            if key_path.exists():
-                key_path.unlink()
             if old_db.exists():
                 os.replace(old_db, db_path)
-            if old_key.exists():
-                os.replace(old_key, key_path)
+            restored_key = provider.load_key()
+            if (
+                current_key is not None
+                and restored_key is not None
+                and restored_key != current_key
+            ):
+                provider.replace_key(
+                    current_key, expected_current=restored_key
+                )
+            elif current_key is None and restored_key is not None:
+                provider.delete_key(expected_current=restored_key)
             raise DataMigrationError(
                 "Restore başarısız oldu; önceki veriler geri yüklendi."
             ) from exc

@@ -310,7 +310,7 @@ except (ImportError, AttributeError) as exc:
 # =========================================================================
 # 4. LOCAL MODULE IMPORTS
 # =========================================================================
-from utils.crypto import decrypt
+from utils.crypto import decrypt, key_protection_status
 from database.init_db import initialize_database
 from database.db import (
     get_connection,
@@ -440,6 +440,7 @@ class ArchlenceApp(
     savings_goals = []
     theme_name = StringProperty("standard")
     language = StringProperty("tr")
+    key_protection_text = StringProperty("Anahtar koruması denetleniyor…")
 
     _wealth_visible = True
     _liquid_balance_cache = 0.0
@@ -524,6 +525,12 @@ class ArchlenceApp(
         if self.config_store.exists("language"):
             language = self.config_store.get("language").get("code", "tr")
         self.language = set_active_language(language)
+        protection = key_protection_status()
+        self.key_protection_text = (
+            protection.method
+            if protection.secure_store
+            else f"{protection.method} — {protection.warning}"
+        )
 
         pref = "standard"
         if self.config_store.exists("theme"):

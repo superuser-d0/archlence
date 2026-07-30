@@ -2094,6 +2094,31 @@ MDScreen:
 
                                 MDSeparator:
 
+                                MDBoxLayout:
+                                    orientation: "horizontal"
+                                    size_hint_y: None
+                                    height: "72dp"
+                                    padding: ["20dp", 0, "20dp", 0]
+                                    spacing: "20dp"
+                                    MDIcon:
+                                        icon: "key-variant"
+                                        size_hint_x: None
+                                        width: "36dp"
+                                        halign: "center"
+                                        pos_hint: {"center_y": .5}
+                                        theme_text_color: "Primary"
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        MDLabel:
+                                            text: app.tr("Şifreleme Anahtarı", app.language)
+                                            theme_text_color: "Primary"
+                                        MDLabel:
+                                            text: app.key_protection_text
+                                            font_style: "Caption"
+                                            theme_text_color: "Secondary"
+
+                                MDSeparator:
+
                                 # --- GÖRÜNÜM AYARLARI ---
                                 MDLabel:
                                     text: app.tr("Görünüm Ayarları", app.language)

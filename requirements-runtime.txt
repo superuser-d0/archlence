@@ -24,12 +24,18 @@ filetype==1.2.0
 fonttools==4.63.0
 fpdf2==2.8.7
 idna==3.17
+jaraco.classes==3.4.0
+jaraco.context==6.1.2
+jaraco.functools==4.6.0
+jeepney==0.9.0
+keyring==25.7.0
 Kivy==2.3.1
 Kivy-Garden==0.1.5
 kivymd==1.2.0
 markdown-it-py==4.2.0
 mdurl==0.1.2
 multitasking==0.0.13
+more-itertools==11.1.0
 numpy==2.4.6
 packaging==26.2
 pandas==3.0.3
@@ -39,12 +45,14 @@ platformdirs==4.10.0
 protobuf==7.35.1
 pycparser==3.0
 pycryptodome==3.23.0
+pywin32-ctypes==0.2.3; sys_platform == "win32"
 Pygments==2.20.0
 python-dateutil==2.9.0.post0
 pytz==2026.2
 requests==2.34.2
 rich==15.0.0
 setuptools==82.0.1
+SecretStorage==3.5.0; sys_platform == "linux"
 six==1.17.0
 soupsieve==2.8.4
 typing_extensions==4.15.0
