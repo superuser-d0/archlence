@@ -2277,4 +2277,21 @@ if __name__ == "__main__":
         print("ARCHLENCE_HEADLESS=1: GUI başlatılmadı, çıkılıyor.")
         raise SystemExit(0)
 
-    ArchlenceApp().run()
+    from utils.single_instance import (
+        AlreadyRunningError,
+        SingleInstanceLock,
+        notify_already_running,
+    )
+
+    _instance_lock = SingleInstanceLock(
+        os.path.join(data_dir(), "archlence.instance.lock")
+    )
+    try:
+        _instance_lock.acquire()
+    except AlreadyRunningError as exc:
+        notify_already_running(str(exc))
+        raise SystemExit(2) from exc
+    try:
+        ArchlenceApp().run()
+    finally:
+        _instance_lock.release()
