@@ -37,6 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.derive.outputs.version }}
+      prerelease: ${{ steps.derive.outputs.prerelease }}
     steps:
       - name: Sürümü belirle
         id: derive
@@ -54,8 +55,20 @@ jobs:
             echo "::error::Sürüm belirlenemedi."
             exit 1
           fi
+
+          # Ön-sürüm mü? İki kural:
+          #   * `0.` ile başlıyorsa (0.x = henüz 1.0 değil, semver kuralı)
+          #   * `-` içeriyorsa (0.9.0-rc1, 1.0.0-beta gibi semver ön-sürüm eki)
+          # Bu işaret olmadan 0.9.0 GitHub'da "Latest release" olarak tam
+          # prominence ile görünür ve kararlı bir sürümmüş gibi durur.
+          case "$version" in
+            0.*|*-*) prerelease=true ;;
+            *)       prerelease=false ;;
+          esac
+
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Sürüm: $version"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "Sürüm: $version (ön-sürüm: $prerelease)"
 
   build-windows:
     needs: version
@@ -157,10 +170,16 @@ jobs:
             tag="v${v}"
             draft_flag="--draft"
           fi
+          if [ "${{ needs.version.outputs.prerelease }}" = "true" ]; then
+            prerelease_flag="--prerelease"
+          else
+            prerelease_flag=""
+          fi
           gh release create "$tag" release-assets/* \
             --repo "${{ github.repository }}" \
             --title "Archlence ${v}" \
             --notes-file release-notes.md \
             --target "${{ github.sha }}" \
+            $prerelease_flag \
             $draft_flag
           echo "Yayınlandı: $(gh release view "$tag" --repo "${{ github.repository }}" --json url -q .url)"
