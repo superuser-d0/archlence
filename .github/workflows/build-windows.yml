@@ -181,20 +181,44 @@ jobs:
             "/DMyAppVersion=${{ inputs.version || '0.0.1' }}" `
             installer\archlence.iss
 
-      - name: "Upgrade smoke: v1.0.1 profilini v1.1.0 ile aç"
+      - name: "Upgrade smoke: önceki sürüm profilini yeni sürümle aç"
         shell: pwsh
         env:
           KIVY_GL_BACKEND: angle_sdl2
+          # Yükseltmenin sınanacağı TABAN sürüm. Boş bırakılırsa adım
+          # açıkça uyarı basıp atlanır.
+          #
+          # NEDEN PARAMETRİK: burada eskiden v1.0.1 etiketi ve onun SHA-256'sı
+          # sabit yazılıydı. 1.x hattı geri çekilip release'ler silinince bu
+          # indirme 404 döndü ve TÜM Windows derlemesi (dolayısıyla yayın)
+          # kırıldı — testin kendisiyle ilgisi olmayan bir sebeple.
+          #
+          # Şu an taban YOK: v0.0.1 yeni hattın ilk yayını, yükseltilecek
+          # önceki sürüm gerçekten mevcut değil. Bu bir testi zayıflatma
+          # değil, dünyanın doğru tarifi. v0.0.2 kesilirken buraya "v0.0.1"
+          # ve onun hash'i yazılarak yükseltme kapısı yeniden açılmalıdır.
+          UPGRADE_BASELINE_TAG: ""
+          UPGRADE_BASELINE_ASSET: ""
+          UPGRADE_BASELINE_SHA256: ""
         run: |
           $ErrorActionPreference = "Stop"
+          if ([string]::IsNullOrWhiteSpace($env:UPGRADE_BASELINE_TAG)) {
+            Write-Host "::warning::Yükseltme smoke testi ATLANDI: tanımlı bir taban sürüm yok (UPGRADE_BASELINE_TAG boş). Yeni kurulum smoke testi ayrı adımda yine koşuyor."
+            exit 0
+          }
+
           $installDir = Join-Path $env:RUNNER_TEMP "Archlence-Upgrade"
-          $oldInstaller = Join-Path $env:RUNNER_TEMP "ArchlenceSetup-1.0.1.exe"
-          Invoke-WebRequest `
-            "https://github.com/superuser-d0/archlence/releases/download/v1.0.1/ArchlenceSetup-1.0.1.exe" `
-            -OutFile $oldInstaller
+          $oldInstaller = Join-Path $env:RUNNER_TEMP $env:UPGRADE_BASELINE_ASSET
+          $url = "https://github.com/${{ github.repository }}/releases/download/$($env:UPGRADE_BASELINE_TAG)/$($env:UPGRADE_BASELINE_ASSET)"
+          try {
+            Invoke-WebRequest $url -OutFile $oldInstaller
+          } catch {
+            Write-Host "::error::Taban sürüm indirilemedi: $url"
+            exit 1
+          }
           $oldHash = (Get-FileHash $oldInstaller -Algorithm SHA256).Hash.ToLower()
-          if ($oldHash -ne "db40cfb3096f9903cb8bb2aa6bc60eb79e1e67fd55e2331a357146e4062ace2a") {
-            Write-Host "::error::Downloaded v1.0.1 installer hash mismatch."
+          if ($oldHash -ne $env:UPGRADE_BASELINE_SHA256.ToLower()) {
+            Write-Host "::error::Taban kurulum paketinin hash'i eşleşmiyor."
             exit 1
           }
           $oldSetup = Start-Process $oldInstaller -Wait -PassThru `
@@ -205,7 +229,7 @@ jobs:
           $oldProc = Start-Process $oldExe -WorkingDirectory $installDir -PassThru
           Start-Sleep -Seconds 8
           if ($oldProc.HasExited) {
-            Write-Host "::error::v1.0.1 did not remain running."
+            Write-Host "::error::Taban sürüm çalışır durumda kalmadı."
             exit 1
           }
           Stop-Process -Id $oldProc.Id -Force
@@ -214,7 +238,7 @@ jobs:
             Where-Object { $_.FullName -match "Archlence" } |
             Select-Object -First 1
           if (-not $db) {
-            Write-Host "::error::v1.0.1 profile database was not created."
+            Write-Host "::error::Taban sürümün profil veritabanı oluşmadı."
             exit 1
           }
           python -c "import sqlite3; p=r'$($db.FullName)'; c=sqlite3.connect(p); c.execute('INSERT INTO accounts (name,type,balance) VALUES (?,?,?)',('upgrade-sentinel','bank',1234.56)); c.commit(); c.close()"
@@ -228,7 +252,7 @@ jobs:
           $newProc = Start-Process $oldExe -WorkingDirectory $installDir -PassThru
           Start-Sleep -Seconds 8
           if ($newProc.HasExited) {
-            Write-Host "::error::Upgraded v1.1.0 did not remain running."
+            Write-Host "::error::Yükseltilmiş sürüm çalışır durumda kalmadı."
             exit 1
           }
           Stop-Process -Id $newProc.Id -Force
@@ -239,10 +263,10 @@ jobs:
           $remove = Start-Process $uninstaller -Wait -PassThru `
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
           if ($remove.ExitCode -ne 0 -or -not (Test-Path $db.FullName)) {
-            Write-Host "::error::Upgrade uninstall did not preserve user data."
+            Write-Host "::error::Yükseltme sonrası kaldırma kullanıcı verisini korumadı."
             exit 1
           }
-          Write-Host "v1.0.1 -> v1.1.0 upgrade/profile preservation passed."
+          Write-Host "$($env:UPGRADE_BASELINE_TAG) -> mevcut sürüm yükseltme/profil koruma testi geçti."
 
       - name: "Smoke test: installer kur, çalıştır ve kaldır"
         shell: pwsh
