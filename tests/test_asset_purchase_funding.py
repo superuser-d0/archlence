@@ -33,6 +33,29 @@ class AssetPurchaseFundingTest(AccountFixtureMixin, unittest.TestCase):
         self._patcher.stop()
         os.unlink(self.db_path)
 
+    # `with sqlite3_connection` bağlantıyı KAPATMAZ — yalnızca bir transaction
+    # context manager'ıdır. Linux'ta açık bir dosya silinebildiği için bu fark
+    # görünmezdi; Windows'ta dosya kilitli kalıyor ve tearDown'daki
+    # `os.unlink` "WinError 32: process cannot access the file" ile patlıyordu.
+    # (Windows CI eklendiğinde ampirik olarak yakalandı.) Bu yüzden bağlantı
+    # burada açıkça kapatılıyor.
+    def _exec(self, sql, params=()):
+        from database.db import get_connection
+        conn = get_connection()
+        try:
+            conn.execute(sql, params)
+            conn.commit()
+        finally:
+            conn.close()
+
+    def _fetchone(self, sql, params=()):
+        from database.db import get_connection
+        conn = get_connection()
+        try:
+            return conn.execute(sql, params).fetchone()
+        finally:
+            conn.close()
+
     def _buy(self, amount=100.0):
         from services.asset_purchase_service import AssetPurchaseService
         return AssetPurchaseService.create_purchase(
@@ -59,18 +82,14 @@ class AssetPurchaseFundingTest(AccountFixtureMixin, unittest.TestCase):
 
     def test_missing_default_account_does_not_break_purchases(self):
         """Taze kurulumda id=1 hiç olmayabilir; alım yine de çalışmalı."""
-        from database.db import get_connection
         # AUTOINCREMENT ilk satıra 1 verir; onu silerek "id=1 yok" durumunu
         # kurup gerçek hesabı 2. id ile oluşturuyoruz.
         throwaway = self.create_test_account(name="Silinecek", balance=0.0)
-        with get_connection() as conn:
-            conn.execute("DELETE FROM accounts WHERE id = ?", (throwaway,))
+        self._exec("DELETE FROM accounts WHERE id = ?", (throwaway,))
         account_id = self.create_test_account(name="Tek Hesap", balance=900.0)
         self.assertNotEqual(account_id, 1, "Bu test id!=1 durumunu sınıyor.")
-        with get_connection() as conn:
-            self.assertIsNone(
-                conn.execute(
-                    "SELECT 1 FROM accounts WHERE id = 1").fetchone())
+        self.assertIsNone(
+            self._fetchone("SELECT 1 FROM accounts WHERE id = 1"))
 
         self._buy(50.0)  # patlamamalı
 
