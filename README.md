@@ -188,8 +188,9 @@ Known limitations are tracked openly so that progress can be reviewed over time.
 Choose **one** installation method:
 
 - Regular users on Windows: use the Windows installer.
-- Regular users on 64-bit Linux: use the AppImage. It works independently of
-  whether the distribution is Debian, Ubuntu, Fedora, Arch, or another distro.
+- Arch, Manjaro, and CachyOS users: install the native `archlence-bin` package
+  with `makepkg -si` for application-menu and Pacman integration.
+- Users of other 64-bit Linux distributions: use the AppImage.
 - Developers, macOS users, and people who want the latest `main` code: run from
   source.
 
@@ -222,7 +223,81 @@ if ($actual -ne $expected) { throw "Checksum verification failed" }
 Upgrading or uninstalling the application does not intentionally remove the
 user database. Keep a verified backup before upgrading or uninstalling anyway.
 
-### Linux — AppImage (recommended)
+### Arch Linux, Manjaro, and CachyOS — system package (recommended)
+
+Archlence currently provides native package-manager integration only for the
+Arch Linux family. The repository's `PKGBUILD` wraps the checksummed v0.0.2
+AppImage as the `archlence-bin` package.
+
+Install the package as a normal user:
+
+```bash
+git clone https://github.com/superuser-d0/archlence.git
+cd archlence
+makepkg -si
+```
+
+Do **not** run `makepkg` with `sudo`. `makepkg` downloads and verifies the
+released AppImage, builds the package locally, and asks for the administrator
+password only when Pacman installs it.
+
+The package installs:
+
+- the application under `/opt/archlence`;
+- the `archlence` terminal command;
+- an **Archlence** application-menu entry;
+- the Archlence system icon; and
+- the project license.
+
+After installation, open Archlence from the desktop environment's application
+menu or run:
+
+```bash
+archlence
+```
+
+The menu entry can be pinned to the desktop, dock, panel, or favorites using
+the desktop environment's normal context menu. The package deliberately does
+not write a shortcut into an individual user's Desktop directory.
+
+Verify the installed package:
+
+```bash
+pacman -Qi archlence-bin
+pacman -Ql archlence-bin
+```
+
+#### Updating the Arch package
+
+`archlence-bin` has not been published to the AUR yet. Until it is, update the
+existing clean repository and rebuild whenever a new Archlence release is
+announced:
+
+```bash
+cd ~/archlence
+git status
+git pull --ff-only
+makepkg -si
+```
+
+If `git status` reports local changes (for example, the prompt displays
+`main*`), commit or stash those changes before pulling. Do not clone the
+repository again when `~/archlence` already exists.
+
+Once `archlence-bin` is published to the AUR, helpers such as `yay` or `paru`
+will be able to deliver these updates through their regular system-upgrade
+flow. The package is **not currently searchable or installable from the AUR**.
+
+Remove only the installed application package with:
+
+```bash
+sudo pacman -R archlence-bin
+```
+
+Removing the package does not intentionally delete the financial database and
+settings stored in the user's data directory. Keep a verified backup anyway.
+
+### Other Linux distributions — AppImage
 
 The AppImage is the same on Debian, Ubuntu, Linux Mint, Fedora, Arch, Manjaro,
 CachyOS, and other 64-bit x86 Linux distributions. Python, a virtual
@@ -255,50 +330,6 @@ mode instead:
 The package is built for `x86_64` systems; it will not run on ARM devices. It
 is not code-signed. The expected SHA-256 is
 `31de4e4ce0b4730de9aa5afbd361b4a8e46085c727d5052c818a444bcb344935`.
-
-#### Arch Linux package installation
-
-Arch, Manjaro, and CachyOS users can install the released AppImage as a regular
-system package. This adds an **Archlence** entry to the application menu, installs
-the icon, and provides the `archlence` terminal command:
-
-```bash
-git clone https://github.com/superuser-d0/archlence.git
-cd archlence
-makepkg -si
-```
-
-`makepkg` downloads the checksummed v0.0.2 AppImage declared in `PKGBUILD`;
-cloning the repository does not download the application binary by itself.
-Build as a normal user—do not run `makepkg` with `sudo`. The final `pacman`
-installation step asks for the administrator password.
-
-After installation, start Archlence from the desktop environment's application
-menu or run:
-
-```bash
-archlence
-```
-
-Remove the package without deleting the user database:
-
-```bash
-sudo pacman -R archlence-bin
-```
-
-If the repository already exists, do not clone it again. Enter the existing
-clean checkout, update it, and build:
-
-```bash
-cd ~/archlence
-git status
-git pull --ff-only
-makepkg -si
-```
-
-Commit or stash local changes before `git pull`. Application-menu caches are
-normally refreshed automatically by the desktop environment; log out and back
-in if the new entry is not immediately visible.
 
 ### macOS
 
