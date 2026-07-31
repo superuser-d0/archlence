@@ -256,6 +256,50 @@ The package is built for `x86_64` systems; it will not run on ARM devices. It
 is not code-signed. The expected SHA-256 is
 `31de4e4ce0b4730de9aa5afbd361b4a8e46085c727d5052c818a444bcb344935`.
 
+#### Arch Linux package installation
+
+Arch, Manjaro, and CachyOS users can install the released AppImage as a regular
+system package. This adds an **Archlence** entry to the application menu, installs
+the icon, and provides the `archlence` terminal command:
+
+```bash
+git clone https://github.com/superuser-d0/archlence.git
+cd archlence
+makepkg -si
+```
+
+`makepkg` downloads the checksummed v0.0.2 AppImage declared in `PKGBUILD`;
+cloning the repository does not download the application binary by itself.
+Build as a normal user—do not run `makepkg` with `sudo`. The final `pacman`
+installation step asks for the administrator password.
+
+After installation, start Archlence from the desktop environment's application
+menu or run:
+
+```bash
+archlence
+```
+
+Remove the package without deleting the user database:
+
+```bash
+sudo pacman -R archlence-bin
+```
+
+If the repository already exists, do not clone it again. Enter the existing
+clean checkout, update it, and build:
+
+```bash
+cd ~/archlence
+git status
+git pull --ff-only
+makepkg -si
+```
+
+Commit or stash local changes before `git pull`. Application-menu caches are
+normally refreshed automatically by the desktop environment; log out and back
+in if the new entry is not immediately visible.
+
 ### macOS
 
 There is currently no `.dmg` or other packaged macOS release. macOS users must
