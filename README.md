@@ -185,14 +185,21 @@ Known limitations are tracked openly so that progress can be reviewed over time.
 
 ## Getting started
 
-### Recommended: install the packaged release
+Choose **one** installation method:
+
+- Regular users on Windows: use the Windows installer.
+- Regular users on 64-bit Linux: use the AppImage. It works independently of
+  whether the distribution is Debian, Ubuntu, Fedora, Arch, or another distro.
+- Developers, macOS users, and people who want the latest `main` code: run from
+  source.
+
+Do not clone the repository when using the Windows installer or Linux AppImage.
+Those packages already contain the application and its Python dependencies.
+
+### Windows — installer (recommended)
 
 The current public build is the **v0.0.2 pre-release**. Download packages only
 from the [official v0.0.2 release](https://github.com/superuser-d0/archlence/releases/tag/v0.0.2).
-The packaged applications include Python and their runtime dependencies; you do
-not need to install Python, Kivy, or SDL separately.
-
-#### Windows installer
 
 1. Download [`ArchlenceSetup-0.0.2.exe`](https://github.com/superuser-d0/archlence/releases/download/v0.0.2/ArchlenceSetup-0.0.2.exe).
 2. Optionally verify its SHA-256 checksum as shown below.
@@ -215,7 +222,11 @@ if ($actual -ne $expected) { throw "Checksum verification failed" }
 Upgrading or uninstalling the application does not intentionally remove the
 user database. Keep a verified backup before upgrading or uninstalling anyway.
 
-#### Linux AppImage
+### Linux — AppImage (recommended)
+
+The AppImage is the same on Debian, Ubuntu, Linux Mint, Fedora, Arch, Manjaro,
+CachyOS, and other 64-bit x86 Linux distributions. Python, a virtual
+environment, and the source repository are **not** required.
 
 1. Download [`Archlence-0.0.2-x86_64.AppImage`](https://github.com/superuser-d0/archlence/releases/download/v0.0.2/Archlence-0.0.2-x86_64.AppImage)
    and [`SHA256SUMS.txt`](https://github.com/superuser-d0/archlence/releases/download/v0.0.2/SHA256SUMS.txt)
@@ -228,72 +239,147 @@ chmod +x Archlence-0.0.2-x86_64.AppImage
 ./Archlence-0.0.2-x86_64.AppImage
 ```
 
-The AppImage is built for 64-bit x86 Linux and bundles its application runtime,
-so no separate Python or SDL installation is required. It is not code-signed;
-the expected SHA-256 is
+Run those commands from the directory where the files were downloaded, usually:
+
+```bash
+cd ~/Downloads
+```
+
+If the system reports a FUSE/AppImage mount error, use AppImage's extraction
+mode instead:
+
+```bash
+./Archlence-0.0.2-x86_64.AppImage --appimage-extract-and-run
+```
+
+The package is built for `x86_64` systems; it will not run on ARM devices. It
+is not code-signed. The expected SHA-256 is
 `31de4e4ce0b4730de9aa5afbd361b4a8e46085c727d5052c818a444bcb344935`.
 
-There is currently no packaged macOS release.
+### macOS
 
-### Run from source
+There is currently no `.dmg` or other packaged macOS release. macOS users must
+run Archlence from source. This path is intended for development and has less
+packaged-app coverage than Windows and Linux.
 
-Source installations are intended for development and testing. Requirements:
-
-- Python 3.11 or newer (CI uses Python 3.12)
-- Git
-- a Kivy-compatible desktop/OpenGL environment
-
-Clone the repository and create an isolated environment:
+Install Python 3.12 and Git, then use the virtual environment's Python directly:
 
 ```bash
+# Install Homebrew first if it is not already available: https://brew.sh/
+brew install python@3.12 git
 git clone https://github.com/superuser-d0/archlence.git
 cd archlence
-python -m venv .venv
+python3.12 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r requirements-runtime.txt
+.venv/bin/python main.py
 ```
 
-Activate it on Linux or macOS and install the pinned runtime dependencies:
+### Linux — run from source
+
+Use this method only when you want to develop Archlence or run unreleased code.
+First install the system packages for your distribution.
+
+#### Debian, Ubuntu, and Linux Mint
 
 ```bash
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements-runtime.txt
-python main.py
+sudo apt update
+sudo apt install git python3 python3-venv python3-pip \
+    libsdl2-2.0-0 libsdl2-image-2.0-0 libsdl2-ttf-2.0-0 \
+    libsdl2-mixer-2.0-0 libgl1
 ```
 
-On Windows PowerShell:
+#### Fedora
+
+```bash
+sudo dnf install git python3 python3-pip SDL2 SDL2_image SDL2_ttf SDL2_mixer mesa-libGL
+```
+
+#### Arch, Manjaro, and CachyOS
+
+```bash
+sudo pacman -S --needed git python python-pip sdl2-compat sdl2_image sdl2_ttf sdl2_mixer libglvnd
+```
+
+Then clone and run the project. These commands deliberately use the virtual
+environment's Python directly, so they work in Bash, Zsh, and Fish without an
+activation command:
+
+```bash
+cd ~
+git clone https://github.com/superuser-d0/archlence.git
+cd archlence
+python3 -m venv .venv
+.venv/bin/python -m pip install --upgrade pip
+.venv/bin/python -m pip install -r requirements-runtime.txt
+.venv/bin/python main.py
+```
+
+If `git clone` says `destination path 'archlence' already exists`, the repository
+is already present. Do not clone it again:
+
+```bash
+cd ~/archlence
+git status
+```
+
+If `git status` reports local changes (for example, the prompt shows `main*`),
+commit or stash them before updating. When the tree is clean, update with:
+
+```bash
+git pull --ff-only
+```
+
+Virtual-environment activation is optional. If you prefer it, use the command
+for your shell:
+
+```bash
+# Bash or Zsh
+source .venv/bin/activate
+
+# Fish
+source .venv/bin/activate.fish
+```
+
+The error `case builtin not inside of switch block` means the Bash activation
+script was sourced from Fish; use `activate.fish`, or avoid activation and run
+`.venv/bin/python` directly as shown above.
+
+### Windows — run from source
+
+Install Python 3.12 and Git, open PowerShell, and run:
 
 ```powershell
-.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements-runtime.txt
-python main.py
+git clone https://github.com/superuser-d0/archlence.git
+cd archlence
+py -3.12 -m venv .venv
+.venv\Scripts\python.exe -m pip install --upgrade pip
+.venv\Scripts\python.exe -m pip install -r requirements-runtime.txt
+.venv\Scripts\python.exe main.py
 ```
 
-When running from source on Linux, Kivy uses system SDL/OpenGL libraries. Install
-the matching packages before installing Python dependencies:
+If the directory already exists, use `cd archlence` instead of cloning again.
+PowerShell activation is optional; when desired, run
+`.venv\Scripts\Activate.ps1`. If execution policy blocks that script, continue
+using `.venv\Scripts\python.exe` directly—changing the system execution policy
+is not required.
+
+### Development dependencies
+
+After completing a source setup, install the development tools and run tests
+with the virtual environment's Python:
 
 ```bash
-# Arch, CachyOS, Manjaro
-sudo pacman -S --needed sdl2-compat sdl2_image sdl2_ttf sdl2_mixer libglvnd
-
-# Debian, Ubuntu, Linux Mint
-sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libsdl2-ttf-2.0-0 \
-    libsdl2-mixer-2.0-0 libgl1
-
-# Fedora
-sudo dnf install SDL2 SDL2_image SDL2_ttf SDL2_mixer mesa-libGL
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python run_tests.py
 ```
 
-For tests, lint, and type checking, install the development environment instead.
-The complete test command is shown below; the exact lint/type-check gates live
-in [the CI workflow](.github/workflows/tests.yml).
+On Windows, replace `.venv/bin/python` with
+`.venv\Scripts\python.exe`. Exact lint and type-check gates live in
+[the CI workflow](.github/workflows/tests.yml).
 
-```bash
-python -m pip install -r requirements.txt
-python run_tests.py
-```
-
-On first launch, Archlence guides you through creating a local PIN and setting up your first account.
+On first launch, Archlence guides you through creating a local PIN and setting
+up your first account.
 
 ### Release verification and development artifacts
 
