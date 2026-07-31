@@ -31,6 +31,11 @@ def main():
         "Windows workflow sürümü",
     )
     require(
+        rf"^pkgver={escaped}$",
+        "PKGBUILD",
+        "Arch Linux paket sürümü",
+    )
+    require(
         rf"### {escaped} —",
         "README.md",
         "README changelog sürümü",
