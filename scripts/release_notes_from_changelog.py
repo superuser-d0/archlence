@@ -17,14 +17,14 @@ def extract_release_notes(changelog: str, version: str) -> str:
         raise ValueError(f"CHANGELOG section not found for {version}")
     body = match.group("body").strip()
     required = (
-        "Öne çıkan değişiklikler",
-        "Finansal doğruluk ve güvenilirlik",
-        "Performans",
-        "UI ve erişilebilirlik",
-        "Test ve paketleme",
-        "Çalışma sırasında bulunup düzeltilen ek sorunlar",
-        "Bilinen sınırlamalar",
-        "Kurulum ve checksum doğrulaması",
+        "Highlights",
+        "Financial correctness and reliability",
+        "Performance",
+        "UI and accessibility",
+        "Testing and packaging",
+        "Additional issues found and fixed",
+        "Known limitations",
+        "Installation and checksum verification",
     )
     missing = [heading for heading in required if f"### {heading}" not in body]
     if missing:
