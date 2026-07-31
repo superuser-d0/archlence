@@ -2,12 +2,12 @@
 
 pkgname=archlence-bin
 pkgver=0.0.2
-pkgrel=1
+pkgrel=2
 pkgdesc="Local-first personal finance manager (prebuilt AppImage)"
 arch=('x86_64')
 url="https://github.com/superuser-d0/archlence"
 license=('MIT')
-depends=('fuse2')
+depends=('fuse2' 'hicolor-icon-theme')
 provides=('archlence')
 conflicts=('archlence')
 options=('!strip')
@@ -16,6 +16,7 @@ source=(
   "Archlence-${pkgver}-x86_64.AppImage::${url}/releases/download/v${pkgver}/Archlence-${pkgver}-x86_64.AppImage"
   "archlence.desktop::https://raw.githubusercontent.com/superuser-d0/archlence/v${pkgver}/assets/archlence.desktop"
   "archlence.png::https://raw.githubusercontent.com/superuser-d0/archlence/v${pkgver}/assets/icon.png"
+  "archlence.svg::https://raw.githubusercontent.com/superuser-d0/archlence/v${pkgver}/assets/icon_source.svg"
   "LICENSE::https://raw.githubusercontent.com/superuser-d0/archlence/v${pkgver}/LICENSE"
 )
 
@@ -23,6 +24,7 @@ sha256sums=(
   '31de4e4ce0b4730de9aa5afbd361b4a8e46085c727d5052c818a444bcb344935'
   '4cf21f62e33e87cf69cd015fb9148dbe99badaf75c3caf3b87db1b8813089d71'
   '1df0fe8c33ba3b13cee650cab7e254964e18acbd27c330dce19ac0aaf7110b9f'
+  'e27e0925f3d0d33dcd212391b038c04dbc89020f212d145bfdca6f0600b2e9ec'
   'ecc8a7af57166c272c3b008712981c02f42898b6f2fad6889b7b51f9bf366c83'
 )
 
@@ -38,6 +40,8 @@ package() {
 
   install -Dm644 "${srcdir}/archlence.png" \
     "${pkgdir}/usr/share/icons/hicolor/1024x1024/apps/archlence.png"
+  install -Dm644 "${srcdir}/archlence.svg" \
+    "${pkgdir}/usr/share/icons/hicolor/scalable/apps/archlence.svg"
   install -Dm644 "${srcdir}/LICENSE" \
     "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
 

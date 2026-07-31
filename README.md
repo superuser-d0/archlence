@@ -246,7 +246,7 @@ The package installs:
 - the application under `/opt/archlence`;
 - the `archlence` terminal command;
 - an **Archlence** application-menu entry;
-- the Archlence system icon; and
+- the Archlence SVG and high-resolution PNG system icons; and
 - the project license.
 
 After installation, open Archlence from the desktop environment's application
