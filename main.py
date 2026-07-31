@@ -11,66 +11,26 @@ import logging
 import datetime
 import faulthandler
 import traceback as _traceback
+import stat
+import shutil
+from pathlib import Path
 
 # ── Konsol kodlaması: Türkçe metin Windows'ta süreci ÖLDÜRMESİN ─────────────
-# Windows'ta `sys.stdout`/`sys.stderr` konsolun kod sayfasını kullanır (çoğu
-# Türkçe kurulumda cp1252). Bu kod sayfası 'ı', 'ğ', 'ş' gibi karakterleri
-# KODLAYAMAZ ve `print()` bir `UnicodeEncodeError` fırlatır.
-#
-# Bu teorik bir incelik değil: uygulamanın hata mesajları Türkçe ve bunların
-# çoğu `except` bloklarının İÇİNDE basılıyor. Orada `print` patlayınca hata
-# yutulmuyor — istisna dışarı sızıp asıl işlemi öldürüyor. Windows CI'da
-# ampirik olarak ölçüldü: `TransactionService.add_transaction` içindeki
-# "Abonelik radarına yazılamadı" satırı, abonelik radarı hata verdiğinde
-# İŞLEMİN TAMAMINI kaybettiriyordu (tests/test_subscription_interceptor.py
-# ::test_radar_failure_does_not_lose_the_transaction Windows'ta bu yüzden
-# kırmızıydı, Linux'ta yeşildi).
-#
-# errors="replace": kodlanamayan karakter '?' olur ama süreç ASLA durmaz.
-# Teşhis çıktısı kısmen bozulabilir; veri kaybetmekten sonsuz kez iyidir.
 for _stream in (sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8", errors="replace")
     except (AttributeError, ValueError, OSError):
-        # Paketlenmiş pencereli derlemede (console=False) bu akışlar None ya
-        # da yeniden yapılandırılamaz olabilir; o durumda zaten yazılmıyor.
         pass
 
 from utils.app_paths import data_dir, log_dir, migrate_legacy_path, resource_dir
 
-# Bu dosyanın kendi dizini — eski (paketlenmiş kurulumda genelde salt-okunur)
-# konumları migrate_legacy_path çağrılarında kaynak olarak kullanmak için.
-# docs/ROADMAP.md Faz 1 madde 4.
 _APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# ÇÖKME DÜZELTMESİ (gerçek bir Windows kurulumunda ampirik olarak üretildi):
-# main.py'nin geri kalanı — `Builder.load_file("ui/tools.kv")`,
-# `database/db.py::NETWORK_LOGOS`, ui/components.py'nin KV'ye gömülü
-# "assets/blank.png" gibi literalleri — hep GÖRELİ yol kullanıyor, yani
-# çalışma dizininin (cwd) kurulum klasörüyle aynı olduğunu VARSAYIYOR. Bu
-# geliştirmede doğru (uygulama repo kökünden çalıştırılır) ama paketlenmiş
-# bir `.exe` Başlat Menüsü/masaüstü kısayolundan ya da Inno Setup'ın
-# kurulum-sonu "Başlat" adımından açıldığında Windows/Inno Setup çalışma
-# dizinini kurulum klasörüyle aynı yapacağını GARANTİ ETMEZ. Sonuç: gerçek
-# bir kullanıcı kurulumunda `FileNotFoundError: [Errno 2] No such file or
-# directory: 'ui/tools.kv'` ile açılışta çöküyordu.
-#
-# Her göreli-yol referansını tek tek mutlak yola çevirmek yerine (bazıları
-# .kv dosyalarına GÖMÜLÜ literal string, Python'dan dokunulamaz — bkz.
-# ui/components.py), süreç HER ŞEYDEN ÖNCE doğru dizine geçiyor. Bu, tüm
-# göreli referansları TEK bir yerden, hiçbirini teker teker bulmaya
-# gerek kalmadan düzeltiyor. Kivy/KivyMD importlarından ÖNCE yapılmalı ki
-# onların kendi olası göreli-yol varsayımları da doğru cwd'yi görsün.
 os.chdir(resource_dir())
 
 # =========================================================================
 # 2. CRASH REPORTING & EARLY CONFIGURATION
 # =========================================================================
-# Crash reporting: Kivy'nin stderr yakalamasını susturduğu için çökmelerin
-# loglanması. Faz 1 madde 4: artık _APP_DIR yerine platformdirs'in log
-# dizininde — paketlenmiş bir Windows kurulumunda _APP_DIR genelde
-# salt-okunur, crash.log tam da çökmeleri yakalaması gereken an sessizce
-# açılamayabilirdi.
 _CRASH_LOG_DIR = log_dir()
 os.makedirs(_CRASH_LOG_DIR, exist_ok=True)
 _CRASH_LOG_PATH = os.path.join(_CRASH_LOG_DIR, "crash.log")
@@ -93,36 +53,6 @@ def _log_unhandled_exception(exc_type, exc_value, exc_tb):
 
 sys.excepthook = _log_unhandled_exception
 
-# docs/ROADMAP.md Faz 1 madde 2. Eskiden burada "DISPLAY yoksa
-# KIVY_WINDOW=mock yap" mantığı vardı. İKİ AYRI SEBEPTEN BOZUKTU:
-#
-#   1) DISPLAY, X11/Linux'a özgü bir kural — Windows'ta HİÇBİR ZAMAN set
-#      edilmez (kendi native pencere API'sini kullanır, X11'e ihtiyacı
-#      yoktur). Yani bu kod, HER Windows kurulumunda koşulsuz "mock"a
-#      düşüyordu.
-#   2) "mock", Kivy 2.3.1'de GERÇEK bir pencere sağlayıcısı DEĞİL — gerçek
-#      liste yalnızca egl_rpi/sdl2/x11 (bkz. kivy/core/window/__init__.py,
-#      window_impl). `KIVY_WINDOW=mock`, Kivy'nin arama listesini "mock"
-#      ile kısıtlıyor; hiçbir gerçek sağlayıcı bu listede olmadığından
-#      core_select_lib hiçbirini DENEMEDEN "Unable to find any valuable
-#      Window provider" diye loglayıp `Window`'u SESSİZCE `None` yapıyor —
-#      EXCEPTION FIRLATMIYOR (bkz. kivy/core/__init__.py::core_select_lib,
-#      bulunamama yolunda hiçbir raise yok, fonksiyon sessizce döner).
-#
-# Sonuç, ampirik olarak doğrulandı: aşağıdaki try/except bu hatayı HİÇ
-# YAKALAYAMIYORDU (import başarıyla dönüyor, yalnızca değeri None oluyor),
-# ve dosyanın en altındaki asıl giriş noktası da `_KivyWindow is None`
-# ise `raise SystemExit(0)` ile BAŞARI kodu döndürüyordu — `console=False`
-# olduğu için bu hiçbir yerde görünmeden. Yani DISPLAY'i olmayan HER
-# platformda (= her Windows kurulumunda) paketlenmiş .exe muhtemelen
-# hiçbir pencere göstermeden "başarıyla" kapanıyordu.
-#
-# Düzeltme: KIVY_WINDOW'a hiç dokunulmuyor — Kivy kendi doğal sağlayıcı
-# aramasını (sdl2 vb.) çalıştırsın. Headless çalışma artık DISPLAY
-# TAHMİNİYLE değil, açık bir bayrakla (ARCHLENCE_HEADLESS=1) kontrol
-# ediliyor — ve o bayrak "hangi sağlayıcıyı dene"yi değil, "pencere
-# KURULAMAZSA sessizce mi devam et yoksa görünür şekilde mi patla"yı
-# belirliyor (aşağıdaki try/except'lere bak).
 if not os.environ.get("KIVY_NO_ARGS"):
     os.environ["KIVY_NO_ARGS"] = "1"
 
@@ -133,26 +63,6 @@ ARCHLENCE_HEADLESS = os.environ.get("ARCHLENCE_HEADLESS", "").strip().lower() in
 if ARCHLENCE_HEADLESS:
     os.environ.setdefault("KIVY_METRICS_DENSITY", "1")
     os.environ.setdefault("KIVY_DPI", "96")
-    # Bir CI/test ortamının çoğunda GERÇEK bir display sunucusu (X11/
-    # Wayland) yok. Bu durumda arama listesi kısıtlanmazsa Kivy, SDL2
-    # denemesinden sonra ham (SDL2 tabanlı olmayan) `x11` sağlayıcısına
-    # düşüyor; o sağlayıcı düşük seviye bir Xlib connect() çağrısı yapıyor
-    # ve display yoksa SÜRECİ OS SEVİYESİNDE ÇÖKERTİYOR (exit code 102,
-    # "Couldn't connect to X server") — bu, aşağıdaki try/except'in asla
-    # yakalayamayacağı bir C-seviyesi çökme, Python istisnası değil. GitHub
-    # Actions'ın ubuntu-latest runner'ında ampirik olarak doğrulandı (PR
-    # #16'nın ilk CI çalışması tam olarak bu şekilde kırmızı oldu).
-    #
-    # Düzeltme: arama listesini yalnızca `sdl2`'ye kısıtla (çökmeye sebep
-    # olan ham x11 sağlayıcısına hiç ulaşılmıyor) ve SDL2'ye kendi resmi
-    # desteklenen headless video sürücüsünü (`dummy`) ver — bu, herhangi
-    # bir display olmadan çalışır ve başarısız olursa PYTHON SEVİYESİNDE
-    # bir RuntimeError fırlatır (aşağıdaki `except (ImportError,
-    # RuntimeError)` bunu düzgünce yakalar). Bu, eski `KIVY_WINDOW=mock`
-    # ile AYNI ŞEY DEĞİL: "sdl2" gerçek bir sağlayıcı, "dummy" gerçek ve
-    # belgelenmiş bir SDL2 sürücüsü, ve ikisi de yalnızca
-    # ARCHLENCE_HEADLESS AÇIKÇA istendiğinde devreye giriyor — DISPLAY
-    # yokluğundan tahmin edilmiyor.
     os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
     os.environ.setdefault("KIVY_WINDOW", "sdl2")
 
@@ -161,14 +71,8 @@ if ARCHLENCE_HEADLESS:
 # =========================================================================
 from kivy.config import Config
 
-Config.set("kivy", "log_level", "error")  # Only log errors
-Config.set("kivy", "log_maxfiles", 2)  # Keep only 2 log files
-# Kivy'nin mouse provider'ı varsayılan olarak sağ/orta tık ve Ctrl+sol tık
-# hareketlerini sahte çoklu-dokunma olarak yorumlayıp ekrana kırmızı temas
-# halkaları çizer. Alt-Tab sonrasında SDL modifier durumu takılı kaldığında
-# düz sol tıklar da bu moda sızabiliyor ve halkalar pencere boyunca kalıyor.
-# Archlence mouse ile multitouch emülasyonu kullanmıyor; gerçek dokunmatik
-# sağlayıcıları (hidinput/mtdev) bu ayardan bağımsızdır.
+Config.set("kivy", "log_level", "error")
+Config.set("kivy", "log_maxfiles", 2)
 Config.set("input", "mouse", "mouse,disable_multitouch")
 
 from kivy.metrics import dp
@@ -190,21 +94,12 @@ try:
     from kivy.core.window import Window as _KivyWindow
     from kivy.core.window import Window
     if Window is None:
-        # Kivy kendi sağlayıcı aramasını (egl_rpi/sdl2/x11) denedi ama
-        # hiçbiri kurulamadı — bu import EXCEPTION FIRLATMAZ (bkz. yukarıdaki
-        # ARCHLENCE_HEADLESS notu), `Window` sessizce None olur. Bunu
-        # açıkça kontrol etmezsek, gerçek bir masaüstünde pencere
-        # kurulamadığında kod sessizce ilerler ve çok daha sonra, alakasız
-        # bir yerde `NoneType has no attribute ...` ile çöker.
         raise RuntimeError(
             "Kivy herhangi bir pencere sağlayıcısı bulamadı "
             "(egl_rpi/sdl2/x11 hiçbiri kullanılamadı)."
         )
 except (ImportError, RuntimeError):
     if not ARCHLENCE_HEADLESS:
-        # ARCHLENCE_HEADLESS açıkça istenmediyse bu SESSİZCE geçiştirilecek
-        # bir şey değil — kullanıcı "uygulama hiçbir şey yapmadan kapandı"
-        # yerine gerçek hatayı görmeli (docs/ROADMAP.md Faz 1 madde 2).
         raise
     _KivyWindow = None
 
@@ -240,15 +135,7 @@ try:
     from kivymd.uix.label import MDLabel, MDIcon
     from kivymd.uix.screen import MDScreen
 except (ImportError, AttributeError) as exc:
-    # ImportError: kivymd genuinely missing/broken. AttributeError: bir
-    # kivymd sürüm uyuşmazlığı, yukarıdaki adlardan birini kaldırmış/
-    # taşımış olabilir — ikisi de "gerçekten kurulamadı" kategorisi.
-    # `except BaseException` eskiden buraya TAMAMEN alakasız bir hatayı
-    # (ör. bir programlama bug'ı) da düşürüp aynı sessiz fallback'e
-    # sokabilirdi.
     if not ARCHLENCE_HEADLESS:
-        # bkz. yukarıdaki Window guard'ındaki aynı gerekçe: gerçek bir
-        # masaüstünde bu sessizce geçiştirilmez.
         raise
     from kivy.app import App
     import warnings
@@ -260,72 +147,35 @@ except (ImportError, AttributeError) as exc:
             print("KivyMD is unavailable in this environment; skipping GUI startup.")
             return None
 
-    class MDRaisedButton(Widget):
-        pass
-
-    class MDFlatButton(Widget):
-        pass
-
-    class MDIconButton(Widget):
-        pass
-
-    class MDTextField(Widget):
-        pass
-
-    class MDBoxLayout(BoxLayout):
-        pass
-
-    class MDGridLayout(GridLayout):
-        pass
-
-    class MDSegmentedControl(Widget):
-        pass
-
-    class MDSegmentedControlItem(Widget):
-        pass
-
-    class TwoLineIconListItem(Widget):
-        pass
-
-    class IconLeftWidget(Widget):
-        pass
-
-    class MDLabel(Widget):
-        pass
-
-    class MDIcon(Widget):
-        pass
-
-    class TwoLineAvatarIconListItem(Widget):
-        pass
-
-    class IRightBodyTouch(object):
-        pass
-
-    class MDScreen(Widget):
-        pass
+    class MDRaisedButton(Widget): pass
+    class MDFlatButton(Widget): pass
+    class MDIconButton(Widget): pass
+    class MDTextField(Widget): pass
+    class MDBoxLayout(BoxLayout): pass
+    class MDGridLayout(GridLayout): pass
+    class MDSegmentedControl(Widget): pass
+    class MDSegmentedControlItem(Widget): pass
+    class TwoLineIconListItem(Widget): pass
+    class IconLeftWidget(Widget): pass
+    class MDLabel(Widget): pass
+    class MDIcon(Widget): pass
+    class TwoLineAvatarIconListItem(Widget): pass
+    class IRightBodyTouch(object): pass
+    class MDScreen(Widget): pass
 
     class MDDialog(object):
         def __init__(self, *args, **kwargs):
             self.args = args
             self.kwargs = kwargs
-
-        def open(self, *args, **kwargs):
-            return None
-
-        def dismiss(self, *args, **kwargs):
-            return None
+        def open(self, *args, **kwargs): return None
+        def dismiss(self, *args, **kwargs): return None
 
     class MDDropdownMenu(object):
         def __init__(self, *args, **kwargs):
             self.args = args
             self.kwargs = kwargs
-
-        def open(self, *args, **kwargs):
-            return None
-
-        def dismiss(self, *args, **kwargs):
-            return None
+        def open(self, *args, **kwargs): return None
+        def dismiss(self, *args, **kwargs): return None
 
     def toast(*args, **kwargs):
         return None
@@ -381,24 +231,15 @@ from mixins.subscription_mixin import SubscriptionMixin
 from mixins.pending_mixin import PendingMixin
 from mixins.calendar_mixin import CalendarMixin
 from security.security_service import LoginThrottle, SecurityService
+from services.backup_service import decrypt_recovery_material
 from services.history_service import write_daily_snapshot
 
 # =========================================================================
-# 5. CONSTANTS
+# 5. CONSTANTS & SYSTEM PREP
 # =========================================================================
 SECRET_KEY = "fi" + "nora_secure_2026"
 
-
 def _resolve_config_path():
-    """docs/ROADMAP.md Faz 1 madde 4. Kalıcı config JSON dosyasının yolunu
-    çözer; gerekiyorsa eski konumlardan (önce eski "finora" adı, sonra
-    _APP_DIR'den kullanıcı-veri dizinine) tek seferlik migration yapar.
-    ARCHLENCE_CONFIG_PATH açıkça set edildiyse OLDUĞU GİBİ kullanılır
-    (migration atlanır) — testler ve ileri düzey override için.
-
-    self'e ihtiyacı olmayan saf bir fonksiyon: gerçek bir Kivy penceresi
-    kurmadan doğrudan çağrılıp test edilebilir (bkz.
-    tests/test_app_paths_wiring.py)."""
     override = os.environ.get("ARCHLENCE_CONFIG_PATH")
     if override:
         return override
@@ -407,26 +248,79 @@ def _resolve_config_path():
     legacy_path = os.path.join(_APP_DIR, "archlence_config.json")
     legacy_finora_path = os.path.join(_APP_DIR, "fi" + "nora_config.json")
 
-    # _APP_DIR'a HİÇ YAZMIYORUZ. Önceki hâli, eski "finora" dosyasını önce
-    # _APP_DIR içinde yeni ada kopyalayıp sonra oradan taşıyordu — yani
-    # paketlenmiş bir Windows kurulumunda SALT-OKUNUR olan kurulum
-    # dizinine yazmaya çalışıyordu, tam da madde 4'ün ortadan kaldırmak
-    # için var olduğu şeyi yaparak. Artık her iki eski konumdan da DOĞRUDAN
-    # hedefe kopyalanıyor: önce yeni ad denenir, o taşınmadıysa (yoksa)
-    # eski "finora" adı denenir. Hedef zaten varsa ikisi de hiçbir şey
-    # yapmaz (migrate_legacy_path'in kendi guard'ı).
     if not migrate_legacy_path(legacy_path, target_path):
         migrate_legacy_path(legacy_finora_path, target_path)
     return target_path
 
-
 def _resolve_savings_store_path():
-    """docs/ROADMAP.md Faz 1 madde 4. `_resolve_config_path` ile aynı
-    gerekçe, "finora" adı geçmişi olmayan tek dosya için."""
     legacy_path = os.path.join(_APP_DIR, "savings_goals.json")
     target_path = os.path.join(data_dir(), "savings_goals.json")
     migrate_legacy_path(legacy_path, target_path)
     return target_path
+
+
+def setup_appimage_desktop_integration():
+    """
+    AppImage olarak çalıştırıldığında kendini Linux başlat menüsüne (.local/share/applications),
+    masaüstüne ve ikon kütüphanesine otomatik olarak entegre eder.
+    """
+    appimage_path = os.environ.get("APPIMAGE")
+
+    if not appimage_path:
+        return
+
+    applications_dir = Path.home() / ".local" / "share" / "applications"
+    desktop_dir = Path.home() / "Desktop"
+    icons_dir = Path.home() / ".local" / "share" / "icons" / "hicolor" / "256x256" / "apps"
+
+    if not desktop_dir.exists():
+        desktop_dir = Path.home() / "Masaüstü"
+        if not desktop_dir.exists():
+            desktop_dir = None
+
+    applications_dir.mkdir(parents=True, exist_ok=True)
+    icons_dir.mkdir(parents=True, exist_ok=True)
+
+    # İkon Kopyalama Adımı (shutil entegre edildi)
+    source_icon = Path(resource_dir()) / "assets" / "icon.png"
+    target_icon = icons_dir / "archlence.png"
+
+    if source_icon.exists() and not target_icon.exists():
+        try:
+            shutil.copy2(source_icon, target_icon)
+        except OSError as e:
+            print(f"İkon sisteme kopyalanamadı: {e}")
+
+    desktop_file_name = "archlence.desktop"
+    app_menu_path = applications_dir / desktop_file_name
+
+    desktop_content = f"""[Desktop Entry]
+Name=Archlence
+Comment=Local-First Personal Finance Manager
+Exec="{appimage_path}"
+Icon=archlence
+Terminal=false
+Type=Application
+Categories=Office;Finance;
+StartupNotify=true
+"""
+
+    try:
+        with open(app_menu_path, "w", encoding="utf-8") as f:
+            f.write(desktop_content)
+        app_menu_path.chmod(app_menu_path.stat().st_mode | stat.S_IEXEC)
+    except OSError as e:
+        print(f"Başlat menüsü kısayolu oluşturulamadı: {e}")
+
+    if desktop_dir:
+        desktop_shortcut_path = desktop_dir / desktop_file_name
+        if not desktop_shortcut_path.exists():
+            try:
+                with open(desktop_shortcut_path, "w", encoding="utf-8") as f:
+                    f.write(desktop_content)
+                desktop_shortcut_path.chmod(desktop_shortcut_path.stat().st_mode | stat.S_IEXEC)
+            except OSError as e:
+                print(f"Masaüstü simgesi oluşturulamadı: {e}")
 
 
 # =========================================================================
@@ -477,31 +371,6 @@ class ArchlenceApp(
     # -------------------------------------------------------------------------
     @staticmethod
     def _warm_crypto_key_in_background():
-        """PBKDF2 anahtar türetmesini (utils/crypto.py::_get_key) VE AEAD
-        anahtar dosyası okumasını (`_get_aead_key`) arka planda önceden
-        tetikler.
-
-        DÜZELTME (performans): `encrypt`/`decrypt` her çağrıda 1 milyon
-        iterasyonlu PBKDF2'yi YENİDEN çalıştırmaz — `functools.lru_cache` ile
-        önbelleklenir — ama SÜRECİN İLK çağrısı bu maliyeti (~250ms, ölçüldü)
-        öder. O ilk çağrı hangi thread'den gelirse o thread bloklanıyordu;
-        pratikte neredeyse her zaman ana thread kazanıyordu çünkü `build()`
-        senkron devam ederken arka plan thread'lerinin (varsa) başlaması bir
-        kare gecikiyordu. Bu fonksiyon o yarışı BİLEREK arka plana kaydırır:
-        `build()`'in ilk satırında çağrılır, böylece pencere görünür olana
-        kadar anahtar çoktan ısınmış olur.
-
-        AEAD ENTEGRASYONU NOTU (Faz 1 madde 5, PR #22): eskiden burada
-        `decrypt(encrypt("archlence-warmup"))` çağrılıyordu — `encrypt()`
-        artık HER ZAMAN yeni AEAD şemasını ürettiği için bu round-trip
-        `_get_key`'e (PBKDF2) hiç UĞRAMAZ oldu, yani ısıtma sessizce
-        işlevsiz kalırdı (bkz. tests/test_startup_performance.py, bu
-        regresyonu yakaladı). `_get_key`'in kendisi hâlâ gerekli: var olan
-        her eski-format satırın (AEAD'e henüz yeniden yazılmamış her
-        transactions/active_debts/... kaydı) İLK çözülüşü hâlâ bu yoldan
-        geçiyor. Doğrudan çağrılıyor — dolaylı bir round-trip'e güvenmek
-        yerine.
-        """
         import threading
         from utils.crypto import DEFAULT_PASSWORD, _get_aead_key, _get_key
 
@@ -517,11 +386,11 @@ class ArchlenceApp(
         return thread
 
     def build(self):
-        # Kivy'nin varsayılan 20 pre-frame iterasyonu, Archlence'ın iç içe
-        # KivyMD/uyarlanabilir layout ağacı ilk kez ölçülürken zaman zaman
-        # yetmiyor. Uygulama tarafında -1 ile kendini planlayan bir callback
-        # yok; bu sınır yalnızca Builder'ın sonlu yerleşim zincirinin aynı
-        # karede tamamlanabilmesi için ölçülü biçimde yükseltilir.
+        try:
+            setup_appimage_desktop_integration()
+        except (OSError, RuntimeError) as e:
+            print("Appimage entegrasyonu hatası: ", e)
+
         Clock.max_iteration = 50
         from services.background_task_manager import BackgroundTaskManager
 
@@ -531,20 +400,12 @@ class ArchlenceApp(
             )
         )
         self._warm_crypto_key_in_background()
-        # docs/ROADMAP.md Faz 1 madde 4. initialize_database()'DEN ÖNCE:
-        # eski BASE_DIR/finance.db varsa (var olan bir kurulumdan geçiş)
-        # yeni kullanıcı-veri konumuna taşınır. Zaten yeni konumda bir DB
-        # varsa (taze kurulum ya da önceki bir çalıştırmada zaten taşındı)
-        # hiçbir şey yapmaz.
         migrate_legacy_database_location()
         initialize_database()
         self.store = JsonStore(_resolve_savings_store_path())
         if self.store.exists("goals"):
             self.savings_goals = self.store.get("goals")["data"]
 
-        # KivyMD 1.2'nin tema renk animasyonları hızlı geçişlerde üst üste
-        # binerek bazı label'ları eski zemin rengine/şeffaflığa bırakabiliyor.
-        # Uygulamanın kendi geçişi yeterli; metin renkleri atomik güncellenir.
         self.theme_cls.theme_style_switch_animation = False
         self.config_store = JsonStore(_resolve_config_path())
         saved_style = "Light"
@@ -570,19 +431,15 @@ class ArchlenceApp(
             pref = self.config_store.get("theme").get("name", "standard")
 
         self.apply_theme(pref, persist=False)
-        # tools.kv ÖNCE yüklenir: dashboard.kv içinde BudgetPlannerPanel ve
-        # BudgetSummaryCard örnekleniyor, kuralları önceden tanımlı olmalı.
         Builder.load_file("ui/tools.kv")
         root = Builder.load_file("ui/dashboard.kv")
         root.ids.screen_manager.current = self.authentication_screen()
         return root
 
     def tr(self, text, language=None):
-        """KV ve Python arayüzünün ortak çeviri giriş noktası."""
         return translate(text, language or self.language)
 
     def set_language(self, code, persist=True):
-        """Uygulama dilini anında değiştirir ve tercihi kalıcılaştırır."""
         self.language = set_active_language(code)
         if persist:
             try:
@@ -590,7 +447,6 @@ class ArchlenceApp(
             except Exception as e:
                 print("Dil tercihi kaydedilemedi:", e)
 
-        # Python tarafında üretilen kartları seçilen dille yeniden oluştur.
         if self.root:
             chart_box = self.root.ids.get("chart_master_box")
             if chart_box is not None:
@@ -603,16 +459,9 @@ class ArchlenceApp(
             Clock.schedule_once(lambda dt: self.refresh_dashboard_data(), 0)
             Clock.schedule_once(lambda dt: self.load_active_debts(), 0.05)
             Clock.schedule_once(lambda dt: self.load_upcoming_recurring(), 0.1)
-            # KV property'leri doğru dili aynı anda alır; KivyMD 1.2'nin
-            # önceden oluşturduğu bottom-navigation header/Label texture'ları
-            # ise bazen bir sonraki gerçek çizim karesine kadar eski dokuyu
-            # taşır. Property state'i ile piksel çıktısını aynı karede
-            # uzlaştır; tema değişimindeki _refresh_text_textures ile aynı
-            # sınıf güvenli tazeleme.
             Clock.schedule_once(self._refresh_language_widgets, 0)
 
     def _refresh_language_widgets(self, *args):
-        """Dil property'leri değiştikten sonra KivyMD kopya/dokularını uzlaştır."""
         if not self.root:
             return
         nav = self.root.ids.get("bottom_nav")
@@ -632,7 +481,6 @@ class ArchlenceApp(
         self._refresh_text_textures()
 
     def open_language_dialog(self):
-        """Türkçe/İngilizce dil seçicisini açar."""
         dialog = MDDialog(
             title=self.tr("Uygulama Dili"),
             buttons=[
@@ -651,12 +499,6 @@ class ArchlenceApp(
     def on_start(self):
         self._normalize_card_shadows()
 
-        # DÜZELTME: Araçlar ızgarasındaki TÜM kareler düz MDCard + `on_release:`
-        # idi — ripple_behavior ButtonBehavior miras almadığından bu SESSİZCE
-        # hiç ateşlenmiyordu (bkz. ui/theme.py::bind_card_tap docstring'i,
-        # aynı kökten "Daha fazla seçenek"/tutar alanı hatalarıyla). KV'deki
-        # ölü `on_release:` satırları kaldırıldı, gerçek tıklama burada
-        # kuruluyor. Kart-callback eşlemesi tek yerde tutulsun diye liste.
         tool_card_bindings = (
             ("budget_tool_card", self.show_budget_planner),
             ("calendar_tool_card", self.open_calendar_view),
@@ -688,8 +530,6 @@ class ArchlenceApp(
         start_data_warmup()
 
         self.write_daily_balance_snapshot()
-        # Aktif ay/yıl state'ini kur. Panel açılışta ızgarada olmadığından ay
-        # butonları burada çizilmez; planlayıcı diyaloğu açılınca kurulur.
         self.setup_dynamic_months()
         self.safe_refresh_charts()
         self.load_recent_transactions("Günlük")
@@ -697,21 +537,12 @@ class ArchlenceApp(
         self.load_active_debts()
         self.load_active_assets()
         self.load_asset_history()
-        # Bekleyen özeti burada ayrıca çağrılmaz: process_due_auto_deductions
-        # vadesi geleni bakiyeye işledikten SONRA kendisi tetikliyor, yoksa
-        # paralel okuma uzlaştırılmış kayıtları hâlâ bekleyen gösterebilirdi.
         self.process_due_auto_deductions()
 
     def on_stop(self):
-        """Kivy'nin kapanış kancası — süreç ömrüne bağlanmış zamanlayıcıları
-        bırakır. `stop_active_assets_refresh` olmadan hesaplar görünümündeki
-        60 saniyelik `Clock.schedule_interval` hiçbir yerde iptal edilmiyordu
-        (bkz. mixins/account_mixin.py); kapanış sırasında tetiklenmeye devam
-        edip yıkılmakta olan DB/arayüze dokunabilirdi."""
         try:
             self.stop_active_assets_refresh()
         except Exception as exc:
-            # Kapanış yolu hiçbir koşulda hata fırlatmamalı.
             print("Arka plan tazeleme durdurulamadı:", exc)
         if hasattr(self, "background_tasks"):
             self.background_tasks.shutdown(wait=False)
@@ -739,9 +570,6 @@ class ArchlenceApp(
                 print("Tema tercihi kaydedilemedi:", e)
 
     def toggle_theme(self, is_active):
-        # KV'de giriş ve uygulama ayarlarında aynı theme_style'a bağlı birden
-        # fazla switch var. theme_style değişince bu switch'lerin on_active
-        # olayları da çalışır; bunlar kullanıcıdan gelen yeni bir istek değildir.
         if getattr(self, "_applying_theme_style", False):
             return
 
@@ -769,8 +597,6 @@ class ArchlenceApp(
             finally:
                 self._applying_theme_style = False
 
-        # Switch'in kendi kısa animasyonu bitsin; yeni bir kullanıcı seçimi
-        # gelirse yukarıdaki iptal sayesinde eski seçim sonradan uygulanmaz.
         self._pending_theme_switch = Clock.schedule_once(_switch_theme, 0.12)
 
     def _after_theme_switch(self, *args):
@@ -780,28 +606,15 @@ class ArchlenceApp(
             pass
         self._normalize_card_shadows()
         self._resync_text_fields()
-        # Premium kartlar çok katmanlı canvas + adaptive label içeriyor.
-        # KivyMD 1.2 bunları Dark -> Light dönüşünde eski stencil/canvas
-        # durumuyla bırakabiliyor; sonuç metin dokusu tam olsa bile yalnız ilk
-        # karakterin görünmesi. Kart ağacını güncel veriden yeniden kurmak hem
-        # güvenli hem deterministik (veritabanında yazma yapmaz).
-        # Dinamik oluşturulmuş MDLabel/MDIcon örnekleri KV bağlaması taşımayabilir.
-        # Aktif theme_text_color rolünü yeniden uygulatmak görünmez metinleri
-        # önler; Custom renkler olduğu gibi korunur.
         for widget in self._all_widgets():
             if isinstance(widget, MDLabel):
                 try:
                     widget.on_theme_text_color(widget, widget.theme_text_color)
                 except Exception:
                     pass
-        # Kivy 2.3 / KivyMD 1.2'de özellikle Custom renkli, adaptive boyutlu
-        # label'ların font texture'ı Dark -> Light dönüşünde bazen tek karakter
-        # genişliğinde kalıyor. Renk geçişi tamamlandıktan sonraki frame'de
-        # texture'ları yeniden üretmek metnin kırpılmasını/kaybolmasını önler.
         Clock.schedule_once(self._rebuild_after_theme_layout, 0.2)
 
     def _rebuild_after_theme_layout(self, *args):
-        """Tema ve navigation yerleşimi oturduktan sonra dinamik kartları kur."""
         if self.root:
             chart_box = self.root.ids.get("chart_master_box")
             if chart_box is not None and hasattr(chart_box, "refresh_theme"):
@@ -832,11 +645,6 @@ class ArchlenceApp(
         for widget in self._all_widgets():
             if isinstance(widget, MDLabel):
                 try:
-                    # Bu metot tema değişiminden 150 ms sonra çağrılır; o anda
-                    # FloatLayout/ScrollView ölçüleri sabittir. Senkron yenileme
-                    # hem font dokusunu hem ona bağlı canvas Rectangle'ını aynı
-                    # ölçüye getirir (yalnız _trigger_texture Rectangle'ı eski
-                    # genişlikte bırakabiliyor).
                     widget.texture_update()
                     widget.canvas.ask_update()
                 except Exception:
@@ -864,9 +672,6 @@ class ArchlenceApp(
     def _resync_text_fields(self):
         if not self.root:
             return
-        # set_default_colors(), Archlence'nın kontrast renklerini KivyMD
-        # varsayılanlarıyla ezebiliyordu. Ortak tema kiti açık diyaloglar dahil
-        # tüm alanlara doğru açık/koyu renkleri uygular.
         restyle_text_fields(self.root, self.theme_cls)
         for window_child in list(Window.children):
             if window_child is not self.root:
@@ -911,17 +716,6 @@ class ArchlenceApp(
             print("Purged Kivy logs due to size > 5MB")
 
     def vacuum_database(self):
-        """VACUUM'u arka planda çalıştırır.
-
-        DÜZELTME (performans): eskiden bu, pencere zaten görünür olduktan
-        SONRA (`on_start()` içinde) ana thread'de senkron çalışıyordu.
-        Maliyeti veritabanı dosya boyutuyla orantılı olduğundan (VACUUM tüm
-        dosyayı yeniden yazar) küçük test veritabanında (~20ms) fark
-        edilmiyordu ama aylarca veri biriktirmiş gerçek bir kullanıcıda
-        büyüyebilirdi. Diğer arka plan DB işlemleriyle AYNI eşzamanlılık
-        modelini kullanır (ayrı bağlantı + `get_connection()`'ın kendi
-        `timeout` ayarı kilit çakışmalarını tolere eder).
-        """
         import threading
 
         def _work():
@@ -947,10 +741,6 @@ class ArchlenceApp(
     # Metrics & Dashboard Updates
     # -------------------------------------------------------------------------
     def update_metrics_and_goals(self):
-        """Tüm SQL taramalarını ve şifre çözmeyi arka plan thread'inde bitirir;
-        sonuç hazır olunca arayüze TEK Clock çağrısıyla property güncellemesi
-        yapar. (Eski sürüm bu taramaları ana thread'de koşturuyordu — sekme
-        geçişindeki donmanın ana kaynağı buydu.)"""
         def _error(exc):
             if isinstance(exc, FinancialDataIntegrityError):
                 from utils.logging_config import log_integrity_error
@@ -974,7 +764,6 @@ class ArchlenceApp(
         )
 
     def _compute_dashboard_metrics(self):
-        """Yalnızca veri üretir, hiçbir widget'a dokunmaz (thread güvenli)."""
         with managed_connection() as conn:
             rows = conn.execute(f"""
                 SELECT t.id, t.amount, t.type,
@@ -988,10 +777,6 @@ class ArchlenceApp(
         summary = summarize_transactions(rows)
         total_income = summary.total_income
         total_expense = summary.total_expense
-        # "Cüzdanım" toplamı, işlem nakit-akışına (gelir − gider) hesapların
-        # AÇILIŞ bakiyelerini de ekler. Açılış bakiyesi transactions'a değil
-        # accounts.balance + balance_events'e yazıldığından, bu taban olmadan
-        # açılış tutarı "Kartlarım"da görünüp "Cüzdanım"da görünmüyordu.
         from services.queries import DashboardService
 
         from utils.financial_decimal import decimal_from
@@ -1025,7 +810,6 @@ class ArchlenceApp(
         period_expense = period.total_expense
         period_net = period.net
 
-        # ── 30 günlük ODE projeksiyonu girdileri ─────────────────────────────
         with managed_connection() as conn_pred:
             rows = conn_pred.execute(f"""
                 SELECT id, type, amount, 'extra' AS importance
@@ -1058,7 +842,6 @@ class ArchlenceApp(
         }
 
     def _apply_dashboard_integrity_error(self, error_id):
-        """Invalidate financial totals instead of displaying partial zeros."""
         if not self.root:
             return
         unavailable = translate("Bazı kayıtlar okunamadığı için gösterilemiyor")
@@ -1079,10 +862,6 @@ class ArchlenceApp(
         toast(f"{unavailable} (Hata: {error_id})")
 
     def _apply_dashboard_metrics(self, m):
-        """Hazır metrik paketini arayüze TEK seferde, yalnızca property
-        güncelleyerek yazar. Widget silinmez/taşınmaz ve konum animasyonu
-        yoktur: eski y-kaydırmalı kart animasyonu, kartları layout kontrolünden
-        çıkarıp grafiklerin üzerine bindiriyordu (overlap/Z-index hatası)."""
         if not self.root:
             return
 
@@ -1187,8 +966,6 @@ class ArchlenceApp(
             )
             if savings_key != getattr(self, "_last_savings_render_key", None):
                 self._last_savings_render_key = savings_key
-                # Savings cards are expensive; run only when their actual input
-                # changed and yield one frame after primary dashboard labels.
                 Clock.schedule_once(
                     lambda dt: self.render_savings_goals(total_balance), 0
                 )
@@ -1196,7 +973,6 @@ class ArchlenceApp(
         except Exception:
             pass
 
-        # ── Alt metrik kartları: KV'de sabit yerlerinde, tek seferde dolar ───
         if "metric_val_income" in self.root.ids:
             total_income = m["total_income"]
             total_expense = m["total_expense"]
@@ -1284,13 +1060,6 @@ class ArchlenceApp(
             pass
 
     def toggle_wealth_visibility(self):
-        # DÜZELTME (kasma): today_liquid_delta hiç verilmeden çağrıldığında
-        # update_wealth_card "eski senkron çağıranlar için" yolu izleyip
-        # _compute_today_liquid_delta()'yı DOĞRUDAN UI thread'inde
-        # çalıştırıyordu (DB sorgusu + N adet decrypt) — göz ikonuna her
-        # basışta. Görünürlük değiştirmek yeni veri gerektirmez; son bilinen
-        # değeri (update_wealth_card'ın kendisi her çağrıda önbelleğe alır)
-        # yeniden kullanmak yeterli.
         self._wealth_visible = not self._wealth_visible
         self.update_wealth_card(
             self._assets_cache,
@@ -1298,8 +1067,6 @@ class ArchlenceApp(
         )
 
     def _compute_today_liquid_delta(self):
-        """Bugünkü nakit hareket toplamı (gelir − gider). Yalnızca veri üretir;
-        arka plan thread'inden çağrılabilir."""
         with managed_connection() as conn_t:
             rows = conn_t.execute(
                 "SELECT id, amount, type, 'extra' AS importance "
@@ -1312,9 +1079,6 @@ class ArchlenceApp(
         return summarize_transactions(rows).net
 
     def update_wealth_card(self, enriched_assets, today_liquid_delta=None):
-        """Toplam Varlık kartını günceller. `today_liquid_delta` arka planda
-        hesaplanıp verilmişse DB'ye hiç dokunulmaz; verilmemişse (eski senkron
-        çağıranlar için) yalnızca gerektiğinde yerinde hesaplanır."""
         from utils.financial_decimal import decimal_from
 
         liquid_cash = decimal_from(
@@ -1346,9 +1110,7 @@ class ArchlenceApp(
             today_liquid_delta = decimal_from(0)
         else:
             today_liquid_delta = decimal_from(today_liquid_delta)
-        # toggle_wealth_visibility gibi yeni veri gerektirmeyen çağıranlar
-        # (yalnızca görünürlük değişimi) DB'ye hiç dokunmadan bu son bilinen
-        # değeri yeniden kullanabilsin diye önbelleğe alınır.
+
         self._today_liquid_delta_cache = today_liquid_delta
 
         today_pnl = asset_pnl + today_liquid_delta
@@ -1396,10 +1158,6 @@ class ArchlenceApp(
                 t_dt = datetime.datetime.strptime(t_date[:10], "%Y-%m-%d").date()
                 amount = float(decrypt(amount_enc, SECRET_KEY))
             except (ValueError, TypeError):
-                # ValueError iki kaynaktan gelebilir ve İKİSİ de bu satırın
-                # atlanmasını gerektirir: strptime'ın bozuk tarih metnini
-                # ayrıştıramaması, ya da float()'ın "[Şifreli Veri]" yer
-                # tutucusunu sayıya çevirememesi.
                 continue
 
             val = (
@@ -1441,10 +1199,6 @@ class ArchlenceApp(
     # -------------------------------------------------------------------------
     # List & Navigation Interactions
     # -------------------------------------------------------------------------
-    # Zaman filtresi butonları hem sabit Türkçe anahtar (alt satırdaki
-    # butonlar) hem de dile göre çevrilen segmented control metniyle
-    # çağrılabiliyor; ikincisi İngilizce modda "1 Ay" gibi anahtarlarla asla
-    # eşleşmeyeceği için gelen metni önce kanonik Türkçe karşılığına çeviriyoruz.
     _HOME_FILTER_KEYS = ("Bugün", "1 Hafta", "1 Ay", "1 Yıl", "Hayat Boyu")
 
     def change_home_filter(self, text):
@@ -1495,8 +1249,6 @@ class ArchlenceApp(
             return False
 
         try:
-            # update_metrics_and_goals metrikleri ve değişim oranını aynı
-            # arka-plan paketinde hesaplar.
             self.update_metrics_and_goals()
             if self.root and "chart_master_box" in self.root.ids:
                 self.root.ids.chart_master_box.refresh_dashboard(
@@ -1516,8 +1268,10 @@ class ArchlenceApp(
         self._dashboard_rendered_cache_key = dashboard_key
         return True
 
+    # -------------------------------------------------------------------------
+    # [ MADDE 1 DÜZELTMESİ ]: Bozuk İşlemlerin Yakalanması ve UI'a İletilmesi
+    # -------------------------------------------------------------------------
     def _refresh_recent_transactions(self, list_filter=None):
-        """Yalnız son işlemler listesini arka planda yeniler."""
         import threading
 
         if not list_filter:
@@ -1528,10 +1282,6 @@ class ArchlenceApp(
                 conn = get_connection()
                 cursor = conn.cursor()
 
-                # Tek gövde + filtreye özel tarih koşulu: aynı SELECT'i altı kez
-                # tekrarlamak, birine status filtresi eklemeyi unutmayı çok
-                # kolaylaştırıyordu. "Bekleyen İşlemler" ayrı panelde gösterilir,
-                # bu liste yalnızca bakiyeye işlenmiş kayıtları gösterir.
                 select_body = (
                     "SELECT type, category, amount, description,"
                     " strftime('%d/%m %H:%M', transaction_date) FROM transactions"
@@ -1558,29 +1308,23 @@ class ArchlenceApp(
 
                 processed_items = []
                 for t_type, category, amount_enc, desc_enc, t_date in transactions_raw:
-                    # DAR TUTULDU (bkz. docs/ROADMAP.md Faz 2 "except ayrımı",
-                    # PR #13). Bu iki blok ÇIPLAK `except:` idi — yani
-                    # KeyboardInterrupt/SystemExit/MemoryError'ı bile yutup
-                    # 0.0'a düşürüyorlardı. decrypt() kendi içinde asla raise
-                    # etmez (bkz. utils/crypto.py), buraya ulaşabilen tek
-                    # gerçek hata float()'ın "[Şifreli Veri]" yer tutucusunu
-                    # ya da None'ı sayıya çevirememesidir — codebase'in geri
-                    # kalanında zaten tam olarak bu iki tipe daraltılmıştı,
-                    # yalnızca bu iki satır atlanmıştı.
+                    is_corrupted = False
+
+                    # Şifre çözme denemesi
                     try:
                         dec_amt = float(decrypt(str(amount_enc), SECRET_KEY))
                     except (ValueError, TypeError):
                         dec_amt = 0.0
+                        is_corrupted = True
 
                     try:
-                        dec_desc = (
-                            decrypt(str(desc_enc), SECRET_KEY) if desc_enc else ""
-                        )
+                        dec_desc = decrypt(str(desc_enc), SECRET_KEY) if desc_enc else ""
                     except (ValueError, TypeError):
                         dec_desc = ""
+                        is_corrupted = True
 
                     processed_items.append(
-                        (t_type, category, dec_amt, dec_desc, t_date)
+                        (t_type, category, dec_amt, dec_desc, t_date, is_corrupted)
                     )
 
                 Clock.schedule_once(
@@ -1615,7 +1359,7 @@ class ArchlenceApp(
                 "hisse/varlık": ("chart-line", (0.08, 0.72, 0.42, 1)),
             }
 
-            for t_type, category, amount, decrypted_desc, t_date in transactions:
+            for t_type, category, amount, decrypted_desc, t_date, is_corrupted in transactions:
                 cat_lower = category.lower() if category else ""
                 icon_data = next(
                     (v for k, v in icon_mapping.items() if k in cat_lower), None
@@ -1626,35 +1370,41 @@ class ArchlenceApp(
                 if brand_key and not brand_icon:
                     brand_names_to_prefetch.add(brand_text)
 
-                if icon_data:
-                    icon_name, icon_col = icon_data
-                elif category == "Varlık Alımı":
-                    icon_name, icon_col = "chart-line", (0.08, 0.72, 0.42, 1)
-                elif category == "Varlık Satışı":
-                    icon_name, icon_col = "cash-plus", (0.18, 0.8, 0.25, 1)
-                elif t_type == "income":
-                    icon_name, icon_col = "cash-plus", (0.18, 0.8, 0.25, 1)
+                if is_corrupted:
+                    icon_name, icon_col = "alert-circle-outline", (0.9, 0.1, 0.1, 1)
+                    amount_text = translate("[color=#D32F2F]⚠️ Bozuk Kayıt[/color]")
+                    display_cat = translate("Veri Okunamadı")
                 else:
-                    icon_name, icon_col = "cart-outline", (0.9, 0.2, 0.2, 1)
+                    display_cat = translate(category)
+                    if icon_data:
+                        icon_name, icon_col = icon_data
+                    elif category == "Varlık Alımı":
+                        icon_name, icon_col = "chart-line", (0.08, 0.72, 0.42, 1)
+                    elif category == "Varlık Satışı":
+                        icon_name, icon_col = "cash-plus", (0.18, 0.8, 0.25, 1)
+                    elif t_type == "income":
+                        icon_name, icon_col = "cash-plus", (0.18, 0.8, 0.25, 1)
+                    else:
+                        icon_name, icon_col = "cart-outline", (0.9, 0.2, 0.2, 1)
 
-                if category == "Varlık Alımı":
-                    amount_text = translate(
-                        f"[color=#0277BD]- ₺{amount:,.2f} Yatırım[/color]"
-                    )
-                elif category == "Varlık Satışı":
-                    amount_text = translate(
-                        f"[color=#2E7D32]+ ₺{amount:,.2f} Satış[/color]"
-                    )
-                elif t_type == "income":
-                    amount_text = f"[color=#2E7D32]+ ₺{amount:,.2f}[/color]"
-                else:
-                    amount_text = f"[color=#D32F2F]- ₺{amount:,.2f}[/color]"
+                    if category == "Varlık Alımı":
+                        amount_text = translate(
+                            f"[color=#0277BD]- ₺{amount:,.2f} Yatırım[/color]"
+                        )
+                    elif category == "Varlık Satışı":
+                        amount_text = translate(
+                            f"[color=#2E7D32]+ ₺{amount:,.2f} Satış[/color]"
+                        )
+                    elif t_type == "income":
+                        amount_text = f"[color=#2E7D32]+ ₺{amount:,.2f}[/color]"
+                    else:
+                        amount_text = f"[color=#D32F2F]- ₺{amount:,.2f}[/color]"
 
                 data.append(
                     {
-                        "text": translate(category),
+                        "text": display_cat,
                         "secondary_text": f"{t_date[:10]} | {amount_text}",
-                        "icon_source": brand_icon or "",
+                        "icon_source": brand_icon or "" if not is_corrupted else "",
                         "icon_name": icon_name,
                         "icon_color": list(icon_col),
                     }
@@ -1667,7 +1417,6 @@ class ArchlenceApp(
             print("Error rendering recent UI:", e)
 
     def _prefetch_recent_brand_icons(self, brand_names, transactions):
-        """Eksik işlem markalarını arka planda indirip listeyi bir kez yeniler."""
         import threading
         from services.brand_icon_service import fetch_and_cache_brand_icon
 
@@ -1687,7 +1436,6 @@ class ArchlenceApp(
     # Authentication & Profile
     # -------------------------------------------------------------------------
     def authentication_screen(self):
-        """Kayıtlı PIN varsa girişe, yoksa ilk kurulum ekranına yönlendirir."""
         try:
             if self.config_store.exists("security"):
                 security = self.config_store.get("security")
@@ -1702,26 +1450,16 @@ class ArchlenceApp(
         return "pin_setup"
 
     def route_after_auth(self):
-        """Kimlik doğrulama sonrası gidilecek ekran: 'account_setup' ya da 'home'.
-
-        Varsayılan hesap seed'i kaldırıldığından taze kurulumda hiç hesap
-        olmayabilir. İşlem yazan her akış geçerli bir hesap id'si gerektirir
-        (bkz. database/db.py::adjust_account_balance içindeki koruma), bu yüzden
-        hesap oluşturulmadan dashboard'a geçilmesine izin verilmez — aksi halde
-        kullanıcı gelir/gider girip hata mesajlarıyla karşılaşırdı.
-        """
         try:
             from services.account_service import AccountService
 
             if not AccountService.has_any_account():
                 return "account_setup"
         except Exception as exc:
-            # Kontrol edilemiyorsa kullanıcıyı kilitlemektense dashboard'a al.
             print("Hesap kontrolü yapılamadı:", exc)
         return "home"
 
     def create_first_account(self):
-        """Onboarding ekranından ilk vadesiz/nakit hesabı oluşturur."""
         from services.account_service import AccountService, CHECKING
 
         name_field = self.root.ids.first_account_name_input
@@ -1747,7 +1485,6 @@ class ArchlenceApp(
 
         error.text = ""
         self.root.ids.screen_manager.current = "home"
-        # Hesap yokken atlanan ilk yükleme adımlarını şimdi çalıştır.
         Clock.schedule_once(lambda dt: self.render_accounts(), 0)
         Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0.05)
 
@@ -1777,12 +1514,6 @@ class ArchlenceApp(
             self.root.ids.screen_manager.current = "pin_setup"
             return
 
-        # docs/ROADMAP.md Faz 1 madde 6 (Argon2id'den ayrı bırakılan kısım):
-        # ardışık başarısız denemelerden sonra artan gecikme/geçici kilit.
-        # Kilitliyken PIN HİÇ doğrulanmaz — ne doğru ne yanlış girişin
-        # throttle state'ine hiçbir etkisi olmaz, yalnızca kalan süre
-        # gösterilir. State kalıcı (config_store'da): uygulamayı yeniden
-        # başlatarak bypass edilemesin diye (bkz. LoginThrottle docstring'i).
         throttle_state = (
             self.config_store.get("security_throttle")
             if self.config_store.exists("security_throttle") else {}
@@ -1797,11 +1528,6 @@ class ArchlenceApp(
         security = self.config_store.get("security")
         if SecurityService.verify_password(pin, security["salt"], security["pin_hash"]):
             if SecurityService.needs_upgrade(security["pin_hash"]):
-                # docs/ROADMAP.md Faz 1 madde 6: eski SHA-256 hash'i sessizce
-                # Argon2id'ye yükselt. Yalnızca DOĞRU PIN girildiğinde
-                # tetiklenir (bu if bloğu zaten başarılı doğrulamanın
-                # içinde) — offline bir saldırgan doğru PIN'i bilmeden bu
-                # yükseltmeyi kendisi tetikleyemez.
                 new_hash = SecurityService.hash_password(pin)
                 self.config_store.put(
                     "security", pin_hash=new_hash,
@@ -1825,8 +1551,6 @@ class ArchlenceApp(
     def _handle_successful_login(self):
         self.root.ids.login_error_label.text = ""
         self.root.ids.password_input.text = ""
-        # PIN'i olan mevcut kullanıcı da hesapsız kalabilir (verileri sıfırlarsa
-        # tüm tablolar boşalır), o yüzden giriş de aynı kapıdan geçer.
         self.root.ids.screen_manager.current = self.route_after_auth()
 
     def _handle_failed_login(self, message=None):
@@ -1866,31 +1590,6 @@ class ArchlenceApp(
     # Categories & AI Insights
     # -------------------------------------------------------------------------
     def load_categories(self, cat_type=None):
-        """Kategori Ayarları > Gelir/Gider arasında geçiş.
-
-        DÜZELTME (performans): varsayılan kategori listesi ~30 gelir + ~50
-        gider kategorisi içeriyor (bkz. database/init_db.py). Eskiden bu
-        fonksiyon hepsini TEK Clock karesinde, düz bir döngüyle inşa
-        ediyordu — her `CategorySettingItem` bir `MDSwitch` içeriyor
-        (KivyMD'de inşası pahalı bir widget: kendi animasyon/ripple
-        durumu var), yani "Gelir"/"Gider"e her basışta 30-50 tane ağır
-        widget'ı SENKRON olarak ana thread'de kurmaya çalışıyordu. Bu, tam
-        da kullanıcının bildirdiği "basınca donuyor" hissini üretir —
-        `update_metrics_and_goals`/`refresh_insights` gibi diğer ekranların
-        zaten kaçındığı aynı sınıf hata, yalnızca burası unutulmuştu.
-
-        Asıl maliyet SQL sorgusu değil (küçük bir tablo, mikrosaniyeler
-        sürer) — widget inşası. O yüzden çözüm "arka plan thread'i" değil,
-        inşayı birkaç kareye YAYMAK: bir kerede `_CATEGORY_BATCH_SIZE`
-        kadar widget eklenir, sonraki grup için `Clock.schedule_once(...,
-        0)` ile bir sonraki kareye bırakılır — Kivy aradaki karelerde
-        girdi/çizim işleyebilir, tek bir kare asla bloklanmaz.
-
-        Jenerasyon sayacı (`_metrics_generation` vb. ile aynı desen):
-        kullanıcı Gelir/Gider arasında hızlıca geçiş yaparsa, eski bir
-        yükleme artık geçerli olmayan `settings_list`'e widget eklemeye
-        devam etmez.
-        """
         if cat_type:
             self.active_category_type = cat_type
 
@@ -1917,7 +1616,7 @@ class ArchlenceApp(
 
     def _add_categories_incrementally(self, settings_list, categories, generation, index=0):
         if generation != self._category_load_generation:
-            return  # bayat yükleme — kullanıcı zaten başka bir sekmeye geçti
+            return
         end = min(index + self._CATEGORY_BATCH_SIZE, len(categories))
         for cat_name, cat_type_val, cat_imp in categories[index:end]:
             item = CategorySettingItem(
@@ -1933,18 +1632,6 @@ class ArchlenceApp(
             )
 
     def update_category_importance(self, category_name, is_active):
-        """Kategori 'ana kaynak' bayrağını yazar ve grafikleri tazeler.
-
-        PERFORMANS (kullanıcı raporu: "kategori ayarlarında ayar kapatıp
-        açarken kasmalar"): burası her anahtar dokunuşunda `safe_refresh_charts()`
-        çağırıyordu — pasta + trend grafiğinin tam yeniden hesabı ve yeniden
-        çizimi. Listede 30-50 anahtar var; birkaçını art arda çevirmek aynı
-        sayıda tam grafik yeniden inşası demekti ve arayüz kilitleniyordu.
-
-        Yazma ANINDA kalır (tercih asla kaybolmasın), yalnız PAHALI tazeleme
-        coalesce edilir: art arda dokunuşlarda tek bir yeniden çizim çalışır.
-        Aynı kalıp takvim ve bütçe ay geçişlerinde de kullanılıyor.
-        """
         new_importance = "main" if is_active else "extra"
         conn = get_connection()
         cursor = conn.cursor()
@@ -1966,18 +1653,6 @@ class ArchlenceApp(
         self._category_chart_refresh_event = Clock.schedule_once(refresh, 0.25)
 
     def generate_financial_advice(self, *args):
-        """3 SQL sorgusu + decrypt döngüsünü arka planda bitirir, sonucu TEK
-        Clock çağrısıyla uygular.
-
-        DÜZELTME (performans): eskiden bu metod ana thread'de senkron
-        çalışıyordu ve HEM açılışta HEM de her başarılı işlem eklemesinde
-        (transaction_mixin.py) çağrılıyordu — yani en sık kullanılan eylemde
-        bile bir donma riski taşıyordu. `update_metrics_and_goals`'ta
-        zaten kullanılan aynı thread+Clock deseni buraya da uygulanır.
-        Ayrıca: decrypt()'in İLK çağrısı ~250ms'lik tek seferlik bir PBKDF2
-        anahtar türetmesi yapıyor (bkz. utils/crypto.py) — bu iş artık hangi
-        thread'de düşerse düşsün ana thread'i bloklamaz.
-        """
         import threading
 
         self._advice_generation = getattr(self, "_advice_generation", 0) + 1
@@ -1992,7 +1667,7 @@ class ArchlenceApp(
 
             def _apply(dt):
                 if generation != self._advice_generation:
-                    return  # bayat sonuç — daha yeni bir tazeleme başladı
+                    return
                 self._apply_financial_advice_text(advice_text)
 
             Clock.schedule_once(_apply, 0)
@@ -2002,7 +1677,6 @@ class ArchlenceApp(
         return thread
 
     def _compute_financial_advice_text(self):
-        """Yalnızca veri üretir, hiçbir widget'a dokunmaz (thread güvenli)."""
         with managed_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
@@ -2068,14 +1742,6 @@ class ArchlenceApp(
         return advice_text + "\n\n" + forecast_text
 
     def _compute_monthly_forecast_text(self):
-        """Son 3 aylık nakit-akışına dayanan ay-sonu bakiye öngörüsü.
-
-        `services.insights_service.generate_monthly_forecast` günlük
-        gelir/gider ortalamasını RK4 projeksiyonuyla ay sonuna kadar ileri
-        sürer. Yeterli geçmiş yoksa (< ~3 ay) yanıltıcı bir sayı üretmek
-        yerine bunu açıkça söyler. Döner: (metin, "positive"|"negative"|
-        "warning"|"neutral" durumu — ikon rengi seçimi için).
-        """
         from services.insights_service import generate_monthly_forecast
 
         def _fmt(v):
@@ -2130,7 +1796,6 @@ class ArchlenceApp(
         )
 
     def _apply_financial_advice_text(self, advice_text):
-        """Ana thread'de çağrılır: yalnızca widget güncellemesi yapar."""
         state_colors = {
             "positive": "green",
             "warning": "amber",
@@ -2156,7 +1821,6 @@ class ArchlenceApp(
         except Exception:
             pass
 
-    # -------------------------------------------------------------------------
     # -------------------------------------------------------------------------
     # Dialogs & Reset Functionality
     # -------------------------------------------------------------------------
@@ -2244,15 +1908,10 @@ class ArchlenceApp(
             conn.commit()
             conn.close()
 
-            # Şema aynı kalır; yalnız varsayılan, kişisel olmayan başlangıç
-            # kayıtları yeniden kurulur.
             initialize_database()
             if self.config_store.exists("security"):
                 self.config_store.delete("security")
 
-            # DB yeniden seed edilmiş olsa da hesaplar/portföy/içgörüler eski
-            # worker snapshot'larından çiziliyor olabilir. Önce bütün kişisel
-            # RAM durumunu ve devam eden worker nesillerini geçersiz kıl.
             from services.asset_service import (
                 invalidate_asset_data_cache,
                 start_data_warmup,
@@ -2271,9 +1930,6 @@ class ArchlenceApp(
             self._recurring_candidates = []
             self._insights_generation = getattr(self, "_insights_generation", 0) + 1
 
-            # Invalidate, açık Kartlarım/Hesaplarım ağacındaki kişisel
-            # widget'ları aynı karede söker; warm-up yalnız yeni seed
-            # hesaplarını yayımladıktan sonra yeniden render eder.
             if hasattr(self, "render_accounts"):
                 self.render_accounts()
             start_data_warmup(
@@ -2306,12 +1962,6 @@ class ArchlenceApp(
 # =========================================================================
 if __name__ == "__main__":
     if _KivyWindow is None:
-        # Bu noktaya yalnızca ARCHLENCE_HEADLESS=1 açıkça set edildiyse
-        # ulaşılır — aksi hâlde yukarıdaki Window/MDApp guard'ları pencere
-        # kurulamadığında zaten görünür bir hatayla dururdu (bkz. docs/
-        # ROADMAP.md Faz 1 madde 2). Bilinçli bir headless çağrısı olduğu
-        # için burada sessizce (exit 0) çıkmak doğru — bir GERÇEK kullanıcı
-        # bu koda hiç ulaşmaz.
         print("ARCHLENCE_HEADLESS=1: GUI başlatılmadı, çıkılıyor.")
         raise SystemExit(0)
 
