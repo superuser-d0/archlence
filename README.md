@@ -14,7 +14,8 @@
   <img alt="SQLite" src="https://img.shields.io/badge/Storage-SQLite-003B57?logo=sqlite&logoColor=white">
   <img alt="Tests" src="https://img.shields.io/badge/tests-unittest-brightgreen">
   <img alt="Privacy" src="https://img.shields.io/badge/privacy-local--first-00A896">
-  <img alt="Status" src="https://img.shields.io/badge/status-active%20development-orange">
+  <a href="https://github.com/superuser-d0/archlence/releases/tag/v0.0.2"><img alt="Current release" src="https://img.shields.io/badge/release-v0.0.2-blue"></a>
+  <img alt="Status" src="https://img.shields.io/badge/status-pre--release-orange">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-yellow">
 </p>
 
@@ -29,6 +30,8 @@ Personal finance data should remain useful without becoming somebody else's data
 Archlence is an independently maintained, local-first desktop application for personal finance, cash-flow analysis, recurring payments, debt tracking, credit cards, and portfolio monitoring.
 
 The repository is public to support transparent development, technical review, and future community contributions. Archlence is still under active development and should not yet be considered production-ready financial infrastructure.
+
+The current public release is **[v0.0.2](https://github.com/superuser-d0/archlence/releases/tag/v0.0.2)**. It is a pre-release focused on Windows reliability, safe local-data handling, and cross-platform test coverage.
 
 ## Why Archlence?
 
@@ -146,10 +149,11 @@ and what is still known-broken before trusting it with real data.
 
 The current focus is:
 
-- OS-keystore-backed key storage and migrating records still using the previous encryption scheme;
+- broader packaged-app validation of OS-keystore and recovery behavior;
+- completing the migration of remaining financial calculation paths to the shared `Decimal` policy;
 - stabilizing credit-card and recurring-payment workflows;
 - expanding automated and regression test coverage;
-- documenting architectural decisions;
+- reducing broad exception and UI-layer responsibility debt;
 - making the project easier for outside contributors to understand and extend.
 
 Some workflows, interface elements, sample-data states, and security components are still being refined.
@@ -164,7 +168,8 @@ baselines, not current status.
 
 The following areas are actively being improved:
 
-- OS-keystore-backed key storage (currently a random key generated per install, stored in a local file) and migrating records still using the previous encryption scheme;
+- packaged OS-keystore and recovery coverage across more real Windows and Linux configurations; Windows DPAPI and Linux Secret Service/KWallet are supported, with a permission-restricted local-file fallback when no OS keystore is available;
+- migration of the remaining financial calculation paths to the shared `Decimal` policy;
 - code signing — both packages are unsigned, so Windows SmartScreen warns on
   first run; the Linux AppImage is unsigned too;
 - the packaged builds are verified in CI (install, launch, upgrade-from-the-
@@ -180,123 +185,122 @@ Known limitations are tracked openly so that progress can be reviewed over time.
 
 ## Getting started
 
-### Requirements
+### Recommended: install the packaged release
 
-- Python 3.11 or newer (verified on 3.14; CI packages with 3.12)
-- A desktop environment supported by Kivy
+The current public build is the **v0.0.2 pre-release**. Download packages only
+from the [official v0.0.2 release](https://github.com/superuser-d0/archlence/releases/tag/v0.0.2).
+The packaged applications include Python and their runtime dependencies; you do
+not need to install Python, Kivy, or SDL separately.
+
+#### Windows installer
+
+1. Download [`ArchlenceSetup-0.0.2.exe`](https://github.com/superuser-d0/archlence/releases/download/v0.0.2/ArchlenceSetup-0.0.2.exe).
+2. Optionally verify its SHA-256 checksum as shown below.
+3. Double-click the installer. It installs for the current user under
+   `%LOCALAPPDATA%\Programs\Archlence` and does not require administrator
+   privileges.
+4. Launch Archlence from the Start menu. A desktop shortcut is optional in the
+   installer.
+
+The installer is unsigned, so Windows SmartScreen may show an "unrecognized
+app" warning. Verify the checksum before choosing **More info → Run anyway**.
+
+```powershell
+$actual = (Get-FileHash .\ArchlenceSetup-0.0.2.exe -Algorithm SHA256).Hash
+$expected = "42ff88d1366682497ca850b8ead885e60e05a1c0b0ba0b665c40d5f62f54983e"
+if ($actual -ne $expected) { throw "Checksum verification failed" }
+"Checksum verified"
+```
+
+Upgrading or uninstalling the application does not intentionally remove the
+user database. Keep a verified backup before upgrading or uninstalling anyway.
+
+#### Linux AppImage
+
+1. Download [`Archlence-0.0.2-x86_64.AppImage`](https://github.com/superuser-d0/archlence/releases/download/v0.0.2/Archlence-0.0.2-x86_64.AppImage)
+   and [`SHA256SUMS.txt`](https://github.com/superuser-d0/archlence/releases/download/v0.0.2/SHA256SUMS.txt)
+   into the same directory.
+2. Verify the AppImage and make it executable:
+
+```bash
+grep ' Archlence-0.0.2-x86_64.AppImage$' SHA256SUMS.txt | sha256sum -c -
+chmod +x Archlence-0.0.2-x86_64.AppImage
+./Archlence-0.0.2-x86_64.AppImage
+```
+
+The AppImage is built for 64-bit x86 Linux and bundles its application runtime,
+so no separate Python or SDL installation is required. It is not code-signed;
+the expected SHA-256 is
+`31de4e4ce0b4730de9aa5afbd361b4a8e46085c727d5052c818a444bcb344935`.
+
+There is currently no packaged macOS release.
+
+### Run from source
+
+Source installations are intended for development and testing. Requirements:
+
+- Python 3.11 or newer (CI uses Python 3.12)
 - Git
+- a Kivy-compatible desktop/OpenGL environment
 
-On Linux, Kivy's wheels link against the system SDL2 libraries rather than
-bundling their own, so those have to be present before `pip install`. Install
-them with your distribution's package manager first:
-
-```bash
-# Arch, CachyOS, Manjaro and other Arch-based distributions
-sudo pacman -S --needed sdl2-compat sdl2_image sdl2_ttf sdl2_mixer libglvnd
-```
-
-```bash
-# Debian, Ubuntu, Linux Mint
-sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libsdl2-ttf-2.0-0 \
-    libsdl2-mixer-2.0-0 libgl1
-```
-
-```bash
-# Fedora
-sudo dnf install SDL2 SDL2_image SDL2_ttf SDL2_mixer mesa-libGL
-```
-
-On Arch-based systems the SDL2 package is named `sdl2-compat` (it replaced the
-older `sdl2` package and provides the same `libSDL2-2.0.so.0`).
-
-### Installation
-
-Clone the repository:
+Clone the repository and create an isolated environment:
 
 ```bash
 git clone https://github.com/superuser-d0/archlence.git
 cd archlence
-```
-
-Create a virtual environment:
-
-```bash
 python -m venv .venv
 ```
 
-Activate it on Linux or macOS:
+Activate it on Linux or macOS and install the pinned runtime dependencies:
 
 ```bash
 source .venv/bin/activate
-```
-
-Activate it on Windows PowerShell:
-
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-Install dependencies and start the application:
-
-```bash
 python -m pip install --upgrade pip
-pip install -r requirements-runtime.txt
+python -m pip install -r requirements-runtime.txt
 python main.py
 ```
 
-`requirements-runtime.txt` is everything the app itself needs — nothing more.
-If you also want to run lint locally (`flake8`), install
-`requirements-dev.txt` too, or use the `requirements.txt` umbrella, which
-installs both:
+On Windows PowerShell:
+
+```powershell
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements-runtime.txt
+python main.py
+```
+
+When running from source on Linux, Kivy uses system SDL/OpenGL libraries. Install
+the matching packages before installing Python dependencies:
 
 ```bash
-pip install -r requirements.txt
+# Arch, CachyOS, Manjaro
+sudo pacman -S --needed sdl2-compat sdl2_image sdl2_ttf sdl2_mixer libglvnd
+
+# Debian, Ubuntu, Linux Mint
+sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0 libsdl2-ttf-2.0-0 \
+    libsdl2-mixer-2.0-0 libgl1
+
+# Fedora
+sudo dnf install SDL2 SDL2_image SDL2_ttf SDL2_mixer mesa-libGL
+```
+
+For tests, lint, and type checking, install the development environment instead.
+The complete test command is shown below; the exact lint/type-check gates live
+in [the CI workflow](.github/workflows/tests.yml).
+
+```bash
+python -m pip install -r requirements.txt
+python run_tests.py
 ```
 
 On first launch, Archlence guides you through creating a local PIN and setting up your first account.
 
-### Pre-built downloads
+### Release verification and development artifacts
 
-If you'd rather not build from source, tagged releases ship ready-to-run
-packages for both platforms on the
-[Releases page](https://github.com/superuser-d0/archlence/releases).
-
-**Windows** — download `ArchlenceSetup-<version>.exe` and double-click it. It
-installs per-user (no admin rights required) and doesn't touch any existing
-Archlence data.
-
-**Linux** — download `Archlence-<version>-x86_64.AppImage` and make it
-executable. No installation step, and no system SDL2 packages needed: the
-AppImage bundles everything.
-
-```bash
-chmod +x Archlence-<version>-x86_64.AppImage
-./Archlence-<version>-x86_64.AppImage
-```
-
-The `chmod` is required because GitHub does not preserve the executable bit on
-release assets.
-
-Both packages are unsigned. On Windows, SmartScreen will show an "unrecognized
-app" warning on first run — this is expected for an app without a paid
-code-signing certificate, not a sign of tampering; choose "More info" → "Run
-anyway" to proceed.
-
-**Verify what you downloaded.** Every release includes `SHA256SUMS.txt` and a
-CycloneDX SBOM (`Archlence-<version>-sbom.cdx.json`) alongside the packages.
-Since the binaries aren't code-signed, this checksum is the practical way to
-confirm the file wasn't corrupted or swapped in transit — download it from
-the same release page and check:
-
-```bash
-sha256sum -c SHA256SUMS.txt
-```
-
-```powershell
-# Windows PowerShell
-Get-FileHash ArchlenceSetup-<version>.exe -Algorithm SHA256
-# compare the printed hash by hand against the matching line in SHA256SUMS.txt
-```
+The v0.0.2 release also includes `SHA256SUMS.txt`, the CycloneDX SBOM
+`Archlence-0.0.2-sbom.cdx.json`, and `THIRD_PARTY_NOTICES.md`. Checksums are
+useful for detecting an incomplete or altered download, but they are not a
+substitute for package signing when obtained from the same unsigned release.
 
 Untagged builds of `main` are also produced on every push, but only as GitHub
 Actions artifacts ([Windows](https://github.com/superuser-d0/archlence/actions/workflows/build-windows.yml),
