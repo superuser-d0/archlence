@@ -1,81 +1,82 @@
-# Archlence — ürün vizyonu ve kapsam
+# Archlence — product vision and scope
 
-> Güncel durum için `CHANGELOG.md`, teknik plan için `docs/ROADMAP.md`,
-> güvenlik/güvenilirlik özeti için `docs/SECURITY_RELIABILITY_STATUS.md`.
+> See `CHANGELOG.md` for the current release status, `docs/ROADMAP.md` for the
+> technical plan, and `docs/SECURITY_RELIABILITY_STATUS.md` for the current
+> security and reliability summary.
 
-## Ürün
+## Product
 
-Archlence, **yerel ve çevrimdışı** çalışan bir kişisel finans masaüstü
-uygulamasıdır. Veri kullanıcının makinesinde kalır; uygulama finansal kayıtları
-bir sunucuya göndermez. Tutar ve açıklama alanları diskte şifreli tutulur.
+Archlence is a **local-first, offline-capable** personal-finance desktop
+application. User data remains on the user's computer; the application does
+not send financial records to an Archlence server. Amount and description
+fields are encrypted at rest.
 
-Kapsam: hesaplar ve kredi kartları, gelir/gider işlemleri, bütçe planlama,
-birikim hedefleri, portföy (hisse/altın/döviz/kripto) takibi, abonelik ve
-tekrarlayan ödeme tespiti, bakiye geçmişi ve senaryo projeksiyonu.
+The product covers accounts and credit cards, income and expense transactions,
+budget planning, savings goals, portfolio tracking (stocks, precious metals,
+foreign currencies, and cryptocurrencies), subscription and recurring-payment
+detection, balance history, and scenario projections.
 
-## Marka
+## Brand
 
-Ürün adı **Archlence**. Simge, marka mavisi (`#5444E5`) üzerine beyaz "A"
-monogramıdır. Bu değer bilinçli olarak `ui/theme.py` içindeki
-`ARCHLENCE_PRIMARY_HEX` ile **aynıdır**: simge ile uygulama teması ikinci,
-yönetilmeyen bir marka rengine ayrışmasın diye.
+The product name is **Archlence**. Its icon is a white “A” monogram on the
+brand blue (`#5444E5`). This value intentionally matches
+`ARCHLENCE_PRIMARY_HEX` in `ui/theme.py`, preventing the icon and application
+theme from drifting into separate, unmanaged brand colors.
 
-`assets/icon_source.svg` tek kaynaktır; `icon.png` ve `icon.ico` ondan üretilir.
-Tasarım kararı ampirik: önceki kimlikteki ince "ışın" biçimleri 48 piksel
-(görev çubuğu/tepsi) boyutunda tamamen kayboluyor ve işaret okunmaz hâle
-geliyordu. Dolu harf formu 16 piksele kadar okunabilir kalıyor. Simgeyi 1024
-piksellik PNG'de değil, gerçek `.ico` karelerinde değerlendirin.
+`assets/icon_source.svg` is the source of truth; `icon.png` and `icon.ico` are
+derived from it. The design decision is empirical: the thin rays in the
+previous identity disappeared at 48 pixels (taskbar and tray size), making the
+mark unreadable. The solid letterform remains legible down to 16 pixels.
+Evaluate the icon using the real `.ico` sizes, not only the 1024-pixel PNG.
 
-## Sürüm hattı ve "kararlı" ne demek
+## Release line and the meaning of “stable”
 
-Şu anki hat **0.0.x — ön yayım**. Bu numara bir alçakgönüllülük ifadesi değil,
-bir uyarıdır: paket kuruluyor ve çalışıyor, akışlar testle korunuyor, ama
-uygulama hâlâ gerçek kullanımla sınanıyor. Gündelik finans takibi için
-önerilmez.
+The current line is **0.0.x — pre-release**. This is a warning, not modest
+versioning: packages install and launch, and protected flows have automated
+tests, but the application is still being validated through real-world use. It
+is not yet recommended for everyday financial tracking.
 
-Bir sürümün "kararlı" sayılabilmesi için gereken asgari koşullar:
+A release must meet at least these conditions before it can be called stable:
 
-- Kullanıcı verisini bozan bilinen bir hata bulunmaması — özellikle **girilen
-  değerden farklı bir değer kaydeden** her türlü hata (bu sınıf hata bir finans
-  uygulamasında tek başına kararlılık iddiasını geçersiz kılar).
-- Yükseltme yolunun ölçülmüş olması: önceki sürümün profili yeni sürümle
-  açıldığında veri korunuyor mu (`build-windows.yml` içindeki yükseltme smoke
-  testi; taban sürüm tanımlı olmadığında bu kapı AÇIKÇA atlanır ve uyarı basar).
-- Yedekleme/geri yükleme akışının doğrulanmış olması.
-- Windows ve Linux paketlerinin gerçek makinede kurulup çalıştığının
-  görülmüş olması.
+- No known defect may corrupt user data, especially any defect that records a
+  value different from the value entered by the user.
+- The upgrade path must be measured: opening a previous-release profile in the
+  new release must preserve its data. The Windows workflow explicitly reports
+  when no valid baseline release exists and the upgrade gate is skipped.
+- Backup and restore must be verified.
+- Windows and Linux packages must be shown to install and launch successfully.
 
-"Kararlı", bir bankacılık/muhasebe sertifikasyonu anlamına gelmez; paket ve
-kullanım kararlılığını, veri bütünlüğü ve kurtarma kapsamını tarif eder.
+“Stable” does not mean banking or accounting certification. It describes
+package and usage stability together with the verified data-integrity and
+recovery scope.
 
-## Platform kapsamı
+## Platform scope
 
-Windows ve Linux hedefleniyor. **macOS kapsam dışıdır** (`.dmg`/notarization
-işleri ayrıca karar verilene kadar listede yok).
+Windows and Linux are supported targets. macOS is currently out of scope until
+`.dmg`, signing, and notarization work is explicitly planned.
 
-Paketler **imzasızdır**; Windows'ta SmartScreen uyarısı görülebilir. Kod imzalama
-bilinçli olarak ertelenmiştir.
+Packages are **unsigned**. Windows SmartScreen may warn on first launch. Code
+signing has been deliberately deferred.
 
-## Kalıcı mühendislik kararları
+## Durable engineering decisions
 
-Bunlar pahalı öğrenildi; değiştirmeden önce gerekçeyi okuyun.
+These decisions were learned through expensive failures. Read their rationale
+before changing them.
 
-- **Paketleme Python sürümü 3.12'ye sabitlenmiştir** (yerel geliştirme daha
-  yeni olabilir). Kivy + PyInstaller ikili/DLL uyumu test edilmemiş sürümlerde
-  risk taşıyor. Gerekçe `build-windows.yml`/`build-linux.yml` içinde
-  `setup-python` adımının yanında yazılıdır.
-- **`collect_all("kivymd")` gerçek bir GL bağlamı ister.** SDL'in `dummy` video
-  sürücüsü bunu karşılamaz — hiç GL yüzeyi sağlamaz. Linux tarafında `xvfb-run`
-  (gerçek sanal X11 + Mesa llvmpipe) kullanılır; Windows tarafında ANGLE
-  (`KIVY_GL_BACKEND=angle_sdl2`) gerekir.
-- **Test paketi `run_tests.py` üzerinden koşturulur.** Doğrudan `python -m
-  unittest` çağrısı headless ayarlarını atlar. Ayrıca koşucunun rapor akışı,
-  Kivy'nin `sys.stderr`i ele geçirmesine karşı açıkça sabitlenmiştir.
-- **Finansal okumalar fail-closed'dır.** Okunamayan bir kayıt `0` sayılmaz;
-  ilgili metrik geçersiz/kısmi duruma geçer. Yanlış bir toplam göstermek,
-  hiç göstermemekten daha kötüdür.
+- **Packaging uses Python 3.12.** Local development may use a newer version,
+  but Kivy and PyInstaller binary/DLL compatibility is risky on untested Python
+  versions. The build workflows document this next to `setup-python`.
+- **`collect_all("kivymd")` needs a real OpenGL context.** SDL's `dummy`
+  driver supplies no GL surface. Linux builds use `xvfb-run` with Mesa
+  llvmpipe; Windows builds use ANGLE (`KIVY_GL_BACKEND=angle_sdl2`).
+- **Run tests through `run_tests.py`.** Direct `python -m unittest` calls skip
+  the project's headless defaults. The runner also preserves reporting when
+  Kivy replaces `sys.stderr`.
+- **Financial reads fail closed.** An unreadable record is never counted as
+  zero; its metric becomes invalid or partial. Showing no total is safer than
+  showing a false total.
 
-## Kapsam dışı (şimdilik)
+## Out of scope for now
 
-Mobil sürüm, bulut senkronizasyonu, çok kullanıcılı/paylaşımlı bütçe, banka
-entegrasyonu (open banking), otomatik dekont/fatura okuma.
+Mobile applications, cloud synchronization, multi-user/shared budgets, open
+banking integrations, and automatic receipt or invoice recognition.

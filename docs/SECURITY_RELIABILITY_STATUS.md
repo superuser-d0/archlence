@@ -1,28 +1,30 @@
 # Security and reliability status
 
-Bu belge 0.0.1 kaynak ağacının tek güncel güvenlik ve güvenilirlik özetidir.
-Tarihli audit belgeleri yalnız kendi commit'lerinin arşivlenmiş baseline'ıdır.
+This document is the single current security and reliability summary for the
+0.0.2 source tree. Dated audit documents describe only the commit they audited
+and are archived baselines, not the current status.
 
-## Stable ne anlama gelir?
+## What “stable” means
 
-- Paket ve kullanım kararlılığı: Windows installer ve Linux AppImage CI'da
-  gerçek açılış smoke testlerinden geçer; Windows akışı kurulum ve kaldırmayı
-  da doğrular.
-- Finansal doğruluk: dashboard dönem/30-gün metrikleri ile bütçe toplamları
-  bozuk şifreli kaydı sıfır saymaz. Ortak Decimal politikası fiat, miktar ve
-  yüzde sınırlarını tanımlar.
-- Veri koruma: yeni hassas veri yalnız AEAD ile yazılır. Backup DB ve parola
-  korumalı kurtarma anahtarını birlikte doğrular; restore rollback-safe'dir.
-- Stable, bankacılık veya muhasebe sertifikası anlamına gelmez. Fiyat verileri
-  üçüncü taraf sağlayıcıdan gelir ve kaynak/yaş/güncellik durumu taşır.
+- **Package and usage stability:** the Windows installer and Linux AppImage
+  pass real launch smoke tests in CI; the Windows workflow also verifies
+  installation and removal.
+- **Financial correctness:** dashboard period/30-day metrics and budget totals
+  do not count corrupt encrypted records as zero. A shared Decimal policy
+  defines fiat, quantity, and percentage boundaries.
+- **Data protection:** new sensitive values are written only with AEAD. Backup
+  validates the database and password-protected recovery key together; restore
+  is rollback-safe.
+- Stable does not mean banking or accounting certification. Third-party price
+  data carries source, age, and freshness status.
 
-## Bilinen sınırlamalar
+## Known limitations
 
-- Legacy CBC okuma yolu eski profil ve backup uyumluluğu için deprecated
-  biçimde kalır. Yeni veri bu formatta yazılamaz.
-- Fiyat servisi tek sağlayıcılıdır (Yahoo Finance). İkinci adapter sonraki
-  planındadır; çok eski cache kesin güncel değer olarak sunulmaz.
-- UI mixin'lerinde kalan geniş exception ve `print()` borcu sıfır değildir;
-  CI yeni geniş/sessiz handler eklenmesini engeller ve baseline azaltılır.
-- Paketler kod imzalı değildir. Windows SmartScreen uyarısı görülebilir;
-  AppImage da kriptografik olarak imzalanmamıştır. SHA-256 ve SBOM yayımlanır.
+- The legacy CBC reader remains deprecated for compatibility with old profiles
+  and backups. New data cannot be written in that format.
+- Yahoo Finance is the only price provider. A second adapter is planned; a
+  very old cache is not presented as a definitively current price.
+- Broad exception handlers and `print()` calls remain in UI mixins. CI blocks
+  new broad or silent handlers and freezes a decreasing baseline.
+- Packages are not code-signed. Windows SmartScreen may warn, and the AppImage
+  has no cryptographic signature. SHA-256 checksums and an SBOM are published.

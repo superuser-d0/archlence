@@ -1,35 +1,35 @@
-# Backup ve kurtarma
+# Backup and recovery
 
-Archlence backup paketi veritabanını, format metadata'sını ve parola ile
-korunan kurtarma materyalini birlikte taşır. Ham `encryption.key` dosyası
-pakete eklenmez.
+An Archlence backup contains the database, format metadata, and
+password-protected recovery material. The raw `encryption.key` file is never
+placed in the package.
 
-## Güvenlik sözleşmesi
+## Security contract
 
-- Kurtarma parolası en az 12 karakterdir ve uygulama tarafından saklanmaz.
-- Anahtar, PBKDF2-HMAC-SHA256 (600.000 tur) ile türetilen anahtarla
-  AES-256-GCM kullanılarak korunur.
-- Backup ancak SQLite `integrity_check`, dosya hash'i ve veritabanındaki tüm
-  AEAD alanların anahtarla doğrulanması başarılıysa tamamlanır.
-- Restore başlamadan önce mevcut verinin ayrıca doğrulanmış güvenlik backup'ı
-  alınır.
-- Restore sırasında hata oluşursa veritabanı ve anahtar önceki hâline geri
-  taşınır.
+- The recovery password must contain at least 12 characters and is not stored
+  by the application.
+- The key is protected with AES-256-GCM using a key derived by
+  PBKDF2-HMAC-SHA256 with 600,000 iterations.
+- Backup completes only after SQLite `integrity_check`, file-hash validation,
+  and validation of every AEAD field with the selected key succeed.
+- Restore creates an additional verified safety backup of the current data
+  before changing it.
+- If restore fails, the previous database and key are restored.
 
-## Kullanıcının saklaması gerekenler
+## What the user must retain
 
-Backup paketi ve kurtarma parolası birbirinden ayrı, güvenli yerlerde
-saklanmalıdır. Parola kaybolursa paketteki anahtar açılamaz; Archlence veya
-proje geliştiricileri veriyi kurtaramaz. Yalnız `finance.db` dosyasını
-kopyalamak yeterli değildir; onu açan şifreleme anahtarı da gereklidir.
+Store the backup package and its recovery password separately in secure
+locations. If the password is lost, neither Archlence nor its developers can
+decrypt the key stored in the package. Copying only `finance.db` is not enough;
+the matching encryption key is also required.
 
-## Restore işlemi
+## Restore process
 
-Restore yalnız doğrulama tamamlandıktan sonra yapılır. Hedefte mevcut veri
-varsa `pre-restore-YYYYMMDD-HHMMSS.archlence-backup` biçiminde güvenlik
-backup'ı üretilir. Gelen paketin parolası yanlışsa, DB hash'i bozuksa veya
-anahtar şifreli kayıtlarla eşleşmiyorsa hedef dosyalara dokunulmaz.
+Restore begins only after validation succeeds. If the destination already has
+data, Archlence creates a safety backup named
+`pre-restore-YYYYMMDD-HHMMSS.archlence-backup`. A wrong password, a corrupt
+database hash, or a key that does not match the encrypted records leaves the
+destination files unchanged.
 
-Backup ve restore sırasında uygulamanın başka bir örneği aynı kullanıcı
-profilini kullanamaz. Single-instance koruması backup/restore başlamadan önce
-aynı profil için ikinci süreci engeller.
+A second Archlence process cannot use the same profile during backup or
+restore. The single-instance guard blocks it before either operation starts.

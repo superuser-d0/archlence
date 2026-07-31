@@ -1,29 +1,28 @@
-# Arama alanı render artefact’ı
+# Search-field rendering artifact
 
-## Kök neden
+## Root cause
 
-İki çizginin kaynakları birbirinden bağımsızdı:
+The two visible lines had independent causes:
 
-1. KivyMD 1.2 `MDTextField mode: "round"` zeminini iki yarım `Ellipse` ve
-   aralarında bir `Rectangle` ile çiziyor. Sağ elipsin düz çapı orta
-   rectangle tarafından kapatılmadığı için elipsin merkezinde tam yükseklikte
-   daha koyu bir birleşim kolonu oluşuyordu. Bu cursor değildi: canlı SDL
-   ölçümünde alan `focus=False`, cursor soldayken çizgi sağ kapak merkezinde
-   kaldı.
-2. Ana sayfa `ScrollView` bileşeninin varsayılan `bar_width=2` göstergesi,
-   içeriğin sağında pencere kenarına yapışık bağımsız bir çizgi gibi
-   görünüyordu.
+1. KivyMD 1.2 draws an `MDTextField` with `mode: "round"` using two half
+   ellipses and a rectangle between them. The middle rectangle did not cover
+   the flat diameter of the right ellipse, leaving a full-height, darker seam
+   at the ellipse center. It was not the cursor: live SDL measurement showed
+   the field at `focus=False`, with the cursor on the left while the line
+   remained at the center of the right cap.
+2. The home `ScrollView` used its default `bar_width=2` indicator, which looked
+   like a separate line attached to the right edge of the window.
 
-## Çözüm
+## Resolution
 
-Arama alanı tek bir `RoundedRectangle` yüzey ve tek bir yuvarlatılmış
-`SmoothLine` sınır kullanan `SearchBar` bileşenine dönüştürüldü. İçteki
-standart `TextInput`, cursor’ı yalnız gerçek focus sırasında çizer. Rastgele
-piksel ofseti veya arka plan rengiyle örtme kullanılmadı. Ana sayfanın
-görsel scrollbar’ı kapatıldı; mouse wheel/touch kaydırma davranışı korundu.
+The search field was replaced by a `SearchBar` component with one
+`RoundedRectangle` surface and one rounded `SmoothLine` border. Its standard
+inner `TextInput` draws the cursor only while actually focused. No arbitrary
+pixel offset or background-colored cover is used. The home screen's visual
+scrollbar is disabled while mouse-wheel and touch scrolling remain available.
 
-`scripts/dev/verify_search_bar_visual.py` açık/koyu, focus/unfocus ve pencere
-yeniden boyutlandırma senaryolarını gerçek SDL penceresinde yakalar. Sağ kapak
-merkezindeki kesintisiz kontrast kolonunu ve pencerenin son iki kolonundaki
-scrollbar çizgisini ölçer. Yüksek DPI koşusu
-`KIVY_METRICS_DENSITY=2` ortam değişkeniyle ayrıca çalıştırılır.
+`scripts/dev/verify_search_bar_visual.py` captures light/dark,
+focus/unfocus, and window-resize cases in a real SDL window. It measures both
+the continuous contrast column at the right-cap center and any scrollbar line
+in the final two window columns. A high-DPI run also executes with
+`KIVY_METRICS_DENSITY=2`.

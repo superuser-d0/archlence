@@ -183,53 +183,42 @@ The following areas are actively being improved:
 
 Known limitations are tracked openly so that progress can be reviewed over time.
 
-## Getting started
+## Installation
 
-Choose **one** installation method:
+The current public build is the **v0.0.2 pre-release**. Use only the
+[official release](https://github.com/superuser-d0/archlence/releases/tag/v0.0.2).
 
-- Regular users on Windows: use the Windows installer.
-- Arch, Manjaro, and CachyOS users: install the native `archlence-bin` package
-  with `makepkg -si` for application-menu and Pacman integration.
-- Users of other 64-bit Linux distributions: use the AppImage.
-- Developers, macOS users, and people who want the latest `main` code: run from
-  source.
+| Platform | Recommended method | Python required? | Desktop integration |
+| --- | --- | --- | --- |
+| Windows | Installer | No | Start menu; optional desktop shortcut |
+| Arch, Manjaro, CachyOS | `makepkg -si` | No | Application menu, icon, terminal command |
+| Other x86_64 Linux | AppImage | No | Portable application |
+| macOS | Source only | Yes | No packaged release |
 
-Do not clone the repository when using the Windows installer or Linux AppImage.
-Those packages already contain the application and its Python dependencies.
+Choose one method below. Do not clone the repository when using the Windows
+installer or portable AppImage.
 
-### Windows — installer (recommended)
-
-The current public build is the **v0.0.2 pre-release**. Download packages only
-from the [official v0.0.2 release](https://github.com/superuser-d0/archlence/releases/tag/v0.0.2).
+### Windows
 
 1. Download [`ArchlenceSetup-0.0.2.exe`](https://github.com/superuser-d0/archlence/releases/download/v0.0.2/ArchlenceSetup-0.0.2.exe).
-2. Optionally verify its SHA-256 checksum as shown below.
-3. Double-click the installer. It installs for the current user under
-   `%LOCALAPPDATA%\Programs\Archlence` and does not require administrator
-   privileges.
-4. Launch Archlence from the Start menu. A desktop shortcut is optional in the
-   installer.
+2. Verify the checksum if desired:
 
-The installer is unsigned, so Windows SmartScreen may show an "unrecognized
-app" warning. Verify the checksum before choosing **More info → Run anyway**.
+   ```powershell
+   $actual = (Get-FileHash .\ArchlenceSetup-0.0.2.exe -Algorithm SHA256).Hash
+   $expected = "42ff88d1366682497ca850b8ead885e60e05a1c0b0ba0b665c40d5f62f54983e"
+   if ($actual -ne $expected) { throw "Checksum verification failed" }
+   ```
 
-```powershell
-$actual = (Get-FileHash .\ArchlenceSetup-0.0.2.exe -Algorithm SHA256).Hash
-$expected = "42ff88d1366682497ca850b8ead885e60e05a1c0b0ba0b665c40d5f62f54983e"
-if ($actual -ne $expected) { throw "Checksum verification failed" }
-"Checksum verified"
-```
+3. Run the installer and open Archlence from the Start menu.
 
-Upgrading or uninstalling the application does not intentionally remove the
-user database. Keep a verified backup before upgrading or uninstalling anyway.
+The installer is per-user, requires no administrator privileges, and installs
+under `%LOCALAPPDATA%\Programs\Archlence`. It is unsigned, so SmartScreen may
+warn on first launch. Verify the checksum before selecting **More info → Run
+anyway**.
 
-### Arch Linux, Manjaro, and CachyOS — system package (recommended)
+### Arch Linux, Manjaro, and CachyOS
 
-Archlence currently provides native package-manager integration only for the
-Arch Linux family. The repository's `PKGBUILD` wraps the checksummed v0.0.2
-AppImage as the `archlence-bin` package.
-
-Install the package as a normal user:
+Build and install the `archlence-bin` package as a normal user:
 
 ```bash
 git clone https://github.com/superuser-d0/archlence.git
@@ -237,41 +226,24 @@ cd archlence
 makepkg -si
 ```
 
-Do **not** run `makepkg` with `sudo`. `makepkg` downloads and verifies the
-released AppImage, builds the package locally, and asks for the administrator
-password only when Pacman installs it.
-
-The package installs:
-
-- the application under `/opt/archlence`;
-- the `archlence` terminal command;
-- an **Archlence** application-menu entry;
-- the Archlence system icon; and
-- the project license.
-
-After installation, open Archlence from the desktop environment's application
-menu or run:
+Do not run `makepkg` with `sudo`; it requests the administrator password only
+for the final Pacman installation. The package installs the application menu
+entry, system icon, `/usr/bin/archlence`, and the application under
+`/opt/archlence`.
 
 ```bash
+# Launch
 archlence
-```
 
-The menu entry can be pinned to the desktop, dock, panel, or favorites using
-the desktop environment's normal context menu. The package deliberately does
-not write a shortcut into an individual user's Desktop directory.
-
-Verify the installed package:
-
-```bash
+# Inspect the installed package
 pacman -Qi archlence-bin
-pacman -Ql archlence-bin
+
+# Remove the application (user data is retained)
+sudo pacman -R archlence-bin
 ```
 
-#### Updating the Arch package
-
-`archlence-bin` has not been published to the AUR yet. Until it is, update the
-existing clean repository and rebuild whenever a new Archlence release is
-announced:
+Until the package is published to the AUR, update from the existing clean
+checkout whenever a new release is announced:
 
 ```bash
 cd ~/archlence
@@ -280,108 +252,57 @@ git pull --ff-only
 makepkg -si
 ```
 
-If `git status` reports local changes (for example, the prompt displays
-`main*`), commit or stash those changes before pulling. Do not clone the
-repository again when `~/archlence` already exists.
-
-Once `archlence-bin` is published to the AUR, helpers such as `yay` or `paru`
-will be able to deliver these updates through their regular system-upgrade
-flow. The package is **not currently searchable or installable from the AUR**.
-
-Remove only the installed application package with:
-
-```bash
-sudo pacman -R archlence-bin
-```
-
-Removing the package does not intentionally delete the financial database and
-settings stored in the user's data directory. Keep a verified backup anyway.
+`archlence-bin` is not currently searchable on the AUR. Commit or stash local
+changes before pulling.
 
 ### Other Linux distributions — AppImage
 
-The AppImage is the same on Debian, Ubuntu, Linux Mint, Fedora, Arch, Manjaro,
-CachyOS, and other 64-bit x86 Linux distributions. Python, a virtual
-environment, and the source repository are **not** required.
+The AppImage supports x86_64 Debian, Ubuntu, Linux Mint, Fedora, Arch-based
+distributions, and other compatible Linux systems. It does not support ARM.
 
 1. Download [`Archlence-0.0.2-x86_64.AppImage`](https://github.com/superuser-d0/archlence/releases/download/v0.0.2/Archlence-0.0.2-x86_64.AppImage)
-   and [`SHA256SUMS.txt`](https://github.com/superuser-d0/archlence/releases/download/v0.0.2/SHA256SUMS.txt)
-   into the same directory.
-2. Verify the AppImage and make it executable:
+   and [`SHA256SUMS.txt`](https://github.com/superuser-d0/archlence/releases/download/v0.0.2/SHA256SUMS.txt).
+2. Open a terminal in the download directory and run:
 
-```bash
-grep ' Archlence-0.0.2-x86_64.AppImage$' SHA256SUMS.txt | sha256sum -c -
-chmod +x Archlence-0.0.2-x86_64.AppImage
-./Archlence-0.0.2-x86_64.AppImage
-```
+   ```bash
+   grep ' Archlence-0.0.2-x86_64.AppImage$' SHA256SUMS.txt | sha256sum -c -
+   chmod +x Archlence-0.0.2-x86_64.AppImage
+   ./Archlence-0.0.2-x86_64.AppImage
+   ```
 
-Run those commands from the directory where the files were downloaded, usually:
-
-```bash
-cd ~/Downloads
-```
-
-If the system reports a FUSE/AppImage mount error, use AppImage's extraction
-mode instead:
+If FUSE mounting fails, use:
 
 ```bash
 ./Archlence-0.0.2-x86_64.AppImage --appimage-extract-and-run
 ```
 
-The package is built for `x86_64` systems; it will not run on ARM devices. It
-is not code-signed. The expected SHA-256 is
+Expected SHA-256:
 `31de4e4ce0b4730de9aa5afbd361b4a8e46085c727d5052c818a444bcb344935`.
 
-### macOS
+### Run from source
 
-There is currently no `.dmg` or other packaged macOS release. macOS users must
-run Archlence from source. This path is intended for development and has less
-packaged-app coverage than Windows and Linux.
+Source setup is intended for development, macOS, or unreleased `main` code.
+Use Python 3.11 or newer; CI and packaged builds use Python 3.12.
 
-Install Python 3.12 and Git, then use the virtual environment's Python directly:
-
-```bash
-# Install Homebrew first if it is not already available: https://brew.sh/
-brew install python@3.12 git
-git clone https://github.com/superuser-d0/archlence.git
-cd archlence
-python3.12 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -r requirements-runtime.txt
-.venv/bin/python main.py
-```
-
-### Linux — run from source
-
-Use this method only when you want to develop Archlence or run unreleased code.
-First install the system packages for your distribution.
-
-#### Debian, Ubuntu, and Linux Mint
+Install Linux system dependencies first:
 
 ```bash
+# Debian, Ubuntu, Linux Mint
 sudo apt update
 sudo apt install git python3 python3-venv python3-pip \
     libsdl2-2.0-0 libsdl2-image-2.0-0 libsdl2-ttf-2.0-0 \
     libsdl2-mixer-2.0-0 libgl1
-```
 
-#### Fedora
-
-```bash
+# Fedora
 sudo dnf install git python3 python3-pip SDL2 SDL2_image SDL2_ttf SDL2_mixer mesa-libGL
-```
 
-#### Arch, Manjaro, and CachyOS
-
-```bash
+# Arch, Manjaro, CachyOS
 sudo pacman -S --needed git python python-pip sdl2-compat sdl2_image sdl2_ttf sdl2_mixer libglvnd
 ```
 
-Then clone and run the project. These commands deliberately use the virtual
-environment's Python directly, so they work in Bash, Zsh, and Fish without an
-activation command:
+Clone and run without activating the virtual environment:
 
 ```bash
-cd ~
 git clone https://github.com/superuser-d0/archlence.git
 cd archlence
 python3 -m venv .venv
@@ -390,39 +311,8 @@ python3 -m venv .venv
 .venv/bin/python main.py
 ```
 
-If `git clone` says `destination path 'archlence' already exists`, the repository
-is already present. Do not clone it again:
-
-```bash
-cd ~/archlence
-git status
-```
-
-If `git status` reports local changes (for example, the prompt shows `main*`),
-commit or stash them before updating. When the tree is clean, update with:
-
-```bash
-git pull --ff-only
-```
-
-Virtual-environment activation is optional. If you prefer it, use the command
-for your shell:
-
-```bash
-# Bash or Zsh
-source .venv/bin/activate
-
-# Fish
-source .venv/bin/activate.fish
-```
-
-The error `case builtin not inside of switch block` means the Bash activation
-script was sourced from Fish; use `activate.fish`, or avoid activation and run
-`.venv/bin/python` directly as shown above.
-
-### Windows — run from source
-
-Install Python 3.12 and Git, open PowerShell, and run:
+On macOS, install `python@3.12` and Git with Homebrew, then replace `python3`
+with `python3.12`. On Windows PowerShell, use:
 
 ```powershell
 git clone https://github.com/superuser-d0/archlence.git
@@ -433,41 +323,44 @@ py -3.12 -m venv .venv
 .venv\Scripts\python.exe main.py
 ```
 
-If the directory already exists, use `cd archlence` instead of cloning again.
-PowerShell activation is optional; when desired, run
-`.venv\Scripts\Activate.ps1`. If execution policy blocks that script, continue
-using `.venv\Scripts\python.exe` directly—changing the system execution policy
-is not required.
-
-### Development dependencies
-
-After completing a source setup, install the development tools and run tests
-with the virtual environment's Python:
+For development tools and tests:
 
 ```bash
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python run_tests.py
 ```
 
-On Windows, replace `.venv/bin/python` with
-`.venv\Scripts\python.exe`. Exact lint and type-check gates live in
-[the CI workflow](.github/workflows/tests.yml).
+Use `.venv\Scripts\python.exe` instead on Windows. Exact lint and type-check
+commands live in [the CI workflow](.github/workflows/tests.yml).
 
-On first launch, Archlence guides you through creating a local PIN and setting
-up your first account.
+### Troubleshooting
 
-### Release verification and development artifacts
+- **`destination path 'archlence' already exists`:** do not clone again. Run
+  `cd ~/archlence`, inspect `git status`, then use `git pull --ff-only` when the
+  tree is clean.
+- **Fish reports `case builtin not inside of switch block`:** either avoid
+  activation and use `.venv/bin/python` directly, or run
+  `source .venv/bin/activate.fish`.
+- **PowerShell blocks `Activate.ps1`:** activation is optional; use
+  `.venv\Scripts\python.exe` directly.
+- **AppImage reports a FUSE error:** use the `--appimage-extract-and-run`
+  command shown above.
 
-The v0.0.2 release also includes `SHA256SUMS.txt`, the CycloneDX SBOM
-`Archlence-0.0.2-sbom.cdx.json`, and `THIRD_PARTY_NOTICES.md`. Checksums are
-useful for detecting an incomplete or altered download, but they are not a
-substitute for package signing when obtained from the same unsigned release.
+On first launch, Archlence guides you through creating a local PIN and first
+account. Upgrading or uninstalling a package does not intentionally remove the
+user database; keep a verified backup anyway.
 
-Untagged builds of `main` are also produced on every push, but only as GitHub
-Actions artifacts ([Windows](https://github.com/superuser-d0/archlence/actions/workflows/build-windows.yml),
-[Linux](https://github.com/superuser-d0/archlence/actions/workflows/build-linux.yml)).
-Those require a signed-in GitHub account to download and expire after 90 days,
-so they're intended for development and testing rather than general use.
+### Release files
+
+The release also contains `SHA256SUMS.txt`, the CycloneDX SBOM
+`Archlence-0.0.2-sbom.cdx.json`, and `THIRD_PARTY_NOTICES.md`. Packages are
+unsigned; checksums detect an incomplete or altered download but do not replace
+code signing.
+
+Untagged `main` builds are available as expiring GitHub Actions artifacts for
+[Windows](https://github.com/superuser-d0/archlence/actions/workflows/build-windows.yml)
+and [Linux](https://github.com/superuser-d0/archlence/actions/workflows/build-linux.yml).
+They are development artifacts, not public releases.
 
 ## Changelog
 

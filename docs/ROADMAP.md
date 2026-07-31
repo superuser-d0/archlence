@@ -187,7 +187,7 @@ guarantees established earlier.
    (`STATIC_SALT`, `DEFAULT_PASSWORD`) shared by every install, uses
    AES-256-**CBC** with no MAC (ciphertext can be tampered with
    undetected), and — worse — `decrypt()`'s except-all returns
-   `"[Şifreli Veri]"` on any failure rather than raising. That string
+   an “encrypted data” placeholder on any failure rather than raising. That string
    propagates into amount fields downstream and can collapse into `0.0` in
    arithmetic, meaning corrupted or tampered data can silently turn into
    wrong balance totals instead of a visible error. The 1,000,000-iteration
@@ -278,7 +278,7 @@ guarantees established earlier.
      (re-encrypt every row, with a DB backup step first) is still its own,
      separate, deliberate operation — not something to do as a side effect
      of a read. Also still open: `decrypt()`'s fail-open behavior itself
-     (returning `"[Şifreli Veri]"` instead of raising) is unchanged for
+     (returning an encrypted-data placeholder instead of raising) is unchanged for
      both formats — flipping that touches the same ~55 call chains the
      Phase 2 exception-narrowing note already flagged as unsafe to change
      blind without a way to verify GUI behavior here.
@@ -363,7 +363,7 @@ Not release-blocking, but worth doing before calling this stable.
   `float()`. Narrowed to exactly that, added logging that didn't exist
   before (a decrypt failure used to leave zero trace anywhere), and proved
   the narrowing does something real: an unrelated bug injected into the
-  call chain now raises instead of silently becoming "Bilinmeyen Borç" or
+  call chain now raises instead of silently becoming an “unknown debt” label or
   `0.0` (see `tests/test_crypto.py::NarrowedExceptHandlingTest` and
   `tests/test_exception_narrowing.py`). `utils/crypto.py::encrypt()`'s
   fail-open-to-plaintext path (a separate, arguably worse issue — encryption
