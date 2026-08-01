@@ -61,7 +61,11 @@ fi
 
 echo "==> Commit atılıyor"
 if [ -n "$BODY_FILE" ] && [ -f "$BODY_FILE" ]; then
-    git commit -m "$PR_TITLE" -F "$BODY_FILE"
+    COMMIT_MSG_FILE="$(mktemp)"
+    trap 'rm -f "$COMMIT_MSG_FILE"' EXIT
+    printf '%s\n\n' "$PR_TITLE" > "$COMMIT_MSG_FILE"
+    cat "$BODY_FILE" >> "$COMMIT_MSG_FILE"
+    git commit -F "$COMMIT_MSG_FILE"
 else
     git commit -m "$PR_TITLE"
 fi
