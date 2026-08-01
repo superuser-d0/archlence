@@ -190,6 +190,19 @@ class BudgetMixin:
 
     # ── Planlayıcı görünümü (Araçlar karesinden açılan diyalog) ──────────────
     def show_budget_planner(self):
+        """Bütçe planlayıcı açılırken yükleniyor ekranı gösterir, ardından paneli kurar."""
+        from kivymd.uix.dialog import MDDialog
+        self._budget_loading_dialog = MDDialog(
+            title=_t("Lütfen Bekleyin"),
+            text=_t("Aylık Bütçe Planı yükleniyor..."),
+            auto_dismiss=False,
+        )
+        self._budget_loading_dialog.open()
+        
+        from kivy.clock import Clock
+        Clock.schedule_once(lambda dt: self._build_budget_planner(), 0)
+
+    def _build_budget_planner(self):
         """Bütçe planlayıcı panelini bir diyalog içinde açar.
 
         Araçlar ızgarasındaki "Aylık Bütçe" karesi ile panelin trend butonu
@@ -199,6 +212,9 @@ class BudgetMixin:
         projeksiyon ve kalem listesi panel kurulduktan SONRA doldurulur —
         aksi halde diyalog boş ay seçiciyle açılırdı.
         """
+        if getattr(self, "_budget_loading_dialog", None):
+            self._budget_loading_dialog.dismiss()
+            self._budget_loading_dialog = None
         from kivy.factory import Factory
         from kivymd.uix.button import MDFlatButton
         from kivymd.uix.dialog import MDDialog

@@ -194,6 +194,8 @@ class ShowBudgetPlannerTest(unittest.TestCase):
                  mock.patch("kivymd.uix.button.MDFlatButton",
                             return_value=SimpleNamespace()):
                 app.show_budget_planner()
+                from kivy.clock import Clock
+                Clock.tick()
         finally:
             Factory.unregister("BudgetPlannerPanel")
 

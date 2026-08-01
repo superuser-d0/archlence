@@ -319,8 +319,26 @@ class InsightsMixin:
 
     def render_subscription_overview(self, active_subscriptions, candidates):
         """Aktif kayıtları önde, radar adaylarını onların altında gösterir."""
-        self._active_subscriptions = list(active_subscriptions or [])
+        subs = active_subscriptions or []
+        self._active_subscriptions = [s for s in subs if s.get("transaction_type") != "income"]
+        self._active_incomes = [s for s in subs if s.get("transaction_type") == "income"]
         self.render_recurring_candidates(candidates)
+        self.render_active_incomes()
+
+    def render_active_incomes(self):
+        try:
+            container = self.root.ids.active_incomes_container
+        except Exception:
+            return
+
+        container.clear_widgets()
+
+        if not getattr(self, "_active_incomes", []):
+            container.add_widget(self._empty_label("Aktif geliriniz bulunmuyor."))
+            return
+
+        for payment in getattr(self, "_active_incomes", []):
+            container.add_widget(self._build_active_subscription_card(payment))
 
     def render_recurring_candidates(self, candidates):
         """Aktif abonelikler ve varsa yeni istatistiksel adayları birlikte basar."""
@@ -419,20 +437,39 @@ class InsightsMixin:
                 pos_hint={"center_y": .5},
             ))
         else:
-            # İkon henüz önbelleğe inmemiş (ilk açılış / prefetch sürüyor)
-            # olsa bile AYNI 32dp alanı dolduran nötr bir yer tutucu —
-            # ikon gelince satırın boyu/hizası aniden kaymasın.
+            is_income = payment.get("transaction_type") == "income"
             from kivymd.uix.label import MDIcon
-            header.add_widget(MDIcon(
-                icon="repeat-variant",
-                size_hint=(None, None),
-                size=(dp(32), dp(32)),
-                pos_hint={"center_y": .5},
-                theme_text_color="Custom",
-                text_color=ftheme.accent(self.theme_cls.theme_style, "green"),
-                font_size="20sp",
-                halign="center",
-            ))
+            
+            if is_income:
+                from kivymd.uix.floatlayout import MDFloatLayout
+                bg = MDFloatLayout(
+                    size_hint=(None, None),
+                    size=(dp(32), dp(32)),
+                    pos_hint={"center_y": .5},
+                    radius=[dp(16)],
+                    md_bg_color=ftheme.accent(self.theme_cls.theme_style, "green")
+                )
+                bg.add_widget(MDIcon(
+                    icon="cash-multiple",
+                    halign="center",
+                    valign="center",
+                    pos_hint={"center_x": .5, "center_y": .5},
+                    theme_text_color="Custom",
+                    text_color=[1, 1, 1, 1],
+                    font_size="18sp",
+                ))
+                header.add_widget(bg)
+            else:
+                header.add_widget(MDIcon(
+                    icon="repeat-variant",
+                    size_hint=(None, None),
+                    size=(dp(32), dp(32)),
+                    pos_hint={"center_y": .5},
+                    theme_text_color="Custom",
+                    text_color=ftheme.accent(self.theme_cls.theme_style, "green"),
+                    font_size="20sp",
+                    halign="center",
+                ))
         header.add_widget(MDLabel(
             text=payment["name"],
             font_style="Subtitle2",

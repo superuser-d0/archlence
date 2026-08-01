@@ -53,7 +53,25 @@ class CalendarMixin:
     # ─── Giriş noktası ───────────────────────────────────────────────────────
 
     def open_calendar_view(self):
-        """Takvim diyaloğunu bugünün ayı ve günü seçili olarak açar."""
+        """Takvim diyaloğunu yükleniyor ekranı gösterip ardından açar."""
+        from kivymd.uix.dialog import MDDialog
+        self._calendar_loading_dialog = MDDialog(
+            title=_t("Lütfen Bekleyin"),
+            text=_t("Takvim yükleniyor..."),
+            auto_dismiss=False,
+        )
+        self._calendar_loading_dialog.open()
+        
+        # UI'ın çizilmesine izin verip takvim oluşturmayı biraz erteliyoruz
+        from kivy.clock import Clock
+        Clock.schedule_once(lambda dt: self._build_calendar_view(), 0)
+
+    def _build_calendar_view(self):
+        """Asıl takvim diyaloğunu kurar ve gösterir."""
+        if getattr(self, "_calendar_loading_dialog", None):
+            self._calendar_loading_dialog.dismiss()
+            self._calendar_loading_dialog = None
+
         today = datetime.date.today()
         self._calendar_year = today.year
         self._calendar_month = today.month
