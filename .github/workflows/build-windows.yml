@@ -37,7 +37,7 @@ on:
         description: "Kurulum paketine gömülecek sürüm (etiketten türetilir)."
         required: false
         type: string
-        default: "0.0.2"
+        default: "0.0.3"
 
 # Arka arkaya push'ta eski derleme iptal edilsin; iki Windows runner'ını aynı
 # anda meşgul etmenin anlamı yok. PR'larda github.ref `refs/pull/<no>/merge`

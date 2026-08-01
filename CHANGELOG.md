@@ -1,5 +1,95 @@
 # Changelog
 
+## [0.0.3] — 2026-08-02
+
+This release replaces the numeric-only PIN with a password policy, splits
+recurring incomes into their own dashboard card, and fixes Borsa Istanbul
+stocks reporting ₺0.00. It remains a **pre-release**.
+
+### Highlights
+
+- Local sign-in now requires a password (minimum length, one uppercase
+  letter, one special character) instead of a 4-digit PIN, and a new
+  Settings entry lets you change it without leaving the app.
+- Recurring incomes (salary, etc.) moved out of the subscriptions card into
+  their own "Active Incomes" card, so they no longer read as expenses.
+- Assets typed as "Hisse Senedi" (stock) now resolve to their Borsa
+  Istanbul ticker again and fetch a live price instead of showing ₺0.00.
+
+### Financial correctness and reliability
+
+- **Stock assets stopped pricing.** `normalize_asset_type` only recognized
+  the tokens `STOCK`/`HISSE`/`HİSSE`, not the literal label
+  `"Hisse Senedi"` the UI actually stores. Unrecognized assets fall through
+  to no live price, so every stock entered through the normal flow showed
+  ₺0.00 instead of its Yahoo Finance quote. The matcher now also accepts
+  `"Hisse Senedi"` (both the Turkish "İ" and ASCII "I" spelling), and the
+  equivalent `"Kripto Para"` spelling for crypto, restoring the existing
+  `.IS`-suffix resolution in `ticker_mapper`/`asset_service`.
+
+### Performance
+
+- No performance-relevant changes in this release.
+
+### UI and accessibility
+
+- Recurring incomes render in a dedicated "Active Incomes" card with a
+  green, filled `cash-multiple` icon, visually distinct from the gray
+  repeat icon used for expense subscriptions.
+- The Calendar and Monthly Budget dialogs, both of which do heavy
+  calculation while building their view, now show a "Please wait,
+  loading..." dialog for one frame instead of appearing to freeze.
+- Password fields no longer insert a stray character when Tab is pressed
+  to move to the next field, and now show persistent helper text stating
+  the password rule inline.
+- All PIN wording ("PIN", "PIN Değiştir", ...) was renamed to
+  "Şifre"/"Password" throughout the UI and the i18n table to match the
+  password-based flow.
+
+### Testing and packaging
+
+- The complete 600-test suite passes with this release, including a new
+  assertion that the budget planner's deferred build (behind the new
+  loading dialog) actually runs under `Clock.tick()`.
+- No installer or packaging changes in this release.
+
+### Additional issues found and fixed
+
+- **PIN brute-force search space.** A 4-digit numeric PIN has only 10,000
+  possible values; even with Argon2id hashing and the existing
+  exponential login lockout, that is a small space for an attacker with
+  physical/file access to a device to work through offline. The new
+  password policy (minimum length, uppercase, special character) moves
+  the character set from digits-only to alphanumeric-plus-symbols, adding
+  orders of magnitude of combinations on top of the existing lockout and
+  hashing.
+- The brand-icon lookup table now recognizes roughly twenty additional
+  Turkish banks and fintech wallets (Garanti BBVA, İş Bankası, Yapı
+  Kredi, Ziraat, Akbank, VakıfBank, Halkbank, Enpara, QNB Finansbank,
+  TEB, DenizBank, Kuveyt Türk, Türkiye Finans, Albaraka, Papara, Ininal,
+  Tosla, Paycell, Nays, Pokus, Ozan), so recurring payments to these show
+  their real logo instead of the generic fallback.
+
+### Known limitations
+
+- This is still a pre-release and is not considered stable.
+- Packages are unsigned; Windows SmartScreen may warn on first launch.
+- The price service has a single provider.
+- The legacy CBC reader remains deprecated for old profiles and backups.
+- Broad exception handlers and `print()`-based reporting remain in parts of
+  the UI layer.
+- **Existing 4-digit PINs are not migrated.** The new password policy is
+  only enforced at setup/change time; a user who upgrades without
+  changing their password keeps signing in with their old 4-digit PIN
+  until they use Settings > Change Password.
+
+### Installation and checksum verification
+
+- Windows: `ArchlenceSetup-0.0.3.exe`
+- Linux: `Archlence-0.0.3-x86_64.AppImage`
+- Download `SHA256SUMS.txt` from the same release and verify the matching
+  asset. The SBOM is published as `Archlence-0.0.3-sbom.cdx.json`.
+
 ## [0.0.2] — 2026-07-30
 
 This release fixes two Windows-specific defects that could lead to lost work or

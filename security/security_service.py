@@ -101,6 +101,35 @@ class SecurityService:
         return SecurityService._is_legacy_sha256(hashed_password)
 
 
+class PasswordPolicy:
+    """Salt+Argon2id ve `LoginThrottle` yalnızca HASH'İ ve DENEME HIZINI korur —
+    girdinin kendisi hâlâ 4 haneli, yalnızca-rakam bir PIN olduğu sürece arama
+    uzayı (10.000 kombinasyon) küçük kalır. Bu sınıf girdi tarafını genişletir:
+    en az bir büyük harf ve en az bir noktalama/özel karakter zorunluluğu,
+    karakter kümesini rakamlardan çıkarıp alfasayısal+sembol'e taşıyarak
+    olası kombinasyon sayısını katlarca artırır (çevrimdışı brute-force'u
+    yavaşlatır). `setup_pin`, `_apply_new_pin` (main.py) ve sıfırlama sonrası
+    yeniden kurulum — hepsi `pin_setup` ekranına, dolayısıyla `setup_pin`'e
+    çıktığı için tek bir politika kaynağı üçünü de kapsar.
+    """
+
+    MIN_LENGTH = 4
+    SPECIAL_CHARS = ".,;:!?-_@#$%^&*()+=/\\|~`'\"<>[]{}"
+
+    @staticmethod
+    def validate(password):
+        """(is_valid, error_message) döndürür. `error_message`, `translate()`'e
+        verilebilecek Türkçe kaynak metindir; geçerliyse None."""
+        password = password or ""
+        if len(password) < PasswordPolicy.MIN_LENGTH:
+            return False, "Şifre en az 4 karakter olmalıdır."
+        if not any(c.isupper() for c in password):
+            return False, "Şifre en az 1 büyük harf içermelidir."
+        if not any(c in PasswordPolicy.SPECIAL_CHARS for c in password):
+            return False, "Şifre en az 1 özel karakter (örn. . veya ,) içermelidir."
+        return True, None
+
+
 class LoginThrottle:
     """Ardışık başarısız PIN denemelerinden sonra artan gecikme/geçici kilit
     (docs/ROADMAP.md Faz 1 madde 6'nın Argon2id'den ayrı bırakılan kısmı).

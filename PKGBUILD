@@ -1,7 +1,7 @@
 # Maintainer: Archlence contributors
 
 pkgname=archlence-bin
-pkgver=0.0.2
+pkgver=0.0.3
 pkgrel=1
 pkgdesc="Local-first personal finance manager (prebuilt AppImage)"
 arch=('x86_64')
@@ -19,11 +19,22 @@ source=(
   "LICENSE::https://raw.githubusercontent.com/superuser-d0/archlence/v${pkgver}/LICENSE"
 )
 
+# DİKKAT: Bu hash'ler henüz v0.0.3'e güncellenmedi — release.yml v0.0.3
+# varlıklarını yayınlayana kadar gerçek değerler bilinemez. Etiket push
+# edilip GitHub Release + SHA256SUMS.txt yayınlandıktan SONRA, `updpkgsums`
+# (pacman-contrib) veya SHA256SUMS.txt'ten elle güncellenmeli.
+#
+# BİLEREK geçersiz (tamamı sıfır) placeholder kullanılıyor, 'SKIP' DEĞİL:
+# 'SKIP' makepkg'de doğrulamayı tamamen KAPATIR ve indirilen her dosyayı
+# sessizce kabul eder — burada tam tersini istiyoruz. Geçersiz bir hash,
+# gerçek değerler yazılana kadar `makepkg`'i GÜVENLİ şekilde, yüksek sesle
+# başarısız kılar (checksum mismatch), yanlış/sahte bir ikili sessizce
+# kurulmaz.
 sha256sums=(
-  '31de4e4ce0b4730de9aa5afbd361b4a8e46085c727d5052c818a444bcb344935'
-  '4cf21f62e33e87cf69cd015fb9148dbe99badaf75c3caf3b87db1b8813089d71'
-  '1df0fe8c33ba3b13cee650cab7e254964e18acbd27c330dce19ac0aaf7110b9f'
-  'ecc8a7af57166c272c3b008712981c02f42898b6f2fad6889b7b51f9bf366c83'
+  '0000000000000000000000000000000000000000000000000000000000000000'
+  '0000000000000000000000000000000000000000000000000000000000000000'
+  '0000000000000000000000000000000000000000000000000000000000000000'
+  '0000000000000000000000000000000000000000000000000000000000000000'
 )
 
 package() {

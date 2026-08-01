@@ -149,6 +149,29 @@ _BRANDS = (
     (("nordvpn", "nord vpn"), "nordvpn", "nordvpn.com"),
     (("expressvpn", "express vpn"), "expressvpn", "expressvpn.com"),
 
+    # ── Bankalar ve Cüzdanlar (Türkiye) ─────────────────────────────────
+    (("garanti bbva", "garanti bankası", "garanti"), "garanti", "garantibbva.com.tr"),
+    (("iş bankası", "is bankasi", "işcep", "iscep", "is bank"), "is-bankasi", "isbank.com.tr"),
+    (("yapı kredi", "yapi kredi", "yapıkredi", "yapikredi"), "yapi-kredi", "yapikredi.com.tr"),
+    (("ziraat bankası", "ziraat bankasi", "ziraat"), "ziraat", "ziraatbank.com.tr"),
+    (("akbank", "axess"), "akbank", "akbank.com"),
+    (("vakıfbank", "vakifbank", "vakıf bank", "vakif bank"), "vakifbank", "vakifbank.com.tr"),
+    (("halkbank", "halk bank", "halk bankası"), "halkbank", "halkbank.com.tr"),
+    (("enpara.com", "enpara"), "enpara", "enpara.com"),
+    (("qnb finansbank", "finansbank", "qnb"), "qnb", "qnbfinansbank.com"),
+    (("teb", "türk ekonomi bankası", "cepteteb"), "teb", "teb.com.tr"),
+    (("denizbank", "deniz bank"), "denizbank", "denizbank.com"),
+    (("kuveyt türk", "kuveyttürk", "kuveyt turk"), "kuveytturk", "kuveytturk.com.tr"),
+    (("türkiye finans", "turkiye finans"), "turkiye-finans", "turkiyefinans.com.tr"),
+    (("albaraka", "albaraka türk"), "albaraka", "albarakaturk.com.tr"),
+    (("papara",), "papara", "papara.com"),
+    (("ininal", "ininal kart"), "ininal", "ininal.com"),
+    (("tosla",), "tosla", "tosla.com"),
+    (("paycell",), "paycell", "paycell.com.tr"),
+    (("nays",), "nays", "naysapp.com.tr"),
+    (("pokus",), "pokus", "pokus.com.tr"),
+    (("ozan", "ozan superapp"), "ozan", "ozan.com"),
+
     # Genel "amazon" (Prime/Prime Video DIŞINDA, ör. Amazon Music/Kindle
     # Unlimited) — listenin SONUNDA durmalı: yukarıdaki "amazon prime" /
     # "prime video" girdisi daha özgül, önce sınanmalı. Sıra iterasyon

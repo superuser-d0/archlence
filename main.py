@@ -230,7 +230,7 @@ from mixins.scenario_mixin import ScenarioMixin
 from mixins.subscription_mixin import SubscriptionMixin
 from mixins.pending_mixin import PendingMixin
 from mixins.calendar_mixin import CalendarMixin
-from security.security_service import LoginThrottle, SecurityService
+from security.security_service import LoginThrottle, PasswordPolicy, SecurityService
 from services.backup_service import decrypt_recovery_material
 from services.history_service import write_daily_snapshot
 
@@ -1493,11 +1493,12 @@ class ArchlenceApp(
         confirmation = self.root.ids.pin_confirm_input.text.strip()
         error = self.root.ids.pin_setup_error_label
 
-        if not pin.isdigit() or len(pin) < 4:
-            error.text = translate("PIN en az 4 rakam olmalıdır.")
+        is_valid, policy_error = PasswordPolicy.validate(pin)
+        if not is_valid:
+            error.text = translate(policy_error)
             return
         if pin != confirmation:
-            error.text = translate("PIN'ler eşleşmiyor.")
+            error.text = translate("Şifreler eşleşmiyor.")
             return
 
         salt = SecurityService.generate_salt()
@@ -1507,6 +1508,78 @@ class ArchlenceApp(
         self.root.ids.pin_setup_input.text = ""
         self.root.ids.pin_confirm_input.text = ""
         self.root.ids.screen_manager.current = self.route_after_auth()
+
+    def open_change_pin_dialog(self):
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.button import MDFlatButton, MDRaisedButton
+        from kivymd.uix.textfield import MDTextField
+        from kivymd.uix.boxlayout import MDBoxLayout
+        from kivy.metrics import dp
+        
+        content = MDBoxLayout(orientation="vertical", spacing=dp(12), size_hint_y=None, height=dp(160))
+        self._new_pin_input = MDTextField(
+            hint_text=translate("Yeni Şifre"),
+            password=True,
+            max_text_length=32,
+            multiline=False,
+            write_tab=False,
+            helper_text=translate("En az 4 karakter, 1 büyük harf ve 1 özel karakter"),
+            helper_text_mode="persistent"
+        )
+        self._new_pin_confirm = MDTextField(
+            hint_text=translate("Yeni Şifre Tekrar"),
+            password=True,
+            max_text_length=32,
+            multiline=False,
+            write_tab=False
+        )
+        content.add_widget(self._new_pin_input)
+        content.add_widget(self._new_pin_confirm)
+
+        self._change_pin_dialog = MDDialog(
+            title=translate("Şifre Değiştir"),
+            type="custom",
+            content_cls=content,
+            buttons=[
+                MDFlatButton(
+                    text=translate("İPTAL"),
+                    on_release=lambda _b: self._change_pin_dialog.dismiss()
+                ),
+                MDRaisedButton(
+                    text=translate("KAYDET"),
+                    on_release=self._apply_new_pin
+                )
+            ]
+        )
+        self._change_pin_dialog.open()
+
+    def _apply_new_pin(self, _button):
+        pin = self._new_pin_input.text.strip()
+        confirmation = self._new_pin_confirm.text.strip()
+
+        from kivymd.toast import toast
+
+        is_valid, policy_error = PasswordPolicy.validate(pin)
+        if not is_valid:
+            toast(translate(policy_error))
+            return
+
+        if pin != confirmation:
+            toast(translate("Şifreler eşleşmiyor."))
+            return
+
+        salt = SecurityService.generate_salt()
+        pin_hash = SecurityService.hash_password(pin, salt)
+        self.config_store.put("security", pin_hash=pin_hash, salt=salt, is_set=True)
+
+        self._change_pin_dialog.dismiss()
+        self._change_pin_dialog = None
+
+        toast(translate("Şifre başarıyla değiştirildi. Lütfen tekrar giriş yapın."))
+        
+        # Çıkış yap (logout)
+        self.root.ids.password_input.text = ""
+        self.root.ids.screen_manager.current = "login"
 
     def check_login(self):
         pin = self.root.ids.password_input.text.strip()
@@ -1554,7 +1627,7 @@ class ArchlenceApp(
         self.root.ids.screen_manager.current = self.route_after_auth()
 
     def _handle_failed_login(self, message=None):
-        self.root.ids.login_error_label.text = message or translate("Hatalı PIN!")
+        self.root.ids.login_error_label.text = message or translate("Hatalı Şifre!")
 
         pwd_container = self.root.ids.password_container
 

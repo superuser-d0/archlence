@@ -15,9 +15,9 @@ _GOLD_INTERNAL = {
 
 def normalize_asset_type(asset_type: str | None) -> str:
     value = (asset_type or "").strip().upper()
-    if value in {"CRYPTO", "KRIPTO", "KRİPTO"}:
+    if value in {"CRYPTO", "KRIPTO", "KRİPTO", "KRIPTO PARA", "KRİPTO PARA"}:
         return "CRYPTO"
-    if value in {"STOCK", "HISSE", "HİSSE"}:
+    if value in {"STOCK", "HISSE", "HİSSE", "HİSSE SENEDİ", "HISSE SENEDI"}:
         return "STOCK"
     if value in {"FX_GOLD", "DÖVIZ", "DÖVİZ", "FOREX", "ALTIN", "GOLD"}:
         return "FX_GOLD"

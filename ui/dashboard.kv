@@ -91,7 +91,7 @@ MDScreen:
         id: screen_manager
         transition: FadeTransition(duration=0.2)
 
-        # --- İLK AÇILIŞ: YEREL PIN OLUŞTURMA ---
+        # --- İLK AÇILIŞ: YEREL ŞİFRE OLUŞTURMA ---
         MDScreen:
             name: "pin_setup"
             MDFloatLayout:
@@ -107,7 +107,7 @@ MDScreen:
                     spacing: "18dp"
                     pos_hint: {"center_x": .5, "center_y": .5}
                     size_hint_y: None
-                    height: "440dp"
+                    height: "460dp"
 
                     MDLabel:
                         text: app.tr("ARCHLENCE", app.language)
@@ -117,33 +117,30 @@ MDScreen:
                         bold: True
 
                     MDLabel:
-                        text: app.tr("Yerel PIN'ini Belirle", app.language)
+                        text: app.tr("Yerel Şifreni Belirle", app.language)
                         font_style: "Subtitle1"
                         halign: "center"
                         theme_text_color: "Secondary"
 
                     MDTextField:
                         id: pin_setup_input
-                        hint_text: app.tr("PIN", app.language)
+                        hint_text: app.tr("Şifre", app.language)
                         password: True
-                        input_filter: "int"
-                        max_text_length: 12
+                        max_text_length: 32
                         size_hint_x: 0.8
                         pos_hint: {"center_x": .5}
                         multiline: False
-                        # write_tab TAB'ın metne sekme YAZMASINI engeller;
-                        # odağın nereye gideceğini ise focus_next belirler.
-                        # İkisi birlikte olmadan TAB hiçbir şey yapmıyordu.
                         write_tab: False
                         focus_next: pin_confirm_input
                         on_text_validate: pin_confirm_input.focus = True
+                        helper_text: app.tr("En az 4 karakter, 1 büyük harf ve 1 özel karakter", app.language)
+                        helper_text_mode: "persistent"
 
                     MDTextField:
                         id: pin_confirm_input
-                        hint_text: app.tr("PIN Tekrar", app.language)
+                        hint_text: app.tr("Şifre Tekrar", app.language)
                         password: True
-                        input_filter: "int"
-                        max_text_length: 12
+                        max_text_length: 32
                         size_hint_x: 0.8
                         pos_hint: {"center_x": .5}
                         multiline: False
@@ -162,13 +159,13 @@ MDScreen:
                         height: "28dp"
 
                     MDRaisedButton:
-                        text: app.tr("PIN OLUŞTUR", app.language)
+                        text: app.tr("ŞİFRE OLUŞTUR", app.language)
                         size_hint_x: 0.5
                         pos_hint: {"center_x": .5}
                         on_release: app.setup_pin()
 
                     MDLabel:
-                        text: app.tr("PIN yalnızca bu cihazda saklanır; Archlence verilerinizi bir sunucuya göndermez.", app.language)
+                        text: app.tr("Şifre yalnızca bu cihazda saklanır; Archlence verilerinizi bir sunucuya göndermez.", app.language)
                         font_style: "Caption"
                         theme_text_color: "Hint"
                         halign: "center"
@@ -290,10 +287,9 @@ MDScreen:
 
                         MDTextField:
                             id: password_input
-                            hint_text: app.tr("PIN", app.language)
+                            hint_text: app.tr("Şifre", app.language)
                             password: True
-                            input_filter: "int"
-                            max_text_length: 12
+                            max_text_length: 32
                             multiline: False
                             write_tab: False
                             on_text_validate: app.check_login()
@@ -322,7 +318,7 @@ MDScreen:
                         on_release: app.check_login()
 
                     MDLabel:
-                        text: app.tr("PIN'ini unuttun mu? Sağ üstteki Ayarlar > PIN ve Verileri Sıfırla yolunu kullanabilirsin. Tüm yerel finans verilerin silinir.", app.language)
+                        text: app.tr("Şifreni mi unuttun? Sağ üstteki Ayarlar > Şifre ve Verileri Sıfırla yolunu kullanabilirsin. Tüm yerel finans verilerin silinir.", app.language)
                         halign: "center"
                         font_style: "Caption"
                         theme_text_color: "Hint"
@@ -453,10 +449,10 @@ MDScreen:
                             MDBoxLayout:
                                 orientation: "vertical"
                                 MDLabel:
-                                    text: app.tr("PIN ve Verileri Sıfırla", app.language)
+                                    text: app.tr("Şifre ve Verileri Sıfırla", app.language)
                                     theme_text_color: "Error"
                                 MDLabel:
-                                    text: app.tr("PIN dahil tüm yerel finans verilerini kalıcı olarak siler", app.language)
+                                    text: app.tr("Şifre dahil tüm yerel finans verilerini kalıcı olarak siler", app.language)
                                     font_style: "Caption"
                                     theme_text_color: "Secondary"
                             MDIcon:
@@ -874,6 +870,40 @@ MDScreen:
                                         adaptive_height: True
                                         spacing: "10dp"
 
+                                # YENİ: AKTİF GELİRLERİM KARTI
+                                MDCard:
+                                    elevation: 0
+                                    line_color: ftheme.card_line(app.theme_cls.theme_style)
+                                    orientation: "vertical"
+                                    padding: "16dp"
+                                    spacing: "10dp"
+                                    size_hint_y: None
+                                    adaptive_height: True
+                                    radius: [24]
+                                    md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
+
+                                    MDBoxLayout:
+                                        size_hint_y: None
+                                        height: "30dp"
+                                        spacing: "10dp"
+                                        MDIcon:
+                                            icon: "cash-plus"
+                                            theme_text_color: "Custom"
+                                            text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
+                                            size_hint_x: None
+                                            width: "24dp"
+                                        MDLabel:
+                                            text: app.tr("Aktif Gelirlerim", app.language)
+                                            font_style: "Subtitle1"
+                                            bold: True
+                                            theme_text_color: "Primary"
+
+                                    MDBoxLayout:
+                                        id: active_incomes_container
+                                        orientation: "vertical"
+                                        adaptive_height: True
+                                        spacing: "10dp"
+
                                 # FAZ 1: OLAĞANDIŞI HARCAMA UYARILARI
                                 MDCard:
                                     elevation: 0
@@ -919,7 +949,7 @@ MDScreen:
                                     padding: "16dp"
                                     spacing: "10dp"
                                     size_hint_y: None
-                                    height: "260dp"
+                                    height: "220dp"
                                     radius: [24, 24, 24, 24]
                                     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
 
@@ -958,7 +988,7 @@ MDScreen:
                                     padding: "16dp"
                                     spacing: "10dp"
                                     size_hint_y: None
-                                    height: "220dp"
+                                    height: "190dp"
                                     radius: [24, 24, 24, 24]
                                     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
 
@@ -2235,6 +2265,42 @@ MDScreen:
                                     MDLabel:
                                         text: app.tr("Veriler ve Gizlilik", app.language)
                                         theme_text_color: "Primary"
+                                    MDIcon:
+                                        icon: "chevron-right"
+                                        pos_hint: {"center_y": .5}
+                                        theme_text_color: "Hint"
+
+                                MDSeparator:
+
+                                # --- ŞİFRE DEĞİŞTİR ---
+                                ClickableSettingsRow:
+                                    orientation: "horizontal"
+                                    size_hint_y: None
+                                    height: "64dp"
+                                    padding: ["20dp", 0, "20dp", 0]
+                                    spacing: "20dp"
+                                    on_release: app.open_change_pin_dialog()
+                                    MDIcon:
+                                        icon: "key-change"
+                                        size_hint_x: None
+                                        width: "36dp"
+                                        halign: "center"
+                                        pos_hint: {"center_y": .5}
+                                        theme_text_color: "Primary"
+                                    MDBoxLayout:
+                                        orientation: "vertical"
+                                        pos_hint: {"center_y": .5}
+                                        MDLabel:
+                                            text: app.tr("Şifre Değiştir", app.language)
+                                            theme_text_color: "Primary"
+                                            size_hint_y: None
+                                            height: "20dp"
+                                        MDLabel:
+                                            text: app.tr("Şifrenizi buradan yenileyebilirsiniz.", app.language)
+                                            font_style: "Caption"
+                                            theme_text_color: "Secondary"
+                                            size_hint_y: None
+                                            height: "16dp"
                                     MDIcon:
                                         icon: "chevron-right"
                                         pos_hint: {"center_y": .5}
