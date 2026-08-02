@@ -1865,33 +1865,33 @@ class ArchlenceApp(
         if forecast["projected_month_end_balance"] < 0:
             return (
                 translate(
-                    f"Son 3 ayın istatistiğine göre bu ay sonunda bakiyenizin {month_end} "
+                    "Son 3 ayın istatistiğine göre bu ay sonunda bakiyenizin {month_end} "
                     "olması bekleniyor. Dikkat: Model bakiyenizin eksiye düşebileceğini "
                     "gösteriyor, harcamalarınızı gözden geçirin."
-                ),
+                ).format(month_end=month_end),
                 "negative",
             )
         if surplus < 0:
             return (
                 translate(
-                    f"Son 3 ayın istatistiğine göre mevcut harcama eğiliminiz sürerse bu "
-                    f"ay sonunda bakiyeniz {month_end} seviyesine gerileyebilir."
-                ),
+                    "Son 3 ayın istatistiğine göre mevcut harcama eğiliminiz sürerse bu "
+                    "ay sonunda bakiyeniz {month_end} seviyesine gerileyebilir."
+                ).format(month_end=month_end),
                 "warning",
             )
         if surplus > 0 and forecast["savings_rate"] >= 0.10:
             return (
                 translate(
-                    f"Son 3 ayın istatistiğine göre bu ay sonunda cebinizde {month_end} "
+                    "Son 3 ayın istatistiğine göre bu ay sonunda cebinizde {month_end} "
                     "kalacak; bunu bir yatırım aracı olarak değerlendirebilirsiniz."
-                ),
+                ).format(month_end=month_end),
                 "positive",
             )
         return (
             translate(
                 f"Son 3 ayın istatistiğine göre bu ay sonunda bakiyenizin yaklaşık "
-                f"{month_end} olması bekleniyor."
-            ),
+                "{month_end} olması bekleniyor."
+            ).format(month_end=month_end),
             "neutral",
         )
 
