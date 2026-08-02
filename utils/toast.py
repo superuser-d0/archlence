@@ -4,7 +4,15 @@ _ARCHLENCE_HEADLESS = os.environ.get("ARCHLENCE_HEADLESS", "").strip().lower() i
     "1", "true", "yes",
 )
 
-try:
+if _ARCHLENCE_HEADLESS:
+    # Headless sözleşmesi açıksa KivyMD'yi hiç import etme. Kivy kurulu olsa
+    # bile pencere sağlayıcısı olmayan bir süreçte snackbar importu, normal
+    # ImportError yerine Kivy'nin `SystemExit` yolunu tetikleyebilir. Test
+    # sırasına/stub kurulmasına bağlı davranmamak için no-op kararı importtan
+    # önce verilir.
+    def toast(*args, **kwargs):
+        return None
+else:
     from kivymd.uix.snackbar import MDSnackbar
     from kivymd.uix.label import MDLabel
     from kivy.metrics import dp
@@ -25,17 +33,3 @@ try:
             duration=duration
         )
         sb.open()
-except (ImportError, AttributeError) as exc:
-    # main.py'deki "Graceful KivyMD Mocking" ile aynı sözleşme: gerçek bir
-    # masaüstü ortamda bu import başarısız oluyorsa gizlenmemeli (sessiz
-    # sızma). Yalnızca ARCHLENCE_HEADLESS=1 altında (birim testleri) no-op'a
-    # düşülür — headless test ortamının kivymd stub'ları `kivymd.uix.snackbar`
-    # sağlamıyor, bu da bu modülü içe aktaran her mixin'i import anında
-    # çökertiyordu (bkz. tests/test_scenario_mixin.py, test_insights_mixin.py).
-    if not _ARCHLENCE_HEADLESS:
-        raise
-    import warnings
-    warnings.warn(f"utils.toast: MDSnackbar import failed; using no-op fallback: {exc}")
-
-    def toast(*args, **kwargs):
-        return None
