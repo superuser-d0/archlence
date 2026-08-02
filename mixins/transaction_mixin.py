@@ -1,6 +1,6 @@
 from kivy.clock import Clock
 from kivy.metrics import dp
-from kivymd.toast import toast
+from utils.toast import toast
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.label import MDLabel
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -631,7 +631,8 @@ class TransactionMixin:
                 if not is_read_only_asset_account(account)
             ]
         except Exception as e:
-            print("Ödeme yöntemleri okunamadı:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Ödeme yöntemleri okunamadı")
             self._payment_methods = []
 
         if not self._payment_methods:
@@ -707,7 +708,8 @@ class TransactionMixin:
                 if not is_read_only_asset_account(account)
             ]
         except Exception as exc:
-            print("Ödeme yöntemleri yenilenemedi:", exc)
+            from utils.logging_config import get_logger
+            get_logger().exception("Ödeme yöntemleri yenilenemedi")
         methods = self._valid_payment_methods()
         if not methods:
             toast(_t("Bu işlem türü için uygun bir hesap bulunamadı."))
@@ -894,7 +896,7 @@ class TransactionMixin:
         if switch is not None:
             apply_category_trigger(category, switch)
 
-    def save_transaction(self, *args, include_current_income=None):
+    def save_transaction(self, *args, include_current_period=None):
         """Girilen işlemi doğrular ve arka planda şifreleyip veritabanına yazar.
 
         Doğrulama (kategori seçili mi, miktar geçerli ve pozitif mi) ana thread'de;
@@ -933,10 +935,9 @@ class TransactionMixin:
 
         if (
             is_recurring
-            and self.selected_type == "income"
-            and include_current_income is None
+            and include_current_period is None
         ):
-            self._ask_include_current_income()
+            self._ask_include_current_period()
             return
 
         # Taksit: yalnızca görünür Taksitli seçimde ve 2+ taksitte plan yazılır
@@ -972,7 +973,7 @@ class TransactionMixin:
         # kullanıcı formu yeniden açarsa self.selected_transaction_date başka
         # bir diyaloga ait olabilir.
         submitted_date = getattr(self, "selected_transaction_date", None)
-        if is_recurring and submitted_type == "income" and include_current_income:
+        if is_recurring and include_current_period:
             from services.recurring_service import initial_recurring_income_date
             submitted_date = initial_recurring_income_date(
                 datetime.date.today(), recurrence_day, True,
@@ -1017,18 +1018,18 @@ class TransactionMixin:
             # bekleyenler paneli anında güncellensin.
             if (
                 is_recurring
-                and submitted_type == "income"
-                and include_current_income is False
+                and include_current_period is False
             ):
                 toast(_t(
-                    "Tekrarlanan gelir kaydedildi; bu ay dahil edilmedi."
+                    "Tekrarlayan işlem kaydedildi; bu ay dahil edilmedi."
                 ))
             elif submitted_is_future:
                 if hasattr(self, "load_pending_transactions"):
                     try:
                         self.load_pending_transactions()
                     except Exception as e:
-                        print("Bekleyen özeti tazelenemedi:", e)
+                        from utils.logging_config import get_logger
+                        get_logger().exception("Bekleyen özeti tazelenemedi")
                 toast(_t(
                     f"İşlem {submitted_date.isoformat()} tarihine planlandı; "
                     "bekleyenler listesinde."
@@ -1072,8 +1073,7 @@ class TransactionMixin:
 
                 include_initial_transaction = not (
                     is_recurring
-                    and submitted_type == "income"
-                    and include_current_income is False
+                    and include_current_period is False
                 )
                 if include_initial_transaction:
                     TransactionService.add_transaction(
@@ -1115,36 +1115,40 @@ class TransactionMixin:
                 error_message["text"] = str(e)
                 Clock.schedule_once(error_callback, 0)
             except Exception as e:
-                print(f"Save Transaction Error: {e}")
+                from utils.logging_config import get_logger
+                get_logger().exception("Save Transaction Error")
                 Clock.schedule_once(error_callback, 0)
 
         threading.Thread(target=background_task, daemon=True).start()
 
-    def _ask_include_current_income(self):
-        """Tekrarlanan gelirin ilk ayını kullanıcıya açıkça seçtirir."""
-        existing = getattr(self, "recurring_income_period_dialog", None)
+    def _ask_include_current_period(self):
+        """Tekrarlanan işlemin ilk ayını kullanıcıya açıkça seçtirir."""
+        existing = getattr(self, "recurring_period_dialog", None)
         if existing is not None:
             try:
                 existing.dismiss()
             except Exception:
                 pass
 
+        if getattr(self, "selected_type", "expense") == "income":
+            question = "Bu ayki gelir hesaba eklensin mi?"
+            detail = "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gelir hemen, gelmediyse seçilen günde eklenir."
+        else:
+            question = "Bu ayki gider hesaptan düşülsün mü?"
+            detail = "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gider hemen, gelmediyse seçilen günde düşülür."
+
         content = MDLabel(
-            text=_t(
-                "Bu ayki gelir hesaba eklensin mi?\n\n"
-                "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gelir "
-                "hemen, gelmediyse seçilen günde eklenir."
-            ),
+            text=_t(f"{question}\n\n{detail}"),
             size_hint_y=None,
             height=dp(110),
             theme_text_color="Secondary",
         )
 
         def choose(value):
-            self.recurring_income_period_dialog.dismiss()
-            self.save_transaction(include_current_income=value)
+            self.recurring_period_dialog.dismiss()
+            self.save_transaction(include_current_period=value)
 
-        self.recurring_income_period_dialog = MDDialog(
+        self.recurring_period_dialog = MDDialog(
             title=_t("Bu Ay Dahil Edilsin mi?"),
             type="custom",
             content_cls=content,
@@ -1159,7 +1163,7 @@ class TransactionMixin:
                 ),
             ],
         )
-        self.recurring_income_period_dialog.open()
+        self.recurring_period_dialog.open()
 
     def on_assets_tab_enter(self, *args):
         """KV'deki Varlıklarım sekmesinin `on_enter` hedefi.
@@ -1183,11 +1187,13 @@ class TransactionMixin:
             try:
                 self.refresh_dashboard_data(reuse_if_fresh=True)
             except Exception as e:
-                print("Varlıklarım paneli yüklenemedi:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Varlıklarım paneli yüklenemedi")
             try:
                 self.load_active_assets()
             except Exception as e:
-                print("Aktif varlıklar yüklenemedi:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Aktif varlıklar yüklenemedi")
 
         self._assets_tab_load_ev = Clock.schedule_once(_load, 0.1)
 

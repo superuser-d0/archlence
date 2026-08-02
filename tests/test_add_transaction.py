@@ -278,5 +278,36 @@ class TransactionDateWidgetTest(unittest.TestCase):
         self.assertEqual(captured["initial"], date.today())
 
 
+class RecurringCurrentPeriodPromptTest(unittest.TestCase):
+    """Tekrarlayan gelir ve gider ilk dönem kararını açıkça istemeli."""
+
+    def _make_app(self, transaction_type):
+        from mixins.transaction_mixin import TransactionMixin
+
+        app = TransactionMixin.__new__(TransactionMixin)
+        app.selected_category = "Dijital Abonelik"
+        app.selected_type = transaction_type
+        app.amount_input = SimpleNamespace()
+        app.recurring_switch = SimpleNamespace(active=True)
+        app.recurring_name_input = SimpleNamespace(text="Aylık Plan")
+        app.selected_frequency = "monthly"
+        app.auto_deduct_switch = SimpleNamespace(active=False)
+        app.recurrence_day_input = SimpleNamespace(text="15")
+        app._ask_include_current_period = mock.Mock()
+        return app
+
+    def test_income_and_expense_both_request_current_period_decision(self):
+        import mixins.transaction_mixin as transaction_module
+
+        for transaction_type in ("income", "expense"):
+            with self.subTest(transaction_type=transaction_type):
+                app = self._make_app(transaction_type)
+                with mock.patch.object(
+                    transaction_module, "read_amount", return_value=100.0,
+                ):
+                    app.save_transaction()
+                app._ask_include_current_period.assert_called_once_with()
+
+
 if __name__ == "__main__":
     unittest.main()
