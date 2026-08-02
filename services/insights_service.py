@@ -121,10 +121,17 @@ def candidate_key(category, name):
     return f"{(category or '').strip().lower()}|{normalize_name(name)}"
 
 
-def _load_transactions(lookback_days, types):
+def _load_transactions(lookback_days, types, decrypt_description=True):
     """İşlemleri çeker ve tutar/açıklamayı Python'da çözer.
 
     Tarih ve tür filtresi SQL'de (o sütunlar düz), toplama Python'da.
+
+    `decrypt_description=False` ile açıklama sütunu ÇÖZÜLMEZ ve `None` kalır.
+    NEDEN (ölçüldü, 10K işlem): açıklama çözümü bu fonksiyonun maliyetinin
+    ~yarısı (687 ms → 369 ms, 1.9x). Skor ve öngörü yolları yalnızca tutar
+    ve tarih kullanıyor; onlar için AES işi tamamen boşa gidiyordu. Abonelik
+    radarı ve anomali tespiti açıklamaya İHTİYAÇ DUYAR (adayı ondan türetir),
+    o yüzden varsayılan `True` — sessizce boş açıklama görmesinler.
     """
     conn = get_connection()
     cursor = conn.cursor()
@@ -155,7 +162,10 @@ def _load_transactions(lookback_days, types):
             "amount": _safe_decrypt_float(r["amount"], r["id"]),
             "type": r["type"],
             "category": r["category"] or "Diğer",
-            "description": _safe_decrypt_text(r["description"], r["id"]),
+            "description": (
+                _safe_decrypt_text(r["description"], r["id"])
+                if decrypt_description else None
+            ),
             "date": parsed,
         })
     return records
@@ -489,8 +499,11 @@ def compute_financial_health_score(lookback_days=90, persist=True):
 
     Döner: {score, breakdown: {...}, computed_at, insufficient_data}
     """
-    expenses = _load_transactions(lookback_days, _EXPENSE_TYPES)
-    incomes = _load_transactions(lookback_days, _INCOME_TYPES)
+    # Skor yalnızca tutar + tarih kullanır; açıklamayı çözmek boşa AES işi.
+    expenses = _load_transactions(
+        lookback_days, _EXPENSE_TYPES, decrypt_description=False)
+    incomes = _load_transactions(
+        lookback_days, _INCOME_TYPES, decrypt_description=False)
 
     total_expense = sum(r["amount"] for r in expenses)
     total_income = sum(r["amount"] for r in incomes)
@@ -518,7 +531,8 @@ def compute_financial_health_score(lookback_days=90, persist=True):
         from database.db import get_active_debts
         monthly_debt_payment = sum(d.get("monthly_payment", 0.0) for d in get_active_debts())
     except sqlite3.Error as e:
-        print(f"[DB] Aylık borç yükü hesaplanamadı: {e}")
+        from utils.logging_config import get_logger
+        get_logger().exception("[DB] Aylık borç yükü hesaplanamadı")
         monthly_debt_payment = 0.0
 
     # Gelir aylığa normalize edilir ki borç oranı elmayla elma karşılaşsın.
@@ -618,8 +632,11 @@ def generate_monthly_forecast(lookback_days=90, min_days=85):
     from services.projection_service import project_final_wealth
     from services.queries import DashboardService
 
-    expenses = _load_transactions(lookback_days, _EXPENSE_TYPES)
-    incomes = _load_transactions(lookback_days, _INCOME_TYPES)
+    # Öngörü de yalnızca tutar + tarih kullanır (bkz. yukarıdaki skor yolu).
+    expenses = _load_transactions(
+        lookback_days, _EXPENSE_TYPES, decrypt_description=False)
+    incomes = _load_transactions(
+        lookback_days, _INCOME_TYPES, decrypt_description=False)
     records = expenses + incomes
 
     if not records:
