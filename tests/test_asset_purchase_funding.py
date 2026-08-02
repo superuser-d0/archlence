@@ -93,16 +93,38 @@ class AssetPurchaseFundingTest(AccountFixtureMixin, unittest.TestCase):
 
         self._buy(50.0)  # patlamamalı
 
-    def test_error_names_the_shortfall_instead_of_a_bare_message(self):
-        """Hiçbir hesap yetmiyorsa mesaj NE KADAR eksik olduğunu söylemeli."""
-        self.create_test_account(name="Az Para", balance=10.0)
+    def test_no_account_affords_it_picks_richest_and_goes_negative(self):
+        """Yetersiz bakiye koruması kaldırıldı: hiçbir hesap yetmese bile
+        en yüksek bakiyeli vadesiz hesap seçilir ve eksiye düşürülür."""
+        account_id = self.create_test_account(name="Az Para", balance=10.0)
 
-        with self.assertRaises(ValueError) as ctx:
-            self._buy(5000.0)
+        self._buy(5000.0)
 
-        message = str(ctx.exception)
-        self.assertIn("Az Para", message)
-        self.assertIn("5.000", message)
+        from services.account_service import AccountService
+        self.assertAlmostEqual(
+            float(AccountService.get_account(account_id)["balance"]),
+            10.0 - 5000.0,
+            places=2,
+            msg="Tek/en zengin hesap, yetmese bile alım için eksiye düşürülmeli.",
+        )
+
+    def test_no_account_affords_it_picks_the_richest_among_several(self):
+        """Birden fazla yetersiz hesap varken en yüksek bakiyeli seçilmeli."""
+        poor = self.create_test_account(name="Az Para", balance=10.0)
+        richer = self.create_test_account(name="Biraz Daha Fazla", balance=200.0)
+
+        self._buy(5000.0)
+
+        from services.account_service import AccountService
+        self.assertAlmostEqual(
+            float(AccountService.get_account(richer)["balance"]),
+            200.0 - 5000.0,
+            places=2,
+        )
+        self.assertAlmostEqual(
+            float(AccountService.get_account(poor)["balance"]), 10.0, places=2,
+            msg="Seçilmeyen hesaba dokunulmamalı.",
+        )
 
     def test_no_checking_account_gives_actionable_message(self):
         with self.assertRaises(ValueError) as ctx:

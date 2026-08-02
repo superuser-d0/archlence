@@ -512,18 +512,25 @@ class RealWriteSitesTestCase(_LedgerTestBase):
         self.assertAlmostEqual(replayed["total_balance"], real_total, places=2)
         self.assertAlmostEqual(replayed["savings_total"], real_goals, places=2)
 
-    def test_failed_deposit_leaves_no_ledger_entry(self):
-        """Atomiklik: yetersiz bakiyede UPDATE de defter de geri alınmalı."""
+    def test_deposit_beyond_balance_still_records_both_ledger_entries(self):
+        """Yetersiz bakiye koruması kaldırıldı: aktarım gerçekleşir ve hesap
+        eksiye düşse bile hesap + hedef için ikişer defter kaydı yazılmalı
+        (atomiklik: ya ikisi de yazılır ya hiçbiri, ama artık her zaman ikisi)."""
         from services.savings_service import SavingsService
 
         goal_id = SavingsService.create_goal("Büyük Hedef", 999999.0)
         before = len(self._events())
 
-        with self.assertRaises(ValueError):
-            SavingsService.deposit_to_goal(goal_id, 10_000_000.0, account_id=1)
+        SavingsService.deposit_to_goal(goal_id, 10_000_000.0, account_id=1)
 
-        self.assertEqual(len(self._events()), before,
-                         "başarısız işlem defterde iz bırakmamalı")
+        new_events = self._events()[before:]
+        self.assertEqual(len(new_events), 2,
+                         "başarılı işlem hesap + hedef için ikişer defter kaydı bırakmalı")
+        sources = {e["source"] for e in new_events}
+        self.assertEqual(sources, {"savings_deposit"})
+        deltas = sorted(e["delta"] for e in new_events)
+        self.assertAlmostEqual(deltas[0], -10_000_000.0, places=2)
+        self.assertAlmostEqual(deltas[1], 10_000_000.0, places=2)
 
 
 if __name__ == "__main__":

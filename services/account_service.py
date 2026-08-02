@@ -327,8 +327,9 @@ class AccountService:
         """Hesabın yeni bir gelir/gider işlemine uygunluğunu kontrol eder.
 
         (izin_var, hata_mesajı) döndürür. Donmuş hesaplarda gelir ve gider
-        dahil yeni işlemlerin tamamı reddedilir. Donmamış vadesiz hesaplarda
-        gider kullanılabilir bakiyeyi aşamaz; kredi kartında limit uygulanır.
+        dahil yeni işlemlerin tamamı reddedilir. Vadesiz hesaplarda gider
+        artık kullanılabilir bakiyeyle sınırlı DEĞİL — kullanıcı bilerek
+        hesabı eksiye düşürebilir; kredi kartında limit hâlâ uygulanır.
         Borç ödeme bu fonksiyondan geçmez ve dondurulmuş karta yapılabilir.
         """
         acc = AccountService.get_account(account_id)
@@ -348,8 +349,6 @@ class AccountService:
                 amount_f = float(amount)
             except (TypeError, ValueError):
                 return False, "Geçersiz tutar."
-            if amount_f > float(acc["balance"]):
-                return False, "Yetersiz Bakiye! Bu hesap eksiye düşemez."
             return True, ""
         # Limit 0 = "belirlenmemiş", yasak değil. Migration'dan gelen eski kartlar
         # credit_limit=0 ile geliyor; bunları limitsiz saymazsak kullanıcının
@@ -392,9 +391,6 @@ class AccountService:
         source = AccountService.get_account(source_account_id)
         if not source or source["account_type"] != CHECKING:
             raise ValueError("Ödeme yapılacak hesap vadesiz hesap olmalıdır.")
-            
-        if float(source["balance"]) < amount:
-            raise ValueError("Yetersiz Bakiye! Bu hesap eksiye düşemez.")
 
         conn = get_connection()
         try:
@@ -405,11 +401,11 @@ class AccountService:
             # engeller.
             cursor.execute(
                 "UPDATE accounts SET balance = balance - ?"
-                " WHERE id = ? AND account_type = ? AND balance >= ?",
-                (amount, source_account_id, CHECKING, amount),
+                " WHERE id = ? AND account_type = ?",
+                (amount, source_account_id, CHECKING),
             )
             if cursor.rowcount != 1:
-                raise ValueError("Yetersiz Bakiye! Bu hesap eksiye düşemez.")
+                raise ValueError("Hesap bakiyesi güncellenemedi.")
 
             cursor.execute(
                 "UPDATE accounts SET balance = balance + ?"

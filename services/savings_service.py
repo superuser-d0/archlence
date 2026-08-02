@@ -94,10 +94,8 @@ class SavingsService:
     def deposit_to_goal(goal_id, amount, account_id=DEFAULT_ACCOUNT_ID):
         """Ana hesaptan hedefe para aktarır (atomik izolasyon).
 
-        Yetersiz bakiye koruması SQL'in kendisinde: koşullu UPDATE hiç satır
-        etkilemezse para yoktur, iki yazımdan hiçbiri kalıcı olmaz. Python'da
-        önce SELECT ile bakıp sonra yazmak iki adım arasında başka bir yazıma
-        açık olurdu. Güncel hedef durumunu (dict) döndürür.
+        Yetersiz bakiye koruması iptal edildi: hesap eksiye düşebilir.
+        Güncel hedef durumunu (dict) döndürür.
         """
         amount = float(amount)
         if amount <= 0:
@@ -108,12 +106,12 @@ class SavingsService:
             cursor = conn.cursor()
 
             cursor.execute(
-                "UPDATE accounts SET balance = balance - ? WHERE id = ? AND balance >= ?",
-                (amount, account_id, amount),
+                "UPDATE accounts SET balance = balance - ? WHERE id = ?",
+                (amount, account_id),
             )
             if cursor.rowcount == 0:
                 conn.rollback()
-                raise ValueError("Yetersiz bakiye: ana hesapta bu tutar yok")
+                raise ValueError("Hesap güncellenemedi (hesap bulunamadı).")
 
             cursor.execute(
                 f"UPDATE savings_goals SET current_amount = current_amount + ? "
