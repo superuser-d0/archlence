@@ -60,6 +60,8 @@ _stubs = {
     "kivy": _module("kivy"),
     "kivy.clock": _module("kivy.clock", Clock=_Clock),
     "kivy.metrics": _module("kivy.metrics", dp=lambda v: v),
+    "kivy.uix": _module("kivy.uix"),
+    "kivy.uix.scrollview": _module("kivy.uix.scrollview", ScrollView=_Widget),
     "kivymd": _module("kivymd"),
     "kivymd.uix": _module("kivymd.uix"),
     "kivymd.uix.boxlayout": _module("kivymd.uix.boxlayout", MDBoxLayout=_Widget),
@@ -132,6 +134,40 @@ class CalendarMonthNavigationTest(unittest.TestCase):
         self.assertEqual(self.host._calendar_month, 12)
 
 
+class CalendarDialogLayoutTest(unittest.TestCase):
+    """Çok işlemli günler ay ızgarasının üzerine taşmamalı."""
+
+    def test_transaction_rows_live_in_a_bounded_scroll_view(self):
+        host = CalendarMixin.__new__(CalendarMixin)
+        host.theme_cls = mock.Mock(
+            theme_style="Light", primary_color=(0, 0, 0, 1))
+        host._calendar_loading_dialog = None
+        host._render_calendar_month = mock.Mock()
+        host._select_calendar_day = mock.Mock()
+
+        CalendarMixin._build_calendar_view(host)
+
+        content = host._calendar_dialog.content_cls
+        self.assertIn(host._calendar_tx_scroll, content.children)
+        self.assertNotIn(host._calendar_tx_container, content.children)
+        self.assertIn(
+            host._calendar_tx_container,
+            host._calendar_tx_scroll.children,
+        )
+        self.assertFalse(host._calendar_tx_scroll.do_scroll_x)
+        self.assertEqual(host._calendar_tx_scroll.size_hint, (1, 1))
+        self.assertEqual(host._calendar_tx_container.spacing, 2)
+        self.assertEqual(content.spacing, 4)
+        self.assertLessEqual(content.height, 560)
+        self.assertGreaterEqual(content.height, 360)
+
+        row = CalendarMixin._build_calendar_transaction_row(host, {
+            "time": "12:34", "category": "Market",
+            "type": "expense", "amount": 25.0,
+        })
+        self.assertEqual(row.height, 24)
+
+
 class CalendarMonthRenderTest(unittest.TestCase):
     """Ay ızgarasının kurulması: satır sayısı, günlerin işaretlenmesi."""
 
@@ -156,6 +192,8 @@ class CalendarMonthRenderTest(unittest.TestCase):
         expected_weeks = len(_cal.monthcalendar(2026, 3))
         self.assertEqual(
             len(self.host._calendar_grid_container.children), expected_weeks)
+        self.assertEqual(
+            self.host._calendar_grid_container.height, 32 * expected_weeks)
         self.assertIn("Mart", self.host._calendar_month_label.text)
         self.assertIn("2026", self.host._calendar_month_label.text)
 
