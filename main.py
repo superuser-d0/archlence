@@ -118,7 +118,7 @@ except (ImportError, RuntimeError):
 # Graceful KivyMD Mocking
 try:
     from kivymd.app import MDApp
-    from kivymd.toast import toast
+    from utils.toast import toast
     from kivymd.uix.button import MDRaisedButton, MDFlatButton, MDIconButton
     from kivymd.uix.dialog import MDDialog
     from kivymd.uix.menu import MDDropdownMenu
@@ -215,6 +215,10 @@ from utils.currency import format_try
 from utils.errors import FinancialDataIntegrityError
 from utils.version import APP_VERSION
 
+# Destek/geri bildirim kanalı. README, PKGBUILD ve release notlarındaki
+# adresle aynı; tek yerde durur ki depo taşınırsa burada da güncellensin.
+ARCHLENCE_GITHUB_URL = "https://github.com/superuser-d0/archlence"
+
 from mixins.asset_mixin import AssetMixin
 from mixins.debt_mixin import DebtMixin
 from mixins.calculator_mixin import CalculatorMixin
@@ -289,7 +293,8 @@ def setup_appimage_desktop_integration():
         try:
             shutil.copy2(source_icon, target_icon)
         except OSError as e:
-            print(f"İkon sisteme kopyalanamadı: {e}")
+            from utils.logging_config import get_logger
+            get_logger().exception("İkon sisteme kopyalanamadı")
 
     desktop_file_name = "archlence.desktop"
     app_menu_path = applications_dir / desktop_file_name
@@ -310,7 +315,8 @@ StartupNotify=true
             f.write(desktop_content)
         app_menu_path.chmod(app_menu_path.stat().st_mode | stat.S_IEXEC)
     except OSError as e:
-        print(f"Başlat menüsü kısayolu oluşturulamadı: {e}")
+        from utils.logging_config import get_logger
+        get_logger().exception("Başlat menüsü kısayolu oluşturulamadı")
 
     if desktop_dir:
         desktop_shortcut_path = desktop_dir / desktop_file_name
@@ -320,7 +326,8 @@ StartupNotify=true
                     f.write(desktop_content)
                 desktop_shortcut_path.chmod(desktop_shortcut_path.stat().st_mode | stat.S_IEXEC)
             except OSError as e:
-                print(f"Masaüstü simgesi oluşturulamadı: {e}")
+                from utils.logging_config import get_logger
+                get_logger().exception("Masaüstü simgesi oluşturulamadı")
 
 
 # =========================================================================
@@ -389,7 +396,8 @@ class ArchlenceApp(
         try:
             setup_appimage_desktop_integration()
         except (OSError, RuntimeError) as e:
-            print("Appimage entegrasyonu hatası: ", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Appimage entegrasyonu hatası")
 
         Clock.max_iteration = 50
         from services.background_task_manager import BackgroundTaskManager
@@ -445,7 +453,8 @@ class ArchlenceApp(
             try:
                 self.config_store.put("language", code=self.language)
             except Exception as e:
-                print("Dil tercihi kaydedilemedi:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Dil tercihi kaydedilemedi")
 
         if self.root:
             chart_box = self.root.ids.get("chart_master_box")
@@ -515,7 +524,8 @@ class ArchlenceApp(
             try:
                 ftheme.bind_card_tap(self.root.ids[card_id], callback)
             except Exception as e:
-                print(f"'{card_id}' karesi tıklanabilir yapılamadı:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception(f"'{card_id}' karesi tıklanabilir yapılamadı")
 
         logging.getLogger("yfinance").setLevel(logging.CRITICAL)
         logging.getLogger("requests_cache").setLevel(logging.CRITICAL)
@@ -543,7 +553,8 @@ class ArchlenceApp(
         try:
             self.stop_active_assets_refresh()
         except Exception as exc:
-            print("Arka plan tazeleme durdurulamadı:", exc)
+            from utils.logging_config import get_logger
+            get_logger().exception("Arka plan tazeleme durdurulamadı")
         if hasattr(self, "background_tasks"):
             self.background_tasks.shutdown(wait=False)
 
@@ -567,7 +578,8 @@ class ArchlenceApp(
                     self.config_store = JsonStore(_resolve_config_path())
                 self.config_store.put("theme", name=theme_name)
             except Exception as e:
-                print("Tema tercihi kaydedilemedi:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Tema tercihi kaydedilemedi")
 
     def toggle_theme(self, is_active):
         if getattr(self, "_applying_theme_style", False):
@@ -592,7 +604,8 @@ class ArchlenceApp(
                 try:
                     self.config_store.put("display", style=desired_style)
                 except Exception as e:
-                    print("Görünüm tercihi kaydedilemedi:", e)
+                    from utils.logging_config import get_logger
+                    get_logger().exception("Görünüm tercihi kaydedilemedi")
                 Clock.schedule_once(self._after_theme_switch, 0)
             finally:
                 self._applying_theme_style = False
@@ -621,23 +634,27 @@ class ArchlenceApp(
                 try:
                     chart_box.refresh_theme()
                 except Exception as exc:
-                    print("Tema sonrası grafikler yenilenemedi:", exc)
+                    from utils.logging_config import get_logger
+                    get_logger().exception("Tema sonrası grafikler yenilenemedi")
             for widget in self.root.walk():
                 if isinstance(widget, HorizontalBarChart):
                     try:
                         widget.update_chart()
                     except Exception as exc:
-                        print("Tema sonrası çubuk grafik yenilenemedi:", exc)
+                        from utils.logging_config import get_logger
+                        get_logger().exception("Tema sonrası çubuk grafik yenilenemedi")
                 elif isinstance(widget, ScenarioComparisonChart):
                     try:
                         widget.draw_immediate()
                     except Exception as exc:
-                        print("Tema sonrası senaryo grafiği yenilenemedi:", exc)
+                        from utils.logging_config import get_logger
+                        get_logger().exception("Tema sonrası senaryo grafiği yenilenemedi")
         if hasattr(self, "render_accounts"):
             try:
                 self.render_accounts()
             except Exception as exc:
-                print("Tema sonrası kartlar yenilenemedi:", exc)
+                from utils.logging_config import get_logger
+                get_logger().exception("Tema sonrası kartlar yenilenemedi")
         self._normalize_card_shadows()
         Clock.schedule_once(self._refresh_text_textures, 0.05)
 
@@ -725,7 +742,8 @@ class ArchlenceApp(
                     conn.commit()
                 print("Database VACUUM completed.")
             except Exception as e:
-                print(f"VACUUM failed: {e}")
+                from utils.logging_config import get_logger
+                get_logger().exception("VACUUM failed")
 
         thread = threading.Thread(target=_work, daemon=True)
         thread.start()
@@ -735,7 +753,8 @@ class ArchlenceApp(
         try:
             write_daily_snapshot()
         except Exception as e:
-            print("Günlük bakiye snapshot'ı yazılamadı:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Günlük bakiye snapshot'ı yazılamadı")
 
     # -------------------------------------------------------------------------
     # Metrics & Dashboard Updates
@@ -825,7 +844,8 @@ class ArchlenceApp(
         try:
             change_rate = self.calculate_monthly_change_rate()
         except Exception as e:
-            print("Değişim oranı hesaplanamadı:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Değişim oranı hesaplanamadı")
             change_rate = None
 
         return {
@@ -1194,7 +1214,8 @@ class ArchlenceApp(
                     label.text = "%0.0"
                     label.text_color = ftheme.accent(self.theme_cls, "muted")
         except Exception as e:
-            print("Error updating change rate UI:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Error updating change rate UI")
 
     # -------------------------------------------------------------------------
     # List & Navigation Interactions
@@ -1255,12 +1276,14 @@ class ArchlenceApp(
                     getattr(self, "home_filter", "Bugün")
                 )
         except Exception as e:
-            print("Error updating UI metrics:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Error updating UI metrics")
 
         try:
             self.refresh_insights()
         except Exception as e:
-            print("Error refreshing insights:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Error refreshing insights")
 
         if not list_filter:
             list_filter = getattr(self, "home_filter", "Günlük")
@@ -1331,7 +1354,8 @@ class ArchlenceApp(
                     lambda dt: self._render_recent_transactions(processed_items), 0
                 )
             except Exception as e:
-                print("Error fetching recent transactions:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Error fetching recent transactions")
 
         threading.Thread(target=fetch_task, daemon=True).start()
 
@@ -1414,7 +1438,8 @@ class ArchlenceApp(
             if brand_names_to_prefetch:
                 self._prefetch_recent_brand_icons(brand_names_to_prefetch, transactions)
         except Exception as e:
-            print("Error rendering recent UI:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Error rendering recent UI")
 
     def _prefetch_recent_brand_icons(self, brand_names, transactions):
         import threading
@@ -1456,7 +1481,8 @@ class ArchlenceApp(
             if not AccountService.has_any_account():
                 return "account_setup"
         except Exception as exc:
-            print("Hesap kontrolü yapılamadı:", exc)
+            from utils.logging_config import get_logger
+            get_logger().exception("Hesap kontrolü yapılamadı")
         return "home"
 
     def create_first_account(self):
@@ -1557,7 +1583,7 @@ class ArchlenceApp(
         pin = self._new_pin_input.text.strip()
         confirmation = self._new_pin_confirm.text.strip()
 
-        from kivymd.toast import toast
+        from utils.toast import toast
 
         is_valid, policy_error = PasswordPolicy.validate(pin)
         if not is_valid:
@@ -1735,7 +1761,8 @@ class ArchlenceApp(
             try:
                 advice_text = self._compute_financial_advice_text()
             except Exception as e:
-                print("Finansal tavsiye hesaplanamadı:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Finansal tavsiye hesaplanamadı")
                 return
 
             def _apply(dt):
@@ -1898,17 +1925,24 @@ class ArchlenceApp(
     # Dialogs & Reset Functionality
     # -------------------------------------------------------------------------
     def contact_us(self):
+        """Destek/geri bildirim kanalını açar.
+
+        E-posta yerine GitHub: proje zaten herkese açık geliştiriliyor, sorunlar
+        orada izleniyor ve bir issue hem yanıtlanabilir hem başkalarına görünür
+        olur — support@ kutusuna giden mesaj ikisini de sağlamıyordu.
+        """
         import webbrowser
 
-        def send_email(x):
-            webbrowser.open("mailto:support@archlence.com")
+        def open_github(_button):
+            webbrowser.open(ARCHLENCE_GITHUB_URL)
             if hasattr(self, "contact_dialog"):
                 self.contact_dialog.dismiss()
 
         self.contact_dialog = MDDialog(
             title=translate("Bize Ulaşın"),
             text=translate(
-                "Her türlü soru, öneri ve destek için bize aşağıdaki e-posta adresinden ulaşabilirsiniz:\n\n[b]support@archlence.com[/b]"
+                "Soru, öneri ve hata bildirimleri için GitHub sayfamızı "
+                "kullanabilirsiniz:\n\n[b]github.com/superuser-d0/archlence[/b]"
             ),
             buttons=[
                 ftheme.secondary_button(
@@ -1917,7 +1951,9 @@ class ArchlenceApp(
                     on_release=lambda x: self.contact_dialog.dismiss(),
                 ),
                 ftheme.primary_button(
-                    translate("E-POSTA GÖNDER"), self.theme_cls, on_release=send_email
+                    translate("GITHUB'DA AÇ"),
+                    self.theme_cls,
+                    on_release=open_github,
                 ),
             ],
         )
@@ -2027,7 +2063,8 @@ class ArchlenceApp(
                 self.reset_dialog.dismiss()
             self.root.ids.screen_manager.current = "pin_setup"
         except Exception as e:
-            print("Factory reset failed:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Factory reset failed")
 
 
 # =========================================================================
