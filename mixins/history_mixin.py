@@ -96,7 +96,8 @@ class HistoryMixin:
                 past = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
                 result = diff_between(past, today)
             except Exception as e:
-                print("Bakiye geçmişi okunamadı:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Bakiye geçmişi okunamadı")
                 Clock.schedule_once(
                     lambda dt: self._render_history_error(content), 0)
                 return
@@ -180,7 +181,8 @@ class HistoryMixin:
                 from services.history_service import diff_between
                 result = diff_between(from_date, to_date)
             except Exception as e:
-                print("Özel tarih aralığı okunamadı:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Özel tarih aralığı okunamadı")
                 Clock.schedule_once(
                     lambda dt: self._render_history_error(container), 0
                 )
@@ -214,7 +216,8 @@ class HistoryMixin:
                 from services.history_service import get_balance_at
                 result = get_balance_at(selected_date)
             except Exception as e:
-                print("Tarihteki bakiye okunamadı:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Tarihteki bakiye okunamadı")
                 Clock.schedule_once(
                     lambda dt: self._render_history_error(container), 0
                 )
@@ -262,7 +265,8 @@ class HistoryMixin:
             details.bind(size=details.setter("text_size"))
             container.add_widget(details)
         except Exception as e:
-            print("Tarihteki bakiye çizilemedi:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Tarihteki bakiye çizilemedi")
 
     def _render_history_error(self, container):
         container.clear_widgets()
@@ -373,4 +377,5 @@ class HistoryMixin:
                 ))
                 container.add_widget(row)
         except Exception as e:
-            print("Bakiye geçmişi çizilemedi:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Bakiye geçmişi çizilemedi")

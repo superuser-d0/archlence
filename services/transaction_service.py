@@ -173,7 +173,8 @@ class TransactionService:
                     is_credit_card=is_credit_card,
                 )
             except Exception as exc:
-                print("Abonelik radarına yazılamadı:", exc)
+                from utils.logging_config import get_logger
+                get_logger().exception("Abonelik radarına yazılamadı")
 
     @staticmethod
     def settle_due_transactions(today=None):
@@ -221,7 +222,8 @@ class TransactionService:
                 try:
                     amount = float(decrypt(str(row["amount"]), SECRET_KEY))
                 except (ValueError, TypeError) as e:
-                    print(f"[VERİ BÜTÜNLÜĞÜ] pending işlem id={row['id']} tutarı çözülemedi: {e}")
+                    from utils.logging_config import get_logger
+                    get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] pending işlem id={row['id']} tutarı çözülemedi")
                     # Tutar çözülemiyorsa bakiyeye körlemesine dokunmaktansa
                     # kaydı pending bırak; kullanıcı veriyi düzeltebilir.
                     continue
@@ -272,7 +274,8 @@ class TransactionService:
             try:
                 amount = float(decrypt(str(r["amount"]), SECRET_KEY))
             except (ValueError, TypeError) as e:
-                print(f"[VERİ BÜTÜNLÜĞÜ] pending işlem id={r['id']} tutarı çözülemedi: {e}")
+                from utils.logging_config import get_logger
+                get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] pending işlem id={r['id']} tutarı çözülemedi")
                 amount = 0.0
             try:
                 description = decrypt(str(r["description"]), SECRET_KEY) or ""
@@ -370,7 +373,8 @@ class TransactionService:
                 total = float(decrypt(str(r["total_amount"]), SECRET_KEY))
                 monthly = float(decrypt(str(r["monthly_amount"]), SECRET_KEY))
             except (ValueError, TypeError) as e:
-                print(f"[VERİ BÜTÜNLÜĞÜ] taksit planı id={r['id']} tutarı çözülemedi: {e}")
+                from utils.logging_config import get_logger
+                get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] taksit planı id={r['id']} tutarı çözülemedi")
                 continue
             # Açıklama, transactions tablosundaki konvansiyonla aynı şekilde
             # şifreli durur; çözülemezse plan gizlenmez, ad boş bırakılmaz.
@@ -417,7 +421,8 @@ class TransactionService:
             try:
                 decrypted_amount = float(decrypt(r[0], SECRET_KEY))
             except (ValueError, TypeError) as e:
-                print(f"[VERİ BÜTÜNLÜĞÜ] işlem tutarı çözülemedi: {e}")
+                from utils.logging_config import get_logger
+                get_logger().exception("[VERİ BÜTÜNLÜĞÜ] işlem tutarı çözülemedi")
                 decrypted_amount = 0.0
 
             data.append({
@@ -525,7 +530,8 @@ class TransactionService:
             try:
                 amount = float(decrypt(str(r["amount"]), SECRET_KEY))
             except (ValueError, TypeError) as e:
-                print(f"[VERİ BÜTÜNLÜĞÜ] son işlem tutarı çözülemedi: {e}")
+                from utils.logging_config import get_logger
+                get_logger().exception("[VERİ BÜTÜNLÜĞÜ] son işlem tutarı çözülemedi")
                 amount = 0.0
             try:
                 desc = decrypt(str(r["description"]), SECRET_KEY) or ""

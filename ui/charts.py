@@ -716,7 +716,8 @@ class DashboardChartManager(MDBoxLayout):
             try:
                 raw_data = TransactionService.get_transactions_by_period(period)
             except Exception as exc:
-                print("Dashboard grafik verisi okunamadı:", exc)
+                from utils.logging_config import get_logger
+                get_logger().exception("Dashboard grafik verisi okunamadı")
                 raw_data = []
             try:
                 # Açılış bakiyesi `transactions`'a hiç yazılmaz (bkz.
@@ -727,7 +728,8 @@ class DashboardChartManager(MDBoxLayout):
                 # diğer hesaplara katılmaz.
                 opening_events = TransactionService.get_opening_events_by_period(period)
             except Exception as exc:
-                print("Açılış bakiyesi okunamadı:", exc)
+                from utils.logging_config import get_logger
+                get_logger().exception("Açılış bakiyesi okunamadı")
                 opening_events = []
             # Başarılı veya hatalı her yol ana thread'de loading'i sonlandırır.
             Clock.schedule_once(
@@ -775,7 +777,8 @@ class DashboardChartManager(MDBoxLayout):
             if requested_cache_key is not None:
                 self._rendered_cache_key = requested_cache_key
         except Exception as exc:
-            print("Dashboard grafikleri çizilemedi:", exc)
+            from utils.logging_config import get_logger
+            get_logger().exception("Dashboard grafikleri çizilemedi")
             # Canvas/veri biçimi hatası dahi spinner ve opacity'yi kilitlemez.
             self._set_charts_loading(False)
 
@@ -819,7 +822,8 @@ class DashboardChartManager(MDBoxLayout):
                 raw_data or [], period, opening_events
             )
         except Exception as exc:
-            print("Dashboard zaman grafiği hazırlanamadı:", exc)
+            from utils.logging_config import get_logger
+            get_logger().exception("Dashboard zaman grafiği hazırlanamadı")
             buckets = []
         self.trend_chart.chart_data = buckets
         if first_render:

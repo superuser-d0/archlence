@@ -5,7 +5,7 @@ import threading
 
 from kivy.clock import Clock
 from kivy.metrics import dp
-from kivymd.toast import toast
+from utils.toast import toast
 from kivymd.uix.button import MDRaisedButton
 
 from ui.i18n import tr as _t
@@ -296,7 +296,8 @@ class BudgetMixin:
             try:
                 count = apply_plan_to_year_end(month, year)
             except Exception as exc:
-                print("Plan uygulanamadı:", exc)
+                from utils.logging_config import get_logger
+                get_logger().exception("Plan uygulanamadı")
                 count = None
             Clock.schedule_once(
                 lambda _dt: self._after_plan_applied(count), 0)
@@ -316,7 +317,8 @@ class BudgetMixin:
             self.load_budget_list()
             self.generate_next_month_projection()
         except Exception as exc:
-            print("Liste tazelenemedi:", exc)
+            from utils.logging_config import get_logger
+            get_logger().exception("Liste tazelenemedi")
 
     # ── Kalem ekleme formu ──────────────────────────────────────────────────
     def open_budget_item_form(self):
@@ -1013,13 +1015,15 @@ class BudgetMixin:
             try:
                 self.load_budget_list()
             except Exception as exc:
-                print("Bütçe listesi tazelenemedi:", exc)
+                from utils.logging_config import get_logger
+                get_logger().exception("Bütçe listesi tazelenemedi")
 
         def rebuild_projection(_dt):
             try:
                 self.generate_next_month_projection()
             except Exception as exc:
-                print("Bütçe projeksiyonu tazelenemedi:", exc)
+                from utils.logging_config import get_logger
+                get_logger().exception("Bütçe projeksiyonu tazelenemedi")
 
         Clock.schedule_once(rebuild_list, 0)
         Clock.schedule_once(rebuild_projection, 0.05)

@@ -55,7 +55,8 @@ def fetch_top_100_cryptos(callback):
             _crypto_cache["timestamp"] = now
             callback(cryptos)
         except Exception as e:
-            print("CoinGecko API çekme hatası:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("CoinGecko API çekme hatası")
             callback([])
 
     threading.Thread(target=_worker, daemon=True).start()

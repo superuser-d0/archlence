@@ -1,5 +1,5 @@
 from kivy.clock import Clock
-from kivymd.toast import toast
+from utils.toast import toast
 from kivymd.uix.button import MDIconButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -42,7 +42,8 @@ class DebtMixin:
                 Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
                 Clock.schedule_once(lambda dt: self.loan_dialog.dismiss(), 0)
             except Exception as e:
-                print("Error adding debt:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Error adding debt")
                 Clock.schedule_once(lambda dt: toast(_t("Borç eklenirken hata oluştu!")), 0)
                 
         threading.Thread(target=save_debt, daemon=True).start()
@@ -55,7 +56,8 @@ class DebtMixin:
                 debts = get_active_debts()
                 Clock.schedule_once(lambda dt: self.render_active_debts(debts), 0)
             except Exception as e:
-                print("Error fetching debts:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Error fetching debts")
 
         threading.Thread(target=fetch_debts, daemon=True).start()
 
@@ -127,7 +129,8 @@ class DebtMixin:
 
                 container.add_widget(card)
         except Exception as e:
-            print("Error rendering debts:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Error rendering debts")
 
     def close_debt_completely(self, debt):
         """Kalan tüm taksitleri tek seferde kapatır: onay dialogu gösterir, onayda
@@ -156,7 +159,8 @@ class DebtMixin:
                     Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                     Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
                 except Exception as e:
-                    print("Error closing debt:", e)
+                    from utils.logging_config import get_logger
+                    get_logger().exception("Error closing debt")
                     Clock.schedule_once(lambda dt: toast(_t("İşlem sırasında hata oluştu!")), 0)
 
             threading.Thread(target=process, daemon=True).start()
@@ -218,7 +222,8 @@ class DebtMixin:
                     Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                     Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
                 except Exception as e:
-                    print("Error paying installment:", e)
+                    from utils.logging_config import get_logger
+                    get_logger().exception("Error paying installment")
                     Clock.schedule_once(lambda dt: toast(_t("İşlem sırasında hata oluştu!")), 0)
 
             threading.Thread(target=process, daemon=True).start()
@@ -271,7 +276,8 @@ class DebtMixin:
                     Clock.schedule_once(lambda dt: toast(_t("Otomatik ödeme ayarları güncellendi!")), 0)
                     Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
                 except Exception as e:
-                    print("Error updating auto-pay settings:", e)
+                    from utils.logging_config import get_logger
+                    get_logger().exception("Error updating auto-pay settings")
                     Clock.schedule_once(lambda dt: toast(_t("Güncellenirken hata oluştu!")), 0)
 
             threading.Thread(target=process, daemon=True).start()
@@ -406,7 +412,8 @@ class DebtMixin:
                     # hâlihazırda ekranda olan kart aynı karede senkron güncellenir.
                     Clock.schedule_once(lambda dt: self.render_accounts(), 0)
                 except Exception as e:
-                    print("Error paying credit card debt:", e)
+                    from utils.logging_config import get_logger
+                    get_logger().exception("Error paying credit card debt")
                     error_msg = str(e)
                     Clock.schedule_once(lambda dt: toast(_t(f"Hata: {_t(error_msg)}")), 0)
 

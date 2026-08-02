@@ -176,7 +176,8 @@ class CalendarMixin:
         try:
             days_with_tx = get_month_transaction_days(year, month)
         except Exception as e:
-            print("Takvim ay verisi okunamadı:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Takvim ay verisi okunamadı")
             days_with_tx = {}
 
         self._calendar_month_label.text = _t(
@@ -307,7 +308,8 @@ class CalendarMixin:
             try:
                 items = get_day_transactions(date_obj)
             except Exception as e:
-                print("Takvim gün verisi okunamadı:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Takvim gün verisi okunamadı")
                 items = None
 
             def apply(_dt):

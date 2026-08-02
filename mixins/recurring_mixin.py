@@ -3,7 +3,7 @@ import datetime
 import threading
 
 from kivy.clock import Clock
-from kivymd.toast import toast
+from utils.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDFlatButton
 from kivymd.uix.card import MDCard
@@ -43,7 +43,8 @@ class RecurringMixin:
                     lambda dt, value=payments: apply_result(value), 0,
                 )
             except Exception as e:
-                print("Error fetching recurring payments:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Error fetching recurring payments")
 
         threading.Thread(target=fetch, daemon=True).start()
 
@@ -126,7 +127,8 @@ class RecurringMixin:
                 card.add_widget(btn_layout)
                 container.add_widget(card)
         except Exception as e:
-            print("Error rendering upcoming payments:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Error rendering upcoming payments")
 
     def pay_recurring_now(self, payment):
         from database.db import process_due_recurring_payment
@@ -147,7 +149,8 @@ class RecurringMixin:
                 Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                 Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
             except Exception as e:
-                print("Error paying recurring payment:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Error paying recurring payment")
                 Clock.schedule_once(lambda dt: toast(_t("İşlem sırasında hata oluştu!")), 0)
 
         threading.Thread(target=process, daemon=True).start()
@@ -163,7 +166,8 @@ class RecurringMixin:
                 if hasattr(self, "refresh_insights"):
                     Clock.schedule_once(lambda dt: self.refresh_insights(), 0)
             except Exception as e:
-                print("Error deactivating recurring payment:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Error deactivating recurring payment")
 
         threading.Thread(target=process, daemon=True).start()
 
@@ -194,7 +198,8 @@ class RecurringMixin:
                     if TransactionService.settle_due_transactions():
                         ui_needs_refresh = True
                 except Exception as exc:
-                    print("Bekleyen işlemler işlenemedi:", exc)
+                    from utils.logging_config import get_logger
+                    get_logger().exception("Bekleyen işlemler işlenemedi")
 
                 # 1. MEVCUT TEKRARLANAN ÖDEMELER (Kira, Faturalar vb.)
                 payments = get_active_recurring_payments()
@@ -217,9 +222,10 @@ class RecurringMixin:
                         process_due_recurring_payment(p)
                         ui_needs_refresh = True
                     except Exception as exc:
-                        print(
+                        from utils.logging_config import get_logger
+                        get_logger().exception(
                             f"Tekrarlanan ödeme işlenemedi (id={p.get('id')}), "
-                            f"diğerleri sürdürülüyor: {exc}"
+                            "diğerleri sürdürülüyor"
                         )
                 
                 # 2. OTOMATİK BORÇ/KREDİ TAKSİT ÖDEMELERİ
@@ -287,9 +293,10 @@ class RecurringMixin:
                             )
                         ui_needs_refresh = True
                     except Exception as exc:
-                        print(
+                        from utils.logging_config import get_logger
+                        get_logger().exception(
                             f"Otomatik borç taksiti işlenemedi (id={debt.get('id')}), "
-                            f"diğerleri sürdürülüyor: {exc}"
+                            "diğerleri sürdürülüyor"
                         )
 
                 # 3. ORTAK UI SENKRONİZASYONU
@@ -309,6 +316,7 @@ class RecurringMixin:
                     Clock.schedule_once(
                         lambda dt: self.load_pending_transactions(), 0)
             except Exception as e:
-                print("Error processing auto deductions:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Error processing auto deductions")
 
         threading.Thread(target=process, daemon=True).start()

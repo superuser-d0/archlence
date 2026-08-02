@@ -59,7 +59,8 @@ class CaptureApp(ArchlenceApp):
             try:
                 nav.switch_tab(tab_name)
             except Exception as e:
-                print(f"Failed to switch to {tab_name}: {e}")
+                from utils.logging_config import get_logger
+                get_logger().exception(f"Failed to switch to {tab_name}")
 
             Clock.schedule_once(
                 lambda _dt: do_capture(idx, tab_name),

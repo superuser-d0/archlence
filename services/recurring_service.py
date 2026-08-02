@@ -222,7 +222,8 @@ def _plain_amount(raw):
     try:
         return float(decrypt(str(raw), SECRET_KEY))
     except (ValueError, TypeError) as e:
-        print(f"[VERİ BÜTÜNLÜĞÜ] recurring_payments tutarı çözülemedi: {e}")
+        from utils.logging_config import get_logger
+        get_logger().exception("[VERİ BÜTÜNLÜĞÜ] recurring_payments tutarı çözülemedi")
         return 0.0
 
 
