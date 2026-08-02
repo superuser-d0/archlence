@@ -26,10 +26,10 @@ class BrandIconServiceTest(unittest.TestCase):
         )
         self.assertEqual(key, "netflix")
         # logo.clearbit.com artık hiçbir DNS sunucusundan çözülmüyor (Clearbit
-        # ücretsiz logo API'sini kapattı) — google favicon servisine geçirildi.
+        # ücretsiz logo API'sini kapattı). Google Favicon'a (sz=128) geçilmişti,
+        # ama o da 16x16'yı gererek pikselleştiriyordu — icon.horse'a geçirildi.
         self.assertNotIn("clearbit.com", url)
-        self.assertIn("google.com", url)
-        self.assertIn("domain=netflix.com", url)
+        self.assertIn("netflix.com", url)
         self.assertEqual(
             brand_icon_service.classify_brand("Mahalle marketi"),
             (None, None),
@@ -48,11 +48,28 @@ class BrandIconServiceTest(unittest.TestCase):
         self.assertEqual(resolved, path)
         request.assert_not_called()
 
+    @staticmethod
+    def _encoded_image(size, image_format="PNG", color=(10, 20, 30, 255)):
+        """Gerçekten çözülebilen bir görüntü üretir.
+
+        Sahte baytlar (`b"\\x89PNG...fake"`) artık yetmiyor: indirme yolu
+        içeriği Pillow ile GERÇEKTEN çözüp boyutuna bakıyor — sahte bayt
+        testi, ölçtüğünü sandığı şeyi ölçmezdi."""
+        from io import BytesIO
+
+        from PIL import Image
+
+        buffer = BytesIO()
+        Image.new("RGBA", (size, size), color).save(
+            buffer, format=image_format
+        )
+        return buffer.getvalue()
+
     def test_successful_png_download_is_cached(self):
         response = mock.Mock(
             status_code=200,
             headers={"Content-Type": "image/png"},
-            content=b"\x89PNG\r\n\x1a\nfake",
+            content=self._encoded_image(256),
         )
         with mock.patch("requests.get", return_value=response) as request:
             self.assertTrue(
@@ -65,6 +82,8 @@ class BrandIconServiceTest(unittest.TestCase):
             brand_icon_service.resolve_cached_brand_icon_path("Disney Plus"),
             destination,
         )
+        # İlk aday zaten TARGET_ICON_PX'i geçtiği için kalan sağlayıcılar
+        # denenmemeli (erken çıkış) — aksi halde her ikon 3 istek ederdi.
         request.assert_called_once()
 
     def test_network_and_invalid_content_fail_silently(self):
@@ -82,6 +101,149 @@ class BrandIconServiceTest(unittest.TestCase):
             self.assertFalse(
                 brand_icon_service.fetch_and_cache_brand_icon("Spotify")
             )
+
+    def test_small_favicon_is_upscaled_instead_of_being_dropped(self):
+        """REGRESYON: bir ara 32px altındaki logolar tamamen elenmişti ve
+        hiçbir sağlayıcıda 16x16'dan büyük favicon yayınlamayan markaların
+        (Türk Telekom, Superonline) logosu arayüzden KAYBOLDU. Markayı
+        tanımak kenar keskinliğinden önemli — küçük logo artık büyütülerek
+        saklanır."""
+        response = mock.Mock(
+            status_code=200,
+            headers={"Content-Type": "image/png"},
+            content=self._encoded_image(16),
+        )
+        with mock.patch("requests.get", return_value=response):
+            self.assertTrue(
+                brand_icon_service.fetch_and_cache_brand_icon("Türk Telekom")
+            )
+
+        destination = os.path.join(self.temp_dir.name, "turk-telekom.png")
+        from PIL import Image
+        with Image.open(destination) as cached:
+            self.assertEqual(
+                cached.size,
+                (brand_icon_service.TARGET_ICON_PX,) * 2,
+            )
+        self.assertEqual(
+            brand_icon_service.resolve_cached_brand_icon_path("TTNET internet"),
+            destination,
+        )
+
+    def test_unusably_tiny_payload_is_still_rejected(self):
+        """Eşiğin altı yalnızca bozuk/anlamsız içeriği eler; gerçek
+        favicon'lar en az 16px olduğu için bu yol pratikte nadirdir."""
+        response = mock.Mock(
+            status_code=200,
+            headers={"Content-Type": "image/png"},
+            content=self._encoded_image(8),
+        )
+        with mock.patch("requests.get", return_value=response):
+            self.assertFalse(
+                brand_icon_service.fetch_and_cache_brand_icon("Turkcell")
+            )
+
+        self.assertIsNone(
+            brand_icon_service.resolve_cached_brand_icon_path("Turkcell")
+        )
+
+    def test_rejected_brand_is_not_refetched_on_every_render(self):
+        """REGRESYON KORUMASI: çağıran taraf (main.py::_render_recent_
+        transactions) diskte ikon YOKSA indirmeyi tetikler. 'Uygun logo yok'
+        kararı hatırlanmazsa, kalıcı olarak elenen her marka dashboard'ın HER
+        çiziminde sağlayıcı sayısı kadar HTTP isteği doğurur."""
+        response = mock.Mock(
+            status_code=200,
+            headers={"Content-Type": "image/png"},
+            content=self._encoded_image(8),
+        )
+        with mock.patch("requests.get", return_value=response) as request:
+            self.assertFalse(
+                brand_icon_service.fetch_and_cache_brand_icon("Turkcell")
+            )
+        first_round = request.call_count
+        self.assertGreater(first_round, 0)
+
+        with mock.patch("requests.get", return_value=response) as request:
+            self.assertFalse(
+                brand_icon_service.fetch_and_cache_brand_icon("Turkcell")
+            )
+        request.assert_not_called()
+
+    def test_stale_miss_marker_allows_a_retry(self):
+        """Negatif önbellek kalıcı olmamalı: marka ileride daha büyük bir
+        favicon yayınlarsa TTL dolduğunda yeniden denenmeli."""
+        import os as _os
+        import time
+
+        small = mock.Mock(
+            status_code=200, headers={}, content=self._encoded_image(8),
+        )
+        with mock.patch("requests.get", return_value=small):
+            self.assertFalse(
+                brand_icon_service.fetch_and_cache_brand_icon("Turkcell")
+            )
+
+        marker = brand_icon_service._miss_path("turkcell")
+        stale = time.time() - brand_icon_service._MISS_TTL_SECONDS - 60
+        _os.utime(marker, (stale, stale))
+
+        large = mock.Mock(
+            status_code=200, headers={}, content=self._encoded_image(256),
+        )
+        with mock.patch("requests.get", return_value=large):
+            self.assertTrue(
+                brand_icon_service.fetch_and_cache_brand_icon("Turkcell")
+            )
+
+    def test_ico_payload_is_normalized_to_a_real_png_on_disk(self):
+        """Sağlayıcılar `.png` isteğine ICO döndürebiliyor (ölçüldü:
+        icon.horse → claude.ai). Ham baytları yazmak, PNG adlı bir ICO
+        bırakırdı; uzantıya göre yükleyici seçen ortamlarda (paketlenmiş
+        Windows derlemesi) bu sessizce kırılır."""
+        response = mock.Mock(
+            status_code=200,
+            headers={"Content-Type": "image/x-icon"},
+            content=self._encoded_image(128, image_format="ICO"),
+        )
+        with mock.patch("requests.get", return_value=response):
+            self.assertTrue(
+                brand_icon_service.fetch_and_cache_brand_icon("Claude Pro")
+            )
+
+        destination = os.path.join(self.temp_dir.name, "claude.png")
+        with open(destination, "rb") as handle:
+            self.assertEqual(handle.read(8), b"\x89PNG\r\n\x1a\n")
+
+    def test_largest_provider_result_wins_when_none_hit_the_target(self):
+        """Hiçbir aday TARGET'ı geçmezse en büyüğü seçilmeli — tek sağlayıcıya
+        bağlanmanın markadan markaya kalite kaybettirmesinin çözümü budur."""
+        # Boyut, seçimi kanıtlamaya yetmez: hiçbiri hedefe ulaşmadığı için
+        # kazanan zaten TARGET'a büyütülüyor. Adaylar RENKLE ayırt ediliyor,
+        # böylece diske hangisinin yazıldığı kesin doğrulanıyor.
+        winner = (200, 30, 40, 255)
+        responses = [
+            mock.Mock(status_code=200, headers={},
+                      content=self._encoded_image(48, color=(1, 2, 3, 255))),
+            mock.Mock(status_code=200, headers={},
+                      content=self._encoded_image(96, color=winner)),
+            mock.Mock(status_code=200, headers={},
+                      content=self._encoded_image(64, color=(4, 5, 6, 255))),
+        ]
+        with mock.patch("requests.get", side_effect=responses) as request:
+            self.assertTrue(
+                brand_icon_service.fetch_and_cache_brand_icon("Netflix")
+            )
+
+        self.assertEqual(request.call_count, 3, "hepsi denenmeli")
+        from PIL import Image
+        with Image.open(os.path.join(self.temp_dir.name, "netflix.png")) as cached:
+            self.assertEqual(
+                cached.convert("RGBA").getpixel((5, 5)), winner,
+                "en büyük aday (96px) diske yazılmalı",
+            )
+            self.assertEqual(
+                cached.size, (brand_icon_service.TARGET_ICON_PX,) * 2)
 
     def test_cache_keys_are_unique(self):
         """İki farklı alias grubu aynı cache_key'e yazarsa biri diğerinin
@@ -105,7 +267,7 @@ class BrandIconServiceTest(unittest.TestCase):
             with self.subTest(text=text):
                 key, url = brand_icon_service.classify_brand(text)
                 self.assertEqual(key, expected_key)
-                self.assertIn("google.com", url)
+                self.assertTrue(url, "her tanınan marka bir URL üretmeli")
 
     def test_generic_amazon_does_not_shadow_prime_video(self):
         """Genel 'amazon' girdisi listenin SONUNDA durmalı — 'amazon prime' /
@@ -120,6 +282,19 @@ class BrandIconServiceTest(unittest.TestCase):
             "amazon",
         )
 
+    def test_generic_google_does_not_shadow_later_specific_brands(self):
+        """Ekstre açıklamalarında ödeme aracısı önce yazılabilir. Genel
+        Google eşleşmesi, listedeki daha özgül markaları gölgelememeli."""
+        self.assertEqual(
+            brand_icon_service.classify_brand(
+                "GOOGLE *ProtonVPN aylık abonelik"
+            )[0],
+            "proton-vpn",
+        )
+        self.assertEqual(
+            brand_icon_service.classify_brand("Google hizmeti")[0], "google",
+        )
+
     def test_instagram_and_meta_verified_resolve_to_same_icon(self):
         """Kullanıcı çoğunlukla yalnızca 'Instagram' yazar; 'Meta Verified'
         gerçek ürün adı da aynı ikona düşmeli — ikisi de instagram.com'un
@@ -131,7 +306,7 @@ class BrandIconServiceTest(unittest.TestCase):
             brand_icon_service.classify_brand("Meta Verified")[0], "instagram",
         )
         self.assertIn(
-            "domain=instagram.com",
+            "instagram.com",
             brand_icon_service.classify_brand("Instagram")[1],
         )
 
@@ -148,7 +323,7 @@ class BrandIconServiceTest(unittest.TestCase):
             with self.subTest(text=text):
                 key, url = brand_icon_service.classify_brand(text)
                 self.assertEqual(key, expected_key)
-                self.assertIn(f"domain={expected_domain}", url)
+                self.assertIn(expected_domain, url)
 
     def test_extended_subscription_catalog_resolves_to_icons(self):
         cases = {
@@ -178,7 +353,7 @@ class BrandIconServiceTest(unittest.TestCase):
             with self.subTest(text=text):
                 key, url = brand_icon_service.classify_brand(text)
                 self.assertEqual(key, expected_key)
-                self.assertIn("google.com", url)
+                self.assertTrue(url, "her tanınan marka bir URL üretmeli")
 
     def test_turkish_telecom_brands_and_statement_aliases_resolve(self):
         cases = {
@@ -198,7 +373,7 @@ class BrandIconServiceTest(unittest.TestCase):
             with self.subTest(text=text):
                 key, url = brand_icon_service.classify_brand(text)
                 self.assertEqual(key, expected_key)
-                self.assertIn(f"domain={expected_domain}", url)
+                self.assertIn(expected_domain, url)
 
     def test_instagram_subscription_end_to_end_via_recurring_payments(self):
         """Kullanıcının asıl senaryosu: recurring_payments'a DOĞRUDAN SQL ile
