@@ -31,10 +31,9 @@ class AssetPurchaseService:
           * Kullanıcının parası başka bir hesapta olsa bile alım hep 1
             numaralı hesaptan düşülmeye çalışılıyordu.
 
-        Sonuç: "Yetersiz Bakiye! Bu hesap eksiye düşemez." — kullanıcı ise
-        ekranda dolu bir bakiye görüyordu. Artık tutarı KARŞILAYABİLEN ilk
-        vadesiz hesap seçilir; hiçbiri yetmiyorsa mesaj neyin eksik olduğunu
-        söyler (eskiden hangi hesabın kastedildiği bile belli değildi).
+        Sonuç: Hesap bakiyesinin eksiye düşmesine izin verilir.
+        Eğer işlemi karşılayabilecek hiçbir vadesiz hesap yoksa (hepsi yetersizse),
+        en yüksek bakiyeye sahip olan hesap seçilir ve onun bakiyesi eksiye indirilir.
 
         Kredi kartları bilinçli olarak dışarıda: varlık alımını karta borç
         yazmak ayrı bir ürün kararı ve burada sessizce yapılmamalı.
@@ -59,11 +58,7 @@ class AssetPurchaseService:
             return affordable[0]["id"]
 
         richest = max(accounts, key=lambda account: float(account["balance"]))
-        raise ValueError(
-            "Yetersiz bakiye: bu alım için "
-            f"{_fmt_try(invested_amount)} gerekiyor, en yüksek vadesiz hesap "
-            f"bakiyeniz ({richest['name']}) {_fmt_try(float(richest['balance']))}."
-        )
+        return richest["id"]
 
     @staticmethod
     def create_purchase(

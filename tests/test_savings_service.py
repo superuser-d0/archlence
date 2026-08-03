@@ -100,14 +100,17 @@ class SavingsServiceTest(unittest.TestCase):
         self.assertAlmostEqual(_get_balance(), self.balance_before - 600.0, places=2)
         self.assertAlmostEqual(goal["current_amount"], 600.0, places=2)
 
-    def test_insufficient_balance_is_atomic(self):
-        """Bakiye yetmiyorsa NE bakiye NE hedef değişmeli (yarım işlem yok)."""
+    def test_deposit_beyond_balance_drives_account_negative(self):
+        """Yetersiz bakiye koruması kaldırıldı: aktarım her zaman gerçekleşir,
+        ana hesap eksiye düşebilir. Bakiye ve hedef birlikte tutarlı kalmalı
+        (yarım işlem yok — ikisi de aynı tutar kadar hareket etmeli)."""
         huge = _get_balance() + 1_000_000.0
-        with self.assertRaises(ValueError):
-            SavingsService.deposit_to_goal(self.goal_id, huge)
-        self.assertAlmostEqual(_get_balance(), self.balance_before, places=2)
-        goals = [g for g in SavingsService.get_goals() if g["id"] == self.goal_id]
-        self.assertAlmostEqual(goals[0]["current_amount"], 0.0, places=2)
+        goal = SavingsService.deposit_to_goal(self.goal_id, huge)
+        self.assertAlmostEqual(
+            _get_balance(), self.balance_before - huge, places=2,
+        )
+        self.assertAlmostEqual(goal["current_amount"], huge, places=2)
+        self.assertLess(_get_balance(), 0.0)
 
     def test_overdraw_from_goal_rejected(self):
         SavingsService.deposit_to_goal(self.goal_id, 100.0)

@@ -102,7 +102,8 @@ def initialize_database():
                 # (slicing/len) raise etmez — bu except pratikte tetiklenemez.
                 # Yine de daraltılmış hâliyle bırakıldı: bu, tek seferlik bir
                 # migration, sessizce yanlış davranmaması önemli.
-                print(f"[VERİ BÜTÜNLÜĞÜ] accounts id={account_id} kart no migration'ı başarısız: {e}")
+                from utils.logging_config import get_logger
+                get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] accounts id={account_id} kart no migration'ı başarısız")
                 # Çözülemeyen/bozuk bir kayıt bile ham veriyi diskte
                 # bırakmamalı; yalnızca görüntüleme bilgisi kaybolur.
                 masked_number, network_logo = None, None

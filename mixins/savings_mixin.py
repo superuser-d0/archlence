@@ -10,7 +10,7 @@ import math
 
 from kivy.metrics import dp
 from kivy.clock import Clock
-from kivymd.toast import toast
+from utils.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDRaisedButton, MDFlatButton
 from kivymd.uix.dialog import MDDialog

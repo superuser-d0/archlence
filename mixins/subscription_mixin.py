@@ -13,7 +13,7 @@ import threading
 
 from kivy.clock import Clock
 from kivy.metrics import dp
-from kivymd.toast import toast
+from utils.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDFlatButton, MDRaisedButton
 from kivymd.uix.dialog import MDDialog
@@ -50,7 +50,8 @@ class SubscriptionMixin:
                 from database.db import get_active_recurring_payments
                 payments = get_active_recurring_payments()
             except Exception as exc:
-                print("Abonelikler okunamadı:", exc)
+                from utils.logging_config import get_logger
+                get_logger().exception("Abonelikler okunamadı")
                 Clock.schedule_once(
                     lambda dt: toast(_t("Abonelikler okunamadı.")), 0)
                 return
@@ -109,6 +110,9 @@ class SubscriptionMixin:
             from kivymd.uix.fitimage import FitImage
             row.add_widget(FitImage(
                 source=icon_path,
+                # Yalnızca küçültmeyi düzeltir; ayrıntı için bkz.
+                # mixins/insights_mixin.py'deki aynı çağrı.
+                mipmap=True,
                 radius=[dp(7)] * 4,
                 size_hint=(None, None),
                 size=(dp(28), dp(28)),
@@ -193,7 +197,8 @@ class SubscriptionMixin:
                 )
                 return
             except Exception as exc:
-                print("Abonelik ücreti güncellenemedi:", exc)
+                from utils.logging_config import get_logger
+                get_logger().exception("Abonelik ücreti güncellenemedi")
                 Clock.schedule_once(
                     lambda dt: toast(_t("Abonelik ücreti güncellenemedi.")), 0)
                 return
@@ -262,7 +267,8 @@ class SubscriptionMixin:
                 from services.recurring_service import find_current_period_charge
                 charge = find_current_period_charge(payment["id"])
             except Exception as exc:
-                print("Abonelik tahsilatı kontrol edilemedi:", exc)
+                from utils.logging_config import get_logger
+                get_logger().exception("Abonelik tahsilatı kontrol edilemedi")
                 charge = None
 
             if not charge:
@@ -330,7 +336,8 @@ class SubscriptionMixin:
                 else:
                     skip_next_occurrence(payment["id"])
             except Exception as exc:
-                print("Abonelik kaldırılamadı:", exc)
+                from utils.logging_config import get_logger
+                get_logger().exception("Abonelik kaldırılamadı")
                 Clock.schedule_once(
                     lambda dt: toast(_t("Abonelik kaldırılamadı.")), 0)
                 return
@@ -378,4 +385,5 @@ class SubscriptionMixin:
             try:
                 method()
             except Exception as exc:
-                print(f"{method_name} tazelenemedi:", exc)
+                from utils.logging_config import get_logger
+                get_logger().exception(f"{method_name} tazelenemedi")

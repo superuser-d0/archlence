@@ -1,6 +1,8 @@
 #:import FadeTransition kivy.uix.screenmanager.FadeTransition
 #:import Window kivy.core.window.Window
+#:import dp kivy.metrics.dp
 #:import RecycleListRow ui.components.RecycleListRow
+#:import SubscriptionRow ui.components.SubscriptionRow
 #:import ftheme ui.theme
 #:import TextInput kivy.uix.textinput.TextInput
 #:import SearchBar ui.components.SearchBar
@@ -82,6 +84,73 @@
         icon: "cash-plus" if "Gelir" in root.secondary_text else "cash-minus"
         theme_text_color: "Custom"
         text_color: ftheme.accent(app.theme_cls.theme_style, 'green' if "Gelir" in root.secondary_text else 'red')
+
+# "Aktif Aboneliklerim" / "Aktif Gelirlerim" RecycleView satırı.
+# Görsel olarak eski imperatif MDCard'ın birebir aynısı; farkı satırların
+# geri dönüştürülmesi (bkz. ui/components.py::SubscriptionRow).
+<SubscriptionRow>:
+    orientation: "vertical"
+    padding: "12dp"
+    spacing: "5dp"
+    size_hint_y: None
+    height: "92dp"
+    radius: [16]
+    elevation: 0
+    # Python'daki ftheme.apply_card_theme(tint="green") ile aynı sonuç;
+    # KV bağlaması sayesinde tema değişiminde kendiliğinden tazelenir
+    # (imperatif kartlar refresh_card_theme taramasına muhtaçtı).
+    line_color: ftheme.card_line(app.theme_cls.theme_style)
+    md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, "green")
+
+    MDBoxLayout:
+        orientation: "horizontal"
+        spacing: "10dp"
+        size_hint_y: None
+        height: "32dp"
+
+        # Logo mu vektör ikon mu olacağı satır geri dönüştürülürken
+        # değişebildiği için bu slot imperatif doldurulur.
+        MDBoxLayout:
+            id: icon_slot
+            size_hint: None, None
+            size: dp(32), dp(32)
+            pos_hint: {"center_y": .5}
+
+        MDLabel:
+            text: root.name
+            font_style: "Subtitle2"
+            bold: True
+            pos_hint: {"center_y": .5}
+
+        MDLabel:
+            text: root.amount_text
+            font_style: "Caption"
+            theme_text_color: "Secondary"
+            halign: "right"
+            size_hint_x: None
+            width: "90dp"
+
+    MDBoxLayout:
+        orientation: "horizontal"
+        size_hint_y: None
+        height: "34dp"
+
+        MDLabel:
+            text: root.renewal_text
+            font_style: "Caption"
+            theme_text_color: "Secondary"
+
+        MDFlatButton:
+            text: app.tr("DÜZENLE", app.language)
+            theme_text_color: "Custom"
+            text_color: app.theme_cls.primary_color
+            on_release: app.open_subscription_price_dialog(root.payment)
+
+        MDFlatButton:
+            text: app.tr("KALDIR", app.language)
+            theme_text_color: "Custom"
+            text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
+            on_release: app.open_subscription_cancel_dialog(root.payment)
 
 # --- 2. ANA ARAYÜZ İSKELETİ ---
 MDScreen:
@@ -863,7 +932,31 @@ MDScreen:
                                             bold: True
                                             theme_text_color: "Primary"
 
-                                    # Kartları InsightsMixin.render_recurring_candidates çizer
+                                    # Aktif abonelikler: satırlar geri dönüştürülür.
+                                    # YÜKSEKLİK: az abonelikte içeriğe uyar (boş
+                                    # alan bırakmaz), çoğaldığında 400dp'de
+                                    # sabitlenir ve içeride kayar — sanallaştırma
+                                    # ancak sınırlı bir görüntü alanında çalışır,
+                                    # sayfa boyunca uzayan bir liste her satırı
+                                    # yine de oluştururdu.
+                                    RecycleView:
+                                        id: active_subscriptions_rv
+                                        viewclass: "SubscriptionRow"
+                                        size_hint_y: None
+                                        height: min(sub_rv_box.minimum_height, dp(400))
+
+                                        RecycleBoxLayout:
+                                            id: sub_rv_box
+                                            orientation: "vertical"
+                                            default_size: None, dp(92)
+                                            default_size_hint: 1, None
+                                            size_hint_y: None
+                                            height: self.minimum_height
+                                            spacing: "10dp"
+
+                                    # Radar adayları + boş/özet etiketleri
+                                    # (sayı tespit mantığıyla sınırlı, sanallaştırma
+                                    # gerektirecek kadar büyümüyor).
                                     MDBoxLayout:
                                         id: recurring_candidates_container
                                         orientation: "vertical"
@@ -898,6 +991,25 @@ MDScreen:
                                             bold: True
                                             theme_text_color: "Primary"
 
+                                    # Aynı satır bileşeni; gelirler tipik olarak az
+                                    # sayıda olduğu için yükseklik pratikte hep
+                                    # içeriğe uyar, ama üst sınır burada da var.
+                                    RecycleView:
+                                        id: active_incomes_rv
+                                        viewclass: "SubscriptionRow"
+                                        size_hint_y: None
+                                        height: min(income_rv_box.minimum_height, dp(400))
+
+                                        RecycleBoxLayout:
+                                            id: income_rv_box
+                                            orientation: "vertical"
+                                            default_size: None, dp(92)
+                                            default_size_hint: 1, None
+                                            size_hint_y: None
+                                            height: self.minimum_height
+                                            spacing: "10dp"
+
+                                    # Boş durum etiketi buraya çizilir.
                                     MDBoxLayout:
                                         id: active_incomes_container
                                         orientation: "vertical"

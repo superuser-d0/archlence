@@ -1,6 +1,6 @@
 import math
 from kivy.metrics import dp
-from kivymd.toast import toast
+from utils.toast import toast
 from kivymd.uix.button import MDFlatButton, MDRaisedButton, MDIconButton
 from kivy.uix.scrollview import ScrollView
 from kivymd.uix.dialog import MDDialog

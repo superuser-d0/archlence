@@ -16,7 +16,30 @@ from utils.app_paths import cache_dir
 # indirilen logo yeniden indirilebilir — bu yüzden eski BASE_DIR
 # konumundan bir MİGRATİON yok, gerekmiyor da: en kötü ihtimalle bir sonraki
 # `fetch_and_cache_brand_icon` çağrısı logoyu yeniden indirir.
-BRAND_ICON_CACHE_DIR = os.path.join(cache_dir(), "brand_icon_cache")
+BRAND_ICON_CACHE_DIR = os.path.join(cache_dir(), "brand_icon_cache_v3")
+
+# Yalnızca bozuk/anlamsız görüntüleri eler. Gerçek favicon'lar en az 16px'tir.
+#
+# KARAR GEÇMİŞİ: bir ara bu eşik 32'ydi ve altındakiler önbelleğe HİÇ
+# alınmıyordu (gerekçe: 16 pikseli germek bulanık durur, vektör ikon daha
+# temiz). Sahada yanlış çıktı — bazı markalar (turktelekom.com.tr,
+# superonline.net) hiçbir sağlayıcıda 16x16'dan büyük favicon yayınlamıyor
+# ve o markaların logosu tamamen kayboldu. Kullanıcı için markayı TANIMAK,
+# kenarların keskinliğinden daha önemli: artık küçük logolar da kabul edilip
+# `TARGET_ICON_PX`'e LANCZOS ile büyütülüyor.
+MIN_ACCEPTABLE_ICON_PX = 16
+
+# Aday bu boyuta ulaşınca kalan sağlayıcılar denenmez (erken çıkış).
+# Daha küçük kalan logolar diske yazılmadan önce bu boyuta büyütülür.
+TARGET_ICON_PX = 128
+
+# "Bu markada kullanılabilir logo bulunamadı" bilgisi de önbelleklenir.
+# NEDEN ZORUNLU: çağıran taraf (main.py::_render_recent_transactions) diskte
+# ikon YOKSA yeniden indirmeyi tetikler. Negatif sonuç hatırlanmazsa
+# turkcell gibi kalıcı olarak elenen her marka, dashboard'ın HER
+# çiziminde sağlayıcı sayısı kadar HTTP isteği doğururdu.
+# Süre sınırlı: marka ileride daha büyük bir favicon yayınlayabilir.
+_MISS_TTL_SECONDS = 30 * 24 * 3600
 
 # Uzun/özgül takma adlar önce sınanır. Değer: (cache anahtarı, marka domaini).
 _BRANDS = (
@@ -78,7 +101,6 @@ _BRANDS = (
     (("lastpass", "last pass"), "lastpass", "lastpass.com"),
     (("claude", "anthropic"), "claude", "claude.ai"),
     (("gemini advanced", "google gemini", "gemini"), "gemini", "gemini.google.com"),
-
     # ── Eğitim ───────────────────────────────────────────────────────────
     (("udemy",), "udemy", "udemy.com"),
     (("coursera",), "coursera", "coursera.org"),
@@ -172,10 +194,10 @@ _BRANDS = (
     (("pokus",), "pokus", "pokus.com.tr"),
     (("ozan", "ozan superapp"), "ozan", "ozan.com"),
 
-    # Genel "amazon" (Prime/Prime Video DIŞINDA, ör. Amazon Music/Kindle
-    # Unlimited) — listenin SONUNDA durmalı: yukarıdaki "amazon prime" /
-    # "prime video" girdisi daha özgül, önce sınanmalı. Sıra iterasyon
-    # sırasıyla eşleşen İLK girdiyi döndürür (bkz. classify_brand).
+    # Genel sağlayıcı adları SONDA durmalı: yukarıdaki daha özgül ürün/marka
+    # girdileri önce sınanır. Örneğin banka ekstresindeki "GOOGLE *ProtonVPN"
+    # genel Google ikonuna değil Proton VPN'e çözülmelidir.
+    (("google",), "google", "google.com"),
     (("amazon",), "amazon", "amazon.com"),
 )
 
@@ -186,28 +208,72 @@ def _normalize(text: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9+]+", " ", ascii_text).split())
 
 
-def classify_brand(text: str):
-    """Metin için ``(cache_key, png_url)`` döndürür; eşleşme yoksa None'lar.
+# Takma adların normalize edilmiş hâli SABİTTİR — import'ta bir kez hesaplanır.
+#
+# NEDEN (ölçüldü, 2026-08-02): eşleşme döngüsü her çağrıda 176 takma adın
+# HEPSİNİ yeniden `_normalize` ediyordu (NFKD + regex). Eşleşmeyen bir metin
+# için tek `classify_brand` çağrısı 220 µs sürüyordu. Ana sayfa bunu her
+# abonelik ve her "son işlem" satırı için çağırdığı (üstelik bazı yollarda
+# satır başına iki kez) maliyet doğrudan abonelik sayısıyla büyüyordu —
+# "abonelik ekledikçe ana sayfa yavaşlıyor" şikayetinin ölçülebilir kısmı.
+# Boşluklu ("` alias `") biçimde saklanır ki eşleşme testi düz bir alt-dize
+# aramasına insin ve tam kelime sınırı korunsun.
+_NORMALIZED_BRANDS = tuple(
+    (
+        tuple(f" {_normalize(alias)} " for alias in aliases),
+        cache_key,
+        domain,
+    )
+    for aliases, cache_key, domain in _BRANDS
+)
 
-    DÜZELTME: `logo.clearbit.com` artık HİÇBİR DNS sunucusundan (1.1.1.1,
-    8.8.8.8 dahil) çözülmüyor — Clearbit'in ücretsiz logo API'si kapatılmış.
-    Bu yüzden abonelik kartlarında hiçbir marka ikonu hiç görünmüyordu; sessiz
-    ağ hatası (bkz. fetch_and_cache_brand_icon'daki genel except) sorunu
-    maskeliyordu. Google'ın kendi favicon servisine geçirildi: Clearbit gibi
-    aracı bir üçüncü parti olmadan doğrudan Google altyapısından PNG döner,
-    denenen tüm marka alan adları için çalıştığı doğrulandı.
+
+def icon_source_urls(domain: str) -> tuple[str, ...]:
+    """`domain` için sağlayıcı adaylarını sırayla döndürür.
+
+    NEDEN TEK SAĞLAYICI YETMİYOR (ölçüldü, 2026-08-02): hiçbir sağlayıcı her
+    markada en iyi değil. Aynı domain'ler için dönen en büyük kenar:
+
+        domain             google sz=256   icon.horse
+        claude.ai          248             48
+        openai.com         180             256
+        google.com         144             32
+
+    Tek sağlayıcıya bağlanmak, o sağlayıcının zayıf olduğu markalarda
+    kalitesiz ikon demek — Clearbit → Google Favicon → icon.horse geçişleri
+    hep bu yüzden birbirini tam çözemedi. Bunun yerine adaylar sırayla
+    denenir ve `TARGET_ICON_PX`'i geçen ilk sonuç kazanır; hiçbiri geçmezse
+    en büyüğü seçilir (bkz. `fetch_and_cache_brand_icon`).
     """
+    return (
+        f"https://www.google.com/s2/favicons?domain={domain}&sz=256",
+        f"https://icon.horse/icon/{domain}",
+        f"https://unavatar.io/{domain}",
+    )
+
+
+def _classify_domain(text: str):
+    """``(cache_key, domain)`` döndürür; eşleşme yoksa ``(None, None)``."""
     normalized = _normalize(text)
     if not normalized:
         return None, None
     padded = f" {normalized} "
-    for aliases, cache_key, domain in _BRANDS:
-        if any(f" {_normalize(alias)} " in padded for alias in aliases):
-            return (
-                cache_key,
-                f"https://www.google.com/s2/favicons?domain={domain}&sz=128",
-            )
+    for aliases, cache_key, domain in _NORMALIZED_BRANDS:
+        if any(alias in padded for alias in aliases):
+            return cache_key, domain
     return None, None
+
+
+def classify_brand(text: str):
+    """Metin için ``(cache_key, png_url)`` döndürür; eşleşme yoksa None'lar.
+
+    Döndürülen URL **birincil** sağlayıcıdır. İndirme yolu tek bir URL'ye
+    bağlı değildir; `icon_source_urls` ile tüm adayları dener.
+    """
+    cache_key, domain = _classify_domain(text)
+    if not cache_key:
+        return None, None
+    return cache_key, icon_source_urls(domain)[0]
 
 
 def resolve_cached_brand_icon_path(text: str) -> str | None:
@@ -219,30 +285,122 @@ def resolve_cached_brand_icon_path(text: str) -> str | None:
     return path if os.path.exists(path) else None
 
 
+def _miss_path(cache_key: str) -> str:
+    return os.path.join(BRAND_ICON_CACHE_DIR, f"{cache_key}.miss")
+
+
+def _miss_is_fresh(cache_key: str) -> bool:
+    """Bu marka için yakın zamanda "uygun logo yok" kararı verildi mi?"""
+    import time
+
+    try:
+        age = time.time() - os.path.getmtime(_miss_path(cache_key))
+    except OSError:
+        return False
+    return age < _MISS_TTL_SECONDS
+
+
+def _record_miss(cache_key: str) -> None:
+    """Başarısız aramayı işaretler; hata olursa sessizce vazgeçilir (yalnızca
+    bir sonraki denemenin erken çıkışını kaybederiz, davranış bozulmaz)."""
+    try:
+        os.makedirs(BRAND_ICON_CACHE_DIR, exist_ok=True)
+        with open(_miss_path(cache_key), "wb"):
+            pass
+    except OSError:
+        pass
+
+
+def _decode_largest_frame(payload: bytes):
+    """Baytları çözer ve EN BÜYÜK kareyi RGBA olarak döndürür; olmazsa None.
+
+    Content-Type'a GÜVENİLMEZ, içerik gerçekten çözülerek doğrulanır. İki
+    somut sebep (ikisi de sahada ölçüldü):
+
+      * Sağlayıcılar `.png` isteğine ICO döndürebiliyor (icon.horse →
+        claude.ai/turkcell.com.tr). Eski kod ham baytları `{key}.png` adıyla
+        diske yazıyordu: dosya PNG diye adlandırılmış bir ICO oluyordu.
+        Pillow içeriği sniff ettiği için masaüstünde şans eseri açılıyordu,
+        ama uzantıya göre yükleyici seçen her ortamda (paketlenmiş Windows
+        derlemesinde SDL2_image) sessizce kırılmaya açıktı.
+      * ICO çok kareli olabilir; 16x16 kare 256x256 karenin yanında
+        duruyorsa büyük olan seçilmelidir.
+    """
+    from io import BytesIO
+
+    from PIL import Image
+
+    image = Image.open(BytesIO(payload))
+    if getattr(image, "format", None) == "ICO":
+        try:
+            largest = max(image.ico.sizes())
+            image = image.ico.getimage(largest)
+        except (AttributeError, KeyError, ValueError, OSError):
+            # Pillow'un ICO iç yapısı sürümden sürüme değişebilir; en büyük
+            # kare alınamazsa Image.open'ın seçtiği kareyle devam edilir.
+            pass
+    return image.convert("RGBA")
+
+
 def fetch_and_cache_brand_icon(text: str) -> bool:
-    """Tanınan markanın PNG logosunu indirir; her hatada sessizce False döner."""
-    cache_key, url = classify_brand(text)
-    if not cache_key or not url:
+    """Tanınan markanın logosunu indirip GERÇEK PNG olarak önbelleğe alır.
+
+    Adaylar sırayla denenir; `TARGET_ICON_PX`'i geçen ilk sonuçta durulur,
+    yoksa en büyüğü seçilir. Sonuç `MIN_ACCEPTABLE_ICON_PX`'in altındaysa
+    HİÇBİR ŞEY yazılmaz ve False döner — arayüz o markada kendi vektör
+    ikonunu kullanmaya devam eder (bulanık bir 16x16 lekesi göstermektense).
+    Ağ/HTTP/çözme hataları hiçbir zaman çağırana taşınmaz.
+    """
+    cache_key, domain = _classify_domain(text)
+    if not cache_key or not domain:
         return False
 
     destination = os.path.join(BRAND_ICON_CACHE_DIR, f"{cache_key}.png")
     if os.path.exists(destination):
         return True
+    if _miss_is_fresh(cache_key):
+        return False
+
+    best = None
+    for url in icon_source_urls(domain):
+        try:
+            import requests
+
+            response = requests.get(url, timeout=4)
+            if response.status_code != 200 or not response.content:
+                continue
+            candidate = _decode_largest_frame(response.content)
+        except (OSError, ValueError):
+            # OSError, hem `requests.RequestException`'ı (ağ/DNS/timeout) hem
+            # `PIL.UnidentifiedImageError`'ı (çözülemeyen içerik) kapsar —
+            # ikisi de OSError türevi. Bir sağlayıcının düşmesi diğerlerinin
+            # denenmesini engellememeli, o yüzden `continue`.
+            continue
+        if best is None or candidate.size[0] > best.size[0]:
+            best = candidate
+        if best.size[0] >= TARGET_ICON_PX:
+            break
+
+    if best is None or best.size[0] < MIN_ACCEPTABLE_ICON_PX:
+        _record_miss(cache_key)
+        return False
+
+    if best.size[0] < TARGET_ICON_PX:
+        # Küçük favicon'u LANCZOS ile büyüt. Keskinlik kazandırmaz (var olmayan
+        # ayrıntı üretilemez) ama kenarları yumuşatır ve diskteki her logonun
+        # ekranda küçültülerek çizilmesini sağlar — FitImage'daki `mipmap` da
+        # ancak küçültmede devreye girer.
+        try:
+            from PIL import Image
+
+            best = best.resize(
+                (TARGET_ICON_PX, TARGET_ICON_PX), Image.LANCZOS)
+        except (OSError, ValueError, AttributeError):
+            pass  # büyütülemezse özgün boyutuyla yazılır, ikon yine görünür
 
     try:
-        import requests
-
-        response = requests.get(url, timeout=4)
-        content_type = response.headers.get("Content-Type", "").lower()
-        if (
-            response.status_code == 200
-            and content_type.startswith("image/")
-            and response.content
-        ):
-            os.makedirs(BRAND_ICON_CACHE_DIR, exist_ok=True)
-            with open(destination, "wb") as image_file:
-                image_file.write(response.content)
-            return True
-    except Exception:
-        pass
-    return False
+        os.makedirs(BRAND_ICON_CACHE_DIR, exist_ok=True)
+        best.save(destination, format="PNG")
+        return True
+    except (OSError, ValueError):
+        return False

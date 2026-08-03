@@ -1,7 +1,7 @@
 import os
 import re
 from kivy.clock import Clock
-from kivymd.toast import toast
+from utils.toast import toast
 
 
 from data.bist100 import BIST100_STOCKS
@@ -432,7 +432,8 @@ class AssetMixin:
                     try:
                         _build_list(search_field.text)
                     except Exception as e:
-                        print("BIST liste yenileme hatası:", e)
+                        from utils.logging_config import get_logger
+                        get_logger().exception("BIST liste yenileme hatası")
 
                 Clock.schedule_once(_refresh, 0)
 
@@ -673,7 +674,8 @@ class AssetMixin:
                 try:
                     _build_list(search_field.text)
                 except Exception as e:
-                    print("Kripto liste yenileme hatası:", e)
+                    from utils.logging_config import get_logger
+                    get_logger().exception("Kripto liste yenileme hatası")
             Clock.schedule_once(_refresh, 0)
 
         # Arka planda CoinGecko API verisini çek
@@ -1139,7 +1141,7 @@ class AssetMixin:
     def _save_new_asset(self):
         """Formu doğrular, DB'e şifreli yazar, listeyi yeniler."""
         import threading
-        from kivymd.toast import toast
+        from utils.toast import toast
 
         asset_name  = self._asset_name_input.text.strip()
         asset_code  = self._asset_code_input.text.strip()
@@ -1256,7 +1258,7 @@ class AssetMixin:
         """Kullanıcının tetiklediği manuel fiyat yenileme işlemi.
         Arka planda load_active_assets() çağırarak yfinance'tan güncel fiyatları (₺ veya $) çeker.
         """
-        from kivymd.toast import toast
+        from utils.toast import toast
         toast(_t("Fiyatlar anlık olarak güncelleniyor..."))
         self.load_active_assets(force_refresh=True)
 
@@ -1325,7 +1327,8 @@ class AssetMixin:
             try:
                 assets = get_all_assets()
             except Exception as e:
-                print("Asset load error:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Asset load error")
                 _apply([], None, final=True)
                 return
             if not assets:
@@ -1432,7 +1435,8 @@ class AssetMixin:
         try:
             container = self.root.ids.active_assets_container
         except Exception as e:
-            print("render_active_assets: container bulunamadı:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("render_active_assets: container bulunamadı")
             return
 
         if not append:
@@ -1743,7 +1747,7 @@ class AssetMixin:
         """Satış işlemini background thread'de gerçekleştirir."""
         import threading
         from database.db import delete_asset, insert_asset_transaction, DEFAULT_ACCOUNT_ID
-        from kivymd.toast import toast
+        from utils.toast import toast
 
         def _do_sell():
             try:
@@ -1778,7 +1782,8 @@ class AssetMixin:
                 Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                 Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
             except Exception as e:
-                print("Asset sell error:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Asset sell error")
                 Clock.schedule_once(
                     lambda dt: toast(_t("Satış işlemi başarısız!")), 0)
 
@@ -1798,7 +1803,8 @@ class AssetMixin:
                 Clock.schedule_once(
                     lambda dt: self.render_asset_history(history), 0)
             except Exception as e:
-                print("Asset history load error:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Asset history load error")
 
         threading.Thread(target=_fetch, daemon=True).start()
 
@@ -1891,7 +1897,8 @@ class AssetMixin:
                     if fetch_and_cache_logo(code):
                         any_success = True
                 except Exception as e:
-                    print("Logo indirme hatası:", code, e)
+                    from utils.logging_config import get_logger
+                    get_logger().exception(f"Logo indirme hatası: {code}")
             if any_success:
                 Clock.schedule_once(lambda dt: self.render_asset_history(history), 0)
 

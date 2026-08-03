@@ -12,7 +12,7 @@ sürebilir, o yüzden açılışta senkron çağrılmaz.
 import threading
 
 from kivy.clock import Clock
-from kivymd.toast import toast
+from utils.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDFlatButton, MDIconButton
 from kivymd.uix.card import MDCard
@@ -160,30 +160,35 @@ class InsightsMixin:
                 from services.insights_service import compute_financial_health_score
                 payload["health"] = compute_financial_health_score()
             except Exception as e:
-                print("Sağlık skoru hesaplanamadı:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Sağlık skoru hesaplanamadı")
                 payload["health_error"] = str(e)
             try:
                 from services.insights_service import get_health_history
                 payload["health_history"] = get_health_history(limit=30)
             except Exception as e:
-                print("Sağlık skoru geçmişi okunamadı:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Sağlık skoru geçmişi okunamadı")
                 payload["health_history"] = []
             try:
                 from services.insights_service import detect_recurring_candidates
                 payload["candidates"] = detect_recurring_candidates()
             except Exception as e:
-                print("Abonelik radarı çalışmadı:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Abonelik radarı çalışmadı")
             try:
                 from database.db import get_active_recurring_payments
                 payload["active_subscriptions"] = get_active_recurring_payments()
             except Exception as e:
-                print("Aktif abonelikler okunamadı:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Aktif abonelikler okunamadı")
                 payload["active_subscriptions"] = []
             try:
                 from services.insights_service import detect_anomalies
                 payload["anomalies"] = detect_anomalies()
             except Exception as e:
-                print("Anomali tespiti çalışmadı:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Anomali tespiti çalışmadı")
 
             def apply_if_current(_dt):
                 if generation == getattr(self, "_insights_generation", 0):
@@ -273,7 +278,8 @@ class InsightsMixin:
             ids.health_score_bar.color = ftheme.accent(style, accent)
             ids.health_score_bar.opacity = 1
         except Exception as e:
-            print("Sağlık skoru çizilemedi:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Sağlık skoru çizilemedi")
             self.render_health_error()
 
     def render_health_insufficient_data(self):
@@ -292,7 +298,8 @@ class InsightsMixin:
             ids.health_score_bar.value = 0
             ids.health_score_bar.opacity = 0
         except Exception as e:
-            print("Sağlık skoru veri-yok durumu çizilemedi:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Sağlık skoru veri-yok durumu çizilemedi")
 
     def render_health_error(self):
         """Hesap/çizim hatasında kartı kalıcı yükleniyor durumundan çıkarır."""
@@ -313,7 +320,8 @@ class InsightsMixin:
             )
             ids.health_score_bar.opacity = 1
         except Exception as e:
-            print("Sağlık skoru hata durumu çizilemedi:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Sağlık skoru hata durumu çizilemedi")
 
     # ─── 2. Abonelik radarı ("sessiz sızıntı") ───────────────────────────────
 
@@ -325,24 +333,46 @@ class InsightsMixin:
         self.render_recurring_candidates(candidates)
         self.render_active_incomes()
 
+    def _subscription_row_data(self, payment):
+        """Bir kaydı `SubscriptionRow`'un beklediği RecycleView sözlüğüne çevirir.
+
+        Widget kurmaz — RecycleView satırları geri dönüştürdüğü için burada
+        yalnızca VERİ hazırlanır; çizimi satır bileşeni yapar.
+        """
+        from services.brand_icon_service import resolve_cached_brand_icon_path
+
+        name = payment.get("name", "")
+        return {
+            "name": name,
+            "amount_text": _fmt(payment["amount"]),
+            "renewal_text": _renewal_description(payment),
+            "icon_source": resolve_cached_brand_icon_path(name) or "",
+            "is_income": payment.get("transaction_type") == "income",
+            "payment": payment,
+        }
+
     def render_active_incomes(self):
         try:
+            recycler = self.root.ids.active_incomes_rv
             container = self.root.ids.active_incomes_container
         except Exception:
             return
 
         container.clear_widgets()
+        incomes = getattr(self, "_active_incomes", [])
+        recycler.data = [self._subscription_row_data(p) for p in incomes]
 
-        if not getattr(self, "_active_incomes", []):
+        if not incomes:
             container.add_widget(self._empty_label("Aktif geliriniz bulunmuyor."))
-            return
-
-        for payment in getattr(self, "_active_incomes", []):
-            container.add_widget(self._build_active_subscription_card(payment))
 
     def render_recurring_candidates(self, candidates):
-        """Aktif abonelikler ve varsa yeni istatistiksel adayları birlikte basar."""
+        """Aktif abonelikler ve varsa yeni istatistiksel adayları birlikte basar.
+
+        Aktif abonelikler RecycleView'e (veri), radar adayları ve etiketler
+        alttaki kutuya (widget) gider.
+        """
         try:
+            recycler = self.root.ids.active_subscriptions_rv
             container = self.root.ids.recurring_candidates_container
         except Exception:
             return
@@ -350,8 +380,10 @@ class InsightsMixin:
         container.clear_widgets()
         self._recurring_candidates = list(candidates or [])
 
-        for payment in getattr(self, "_active_subscriptions", []):
-            container.add_widget(self._build_active_subscription_card(payment))
+        recycler.data = [
+            self._subscription_row_data(payment)
+            for payment in getattr(self, "_active_subscriptions", [])
+        ]
 
         if not self._recurring_candidates and not getattr(
                 self, "_active_subscriptions", []):
@@ -407,114 +439,6 @@ class InsightsMixin:
         })
         if missing_brands:
             self._prefetch_candidate_brand_icons(missing_brands)
-
-    def _build_active_subscription_card(self, payment):
-        card = ftheme.apply_card_theme(
-            MDCard(
-                orientation="vertical", padding="12dp", spacing="5dp",
-                size_hint_y=None, height="92dp", radius=[16],
-            ),
-            self.theme_cls,
-            tint="green",
-        )
-        header = MDBoxLayout(
-            orientation="horizontal", spacing="10dp",
-            size_hint_y=None, height="32dp",
-        )
-        from kivy.metrics import dp
-        from services.brand_icon_service import resolve_cached_brand_icon_path
-        brand_icon = resolve_cached_brand_icon_path(payment.get("name", ""))
-        if brand_icon:
-            # Görsel ağırlık için 24dp'den 32dp'ye büyütüldü ve tam daire
-            # yapıldı (radius = boyutun yarısı) — küçük, köşeli logo "hoş
-            # görünmüyor" şikayetine karşılık.
-            from kivymd.uix.fitimage import FitImage
-            header.add_widget(FitImage(
-                source=brand_icon,
-                radius=[dp(16)] * 4,
-                size_hint=(None, None),
-                size=(dp(32), dp(32)),
-                pos_hint={"center_y": .5},
-            ))
-        else:
-            is_income = payment.get("transaction_type") == "income"
-            from kivymd.uix.label import MDIcon
-            
-            if is_income:
-                from kivymd.uix.floatlayout import MDFloatLayout
-                bg = MDFloatLayout(
-                    size_hint=(None, None),
-                    size=(dp(32), dp(32)),
-                    pos_hint={"center_y": .5},
-                    radius=[dp(16)],
-                    md_bg_color=ftheme.accent(self.theme_cls.theme_style, "green")
-                )
-                bg.add_widget(MDIcon(
-                    icon="cash-multiple",
-                    halign="center",
-                    valign="center",
-                    pos_hint={"center_x": .5, "center_y": .5},
-                    theme_text_color="Custom",
-                    text_color=[1, 1, 1, 1],
-                    font_size="18sp",
-                ))
-                header.add_widget(bg)
-            else:
-                header.add_widget(MDIcon(
-                    icon="repeat-variant",
-                    size_hint=(None, None),
-                    size=(dp(32), dp(32)),
-                    pos_hint={"center_y": .5},
-                    theme_text_color="Custom",
-                    text_color=ftheme.accent(self.theme_cls.theme_style, "green"),
-                    font_size="20sp",
-                    halign="center",
-                ))
-        header.add_widget(MDLabel(
-            text=payment["name"],
-            font_style="Subtitle2",
-            bold=True,
-            pos_hint={"center_y": .5},
-        ))
-        header.add_widget(MDLabel(
-            text=_fmt(payment["amount"]),
-            font_style="Caption",
-            theme_text_color="Secondary",
-            halign="right",
-            size_hint_x=None,
-            width="90dp",
-        ))
-        card.add_widget(header)
-
-        detail_row = MDBoxLayout(
-            orientation="horizontal", size_hint_y=None, height="34dp",
-        )
-        detail_row.add_widget(MDLabel(
-            text=_renewal_description(payment),
-            font_style="Caption",
-            theme_text_color="Secondary",
-        ))
-        # Tek "DURDUR" yerine yönetim akışı: spec iptalde iki seçenek (sadece
-        # bu ay / kalıcı) ve ardından iade sorusu istiyor. Zam için de düzenleme
-        # gerekiyor; ikisi de SubscriptionMixin'de tek yerde duruyor.
-        detail_row.add_widget(MDFlatButton(
-            text=_t("DÜZENLE"),
-            theme_text_color="Custom",
-            text_color=self.theme_cls.primary_color,
-            on_release=lambda _button, p=payment:
-                self.open_subscription_price_dialog(p),
-        ))
-        detail_row.add_widget(MDFlatButton(
-            text=_t("KALDIR"),
-            theme_text_color="Custom",
-            text_color=ftheme.accent(
-                self.theme_cls.theme_style, "muted"
-            ),
-            on_release=lambda _button, p=payment:
-                self.open_subscription_cancel_dialog(p),
-        ))
-        card.add_widget(detail_row)
-        return card
 
     def _build_candidate_card(self, cand):
         card = ftheme.apply_card_theme(
@@ -590,9 +514,15 @@ class InsightsMixin:
                 if fetch_and_cache_brand_icon(name):
                     any_success = True
             if any_success:
+                # BİRLEŞİK liste geri verilmeli: render_subscription_overview
+                # gelen listeyi transaction_type'a göre YENİDEN böler. Yalnızca
+                # `_active_subscriptions` (gelirler zaten ayıklanmış) geçilirse
+                # `_active_incomes` boş kümeye düşer ve "Aktif Gelirlerim"
+                # kartı, ikon indirmesi başarılı olduğu anda sessizce boşalırdı.
                 Clock.schedule_once(
                     lambda dt: self.render_subscription_overview(
-                        getattr(self, "_active_subscriptions", []),
+                        list(getattr(self, "_active_subscriptions", []))
+                        + list(getattr(self, "_active_incomes", [])),
                         self._recurring_candidates,
                     ),
                     0,
@@ -626,7 +556,8 @@ class InsightsMixin:
                     auto_deduct=0,
                 )
             except Exception as e:
-                print("Abonelik eklenemedi:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Abonelik eklenemedi")
                 Clock.schedule_once(lambda dt: toast(_t("Abonelik eklenemedi.")), 0)
                 return
 
@@ -642,7 +573,8 @@ class InsightsMixin:
                 from services.insights_service import dismiss_recurring_candidate
                 dismiss_recurring_candidate(cand["key"])
             except Exception as e:
-                print("Aday reddedilemedi:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Aday reddedilemedi")
                 return
             Clock.schedule_once(lambda dt: self.refresh_insights(), 0)
 
@@ -705,7 +637,8 @@ class InsightsMixin:
                 from services.insights_service import dismiss_anomaly
                 dismiss_anomaly(anomaly["id"])
             except Exception as e:
-                print("Anomali gizlenemedi:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Anomali gizlenemedi")
                 return
             Clock.schedule_once(lambda dt: self.refresh_insights(), 0)
 

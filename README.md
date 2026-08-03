@@ -14,7 +14,7 @@
   <img alt="SQLite" src="https://img.shields.io/badge/Storage-SQLite-003B57?logo=sqlite&logoColor=white">
   <img alt="Tests" src="https://img.shields.io/badge/tests-unittest-brightgreen">
   <img alt="Privacy" src="https://img.shields.io/badge/privacy-local--first-00A896">
-  <a href="https://github.com/superuser-d0/archlence/releases/tag/v0.0.3"><img alt="Current release" src="https://img.shields.io/badge/release-v0.0.3-blue"></a>
+  <a href="https://github.com/superuser-d0/archlence/releases/tag/v0.0.4"><img alt="Current release" src="https://img.shields.io/badge/release-v0.0.4-blue"></a>
   <img alt="Status" src="https://img.shields.io/badge/status-pre--release-orange">
   <img alt="License" src="https://img.shields.io/badge/license-MIT-yellow">
 </p>
@@ -31,7 +31,7 @@ Archlence is an independently maintained, local-first desktop application for pe
 
 The repository is public to support transparent development, technical review, and future community contributions. Archlence is still under active development and should not yet be considered production-ready financial infrastructure.
 
-The current public release is **[v0.0.3](https://github.com/superuser-d0/archlence/releases/tag/v0.0.3)**. It is a pre-release focused on local-auth hardening (password policy replacing the numeric PIN), income/expense presentation accuracy, and Borsa Istanbul price fetching.
+The current public release is **[v0.0.4](https://github.com/superuser-d0/archlence/releases/tag/v0.0.4)**. It is a pre-release focused on intentional negative-balance support, brand-icon quality and performance, a virtualized subscriptions list, and routing previously-silent background failures into the log.
 
 ## Why Archlence?
 
@@ -139,7 +139,7 @@ Notable implementation details include:
 
 ## Project status
 
-Archlence v0.0.3 is a **pre-release**. It is not stable and is not
+Archlence v0.0.4 is a **pre-release**. It is not stable and is not
 recommended for day-to-day finance tracking yet.
 
 The package installs and runs, and the flows listed in the changelog are
@@ -185,8 +185,8 @@ Known limitations are tracked openly so that progress can be reviewed over time.
 
 ## Installation
 
-The current public build is the **v0.0.3 pre-release**. Use only the
-[official release](https://github.com/superuser-d0/archlence/releases/tag/v0.0.3).
+The current public build is the **v0.0.4 pre-release**. Use only the
+[official release](https://github.com/superuser-d0/archlence/releases/tag/v0.0.4).
 
 | Platform | Recommended method | Python required? | Desktop integration |
 | --- | --- | --- | --- |
@@ -200,11 +200,11 @@ installer or portable AppImage.
 
 ### Windows
 
-1. Download [`ArchlenceSetup-0.0.3.exe`](https://github.com/superuser-d0/archlence/releases/download/v0.0.3/ArchlenceSetup-0.0.3.exe).
+1. Download [`ArchlenceSetup-0.0.4.exe`](https://github.com/superuser-d0/archlence/releases/download/v0.0.4/ArchlenceSetup-0.0.4.exe).
 2. Verify the checksum if desired:
 
    ```powershell
-   $actual = (Get-FileHash .\ArchlenceSetup-0.0.3.exe -Algorithm SHA256).Hash
+   $actual = (Get-FileHash .\ArchlenceSetup-0.0.4.exe -Algorithm SHA256).Hash
    $expected = "42ff88d1366682497ca850b8ead885e60e05a1c0b0ba0b665c40d5f62f54983e"
    if ($actual -ne $expected) { throw "Checksum verification failed" }
    ```
@@ -260,20 +260,20 @@ changes before pulling.
 The AppImage supports x86_64 Debian, Ubuntu, Linux Mint, Fedora, Arch-based
 distributions, and other compatible Linux systems. It does not support ARM.
 
-1. Download [`Archlence-0.0.3-x86_64.AppImage`](https://github.com/superuser-d0/archlence/releases/download/v0.0.3/Archlence-0.0.3-x86_64.AppImage)
-   and [`SHA256SUMS.txt`](https://github.com/superuser-d0/archlence/releases/download/v0.0.3/SHA256SUMS.txt).
+1. Download [`Archlence-0.0.4-x86_64.AppImage`](https://github.com/superuser-d0/archlence/releases/download/v0.0.4/Archlence-0.0.4-x86_64.AppImage)
+   and [`SHA256SUMS.txt`](https://github.com/superuser-d0/archlence/releases/download/v0.0.4/SHA256SUMS.txt).
 2. Open a terminal in the download directory and run:
 
    ```bash
-   grep ' Archlence-0.0.3-x86_64.AppImage$' SHA256SUMS.txt | sha256sum -c -
-   chmod +x Archlence-0.0.3-x86_64.AppImage
-   ./Archlence-0.0.3-x86_64.AppImage
+   grep ' Archlence-0.0.4-x86_64.AppImage$' SHA256SUMS.txt | sha256sum -c -
+   chmod +x Archlence-0.0.4-x86_64.AppImage
+   ./Archlence-0.0.4-x86_64.AppImage
    ```
 
 If FUSE mounting fails, use:
 
 ```bash
-./Archlence-0.0.3-x86_64.AppImage --appimage-extract-and-run
+./Archlence-0.0.4-x86_64.AppImage --appimage-extract-and-run
 ```
 
 Expected SHA-256:
@@ -353,7 +353,7 @@ user database; keep a verified backup anyway.
 ### Release files
 
 The release also contains `SHA256SUMS.txt`, the CycloneDX SBOM
-`Archlence-0.0.3-sbom.cdx.json`, and `THIRD_PARTY_NOTICES.md`. Packages are
+`Archlence-0.0.4-sbom.cdx.json`, and `THIRD_PARTY_NOTICES.md`. Packages are
 unsigned; checksums detect an incomplete or altered download but do not replace
 code signing.
 
@@ -363,6 +363,21 @@ and [Linux](https://github.com/superuser-d0/archlence/actions/workflows/build-li
 They are development artifacts, not public releases.
 
 ## Changelog
+
+### 0.0.4 — negative-balance support, brand-icon quality, virtualized lists
+
+- Checking accounts, savings goals, and credit-card debt payments can now
+  go negative on purpose; net worth math is unaffected.
+- Brand-icon logos are sharper: a multi-provider fallback replaces the
+  single-provider lookup, and every image is decoded and re-encoded as a
+  real PNG instead of trusting the response's declared content type.
+- The Active Subscriptions / Active Incomes cards are now virtualized
+  (`RecycleView`); rendering cost no longer grows with subscription count.
+- Background failures that used to `print()` to a console nobody sees in
+  the packaged Windows build are now written to the rotating log file with
+  a full traceback.
+- See [CHANGELOG.md](CHANGELOG.md) for the full list, including known
+  limitations.
 
 ### 0.0.3 — password policy, active-incomes card, Borsa Istanbul price fix
 

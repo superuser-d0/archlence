@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from kivy.clock import Clock
-from kivymd.toast import toast
+from utils.toast import toast
 from ui.i18n import tr as _t
 
 
@@ -25,7 +25,8 @@ class MigrationMixin:
                 Clock.schedule_once(
                     lambda dt: toast(_t(f"{count} kayıt dışa aktarıldı:\n{path}")), 0)
             except Exception as e:
-                print("CSV export error:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("CSV export error")
                 Clock.schedule_once(
                     lambda dt: toast(_t("Dışa aktarma sırasında hata oluştu!")), 0)
 
@@ -101,7 +102,8 @@ class MigrationMixin:
 
                 Clock.schedule_once(_done, 0)
             except Exception as e:
-                print("CSV import error:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("CSV import error")
                 Clock.schedule_once(
                     lambda dt: toast(_t("İçe aktarma sırasında hata oluştu!")), 0)
 
@@ -167,7 +169,11 @@ class MigrationMixin:
         recovery_import_item = OneLineIconListItem(
             text=_t("Anahtar Kurtarma Paketi İçe Aktar")
         )
-        recovery_import_item.add_widget(IconLeftWidget(icon="key-arrow-left"))
+        # "key-arrow-left" MDI setinde YOK — boş görünüyordu. Dışa aktarma
+        # "key-arrow-right" ile eşleşiyor; içe aktarmanın simetriği olmadığı
+        # için anahtarı ekleme anlamı taşıyan "key-plus" kullanılıyor
+        # (geçersiz ad artık tests/test_icon_names.py tarafından yakalanır).
+        recovery_import_item.add_widget(IconLeftWidget(icon="key-plus"))
         recovery_import_item.bind(
             on_release=lambda _x: self._on_recovery_import_selected(
                 self._data_privacy_dialog
@@ -176,7 +182,10 @@ class MigrationMixin:
         rotation_item = OneLineIconListItem(
             text=_t("Şifreleme Anahtarını Döndür")
         )
-        rotation_item.add_widget(IconLeftWidget(icon="key-sync"))
+        # "key-sync" de MDI setinde YOK. "key-change" anahtar döndürmeyi tam
+        # karşılıyor ama Ayarlar'daki "Şifre Değiştir" satırı onu kullanıyor;
+        # iki farklı işlem aynı ikonu taşımasın diye "lock-reset" seçildi.
+        rotation_item.add_widget(IconLeftWidget(icon="lock-reset"))
         rotation_item.bind(
             on_release=lambda _x: self._on_key_rotation_selected(
                 self._data_privacy_dialog

@@ -1,7 +1,7 @@
 # Maintainer: Archlence contributors
 
 pkgname=archlence-bin
-pkgver=0.0.3
+pkgver=0.0.4
 pkgrel=1
 pkgdesc="Local-first personal finance manager (prebuilt AppImage)"
 arch=('x86_64')
@@ -19,7 +19,7 @@ source=(
   "LICENSE::https://raw.githubusercontent.com/superuser-d0/archlence/v${pkgver}/LICENSE"
 )
 
-# DİKKAT: Bu hash'ler henüz v0.0.3'e güncellenmedi — release.yml v0.0.3
+# DİKKAT: Bu hash'ler henüz v0.0.4'e güncellenmedi — release.yml v0.0.4
 # varlıklarını yayınlayana kadar gerçek değerler bilinemez. Etiket push
 # edilip GitHub Release + SHA256SUMS.txt yayınlandıktan SONRA, `updpkgsums`
 # (pacman-contrib) veya SHA256SUMS.txt'ten elle güncellenmeli.

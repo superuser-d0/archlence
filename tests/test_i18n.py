@@ -57,6 +57,41 @@ class I18nTestCase(unittest.TestCase):
         self.assertEqual(tr("Nakit / Vadesiz"), "Cash / Checking")
         self.assertEqual(tr("3 TL dışı varlık • Canlı değer"), "3 non-TRY assets • Live value")
 
+    def test_every_forecast_state_is_a_complete_english_sentence(self):
+        """Dinamik tutar eklenirken öngörü metni karma dile dönmemeli."""
+        import os
+        os.environ.setdefault("ARCHLENCE_HEADLESS", "1")
+        from main import ArchlenceApp
+
+        set_language("en")
+        app = ArchlenceApp.__new__(ArchlenceApp)
+        cases = [
+            ({"insufficient_data": True}, "neutral"),
+            ({"insufficient_data": False,
+              "projected_month_end_balance": -250.0,
+              "projected_surplus": -500.0, "savings_rate": -0.1}, "negative"),
+            ({"insufficient_data": False,
+              "projected_month_end_balance": 750.0,
+              "projected_surplus": -50.0, "savings_rate": 0.0}, "warning"),
+            ({"insufficient_data": False,
+              "projected_month_end_balance": 2500.0,
+              "projected_surplus": 800.0, "savings_rate": 0.2}, "positive"),
+            ({"insufficient_data": False,
+              "projected_month_end_balance": 1200.0,
+              "projected_surplus": 100.0, "savings_rate": 0.05}, "neutral"),
+        ]
+
+        for forecast, expected_state in cases:
+            with self.subTest(state=expected_state), mock.patch(
+                "services.insights_service.generate_monthly_forecast",
+                return_value=forecast,
+            ):
+                text, state = app._compute_monthly_forecast_text()
+                self.assertEqual(state, expected_state)
+                self.assertTrue(text.startswith("Based on the last 3 months"))
+                for turkish_fragment in ("aylık", "işlem geçmişi", "bakiyeniz"):
+                    self.assertNotIn(turkish_fragment, text)
+
     def test_language_refresh_reconciles_bottom_navigation_header_texture(self):
         """KivyMD header tab.text'i kopyalasa da son dil dokusu zorla uzlaştırılır."""
         import os

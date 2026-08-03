@@ -276,7 +276,9 @@ class InsightsMixinActionTest(unittest.TestCase):
 
     def test_render_recurring_candidates_empty_state_shows_message(self):
         container = insights_module.MDBoxLayout()
+        recycler = _Widget()
         self.host.root.ids = types.SimpleNamespace(
+            active_subscriptions_rv=recycler,
             recurring_candidates_container=container,
         )
         self.host._active_subscriptions = []
@@ -288,8 +290,83 @@ class InsightsMixinActionTest(unittest.TestCase):
 
         InsightsMixin.render_recurring_candidates(self.host, [])
 
+        self.assertEqual(recycler.data, [])
         self.assertEqual(len(container.children), 1)
         self.assertEqual(container.children[0].text, "Aktif aboneliğiniz bulunmuyor.")
+
+    def test_active_subscriptions_go_to_recycleview_as_data_not_widgets(self):
+        """REGRESYON KORUMASI: abonelik kartları eskiden tek karede widget
+        olarak kuruluyordu ve maliyet abonelik sayısıyla büyüyordu. Artık
+        RecycleView'e VERİ verilmeli — hiçbir kart widget'ı kurulmamalı."""
+        container = insights_module.MDBoxLayout()
+        recycler = _Widget()
+        self.host.root.ids = types.SimpleNamespace(
+            active_subscriptions_rv=recycler,
+            recurring_candidates_container=container,
+        )
+        payments = [
+            {"name": "Netflix", "amount": 229.99, "frequency": "monthly",
+             "next_due_date": "2026-09-15", "recurrence_day": 15},
+            {"name": "Spotify", "amount": 59.99, "frequency": "monthly",
+             "next_due_date": "2026-09-03", "recurrence_day": 3},
+        ]
+        self.host._active_subscriptions = payments
+        self.host._subscription_row_data = types.MethodType(
+            InsightsMixin._subscription_row_data, self.host)
+        self.host._empty_label = types.MethodType(
+            InsightsMixin._empty_label, self.host)
+
+        InsightsMixin.render_recurring_candidates(self.host, [])
+
+        self.assertEqual(len(recycler.data), 2)
+        self.assertEqual(
+            [row["name"] for row in recycler.data], ["Netflix", "Spotify"])
+        # Ham kayıt satırda taşınmalı: DÜZENLE/KALDIR diyalogları onu ister.
+        self.assertIs(recycler.data[0]["payment"], payments[0])
+        # Aktif abonelik için kart widget'ı kurulmamalı.
+        self.assertEqual(container.children, [])
+
+    def test_icon_prefetch_refresh_does_not_wipe_active_incomes(self):
+        """REGRESYON: ikon indirmesi başarılı olunca liste tazeleniyor ve
+        `render_subscription_overview` gelen listeyi transaction_type'a göre
+        YENİDEN bölüyor. Tazelemeye yalnızca abonelikler geçilirse (gelirler
+        zaten ayıklanmış olduğu için) 'Aktif Gelirlerim' kartı sessizce
+        boşalıyordu."""
+        subs = [{"name": "Netflix", "amount": 229.99, "frequency": "monthly",
+                 "next_due_date": "2026-09-15", "recurrence_day": 15}]
+        incomes = [{"name": "Maaş", "amount": 50000.0, "frequency": "monthly",
+                    "next_due_date": "2026-09-01", "recurrence_day": 1,
+                    "transaction_type": "income"}]
+        self.host._active_subscriptions = list(subs)
+        self.host._active_incomes = list(incomes)
+        self.host._recurring_candidates = []
+
+        captured = {}
+
+        def fake_overview(active_subscriptions, candidates):
+            captured["subs"] = active_subscriptions
+
+        self.host.render_subscription_overview = fake_overview
+
+        class _Clock:
+            @staticmethod
+            def schedule_once(callback, _timeout=0):
+                callback(0)
+
+        with (
+            mock.patch.object(
+                insights_module, "threading",
+                types.SimpleNamespace(Thread=_ImmediateThread)),
+            mock.patch.object(insights_module, "Clock", _Clock),
+            mock.patch(
+                "services.brand_icon_service.fetch_and_cache_brand_icon",
+                return_value=True),
+        ):
+            InsightsMixin._prefetch_candidate_brand_icons(self.host, {"Netflix"})
+
+        names = [row["name"] for row in captured["subs"]]
+        self.assertIn("Netflix", names)
+        self.assertIn("Maaş", names, "gelirler tazelemede kaybolmamalı")
 
     def test_render_anomalies_empty_state_shows_message(self):
         container = insights_module.MDBoxLayout()

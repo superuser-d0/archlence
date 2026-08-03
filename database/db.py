@@ -388,7 +388,8 @@ def get_asset_transaction_history(limit=50):
         try:
             dec_amount = float(decrypt(str(r["amount"]), SECRET_KEY))
         except (ValueError, TypeError) as e:
-            print(f"[VERİ BÜTÜNLÜĞÜ] transactions id={r['id']} tutar çözülemedi: {e}")
+            from utils.logging_config import get_logger
+            get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] transactions id={r['id']} tutar çözülemedi")
             dec_amount = 0.0
         # decrypt() tek başına (float() sarmalı olmadan) hiçbir zaman raise
         # etmez — bu except pratikte tetiklenemez, ama gelecekte decrypt()
@@ -474,7 +475,8 @@ def get_active_recurring_payments():
             dec_name = decrypt(r["name"], SECRET_KEY)
             dec_amount = float(decrypt(r["amount"], SECRET_KEY))
         except (ValueError, TypeError) as e:
-            print(f"[VERİ BÜTÜNLÜĞÜ] recurring_payments id={r['id']} çözülemedi: {e}")
+            from utils.logging_config import get_logger
+            get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] recurring_payments id={r['id']} çözülemedi")
             dec_name = "Bilinmeyen Ödeme"
             dec_amount = 0.0
         payments.append({

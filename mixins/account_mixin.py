@@ -16,7 +16,7 @@ Diyalog üslubu için örnek: mixins/savings_mixin.py::add_funds_to_goal
 from kivy.metrics import dp
 from ui.i18n import tr as _t
 from kivy.uix.widget import Widget
-from kivymd.toast import toast
+from utils.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.label import MDLabel
 
@@ -248,7 +248,8 @@ class AccountMixin:
                 from services.transaction_service import TransactionService
                 items = TransactionService.get_recent_for_account(account_id, limit=3)
             except Exception as e:
-                print("Kart hareketleri okunamadı:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Kart hareketleri okunamadı")
                 return
 
         if not items:

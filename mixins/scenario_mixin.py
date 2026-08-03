@@ -1,7 +1,7 @@
 """What-if sandbox arayüzü; hesaplama services.projection_service içindedir."""
 
 from kivy.metrics import dp
-from kivymd.toast import toast
+from utils.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDFlatButton, MDRaisedButton
 from kivymd.uix.dialog import MDDialog
@@ -141,11 +141,13 @@ class ScenarioMixin:
                 ),
             )
         except (TypeError, ValueError) as exc:
-            print("What-if girdileri geçersiz:", exc)
+            from utils.logging_config import get_logger
+            get_logger().exception("What-if girdileri geçersiz")
             toast(_t("Lütfen geçerli sayılar girin!"))
             return
         except Exception as exc:
-            print("What-if senaryosu hesaplanamadı:", exc)
+            from utils.logging_config import get_logger
+            get_logger().exception("What-if senaryosu hesaplanamadı")
             toast(_t("Senaryo hesaplanamadı."))
             return
 

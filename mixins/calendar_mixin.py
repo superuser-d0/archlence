@@ -18,6 +18,7 @@ import threading
 
 from kivy.clock import Clock
 from kivy.metrics import dp
+from kivy.uix.scrollview import ScrollView
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDFlatButton
 from kivymd.uix.card import MDCard
@@ -87,15 +88,26 @@ class CalendarMixin:
         )
         self._calendar_selected_label = MDLabel(
             font_style="Caption", theme_text_color="Secondary",
-            size_hint_y=None, height=dp(24),
+            size_hint_y=None, height=dp(22),
         )
         self._calendar_tx_container = MDBoxLayout(
-            orientation="vertical", spacing=dp(4),
+            orientation="vertical", spacing=dp(2),
             size_hint_y=None, adaptive_height=True,
         )
+        # İşlem sayısı ay ızgarasının yüksekliğini değiştirmemeli. Bu listeyi
+        # doğrudan sabit yükseklikteki ana BoxLayout'a eklemek, çok işlemli
+        # günlerde çocukların diyaloğun dışına taşımasına ve ızgaranın üzerine
+        # binmesine yol açıyordu. ScrollView kalan alanı paylaşır; içindeki
+        # adaptive container yalnızca kendi kaydırma yüksekliğini büyütür.
+        self._calendar_tx_scroll = ScrollView(
+            size_hint=(1, 1),
+            do_scroll_x=False,
+            bar_width=dp(3),
+        )
+        self._calendar_tx_scroll.add_widget(self._calendar_tx_container)
 
         header = MDBoxLayout(
-            orientation="horizontal", size_hint_y=None, height=dp(40),
+            orientation="horizontal", size_hint_y=None, height=dp(36),
         )
         prev_btn = MDFlatButton(
             text="<", size_hint_x=None, width=dp(48),
@@ -110,7 +122,7 @@ class CalendarMixin:
         header.add_widget(next_btn)
 
         weekday_row = MDBoxLayout(
-            orientation="horizontal", size_hint_y=None, height=dp(24),
+            orientation="horizontal", size_hint_y=None, height=dp(20),
         )
         for name in _WEEKDAY_HEADERS:
             weekday_row.add_widget(MDLabel(
@@ -118,17 +130,27 @@ class CalendarMixin:
                 theme_text_color="Secondary", halign="center",
             ))
 
+        # Diyalog küçük pencerede ekrandan taşmasın, normal masaüstü
+        # penceresinde ise işlem listesine yalnız tek satırlık alan bırakmasın.
+        root_window = getattr(self, "root_window", None)
+        window_height = (
+            getattr(root_window, "height", dp(760))
+            if root_window is not None else dp(760)
+        )
+        content_height = max(
+            dp(360), min(dp(560), window_height - dp(200))
+        )
         content = MDBoxLayout(
-            orientation="vertical", spacing=dp(8),
+            orientation="vertical", spacing=dp(4),
             padding=[dp(8), dp(4), dp(8), dp(4)],
             size_hint_y=None,
-            height=dp(420),
+            height=content_height,
         )
         content.add_widget(header)
         content.add_widget(weekday_row)
         content.add_widget(self._calendar_grid_container)
         content.add_widget(self._calendar_selected_label)
-        content.add_widget(self._calendar_tx_container)
+        content.add_widget(self._calendar_tx_scroll)
 
         self._calendar_dialog = MDDialog(
             title=_t("Takvim"),
@@ -176,7 +198,8 @@ class CalendarMixin:
         try:
             days_with_tx = get_month_transaction_days(year, month)
         except Exception as e:
-            print("Takvim ay verisi okunamadı:", e)
+            from utils.logging_config import get_logger
+            get_logger().exception("Takvim ay verisi okunamadı")
             days_with_tx = {}
 
         self._calendar_month_label.text = _t(
@@ -184,7 +207,10 @@ class CalendarMixin:
         )
 
         weeks = _calendar_module.monthcalendar(year, month)
-        self._calendar_grid_container.height = dp(40) * len(weeks)
+        # Altı haftalı aylarda dahi günlük listeye yaklaşık on satırlık alan
+        # kalması için hücreler kompakt tutulur. Sayılar Caption boyutunda
+        # olduğundan 30dp dokunma/görünürlük dengesini koruyor.
+        self._calendar_grid_container.height = dp(32) * len(weeks)
         self._calendar_grid_container.clear_widgets()
         # Gün hücrelerini tarihe göre sakla: seçim değiştiğinde ızgarayı baştan
         # kurmak yerine yalnızca ETKİLENEN iki hücre yeniden boyanır
@@ -196,7 +222,7 @@ class CalendarMixin:
         for week in weeks:
             row = MDBoxLayout(
                 orientation="horizontal", spacing=dp(3),
-                size_hint_y=None, height=dp(36),
+                size_hint_y=None, height=dp(30),
             )
             for day in week:
                 if day == 0:
@@ -307,7 +333,8 @@ class CalendarMixin:
             try:
                 items = get_day_transactions(date_obj)
             except Exception as e:
-                print("Takvim gün verisi okunamadı:", e)
+                from utils.logging_config import get_logger
+                get_logger().exception("Takvim gün verisi okunamadı")
                 items = None
 
             def apply(_dt):
@@ -356,7 +383,7 @@ class CalendarMixin:
     def _build_calendar_transaction_row(self, item):
         row = MDBoxLayout(
             orientation="horizontal", spacing=dp(8),
-            size_hint_y=None, height=dp(32),
+            size_hint_y=None, height=dp(24),
         )
         row.add_widget(MDLabel(
             text=_t(f"{item['time']}  {_t(item['category'])}"),

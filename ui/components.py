@@ -3,11 +3,15 @@ from kivymd.uix.list import (
     TwoLineAvatarIconListItem, TwoLineIconListItem, IRightBodyTouch,
     IconLeftWidget, ImageLeftWidget,
 )
-from kivy.properties import StringProperty, NumericProperty, ListProperty, ColorProperty, BooleanProperty
+from kivy.properties import (
+    StringProperty, NumericProperty, ListProperty, ColorProperty,
+    BooleanProperty, ObjectProperty,
+)
 from kivy.metrics import dp
 from kivy.clock import Clock
 from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivymd.app import MDApp
+from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
 import unicodedata
 from ui.i18n import tr as _t
@@ -97,6 +101,91 @@ class RecycleListRow(RecycleDataViewBehavior, TwoLineIconListItem):
                 icon=self.icon_name or "help-circle-outline",
                 theme_text_color="Custom",
                 text_color=self.icon_color,
+            ))
+
+
+class SubscriptionRow(RecycleDataViewBehavior, MDCard):
+    """Aktif Aboneliklerim / Aktif Gelirlerim listelerinin RV satırı.
+
+    NEDEN RECYCLEVIEW (ölçüldü): bu kart ~11 KivyMD widget'ından oluşuyor ve
+    eskiden her abonelik için TEK KAREDE yeniden kuruluyordu. 40 abonelikte
+    ~440 widget aynı frame'de doğuyordu — "abonelik ekledikçe ana sayfa
+    yavaşlıyor" şikayetinin kaynağı buydu. RecycleView satırları geri
+    dönüştürdüğü için maliyet abonelik sayısıyla değil, EKRANDA GÖRÜNEN kart
+    sayısıyla orantılı hâle gelir.
+
+    Satırlar geri dönüştürüldüğü için sol ikon slotu her `refresh_view_attrs`
+    çağrısında yeniden kurulur (aynı gerekçe: bkz. `RecycleListRow`) —
+    aksi hâlde bir aboneliğin logosu, o widget'ı devralan başka bir
+    abonelikte görünmeye devam ederdi.
+    """
+
+    name = StringProperty("")
+    amount_text = StringProperty("")
+    renewal_text = StringProperty("")
+    icon_source = StringProperty("")
+    is_income = BooleanProperty(False)
+    # Düzenle/Kaldır diyalogları ham kaydı ister (id, tutar, sıklık...).
+    # Satır geri dönüştürüldüğünde bu referans da tazelenir.
+    payment = ObjectProperty(allownone=True)
+
+    def refresh_view_attrs(self, rv, index, data):
+        result = super().refresh_view_attrs(rv, index, data)
+        self._sync_icon_slot()
+        return result
+
+    def _sync_icon_slot(self):
+        slot = self.ids.get("icon_slot")
+        if slot is None:
+            return
+        slot.clear_widgets()
+        app = MDApp.get_running_app()
+        theme_cls = app.theme_cls if app else None
+        style = theme_cls.theme_style if theme_cls else "Light"
+
+        if self.icon_source:
+            from kivymd.uix.fitimage import FitImage
+            slot.add_widget(FitImage(
+                source=self.icon_source,
+                # Servis tüm kabul edilen kaynakları 128px'e normalize eder;
+                # mipmap burada 32dp'ye küçültme kalitesini iyileştirir.
+                mipmap=True,
+                radius=[dp(16)] * 4,
+                size_hint=(None, None),
+                size=(dp(32), dp(32)),
+                pos_hint={"center_y": .5},
+            ))
+        elif self.is_income:
+            from kivymd.uix.floatlayout import MDFloatLayout
+            from kivymd.uix.label import MDIcon
+            bg = MDFloatLayout(
+                size_hint=(None, None),
+                size=(dp(32), dp(32)),
+                pos_hint={"center_y": .5},
+                radius=[dp(16)],
+                md_bg_color=ftheme.accent(style, "green"),
+            )
+            bg.add_widget(MDIcon(
+                icon="cash-multiple",
+                halign="center",
+                valign="center",
+                pos_hint={"center_x": .5, "center_y": .5},
+                theme_text_color="Custom",
+                text_color=[1, 1, 1, 1],
+                font_size="18sp",
+            ))
+            slot.add_widget(bg)
+        else:
+            from kivymd.uix.label import MDIcon
+            slot.add_widget(MDIcon(
+                icon="repeat-variant",
+                size_hint=(None, None),
+                size=(dp(32), dp(32)),
+                pos_hint={"center_y": .5},
+                theme_text_color="Custom",
+                text_color=ftheme.accent(style, "green"),
+                font_size="20sp",
+                halign="center",
             ))
 
 
