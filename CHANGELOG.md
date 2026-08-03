@@ -1,5 +1,123 @@
 # Changelog
 
+## [0.0.4] — 2026-08-03
+
+This release lets checking accounts go negative on purpose, overhauls brand-icon
+quality and performance, virtualizes the subscriptions list, and routes every
+previously-silent background failure into the on-disk log. It remains a
+**pre-release**.
+
+### Highlights
+
+- Checking accounts, savings goals, and credit-card debt payments can now go
+  negative on purpose — the "insufficient balance" guard that blocked this is
+  gone. Net worth math is unaffected: the signed-balance convention that
+  already let credit-card debt show as a negative balance covers this too.
+- Brand-icon logos are noticeably sharper. A multi-provider fallback (Google
+  Favicon → icon.horse → Unavatar) replaces the single-provider lookup, and
+  every downloaded image is now decoded and re-encoded as a real PNG instead
+  of trusting the response's declared content type.
+- The "Active Subscriptions" / "Active Incomes" cards are now backed by a
+  `RecycleView`. Rendering cost no longer grows with subscription count.
+- Background failures that used to `print()` to a console nobody sees in the
+  packaged Windows build (`console=False`) are now written to the rotating
+  log file with a full traceback.
+
+### Financial correctness and reliability
+
+- **Insufficient-balance guard removed.** `AccountService.check_spending_
+  allowed`, `SavingsService.deposit_to_goal`, and `AssetPurchaseService.
+  _pick_funding_account` no longer reject a transaction that would take an
+  account negative; the atomic `WHERE balance >= ?` guards were removed.
+  Asset purchases that no account can fully afford now fund from the
+  richest available account and drive it negative, instead of raising.
+
+### Performance
+
+- **Brand-icon matching, 14x.** `classify_brand` re-normalized all 176
+  known aliases on every call (~220µs for a non-matching description,
+  measured). Alias normalization now happens once at import time
+  (~16µs/call after).
+- **Health score / forecast, 1.9x.** `compute_financial_health_score` and
+  `generate_monthly_forecast` decrypted every transaction's `description`
+  even though neither reads it — only `amount` and `date` are used.
+  `_load_transactions` now takes `decrypt_description=False` on those two
+  paths (measured on 10k transactions: 419ms → 226ms combined). The
+  subscription radar and anomaly detector, which do need the description,
+  are unaffected.
+- **Subscription cards, O(1) instead of O(n).** Rendering used to build
+  ~11 KivyMD widgets per active subscription in a single frame (~440
+  widgets at 40 subscriptions). Cards now come from a `RecycleView`;
+  measured widget count plateaus at 4 regardless of whether the list holds
+  10, 50, or 200 entries.
+
+### UI and accessibility
+
+- Two Data & Privacy menu icons (`key-arrow-left`, `key-sync`) referenced
+  names that don't exist in the bundled KivyMD 1.2.0 icon set and rendered
+  blank; replaced with `key-plus` and `lock-reset`.
+- The Calendar dialog no longer lets a day with many transactions push the
+  month grid off-screen — the daily transaction list is now a bounded,
+  independently-scrolling area sized to the window.
+- English-locale monthly forecast text no longer mixes Turkish and English.
+  The dynamic balance amount was interpolated into the string *before*
+  translation, so the literal (amount-specific) string never matched the
+  English dictionary and fell back to the untranslated Turkish template.
+  Translation now happens on the static template; the amount is filled in
+  afterward.
+- "Contact Us" now opens the project's GitHub page instead of a `mailto:`
+  link — issues are triaged there, not in an inbox.
+- Small brand-icon logos (as low as 16px, the ceiling several providers
+  publish for Turkish telecom brands) are upscaled instead of being
+  discarded; a prior attempt dropped them below a fixed pixel threshold and
+  made those brands' icons disappear entirely.
+
+### Testing and packaging
+
+- New `tests/test_icon_names.py` scans every literal icon name in `.py`/
+  `.kv` source against KivyMD's bundled MDI set — the class of bug that
+  shipped the two blank Data & Privacy icons above can no longer land
+  silently.
+- The complete suite (615 tests) passes; `flake8 --select=F821,F822,F823,
+  E722` and the exception-baseline gate are both clean.
+
+### Additional issues found and fixed
+
+- `utils/toast.py` (the shared `MDSnackbar`-based toast, introduced this
+  cycle) imported KivyMD's snackbar module unconditionally, which crashed
+  two test modules on import under the headless test harness. It now
+  follows the same headless-fallback contract as `main.py`'s KivyMD import
+  guard.
+- 108 of 109 `except`-block `print()` calls were converted to `logger.
+  exception(...)`, which captures the full traceback instead of just
+  `str(exception)`. The one exception (`main.py`'s headless-only mock
+  `MDApp.run()`) is informational output, not a swallowed failure, and was
+  left as-is. Exception *types* were intentionally left broad in this
+  pass — narrowing them requires per-call-site behavioral verification and
+  is tracked as follow-up work, not blocking this release.
+
+### Known limitations
+
+- This is still a pre-release and is not considered stable.
+- Packages are unsigned; Windows SmartScreen may warn on first launch.
+- The price service has a single provider (yfinance).
+- The legacy CBC reader remains deprecated for old profiles and backups.
+- Most `except` blocks still catch broad exception types (`Exception`);
+  they are now logged with a full traceback, but not yet narrowed to
+  specific exception classes.
+- Checking accounts that go negative show only the raw (negative) balance
+  number — there is no dedicated "overdrawn" indicator the way credit
+  cards show a `debt` field. Deferred as a UX follow-up.
+- Existing 4-digit PINs are still not migrated to the password policy
+  introduced in 0.0.3; unaffected by this release.
+
+### Installation and checksum verification
+
+- Windows: `ArchlenceSetup-0.0.4.exe`
+- Linux: `Archlence-0.0.4-x86_64.AppImage`
+- Download `SHA256SUMS.txt` from the same release and verify the matching
+  asset. The SBOM is published as `Archlence-0.0.4-sbom.cdx.json`.
+
 ## [0.0.3] — 2026-08-02
 
 This release replaces the numeric-only PIN with a password policy, splits
