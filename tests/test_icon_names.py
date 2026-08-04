@@ -16,7 +16,15 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SKIP_DIRS = {".git", ".venv", "venv", "build", "dist", "__pycache__"}
+# `AppDir` derleme çıktısıdır (.gitignore'da; build-linux.yml her seferinde
+# yeniden üretir) ve içinde KivyMD'nin KENDİ kaynağının bir kopyası bulunur —
+# 206 .py/.kv dosyası. Taranırsa KivyMD'nin kendi örnek ikon adları ("discord")
+# bizim kaynağımızmış gibi raporlanır ve test YANLIŞ yere kırılır. CI'da
+# görünmez (temiz checkout, testler build'den önce koşar), ama yerelde bir kez
+# AppImage üreten geliştiricide suite kırmızıya döner.
+SKIP_DIRS = {
+    ".git", ".venv", "venv", "build", "dist", "__pycache__", "AppDir",
+}
 
 # KV'de her özellik kendi satırında durur, bu yüzden bir `icon:` satırındaki
 # TÜM düz metinler ikon adayıdır (ör. `icon: "check" if x else "close"`).
