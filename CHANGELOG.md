@@ -1,5 +1,105 @@
 # Changelog
 
+## [0.0.5] — 2026-08-04
+
+This release lets you record an asset you already owned without disturbing your
+wallet balance, gives the price service a fallback so a single upstream outage
+no longer freezes every quote, and reports which provider actually answered.
+It remains a **pre-release**.
+
+### Highlights
+
+- Adding an asset now asks whether the amount should come out of your wallet
+  balance. Choose **Yes** for something you just bought; choose **No** for an
+  asset you already owned and are only recording. Previously every entry was
+  treated as a purchase, so recording an existing holding retroactively
+  distorted today's balance and expense reports.
+- Prices no longer depend on a single provider. When Yahoo Finance returns
+  nothing for a symbol, cryptocurrency falls back to CoinGecko and foreign
+  currency to Frankfurter (ECB).
+- The price source shown for an asset now names the provider that actually
+  answered, instead of always claiming Yahoo Finance.
+
+### Financial correctness and reliability
+
+- `AssetPurchaseService.create_purchase` takes `deduct_from_balance`. When it
+  is false, only the portfolio row is written — no liquid-account transaction,
+  no balance mutation, no balance-event entry. When it is true the operation
+  stays exactly as before: one atomic transaction covering all four writes.
+- Foreign-exchange rates are the linchpin of the price pipeline: crypto and
+  gold are both converted to lira by multiplying with USD/TRY. Recovering that
+  one rate from Frankfurter therefore keeps crypto and gold priceable even
+  when Yahoo Finance is the side that failed.
+- Fallback providers deliberately return values in Yahoo Finance's units
+  rather than converting to lira themselves, so every downstream conversion
+  path is unchanged regardless of which provider supplied the number.
+
+### Performance
+
+- No intentional performance changes in this release. The fallback only runs
+  for symbols the primary provider did not return, so a fully successful fetch
+  costs exactly what it did before — verified by a test asserting the fallback
+  is not called in that case.
+
+### UI and accessibility
+
+- Two English strings were unreachable because the same Turkish key was
+  defined twice in the translation table, so the second definition silently
+  replaced the first. Affected the recurring-payment day prompt and the
+  "days from now" suffix.
+- The month-end forecast sentence carried a misleading `f` prefix implying the
+  amount was interpolated before translation — the exact mistake that made the
+  English locale fall back to Turkish in 0.0.4. The prefix was inert, and is
+  now removed with a comment so it is not reintroduced.
+
+### Testing and packaging
+
+- The Arch package's `sha256sums` were four zero placeholders, so `makepkg`
+  failed for every AUR user. Real 0.0.4 checksums were verified end to end;
+  they are placeholders again here only because the 0.0.5 assets do not exist
+  until this release publishes, and will be filled in immediately afterwards.
+- The installer and AppImage launch smoke tests now check `crash.log` the way
+  the raw-executable test already did. An application that starts, catches an
+  exception, logs it and keeps running with a broken screen previously passed
+  two of the three packaging paths.
+- Continuous integration reports the pyflakes backlog on every run without
+  blocking, and no longer mistakes a locally built package's bundled copy of
+  KivyMD for project source.
+- Broad exception handlers dropped from 184 to 143. Handlers that must stay
+  broad — the boundaries where an escaping exception would leave the interface
+  waiting forever — are now marked as reviewed rather than counted as
+  unexamined debt.
+
+### Additional issues found and fixed
+
+- The legacy-to-AEAD encryption migration was covered by tests that all passed
+  even when an entire table stopped being migrated. Coverage now asserts every
+  encrypted table is included and pins the field list, so adding an encrypted
+  column without extending the migration fails the build.
+- A failure while computing the "today's change" figure could kill the asset
+  loading thread before any list was drawn, leaving the loading skeleton on
+  screen permanently and blocking every later refresh.
+
+### Known limitations
+
+- This is still a pre-release and is not considered stable.
+- Packages are unsigned; Windows SmartScreen may warn on first launch.
+- The price fallback covers cryptocurrency and foreign currency only. BIST
+  equities and gold still depend on Yahoo Finance alone — no free alternative
+  source for them is integrated.
+- The legacy CBC reader remains deprecated for old profiles and backups.
+- Existing 4-digit PINs are still not migrated to the password policy
+  introduced in 0.0.3; unaffected by this release.
+- Checking accounts that go negative still show only the raw negative balance,
+  with no dedicated overdrawn indicator.
+
+### Installation and checksum verification
+
+- Windows: `ArchlenceSetup-0.0.5.exe`
+- Linux: `Archlence-0.0.5-x86_64.AppImage`
+- Download `SHA256SUMS.txt` from the same release and verify the matching
+  asset. The SBOM is published as `Archlence-0.0.5-sbom.cdx.json`.
+
 ## [0.0.4] — 2026-08-03
 
 This release lets checking accounts go negative on purpose, overhauls brand-icon

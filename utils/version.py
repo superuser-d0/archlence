@@ -1,3 +1,3 @@
 """Single application version source used by runtime and release validation."""
 
-APP_VERSION = "0.0.4"
+APP_VERSION = "0.0.5"
