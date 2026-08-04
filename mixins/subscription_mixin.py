@@ -42,7 +42,7 @@ class SubscriptionMixin:
         if planner_dialog is not None:
             try:
                 planner_dialog.dismiss()
-            except Exception:
+            except AttributeError:
                 pass
 
         def work():
@@ -361,7 +361,9 @@ class SubscriptionMixin:
         if dialog is not None:
             try:
                 dialog.dismiss()
-            except Exception:
+            except AttributeError:
+                # `attribute_name` çağrı yerinden gelen serbest bir ad; alan
+                # diyalog dışında bir şey tutuyorsa tek beklenen hata bu.
                 pass
             setattr(self, attribute_name, None)
 

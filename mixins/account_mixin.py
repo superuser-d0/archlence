@@ -239,7 +239,9 @@ class AccountMixin:
         """
         try:
             container = card.ids.recent_container
-        except Exception:
+        except (AttributeError, KeyError):
+            # Kart widget'ı beklenen id'yi taşımıyorsa (KV'de ad değişmiş ya da
+            # farklı bir kart tipi geldiyse) satır listesi çizilmez.
             return
         container.clear_widgets()
 
@@ -497,7 +499,11 @@ class AccountMixin:
         if old_menu is not None:
             try:
                 old_menu.dismiss()
-            except Exception:
+            except AttributeError:
+                # Ölçüldü: MDDropdownMenu.dismiss() hiçbir erişilebilir durumda
+                # (hiç açılmamış, iki kez kapatılmış, caller kopmuş) hata
+                # fırlatmıyor. Geriye kalan tek yüzey, alanın menü DIŞINDA bir
+                # nesne tutması.
                 pass
 
         # Callback'ler self.card_settings_menu üzerinden gitmemeli: kullanıcı
@@ -635,7 +641,7 @@ class AccountMixin:
         if old_dialog is not None:
             try:
                 old_dialog.dismiss()
-            except Exception:
+            except AttributeError:
                 pass
 
         dialog = MDDialog(
@@ -685,7 +691,7 @@ class AccountMixin:
         if getattr(self, "account_dialog", None):
             try:
                 self.account_dialog.dismiss()
-            except Exception:
+            except AttributeError:
                 pass
 
         self.render_accounts()
@@ -694,7 +700,8 @@ class AccountMixin:
         try:
             self.update_metrics_and_goals()
         except Exception:
-            pass
+            from utils.logging_config import get_logger
+            get_logger().exception("Hesap eklendikten sonra özet tazelenemedi")
         return True
 
     def on_accounts_tab_enter(self, *args):
@@ -1019,14 +1026,16 @@ class AccountMixin:
             try:
                 self._update_account_summary(_asset_data_cache["summary"])
             except Exception:
-                pass
+                from utils.logging_config import get_logger
+                get_logger().exception("Hesap özeti güncellenemedi")
                 
             # Grafiğin data özelliğini sessizce güncelle (varsa)
             if hasattr(self, 'active_assets_chart') and hasattr(self.active_assets_chart, 'data'):
                 try:
                     self.active_assets_chart.data = _asset_data_cache.get("some_chart_data")
                 except Exception:
-                    pass
+                    from utils.logging_config import get_logger
+                    get_logger().exception("Aktif varlık grafiği verisi güncellenemedi")
                     
         start_data_warmup(on_update)
 

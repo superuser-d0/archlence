@@ -1,6 +1,8 @@
 import os
 import re
+import sqlite3
 from kivy.clock import Clock
+from utils.errors import ArchlenceError
 from utils.toast import toast
 
 
@@ -374,16 +376,18 @@ class AssetMixin:
                         theme_text_color="Custom",
                         text_color=(0.08, 0.72, 0.42, 1),
                     ))
-                # markup için
+                # markup için. KivyMD 1.2.0'da `_lbl_primary` bu satır
+                # sınıfının KV'sinden gelir; sürüm değişip ad kalkarsa
+                # `ids.<yok>` ölçülmüş biçimde AttributeError verir.
                 try:
                     item.ids._lbl_primary.markup = True
-                except Exception:
+                except AttributeError:
                     pass
                 # Yeniden çizimde mevcut seçimi vurgulu tut
                 if code == self._bist_selected_code:
                     try:
                         item.bg_color = (0.08, 0.72, 0.42, 0.15)
-                    except Exception:
+                    except ValueError:
                         pass
 
                 def _on_select(inst, c=code, n=name):
@@ -393,11 +397,11 @@ class AssetMixin:
                     for child in self._bist_list_widget.children:
                         try:
                             child.bg_color = (0, 0, 0, 0)
-                        except Exception:
+                        except ValueError:
                             pass
                     try:
                         inst.bg_color = (0.08, 0.72, 0.42, 0.15)
-                    except Exception:
+                    except ValueError:
                         pass
 
                 item.bind(on_release=_on_select)
@@ -554,7 +558,7 @@ class AssetMixin:
         asset_type = "Hisse"
 
         self._stock_price_dialog.dismiss()
-        self._submit_asset_purchase(
+        self._confirm_asset_balance_deduction(
             asset_name, asset_code, asset_type, purchase_price, quantity,
             _t("Hisse eklendi! Fiyatlar güncelleniyor…"),
             _t("Hisse eklenirken hata oluştu!"),
@@ -628,13 +632,13 @@ class AssetMixin:
 
                 try:
                     item.ids._lbl_primary.markup = True
-                except Exception:
+                except AttributeError:
                     pass
-                
+
                 if code == self._crypto_selected_code:
                     try:
                         item.bg_color = (0.08, 0.72, 0.42, 0.15)
-                    except Exception:
+                    except ValueError:
                         pass
 
                 def _on_select(inst, c_code=code, n_name=name):
@@ -643,11 +647,11 @@ class AssetMixin:
                     for child in self._crypto_list_widget.children:
                         try:
                             child.bg_color = (0, 0, 0, 0)
-                        except Exception:
+                        except ValueError:
                             pass
                     try:
                         inst.bg_color = (0.08, 0.72, 0.42, 0.15)
-                    except Exception:
+                    except ValueError:
                         pass
 
                 item.bind(on_release=_on_select)
@@ -730,7 +734,8 @@ class AssetMixin:
                 text_color=(0.85, 0.65, 0.13, 1),
             ))
         except Exception:
-            pass
+            from utils.logging_config import get_logger
+            get_logger().exception("Kripto satırı yedek ikonuna düşürülemedi")
 
     def _show_crypto_price_dialog(self, code, name):
         """Kripto seçildikten sonra alım fiyatı ve miktar giriş diyaloğu."""
@@ -815,7 +820,7 @@ class AssetMixin:
         asset_type = "Kripto"
 
         self._crypto_price_dialog.dismiss()
-        self._submit_asset_purchase(
+        self._confirm_asset_balance_deduction(
             asset_name, asset_code, asset_type, purchase_price, quantity,
             _t("Kripto eklendi! Fiyatlar güncelleniyor…"),
             _t("Kripto eklenirken hata oluştu!"),
@@ -1164,11 +1169,78 @@ class AssetMixin:
             asset_name = asset_code.upper()
 
         self.asset_dialog.dismiss()
-        self._submit_asset_purchase(
+        self._confirm_asset_balance_deduction(
             asset_name, asset_code, asset_type, purchase_price, quantity,
             _t("Varlık eklendi! Fiyatlar güncelleniyor…"),
             _t("Varlık eklenirken hata oluştu!"),
         )
+
+    def _confirm_asset_balance_deduction(
+        self,
+        asset_name,
+        asset_code,
+        asset_type,
+        purchase_price,
+        quantity,
+        success_message,
+        failure_message,
+    ):
+        """Ask whether this entry is a new purchase or an existing holding."""
+        from kivy.metrics import dp
+        from kivymd.uix.boxlayout import MDBoxLayout
+        from kivymd.uix.button import MDFlatButton, MDRaisedButton
+        from kivymd.uix.dialog import MDDialog
+        from kivymd.uix.label import MDLabel
+
+        message = MDLabel(
+            text=_t(
+                "Bu varlık için girdiğiniz toplam tutar cüzdan "
+                "bakiyenizden düşülsün mü?\n\nYeni satın aldığınız bir "
+                "varlıksa Evet; daha önce sahip olduğunuz bir varlığı "
+                "uygulamaya ekliyorsanız Hayır'ı seçin."
+            ),
+            theme_text_color="Secondary",
+            size_hint_y=None,
+            height=dp(112),
+            valign="middle",
+        )
+        message.bind(size=message.setter("text_size"))
+        content = MDBoxLayout(
+            orientation="vertical", size_hint_y=None, height=dp(116)
+        )
+        content.add_widget(message)
+
+        def submit(deduct_from_balance):
+            self._asset_balance_dialog.dismiss()
+            self._submit_asset_purchase(
+                asset_name,
+                asset_code,
+                asset_type,
+                purchase_price,
+                quantity,
+                success_message,
+                failure_message,
+                deduct_from_balance=deduct_from_balance,
+            )
+
+        self._asset_balance_dialog = MDDialog(
+            title=_t("Cüzdan Bakiyesi"),
+            type="custom",
+            content_cls=content,
+            buttons=[
+                MDFlatButton(
+                    text=_t("HAYIR, DÜŞME"),
+                    on_release=lambda _button: submit(False),
+                ),
+                MDRaisedButton(
+                    text=_t("EVET, DÜŞ"),
+                    md_bg_color=self.theme_cls.primary_color,
+                    elevation=0,
+                    on_release=lambda _button: submit(True),
+                ),
+            ],
+        )
+        self._asset_balance_dialog.open()
 
     def _submit_asset_purchase(
         self,
@@ -1179,6 +1251,7 @@ class AssetMixin:
         quantity,
         success_message,
         failure_message,
+        deduct_from_balance=True,
     ):
         """Persist once, then refresh UI through independent main-thread jobs."""
         if getattr(self, "_asset_purchase_inflight", False):
@@ -1194,6 +1267,7 @@ class AssetMixin:
                 asset_type=asset_type,
                 purchase_price=purchase_price,
                 quantity=quantity,
+                deduct_from_balance=deduct_from_balance,
             )
 
         def success(_result):
@@ -1285,7 +1359,11 @@ class AssetMixin:
         generation = self._asset_load_generation
         try:
             container = self.root.ids.active_assets_container
-        except Exception:
+        except (AttributeError, KeyError):
+            # KV henüz yüklenmemiş/ekran kurulmamışken: `self.root` None ise
+            # AttributeError, `ids` içinde ad yoksa AttributeError (nokta
+            # erişimi) ya da KeyError (abonelik erişimi). Aynı aile diğer
+            # mixin'lerde de bu çiftle daraltıldı.
             self._asset_load_inflight = False
             return
 
@@ -1337,7 +1415,15 @@ class AssetMixin:
 
             try:
                 today_delta = self._compute_today_liquid_delta()
-            except Exception:
+            except (sqlite3.Error, OSError, ArchlenceError):
+                # `_compute_today_liquid_delta` (main.py) yalnızca bugünün
+                # işlemlerini okur ve tutarları çözer. Ölçüldü: eksik tablo /
+                # bozuk sorgu -> sqlite3.OperationalError; erişilemez veri
+                # dizini -> FileNotFoundError (OSError); çözülemeyen satır ->
+                # FinancialDataIntegrityError (ArchlenceError). sqlite3.Error
+                # OSError'ın ALT SINIFI DEĞİL — ikisi de ayrıca gerekli.
+                # `None` bilinçli: bu değer yalnızca "bugünkü değişim"
+                # rozetini besliyor, varlık listesinin kendisini değil.
                 today_delta = None
 
             # İlk sonuç yalnız SQLite'tan gelir; hiçbir ağ çağrısını beklemez.
@@ -1369,7 +1455,8 @@ class AssetMixin:
     def _update_asset_price_timestamp(self):
         try:
             label = self.root.ids.asset_prices_updated_label
-        except Exception:
+        except (AttributeError, KeyError):
+            # Kök widget kurulmadıysa AttributeError, id yoksa KeyError.
             return
         from services.price_service import get_last_updated_at
 
@@ -1395,7 +1482,8 @@ class AssetMixin:
 
         try:
             container = self.root.ids.active_assets_container
-        except Exception:
+        except (AttributeError, KeyError):
+            # Kök widget kurulmadıysa AttributeError, id yoksa KeyError.
             return
         wanted_ids = {asset.get("id") for asset in assets}
         existing_cards = [
@@ -1666,7 +1754,8 @@ class AssetMixin:
             from kivy.metrics import dp as _dp
             parent_card.height = _dp(new_height)
         except Exception:
-            pass
+            from utils.logging_config import get_logger
+            get_logger().exception("Aktif varlıklar kartının yüksekliği ayarlanamadı")
 
         # Zenginleştirilmiş listeyi önbelleğe al; Toplam Varlık kartı çağıran
         # tarafından (load_active_assets._apply) hazır delta ile güncellenir.
@@ -1820,7 +1909,7 @@ class AssetMixin:
         try:
             rv = self.root.ids.asset_history_list
             empty_label = self.root.ids.asset_history_empty_label
-        except Exception:
+        except (AttributeError, KeyError):
             return
 
         if not history:
@@ -1880,7 +1969,8 @@ class AssetMixin:
             new_height = min(320, new_height)
             parent_card.height = _dp(new_height)
         except Exception:
-            pass
+            from utils.logging_config import get_logger
+            get_logger().exception("Varlık geçmişi kartının yüksekliği ayarlanamadı")
 
     def _prefetch_asset_logos(self, codes, history):
         """Yerelde bulunamayan Kripto/Döviz logolarını arka planda indirir.

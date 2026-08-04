@@ -178,8 +178,11 @@ def _dismissed_keys():
     try:
         cursor.execute("SELECT candidate_key FROM recurring_candidate_dismissals")
         return {row[0] for row in cursor.fetchall()}
-    except Exception:
+    except sqlite3.Error:
         # Tablo henüz yoksa (initialize_database çalışmadıysa) radar susmasın.
+        # Eksik tablo `sqlite3.OperationalError` üretir (ölçüldü) — tüm DB
+        # hata ailesi bu sınıfın altında, daha genişini yakalamak buradaki
+        # bir programlama hatasını da yutardı.
         return set()
     finally:
         conn.close()
@@ -610,7 +613,10 @@ def get_health_history(limit=30):
     for r in rows:
         try:
             breakdown = json.loads(r["breakdown_json"]) if r["breakdown_json"] else {}
-        except Exception:
+        except (ValueError, TypeError):
+            # Bozuk JSON `JSONDecodeError` (ValueError türevi), beklenmedik
+            # tipte sütun `TypeError` verir (ölçüldü). Skor geçmişindeki tek
+            # bozuk satır listenin tamamını düşürmemeli.
             breakdown = {}
         history.append({"date": r["date"], "score": r["score"], "breakdown": breakdown})
     return history

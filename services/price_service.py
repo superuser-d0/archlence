@@ -282,6 +282,7 @@ def _schedule_callback(callback, prices) -> None:
     try:
         from kivy.clock import Clock
         Clock.schedule_once(lambda _dt: callback(prices), 0)
+    # EXCEPTION-AUDIT: bilinçli geniş — garantili teslim sınırı.
     except Exception:
         # Kivy başlatılmamış unit-test/CLI ortamında sonucu yine teslim et.
         callback(prices)

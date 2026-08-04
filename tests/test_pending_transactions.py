@@ -261,6 +261,50 @@ class PendingTransactionTestCase(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["source"], "transaction")
 
+    def test_one_unsettleable_row_does_not_abort_the_rest(self):
+        """Yerleşemeyen bir satır KALAN vadesi gelmiş işlemleri iptal etmemeli.
+
+        Bu dalın daha önce hiç testi yoktu ve hiç LOG'u da yoktu: hesabı
+        bulunamayan bir bekleyen işlem sessizce geri alınıyordu, yani
+        kullanıcının kirası/maaşı hiç işlenmeden geçtiğinde ortada tek bir iz
+        kalmıyordu. Handler `except Exception` iken de bu testin geçmesi
+        beklenir — asıl doğruladığı şey, DARALTILMIŞ kümenin
+        (`sqlite3.Error, ValueError, ArchlenceError`) gerçekten olan hatayı
+        hâlâ yakaladığı: `adjust_account_balance` var olmayan hesap için
+        ValueError fırlatır ve bu istisna döngüyü ÖLDÜRMEMELİ.
+        """
+        from database.db import get_connection
+        from services.transaction_service import TransactionService
+
+        self._add(500.0, "income", day_offset=1)
+
+        # Vadesi gelmiş ama hesabı olmayan ikinci bir kayıt: doğrudan SQL ile
+        # yazılıyor çünkü servis katmanı böyle bir kaydı zaten reddederdi.
+        from database.db import SECRET_KEY
+        from utils.crypto import encrypt
+        when = (date.today() + timedelta(days=1)).isoformat()
+        conn = get_connection()
+        try:
+            conn.execute(
+                "INSERT INTO transactions(amount, type, category, description,"
+                " transaction_date, execution_date, status, account_id)"
+                " VALUES(?,?,?,?,?,?,?,?)",
+                (encrypt("50.00", SECRET_KEY), "expense", "Market",
+                 encrypt("yetim kayıt", SECRET_KEY), f"{when} 09:00:00",
+                 f"{when} 09:00:00", "pending", 999999),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        settled = TransactionService.settle_due_transactions(today=when)
+
+        # Sağlıklı kayıt yerleşti, yetim kayıt pending kaldı, istisna kaçmadı.
+        self.assertEqual(settled, 1)
+        self.assertAlmostEqual(self._balance(), 500.0, places=2)
+        self.assertEqual(self._status_counts().get("completed"), 1)
+        self.assertEqual(self._status_counts().get("pending"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

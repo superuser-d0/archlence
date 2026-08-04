@@ -8,16 +8,55 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SKIP = {".git", ".venv", "venv", "build", "dist"}
+# `AppDir` derleme çıktısıdır (.gitignore'da; build-linux.yml üretir) ve içinde
+# KivyMD'nin KENDİ kaynağının kopyası bulunur. Taranırsa üçüncü parti
+# handler'lar "yeni geniş handler" sayılıp kapıyı KIRAR — CI'da görünmez
+# (temiz checkout), ama yerelde bir kez AppImage üreten geliştiricide kapı
+# kapanır. Aynı gerekçe tests/test_icon_names.py::SKIP_DIRS için de geçerli.
+SKIP = {".git", ".venv", "venv", "build", "dist", "AppDir"}
 
 
-def classify(handler):
+# Bir handler'ın ÜSTÜNDE ya da İÇİNDE bu işaret geçiyorsa, geniş bırakılması
+# incelenmiş ve bilinçli olarak kabul edilmiş demektir. Gerekçe her zaman
+# aynı satırdaki serbest metinde durur. İşaret CI kapısını GEVŞETMEZ:
+# `--check` yalnızca parmak izi sayımına ve bare `except`'e bakar, sınıfa
+# değil. Amacı, incelenmiş kararların "incelenmemiş borç" listesinde
+# görünmeye devam etmesini önlemek.
+AUDIT_MARKER = "EXCEPTION-AUDIT: bilinçli geniş"
+
+_LOG_METHODS = {"debug", "info", "warning", "error", "exception", "critical"}
+
+
+def _logs(handler):
+    """Handler gövdesinde bir logger çağrısı var mı.
+
+    Eskiden `ast.dump` metninde "get_logger"/"logging" aranıyordu; bu, kod
+    tabanının KENDİ yardımcılarını (`_log().error(...)`, modül düzeyindeki
+    `logger.warning(...)`) göremiyor ve loglayan sınırları "daraltılması
+    gerekli" kutusuna düşürüyordu. Artık çağrı biçimine bakılıyor.
+    """
+    for node in ast.walk(handler):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr in _LOG_METHODS
+        ):
+            return True
+    return False
+
+
+def classify(handler, source_lines=()):
     dumped = ast.dump(ast.Module(body=handler.body, type_ignores=[]))
+    start = max(handler.lineno - 6, 1)
+    end = handler.end_lineno or handler.lineno
+    span = "\n".join(source_lines[start - 1:end])
+    if AUDIT_MARKER in span:
+        return "Bilinçli geniş; incelendi ve kabul edildi"
     if len(handler.body) == 1 and isinstance(handler.body[0], ast.Pass):
         return "Kaldırılması veya loglanması gerekli"
     if any(isinstance(node, ast.Raise) for node in ast.walk(handler)):
         return "Yeniden fırlatılan sınır"
-    if "get_logger" in dumped or "logging" in dumped:
+    if _logs(handler):
         return "Loglanan sınır"
     if "toast" in dumped or "schedule_once" in dumped:
         return "Kullanıcıya gösterilen; daraltılması incelenmeli"
@@ -40,9 +79,11 @@ def inventory():
         if "tests" in path.parts:
             continue
         try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
+            source = path.read_text(encoding="utf-8")
+            tree = ast.parse(source)
         except (OSError, UnicodeError, SyntaxError):
             continue
+        source_lines = source.splitlines()
         parents = []
 
         class Visitor(ast.NodeVisitor):
@@ -82,7 +123,7 @@ def inventory():
                                 if node.type is None
                                 else node.type.id
                             ),
-                            "classification": classify(node),
+                            "classification": classify(node, source_lines),
                             "fingerprint": hashlib.sha256(
                                 identity.encode("utf-8")
                             ).hexdigest(),

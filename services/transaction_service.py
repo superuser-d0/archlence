@@ -1,3 +1,6 @@
+import sqlite3
+
+from utils.errors import ArchlenceError
 from database.db import (
     COMPLETED_TX, COMPLETED_TX_T, get_connection, adjust_account_balance,
 )
@@ -238,7 +241,20 @@ class TransactionService:
                         "UPDATE transactions SET status = 'completed' WHERE id = ?",
                         (row["id"],),
                     )
-                except Exception:
+                except (sqlite3.Error, ValueError, ArchlenceError):
+                    # Gerçekçi küme: `adjust_account_balance` hesap bulunamazsa
+                    # ValueError, veri bütünlüğü bozuksa ArchlenceError türevi
+                    # (FinancialDataIntegrityError) fırlatır; UPDATE ise
+                    # sqlite3.Error. Bir satırın yerleşememesi KALAN vadesi
+                    # gelmiş işlemleri iptal etmemeli, o yüzden burada durup
+                    # döngü sürüyor — ama artık SESSİZ değil: bu blok eskiden
+                    # hiç loglamıyordu, yani kullanıcının kirası/maaşı hiç
+                    # işlenmeden geçtiğinde ortada tek bir iz kalmıyordu.
+                    from utils.logging_config import get_logger
+                    get_logger().exception(
+                        f"Vadesi gelen işlem yerleştirilemedi (id={row['id']}), "
+                        "kalan işlemler sürdürülüyor"
+                    )
                     cursor.execute("ROLLBACK TO SAVEPOINT settle_tx")
                 else:
                     cursor.execute("RELEASE SAVEPOINT settle_tx")
