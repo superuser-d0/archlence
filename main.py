@@ -1940,8 +1940,14 @@ class ArchlenceApp(
                 "positive",
             )
         return (
+            # `f` ÖNEKİ YOK, bilerek: `{month_end}` çeviriden SONRA
+            # doldurulmalı. Tutar önce enterpole edilirse ortaya her seferinde
+            # farklı bir dize çıkar, sözlükteki statik şablonla eşleşmez ve
+            # İngilizce arayüzde Türkçe metin görünür (v0.0.4'te düzeltilen
+            # hata buydu). Eski `f` öneki etkisizdi — bu parçada hiç
+            # placeholder yok — ama yanıltıcıydı.
             translate(
-                f"Son 3 ayın istatistiğine göre bu ay sonunda bakiyenizin yaklaşık "
+                "Son 3 ayın istatistiğine göre bu ay sonunda bakiyenizin yaklaşık "
                 "{month_end} olması bekleniyor."
             ).format(month_end=month_end),
             "neutral",

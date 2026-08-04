@@ -185,7 +185,6 @@ def start_data_warmup(callback=None):
         generation = _warmup_generation
 
     def publish(summary, accounts, recent, result):
-        global _asset_data_cache
         with _warmup_lock:
             if generation != _warmup_generation:
                 return
