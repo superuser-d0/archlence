@@ -448,7 +448,8 @@ class TransactionMixin:
                 dialog.ids.container.do_layout()
                 dialog.height = dialog.ids.container.height
             except Exception:
-                pass
+                from utils.logging_config import get_logger
+                get_logger().exception("İşlem diyaloğu yeniden yerleşimi (2. aşama) tamamlanamadı")
 
         def _stage1(dt):
             if getattr(self, "dialog", None) is not dialog:
@@ -458,7 +459,8 @@ class TransactionMixin:
                 dialog.content_cls.do_layout()
                 dialog.update_height()
             except Exception:
-                pass
+                from utils.logging_config import get_logger
+                get_logger().exception("İşlem diyaloğu yeniden yerleşimi (1. aşama) tamamlanamadı")
             Clock.schedule_once(_stage2, 0)
 
         Clock.schedule_once(_stage1, 0)
@@ -560,7 +562,7 @@ class TransactionMixin:
         if menu is not None:
             try:
                 menu.dismiss()
-            except Exception:
+            except AttributeError:
                 pass
 
     def on_recurring_freq_active(self, segmented_control, segmented_item):
@@ -688,7 +690,7 @@ class TransactionMixin:
         if menu is not None:
             try:
                 menu.dismiss()
-            except Exception:
+            except AttributeError:
                 pass
 
     def open_account_menu(self, *args):
@@ -885,7 +887,7 @@ class TransactionMixin:
         if dlg is not None:
             try:
                 dlg.dismiss()
-            except Exception:
+            except AttributeError:
                 pass
 
     def on_category_select(self, category):
@@ -994,7 +996,7 @@ class TransactionMixin:
         def success_callback(dt):
             try:
                 submitted_dialog.dismiss()
-            except Exception:
+            except AttributeError:
                 pass
             # PERFORMANS (kullanıcı raporu: "her yeni işlem eklendiğinde aşırı
             # kasıyor"): bu dört ağır tazeleme TEK Clock karesinde peş peşe
@@ -1127,7 +1129,7 @@ class TransactionMixin:
         if existing is not None:
             try:
                 existing.dismiss()
-            except Exception:
+            except AttributeError:
                 pass
 
         if getattr(self, "selected_type", "expense") == "income":

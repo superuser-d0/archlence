@@ -133,8 +133,41 @@ jobs:
         run: >-
           python -m flake8 .
           --select=F821,F822,F823,E722
-          --exclude=.venv,venv,build,dist,.git
+          --exclude=.venv,venv,build,dist,.git,AppDir
           --count
+
+      # Bilgilendirici, BLOKLAMAYAN pyflakes taraması (docs/ROADMAP.md Faz 0).
+      # Neden bloklamıyor: hâlâ 122 mevcut ihlal var (2026-08-04'te ölçüldü;
+      # 2026-07-27'de 117'ydi). Şimdi zorunlu yapmak, değişiklikle ilgisi
+      # olmayan sebeplerle her PR'ı kırardı. Amacı sayıyı GÖRÜNÜR kılmak:
+      # çıktı iş özetine yazılır, kimsenin log kazması gerekmez.
+      # Borç eritildikçe `continue-on-error` kaldırılıp zorunlu yapılmalıdır.
+      - name: Report pyflakes backlog (informational)
+        continue-on-error: true
+        run: |
+          set +e
+          python -m flake8 . --select=F \
+            --exclude=.venv,venv,build,dist,.git,AppDir > pyflakes.txt
+          total=$(wc -l < pyflakes.txt)
+          {
+            echo "### Pyflakes backlog: ${total} finding(s)"
+            echo ""
+            echo "Informational only — this step never fails the build."
+            echo ""
+            echo '```'
+            grep -oE 'F[0-9]+' pyflakes.txt | sort | uniq -c | sort -rn
+            echo '```'
+            echo ""
+            echo "<details><summary>Full list</summary>"
+            echo ""
+            echo '```'
+            cat pyflakes.txt
+            echo '```'
+            echo ""
+            echo "</details>"
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat pyflakes.txt
+          exit 0
 
       - name: Prevent new broad or silent exception handlers
         run: >-

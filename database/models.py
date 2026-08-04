@@ -18,6 +18,9 @@ class AssetPriceCache:
     price: float
     asset_type: str
     updated_at: datetime
+    # Fiyatı hangi sağlayıcı verdi. Varsayılan, sütun eklenmeden önce yazılmış
+    # satırlar için doğru olan değer: o dönemde tek sağlayıcı yfinance'ti.
+    source: str = "Yahoo Finance"
 
 
 class PriceFreshness(str, Enum):
@@ -41,6 +44,9 @@ CREATE TABLE IF NOT EXISTS asset_price_cache (
     symbol TEXT PRIMARY KEY,
     price REAL NOT NULL,
     asset_type TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    -- NULL olabilir: sütun eklenmeden önceki satırlar. Okuma tarafı bunu
+    -- "Yahoo Finance"a çözer (o dönemde tek sağlayıcı oydu).
+    source TEXT
 )
 """

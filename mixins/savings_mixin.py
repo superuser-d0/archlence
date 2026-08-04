@@ -84,12 +84,21 @@ class SavingsMixin:
             toast(_t(f"\u2714 '{name}' hedefi eklendi!"))
             self.sg_dialog.dismiss()
             # Refresh the dashboard cards
+            #
+            # DÜZELTME (girinti hatası): `safe_refresh_charts()` eskiden
+            # `except` bloğunun İÇİNDE, işlevsiz bir `pass`'ten sonra
+            # duruyordu. Yani grafikler yalnızca hedef kartlarının çizimi
+            # BAŞARISIZ olduğunda yenileniyordu; normal akışta hiç
+            # yenilenmiyordu — kullanıcı hedef ekledikten sonra grafikleri
+            # güncel görmüyordu. Çizim başarılı da olsa başarısız da olsa
+            # yenileme çalışmalı, o yüzden try/except'in DIŞINA alındı.
             try:
                 if self.root and 'goals_container' in self.root.ids:
                     self.render_savings_goals(0)  # balance=0 placeholder; real fetch below
-            except Exception:
-                pass
-                self.safe_refresh_charts()
+            except (AttributeError, KeyError):
+                from utils.logging_config import get_logger
+                get_logger().exception("Hedef kartları çizilemedi")
+            self.safe_refresh_charts()
         except ValueError:
             toast(_t("L\u00fctfen ge\u00e7erli bir hedef tutar girin!"))
 
@@ -265,7 +274,8 @@ class SavingsMixin:
                         if self.root and 'confetti_overlay' in self.root.ids:
                             self.root.ids.confetti_overlay.burst()
                     except Exception:
-                        pass
+                        from utils.logging_config import get_logger
+                        get_logger().exception("Hedef kutlama animasyonu oynatılamadı")
                     msg = _t("\U0001F389\U0001F389\U0001F389 Hedefe ula\u015ft\u0131n!") if top == 100 else _t(f"\U0001F389 %{top} tamamland\u0131!")
                     toast(msg)
             except ValueError:
@@ -314,7 +324,8 @@ class SavingsMixin:
                 self.safe_refresh_charts()
                 self.render_accounts()
             except Exception:
-                pass
+                from utils.logging_config import get_logger
+                get_logger().exception("Hedef silindikten sonra grafik/kartlar tazelenemedi")
             toast(_t("Bakiye hesaba aktarıldı ve hedef silindi.") if refund else _t("Hedef silindi."))
             return True
 

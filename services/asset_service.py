@@ -23,9 +23,12 @@ burada ₺'ye çevrilmeden K/Z hesabı (services/asset_service.calculate_pnl) TL
 fiyatını USD güncel fiyatla kıyaslar ve tamamen yanlış sonuç üretirdi.
 """
 
+import sqlite3
 import threading
 import time
 from datetime import date
+
+from utils.errors import ArchlenceError
 
 
 def _log():
@@ -182,7 +185,6 @@ def start_data_warmup(callback=None):
         generation = _warmup_generation
 
     def publish(summary, accounts, recent, result):
-        global _asset_data_cache
         with _warmup_lock:
             if generation != _warmup_generation:
                 return
@@ -211,6 +213,11 @@ def start_data_warmup(callback=None):
                 publish(summary, accounts, recent, res)
 
             fetch_active_non_try_total(on_non_try)
+        # BİLEREK GENİŞ (incelendi, daraltılmayacak): aşağıdaki yorumun
+        # gerekçesi tam da budur — bu blok, ne olursa olsun bir terminal
+        # snapshot yayımlanmasını GARANTİ eder. Daraltmak, listelenmeyen bir
+        # hata türünde `publish` çağrısının hiç yapılmaması ve arayüzün
+        # sonsuza kadar spinner'da kalması demek olurdu.
         except Exception as e:
             _log().error("Data warm-up failed: %s", e, exc_info=True)
             # Hata durumunda da terminal snapshot yayımlanır; UI spinner/polling
@@ -297,7 +304,7 @@ def _fetch_usdtry_rate() -> float | None:
                 _usdtry_cache["time"] = now
                 return rate
     except Exception:
-        pass
+        _log().exception("USD/TRY kuru çekilemedi")
     return _usdtry_cache["rate"]  # varsa bayat değeri döndür, yoksa None
 
 
@@ -409,8 +416,19 @@ def fetch_current_price(asset_code: str, asset_type: str) -> float | None:
                     if asset_type in ("Altın", "Kripto", "Crypto"):
                         return _normalize_to_try(price, "Altın" if asset_type == "Altın" else "Kripto")
                     return price
-        except Exception:
-            pass
+        except Exception as exc:
+            # EXCEPTION-AUDIT: bilinçli geniş — yfinance + requests +
+            # pandas, üç ayrı üçüncü parti yüzeyi tek blokta.
+            # BİLEREK geniş: tek blokta üç ayrı üçüncü parti yüzeyi var —
+            # yfinance'in `YFException` ailesi, altındaki requests/OSError ve
+            # üstündeki pandas indeksleme. Kümeyi eksik yazmak, kütüphane
+            # sürümü değişince aday-deneme döngüsünü sessizce kırar.
+            # Sessiz `pass` yerine debug'a düşürüldü: aday sembollerin
+            # ELENMESİ normal akış, hata değil — ama fiyat hiç bulunamadığında
+            # nedenin izi kalmalı.
+            _log().debug(
+                "%s için '%s' adayı fiyat vermedi: %r",
+                asset_code, ticker_sym, exc)
 
     return None
 
@@ -456,7 +474,11 @@ def fetch_bist100_prices(codes: list, callback) -> None:
                     price = float(close[sym])
                     if not math.isnan(price) and not math.isinf(price):
                         prices[code] = price
-                except Exception:
+                except (KeyError, IndexError, TypeError, ValueError):
+                    # Ölçülen pandas yüzeyi: sembol satırda yoksa KeyError;
+                    # yf.download TEK ticker'da Series yerine skaler döndüğünde
+                    # IndexError ("invalid index to scalar variable");
+                    # hücre None ise TypeError; metin ("n/a") ise ValueError.
                     pass
         except Exception as e:
             _log().error("BIST100 fiyat çekme hatası: %s", e, exc_info=True)
@@ -653,6 +675,10 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                 if enriched:
                     _store_cached_portfolio(enriched)
                 callback(enriched)
+            # EXCEPTION-AUDIT: bilinçli geniş — izole alt süreç sınırı.
+            # BİLEREK GENİŞ (incelendi): izole alt süreç sınırı. Aşağıdaki
+            # `callback(stale or [])`'in HER durumda çalışması gerekiyor;
+            # daraltmak, arayüzün sonuç beklerken asılı kalmasına yol açar.
             except Exception as exc:
                 _log().error("İzole fiyat worker hatası: %s", exc, exc_info=True)
                 callback(stale or [])
@@ -750,6 +776,14 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                         price = _last_close(close_df, sym)
                         if price is not None:
                             raw_prices[sym] = price
+            # BİLEREK GENİŞ (incelendi): tek blokta ÜÇ farklı üçüncü parti
+            # yüzeyi var — yfinance (kendi `YFException` ailesi), altında
+            # requests (OSError ailesi) ve pandas indeksleme (`data["Close"]`,
+            # `_last_close`: KeyError/IndexError/TypeError, bozuk frame'de
+            # AttributeError). Bu kümeyi eksik yazmak, şu an nazikçe bozulup
+            # boş fiyatla devam eden yolu thread ölümüne çevirir; kütüphane
+            # sürümü değiştiğinde de sessizce kırılır. Hata zaten loglanıyor
+            # ve akış eksik fiyatlarla güvenle sürüyor.
             except Exception as e:
                 _log().error("Portföy fiyat çekme hatası: %s", e, exc_info=True)
 
@@ -817,6 +851,13 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                     try:
                         item_callback(entry)
                     except Exception:
+                        # EXCEPTION-AUDIT: bilinçli geniş — garantili
+                        # tamamlanma sınırı (hata dalının kendisi).
+                        # BİLEREK geniş: burası zaten HATA dalı. Tek amacı
+                        # aşağıdaki final `callback(fallback)`'e ulaşmak —
+                        # tek bir satırın callback'i patlarsa arayüz sonsuza
+                        # kadar spinner'da kalır. Daraltmanın kazancı burada
+                        # zararına dönüşür.
                         pass
             try:
                 callback(fallback)
@@ -1054,7 +1095,13 @@ def fetch_active_non_try_total(callback, progress_callback=None) -> None:
     def _load_assets():
         try:
             assets = get_active_non_try_assets()
-        except Exception as exc:
+        except (sqlite3.Error, OSError, ArchlenceError) as exc:
+            # `get_active_non_try_assets` yalnızca DB okur ve çözer: sorgu
+            # hataları sqlite3.Error, veri dizini erişimi OSError, anahtar/
+            # şifre çözme sorunları ArchlenceError türevi (KeyUnavailableError,
+            # DecryptionError) — bunlar satır içindeki (ValueError, TypeError)
+            # korumasına TAKILMAZ, buraya kadar gelir.
+            _log().exception("TL dışı varlık listesi okunamadı")
             callback({"total": 0.0, "asset_count": 0, "priced_count": 0,
                       "cached_count": 0, "complete": True, "error": str(exc)})
             return

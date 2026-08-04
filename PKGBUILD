@@ -1,7 +1,7 @@
 # Maintainer: Archlence contributors
 
 pkgname=archlence-bin
-pkgver=0.0.4
+pkgver=0.0.5
 pkgrel=1
 pkgdesc="Local-first personal finance manager (prebuilt AppImage)"
 arch=('x86_64')
@@ -19,10 +19,22 @@ source=(
   "LICENSE::https://raw.githubusercontent.com/superuser-d0/archlence/v${pkgver}/LICENSE"
 )
 
-# DİKKAT: Bu hash'ler henüz v0.0.4'e güncellenmedi — release.yml v0.0.4
-# varlıklarını yayınlayana kadar gerçek değerler bilinemez. Etiket push
-# edilip GitHub Release + SHA256SUMS.txt yayınlandıktan SONRA, `updpkgsums`
-# (pacman-contrib) veya SHA256SUMS.txt'ten elle güncellenmeli.
+# SÜRÜM YAYINLANDIKTAN SONRA DOLDURULACAK — şu an bilerek geçersiz.
+#
+# `pkgver` 0.0.5'e yükseltildi; yukarıdaki `source` dizisi artık HENÜZ VAR
+# OLMAYAN v0.0.5 varlıklarını gösteriyor, dolayısıyla gerçek hash'ler
+# hesaplanamaz. (v0.0.4'ünkiler biliniyordu ve doğrulanmıştı, ama başka bir
+# etiketin dosyalarına aitler — burada tutmak yanlış sürümü doğrulamak olurdu.)
+#
+# `v0.0.5` etiketi push edilip GitHub Release yayınlandıktan SONRA, depo
+# kökünde:
+#     updpkgsums          # pacman-contrib
+# ya da release'in SHA256SUMS.txt'inden elle girilir. v0.0.4'te izlenen ve
+# tekrarlanması önerilen yöntem: AppImage'ı indirip sha256'sını DOĞRUDAN
+# hesaplayıp yayınlanan SHA256SUMS.txt ile karşılaştırmak; diğer üçünü hem
+# `git cat-file blob v0.0.5:<yol>` ile hem raw.githubusercontent'ten alıp
+# eşleştirmek. Sonuç `makepkg --verifysource` ile (depo dışında bir dizinde)
+# doğrulanmalı.
 #
 # BİLEREK geçersiz (tamamı sıfır) placeholder kullanılıyor, 'SKIP' DEĞİL:
 # 'SKIP' makepkg'de doğrulamayı tamamen KAPATIR ve indirilen her dosyayı

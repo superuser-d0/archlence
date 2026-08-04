@@ -69,7 +69,13 @@ class CalculatorMixin:
                             evaluate_calculator_expression(current_text)
                         )
                         self.calc_input.text = result
-                    except Exception:
+                    except (ValueError, SyntaxError, ArithmeticError, TypeError):
+                        # Ölçülen küme: bozuk ifade `SyntaxError` ("2+"),
+                        # sıfıra bölme `ZeroDivisionError` (ArithmeticError
+                        # türevi), izin verilmeyen/alan dışı işlem ise
+                        # `ValueError` (sqrt(-1), log(0), 2**99999, boş girdi).
+                        # Daha genişini yakalamak, hesap makinesinin kendi
+                        # kodundaki bir hatayı da "Hata" metnine çevirirdi.
                         self.calc_input.text = _t("Hata")
                 else:
                     self.calc_input.text = current_text + btn_text

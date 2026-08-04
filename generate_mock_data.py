@@ -25,6 +25,7 @@ from database.db import (
     update_debt_auto_pay, update_debt_last_auto_pay, update_debt_progress,
 )
 from utils.crypto import encrypt
+from utils.errors import ArchlenceError
 
 random.seed(2026)
 
@@ -232,7 +233,12 @@ def main():
     for ym, t, enc_amt in cursor.fetchall():
         try:
             amt = float(decrypt(enc_amt, SECRET_KEY))
-        except Exception:
+        except (ArchlenceError, TypeError, ValueError):
+            # Ölçüldü: `decrypt` fail-closed ve TİPLİ — bozuk AEAD zarfı
+            # IntegrityVerificationError, base64 olmayan legacy veri
+            # DecryptionError, anahtar sorunu KeyUnavailableError; üçü de
+            # ArchlenceError türevi. `float()` tarafı: None -> TypeError,
+            # boş/sayı olmayan düz metin -> ValueError.
             continue
         monthly.setdefault(ym, [0.0, 0.0])
         monthly[ym][0 if t == "income" else 1] += amt

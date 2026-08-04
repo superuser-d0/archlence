@@ -90,12 +90,39 @@ guarantees established earlier.
    (real provider succeeds; genuinely broken provider fails loudly without
    the flag; degrades gracefully with it).
 
-3. **Smoke-test the built `.exe` in CI.** Once (2) removes the silent
-   fallback, add a step after the PyInstaller build that launches the
-   packaged executable and verifies it actually opens a window and exits
-   cleanly, rather than only checking that `dist/Archlence/` contains
-   files. Depends on (2) — testing a fallback that's designed to hide
-   failures proves nothing.
+3. ~~**Smoke-test the built `.exe` in CI.**~~ **Done** — this entry was
+   stale: three launch smoke tests already existed and go further than the
+   text above described. `build-windows.yml` launches the raw
+   `dist/Archlence/Archlence.exe`, and separately installs the Inno Setup
+   package silently, launches the installed copy, then uninstalls and
+   verifies removal. `build-linux.yml` runs the AppImage under `xvfb-run`
+   and requires `timeout` to be the thing that kills it (exit 124), i.e.
+   the process was still alive.
+   - **Real gap found and closed while verifying this.** Only the raw-`.exe`
+     step checked `crash.log`; the installer and AppImage steps checked
+     *only* that the process stayed alive. An app that starts, catches an
+     exception, logs it and keeps running with a broken screen therefore
+     passed two of the three packaging paths. Both now compare `crash.log`
+     the same way the raw-`.exe` step already did.
+   - Measured, not assumed: `crash.log` is opened (empty) at `main.py`
+     import time, so it *always exists* — checking for the file's presence
+     would fail every run. The check is "non-empty"/"grew". Verified both
+     directions on a real run: healthy launch leaves it at 0 bytes; an
+     injected unhandled exception writes 91 bytes and is detected.
+   - The Linux step was validated by extracting its body from the YAML and
+     running it verbatim against a wrapper standing in for the AppImage:
+     healthy run exits 0, and a process that stays alive but writes to
+     `crash.log` now exits 1 — a case the previous version passed.
+   - **Not verified here:** the Windows PowerShell changes. They mirror the
+     already-proven raw-`.exe` step line for line, but no Windows runner was
+     available in this environment; the first CI run on Windows is their
+     real acceptance test.
+   - Still open, deliberately: none of the three asserts that a window
+     actually *appeared* (they infer it from "process alive + nothing
+     logged"). On Windows `$proc.MainWindowHandle` would assert it directly;
+     on Linux it needs `xdotool`/`x11-utils`, which the runner does not
+     install today. Left alone rather than added blind — an unverifiable
+     assertion that misfires would break every build for a non-issue.
 
 4. ~~**Move user data out of the install directory, via `platformdirs`.**~~
    **Core done** — `database/db.py:6-7` derived `DB_NAME` from `BASE_DIR`
@@ -204,25 +231,69 @@ guarantees established earlier.
      the actual point of the whole item, tested explicitly per failure
      mode in `tests/test_aead_crypto.py`, not just a happy-path round
      trip.
-   - [x] Generate a random key per install; store it **(interface + local
-     reference implementation done, OS keystore adapter still open)**.
-     `utils/key_provider.py::KeyProvider` is an abstract `get_or_create_key()
-     -> bytes` contract, deliberately independent of *where* the key
-     lives. `FileKeyProvider` is the reference implementation (generates
-     32 random bytes on first use, persists to a given path, mode `0600`)
-     — proves the contract works without needing an OS keystore yet. The
-     Windows DPAPI/Credential Manager adapter (item 6) implements the same
-     interface later; nothing above this layer needs to change when it
-     lands.
+   - [x] Generate a random key per install; store it — **done, including
+     the OS keystore adapters.** `utils/key_provider.py::KeyProvider` is an
+     abstract `get_or_create_key() -> bytes` contract, deliberately
+     independent of *where* the key lives. `FileKeyProvider` (32 random
+     bytes on first use, mode `0600`) is the fallback, not the only
+     implementation:
+     - `create_platform_key_provider()` selects per platform —
+       `DpapiKeyProvider` on Windows, `KeyringKeyProvider` (Secret
+       Service/KWallet) on Linux, owner-only file everywhere else.
+     - `MigratingKeyProvider` wraps the pair so an existing file-based key
+       is moved into the OS keystore on first use; `KeyProtectionStatus`
+       reports which mechanism is actually protecting the key.
+     - **Verified empirically on this Linux dev machine:** a fresh profile
+       produced a working key with *no* `encryption.key` file on disk —
+       the key went straight into the Secret Service keystore. The earlier
+       "OS keystore adapter still open" note was stale.
+     - Still needs a real Windows box to confirm the DPAPI path end to end
+       (same class of check as item 3).
    - [x] Prefix ciphertext with a version byte + algorithm id + nonce —
      done, see envelope format above.
    - [x] On decrypt failure, surface the error — done in the new module
      (see above), and **now live in the app's actual decrypt path for new
      data** — see the integration note below. Still fail-open for data
      that isn't in the new format, deliberately (see below).
-   - [ ] Write an explicit migration for existing databases (re-encrypt
+   - [x] Write an explicit migration for existing databases (re-encrypt
      every row under the new scheme). Take a DB backup immediately before
-     running it. **Not started** — deliberately deferred, see below.
+     running it. — **Done.** The "not started" note below was stale; the
+     work exists and is wired end to end:
+     - `services/crypto_migration_service.py` —
+       `inspect_legacy_encryption()` is a read-only inventory (never
+       mutates, never creates a backup); `migrate_legacy_encryption()`
+       takes a verified backup first, then migrates inside a single
+       `BEGIN IMMEDIATE` transaction, re-decrypting each new value to
+       verify it before committing, and refuses to commit if any legacy
+       field remains. Records itself in `schema_migrations`, so re-running
+       is a no-op.
+     - Reachable by the user: Data & Privacy → migration entry
+       (`mixins/migration_mixin.py::_on_migration_selected`), which shows
+       the inventory *before* asking for a passphrase and writes the
+       backup to `data_dir()/backups/pre-migration-<timestamp>.backup`.
+     - **Acceptance-checked on a realistic database, not just unit
+       fixtures:** a full mock profile (1014 records / 2030 encrypted
+       fields across every encrypted table) was rewritten into legacy CBC
+       and migrated back — 0.8 s, zero fields left in the old format, zero
+       plaintexts altered, second run idempotent.
+     - **Coverage gap found and closed while verifying this.** The
+       existing `tests/test_crypto_migration_service.py` proves the
+       *mechanism* (backup-first, rollback, idempotence) but only over one
+       table and two fields — deliberately breaking the migration so it
+       silently skipped `savings_goals` left that suite fully green. New
+       `tests/test_crypto_migration_coverage.py` asserts that every table
+       in `ENCRYPTED_FIELDS` is actually migrated and that plaintext
+       (Turkish characters, decimals, long text, a value literally
+       containing `AEADv1`) survives byte-for-byte; it fails on that same
+       injected gap. It also pins `ENCRYPTED_FIELDS` itself, so adding an
+       encrypted column without extending the migration breaks the build.
+     - **`ENCRYPTED_FIELDS` completeness was measured, not assumed:** every
+       table/column in a generated profile was scanned for AEAD envelopes
+       and cross-checked against the list. All 13 listed fields are
+       genuinely encrypted, and no column outside the list holds encrypted
+       data. (`installment_plans` is created lazily by
+       `transaction_service`, so it is absent from a fresh schema —
+       `_candidate_fields()` already handles a missing table correctly.)
    - Depends on (4): this touches the same `finance.db` the data-directory
      move touches. Do both in the same migration window — moving the file
      and re-encrypting it separately doubles the chance of a user's data
@@ -271,17 +342,19 @@ guarantees established earlier.
        failed immediately when the integration landed; fixed by warming
        `_get_key`/`_get_aead_key` directly instead of relying on an
        indirect round trip.
-   - **What's still deliberately NOT done, and why:** no bulk re-encryption
-     of existing rows. Old data stays in legacy CBC format until something
-     naturally rewrites it — nothing breaks in the meantime, since
-     `decrypt()` handles both formats indefinitely. A real migration script
-     (re-encrypt every row, with a DB backup step first) is still its own,
-     separate, deliberate operation — not something to do as a side effect
-     of a read. Also still open: `decrypt()`'s fail-open behavior itself
-     (returning an encrypted-data placeholder instead of raising) is unchanged for
-     both formats — flipping that touches the same ~55 call chains the
-     Phase 2 exception-narrowing note already flagged as unsafe to change
-     blind without a way to verify GUI behavior here.
+   - **Superseded note (kept for history):** this section used to say bulk
+     re-encryption was deliberately not done and that old rows would stay
+     in legacy CBC until something naturally rewrote them. That is no
+     longer accurate — the explicit, user-triggered migration described
+     above exists, is backup-first, and is covered by tests. Old data is
+     still *readable* indefinitely (`decrypt()` handles both formats), so
+     the migration remains opt-in rather than automatic, which was always
+     the intent.
+   - **What is still genuinely open here:** `decrypt()`'s fail-open
+     behavior (returning an encrypted-data placeholder instead of raising)
+     is unchanged for both formats — flipping that touches the same ~55
+     call chains the Phase 2 exception-narrowing note already flagged as
+     unsafe to change blind without a way to verify GUI behavior here.
 
 6. ~~**PIN hashing: Argon2id**~~ **Argon2id done** — [PR #14](https://github.com/superuser-d0/archlence/pull/14).
    **Attempt throttling/lockout still open.** `security/security_service.py`

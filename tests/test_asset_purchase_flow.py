@@ -78,6 +78,51 @@ class AssetPurchaseAtomicityTest(AccountFixtureMixin, unittest.TestCase):
                 )
         self.assertEqual(self._counts(), (0, 0))
 
+    def test_existing_asset_does_not_change_wallet_or_create_expense(self):
+        from services.asset_purchase_service import AssetPurchaseService
+
+        result = AssetPurchaseService.create_purchase(
+            asset_name="Eski Altın",
+            asset_code="GC=F",
+            asset_type="Altın",
+            purchase_price=100.0,
+            quantity=2.0,
+            deduct_from_balance=False,
+        )
+
+        self.assertEqual(self._counts(), (1, 0))
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            balance = conn.execute(
+                "SELECT balance FROM accounts WHERE id=?", (self.account_id,)
+            ).fetchone()[0]
+            ledger_count = conn.execute(
+                "SELECT COUNT(*) FROM balance_events "
+                "WHERE source='asset_purchase'"
+            ).fetchone()[0]
+        self.assertEqual(balance, 10_000.0)
+        self.assertEqual(ledger_count, 0)
+        self.assertIsNone(result["transaction_id"])
+        self.assertFalse(result["deducted_from_balance"])
+
+    def test_existing_asset_can_be_added_without_any_wallet_account(self):
+        from services.asset_purchase_service import AssetPurchaseService
+
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            conn.execute("DELETE FROM accounts")
+            conn.commit()
+
+        result = AssetPurchaseService.create_purchase(
+            asset_name="Eski Bitcoin",
+            asset_code="BTC-USD",
+            asset_type="Kripto",
+            purchase_price=100.0,
+            quantity=1.0,
+            deduct_from_balance=False,
+        )
+
+        self.assertEqual(self._counts(), (1, 0))
+        self.assertFalse(result["deducted_from_balance"])
+
     def test_frozen_account_is_rejected_before_asset_insert(self):
         from services.account_service import AccountService
         from services.asset_purchase_service import AssetPurchaseService
@@ -160,6 +205,28 @@ class AssetPurchaseUiBoundaryTest(unittest.TestCase):
             "başarılı", "başarısız",
         )
         self.assertEqual(app.background_tasks.submissions, 0)
+
+    def test_no_deduction_choice_reaches_service(self):
+        app = self._app()
+        with mock.patch(
+            "services.asset_purchase_service.AssetPurchaseService.create_purchase",
+            return_value={"asset_id": 1, "transaction_id": None},
+        ) as create_purchase, mock.patch(
+            "mixins.asset_mixin.Clock.schedule_once",
+            side_effect=lambda callback, _delay: callback(0),
+        ), mock.patch(
+            "mixins.asset_mixin.toast"
+        ), mock.patch(
+            "utils.logging_config.get_logger"
+        ):
+            app._submit_asset_purchase(
+                "Eski Altın", "GC=F", "Altın", 100, 1,
+                "başarılı", "başarısız", deduct_from_balance=False,
+            )
+
+        self.assertFalse(
+            create_purchase.call_args.kwargs["deduct_from_balance"]
+        )
 
     def test_dialog_content_height_reserves_title_and_actions(self):
         from mixins.asset_mixin import responsive_dialog_content_height

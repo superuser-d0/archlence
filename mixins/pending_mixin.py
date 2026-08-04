@@ -96,7 +96,8 @@ class PendingMixin:
         try:
             card = self.root.ids.pending_tx_card
             summary = self.root.ids.pending_tx_summary
-        except Exception:
+        except (AttributeError, KeyError):
+            # Kök widget henüz kurulmadıysa AttributeError, id yoksa KeyError.
             return
 
         if not self._pending_cache:
@@ -296,7 +297,7 @@ class PendingMixin:
         if self._pending_dialog is not None:
             try:
                 self._pending_dialog.dismiss()
-            except Exception:
+            except AttributeError:
                 pass
             self._pending_dialog = None
 

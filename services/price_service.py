@@ -80,6 +80,17 @@ def _parse_updated_at(value) -> datetime:
 
 def _ensure_cache(conn) -> None:
     conn.execute(ASSET_PRICE_CACHE_SCHEMA)
+    # `source` sütunu sonradan eklendi. Migration'ı BURAYA koymak gerekiyor,
+    # yalnızca init_db'ye değil: `CREATE TABLE IF NOT EXISTS` mevcut bir
+    # tabloda hiçbir şey yapmaz, dolayısıyla eski bir profilde aşağıdaki
+    # SELECT `source` yüzünden OperationalError verirdi. Fiyat cache'ine her
+    # erişim bu fonksiyondan geçtiği için tek güvenli kapı burası.
+    columns = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(asset_price_cache)")
+    }
+    if "source" not in columns:
+        conn.execute("ALTER TABLE asset_price_cache ADD COLUMN source TEXT")
 
 
 def _read_cache(symbols: Iterable[str]) -> dict[str, AssetPriceCache]:
@@ -93,7 +104,7 @@ def _read_cache(symbols: Iterable[str]) -> dict[str, AssetPriceCache]:
         _ensure_cache(conn)
         placeholders = ",".join("?" for _ in keys)
         rows = conn.execute(
-            "SELECT symbol, price, asset_type, updated_at "
+            "SELECT symbol, price, asset_type, updated_at, source "
             f"FROM asset_price_cache WHERE symbol IN ({placeholders})",
             tuple(keys),
         ).fetchall()
@@ -103,6 +114,9 @@ def _read_cache(symbols: Iterable[str]) -> dict[str, AssetPriceCache]:
                 price=float(row["price"]),
                 asset_type=row["asset_type"],
                 updated_at=_parse_updated_at(row["updated_at"]),
+                # Sütun eklenmeden önce yazılmış satırlarda NULL; o dönemde
+                # tek sağlayıcı yfinance olduğu için varsayılan doğru.
+                source=row["source"] or PRICE_SOURCE,
             )
             for row in rows
         }
@@ -113,7 +127,10 @@ def _read_cache(symbols: Iterable[str]) -> dict[str, AssetPriceCache]:
 def _store_cache(
     prices: dict[str, float], asset_types: dict[str, str],
     updated_at: datetime | None = None,
+    sources: dict[str, str] | None = None,
 ) -> None:
+    """`sources` verilmezse yfinance varsayılır — bu fonksiyonu doğrudan
+    çağıran testler ve eski çağrı yerleri için geriye dönük uyumlu."""
     if not prices:
         return
     from database.db import get_connection
@@ -124,16 +141,18 @@ def _store_cache(
         _ensure_cache(conn)
         conn.executemany(
             """INSERT INTO asset_price_cache
-                   (symbol, price, asset_type, updated_at)
-               VALUES (?, ?, ?, ?)
+                   (symbol, price, asset_type, updated_at, source)
+               VALUES (?, ?, ?, ?, ?)
                ON CONFLICT(symbol) DO UPDATE SET
                    price=excluded.price,
                    asset_type=excluded.asset_type,
-                   updated_at=excluded.updated_at""",
+                   updated_at=excluded.updated_at,
+                   source=excluded.source""",
             [
                 (
                     symbol, float(price),
                     normalize_asset_type(asset_types.get(symbol)), stamp,
+                    (sources or {}).get(symbol, PRICE_SOURCE),
                 )
                 for symbol, price in prices.items()
                 if price is not None and float(price) > 0
@@ -197,7 +216,10 @@ def get_price_status(
             if freshness is not PriceFreshness.UNAVAILABLE
             else None
         ),
-        source=PRICE_SOURCE,
+        # Sabit PRICE_SOURCE DEĞİL: bu fiyat yedek bir sağlayıcıdan gelmiş
+        # olabilir ve o durumda "Yahoo Finance" demek kullanıcıya yanlış
+        # kaynak göstermek olurdu.
+        source=row.source,
         updated_at=row.updated_at,
         cache_age_seconds=age,
         freshness=freshness,
@@ -282,6 +304,7 @@ def _schedule_callback(callback, prices) -> None:
     try:
         from kivy.clock import Clock
         Clock.schedule_once(lambda _dt: callback(prices), 0)
+    # EXCEPTION-AUDIT: bilinçli geniş — garantili teslim sınırı.
     except Exception:
         # Kivy başlatılmamış unit-test/CLI ortamında sonucu yine teslim et.
         callback(prices)
@@ -369,16 +392,57 @@ def fetch_prices_async(
             if needs_usdtry:
                 tickers.add("USDTRY=X")
             raw = _download_batch(sorted(tickers))
+            sources = dict.fromkeys(raw, PRICE_SOURCE)
+
+            # Birincil sağlayıcının VERMEDİĞİ tickerlar için yedeğe düş.
+            # `_download_batch` ağ hatasında da, "fiyat yok"ta da boş dönüyor
+            # (ikisini ayırmıyor) — bu yüzden ayrım aramak yerine basitçe
+            # eksikler yeniden deneniyor. Yedek yalnızca kripto ve dövizi
+            # kapsıyor; BIST ve GC=F için kaynak yok (bkz. price_providers).
+            missing = [
+                ticker for ticker in sorted(tickers) if ticker not in raw
+            ]
+            if missing:
+                from services.price_providers import fetch_fallback_prices
+
+                for ticker, (price, source) in fetch_fallback_prices(
+                    missing
+                ).items():
+                    raw[ticker] = price
+                    sources[ticker] = source
+                    logger.info(
+                        "%s fiyatı yedek sağlayıcıdan alındı: %s",
+                        ticker, source)
+
             usdtry = raw.get("USDTRY=X")
             live = {}
+            live_sources: dict[str, str] = {}
+
+            def _source_for(*used_tickers) -> str:
+                """Sembolün TL fiyatını üreten TÜM tickerların kaynağı.
+
+                Kripto ve altın tek bir fiyat değil, iki ticker'ın çarpımı
+                (ör. BTC-USD × USDTRY=X). İkisi farklı sağlayıcıdan geldiyse
+                tek bir ad yazmak yanıltıcı olurdu; ikisi de yazılır.
+                """
+                names = []
+                for used in used_tickers:
+                    name = sources.get(used)
+                    if name and name not in names:
+                        names.append(name)
+                return " + ".join(names) if names else PRICE_SOURCE
+
             for symbol, kind in new_due.items():
                 ticker = ticker_by_symbol[symbol]
                 value = raw.get(ticker)
                 if value is None:
                     continue
+                source = _source_for(ticker)
                 if kind == "CRYPTO":
+                    source = _source_for(ticker, "USDTRY=X")
                     value = value * usdtry if usdtry else None
                 elif kind == "FX_GOLD" and ticker == "GC=F":
+                    source = _source_for(ticker, "USDTRY=X")
                     value = (
                         value * usdtry / GRAMS_PER_TROY_OUNCE
                         if usdtry else None
@@ -388,7 +452,8 @@ def fetch_prices_async(
                         value *= multiplier
                 if value is not None and math.isfinite(value) and value > 0:
                     live[symbol] = float(value)
-            _store_cache(live, new_due, updated_at=now)
+                    live_sources[symbol] = source
+            _store_cache(live, new_due, updated_at=now, sources=live_sources)
             final.update(live)
         except Exception as exc:
             message = str(exc)

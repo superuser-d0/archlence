@@ -37,7 +37,7 @@ on:
         description: "Kurulum paketine gömülecek sürüm (etiketten türetilir)."
         required: false
         type: string
-        default: "0.0.4"
+        default: "0.0.5"
 
 # Arka arkaya push'ta eski derleme iptal edilsin; iki Windows runner'ını aynı
 # anda meşgul etmenin anlamı yok. PR'larda github.ref `refs/pull/<no>/merge`
@@ -276,6 +276,14 @@ jobs:
         shell: pwsh
         env:
           KIVY_GL_BACKEND: angle_sdl2
+        # crash.log kontrolü yukarıdaki ham .exe smoke testinde vardı, BURADA
+        # YOKTU: kurulu uygulama ayakta kalıp yakalanmış bir istisnayı
+        # loglarsa, "erken kapandı mı" kontrolü bunu göremez. Aynı boşluk
+        # build-linux.yml'deki AppImage testinde de vardı; ikisi de eşitlendi.
+        #
+        # DİKKAT: crash.log dosya olarak HER ZAMAN vardır (main.py import
+        # edilirken boş açılıyor), o yüzden varlığına değil BOYUT ARTIŞINA
+        # bakılıyor — ham .exe adımındaki kalıbın aynısı.
         run: |
           $installDir = Join-Path $env:RUNNER_TEMP "Archlence-Installed"
           $installer = (Resolve-Path "installer_output\ArchlenceSetup.exe").Path
@@ -291,13 +299,31 @@ jobs:
             Write-Host "::error::Kurulan Archlence.exe bulunamadı."
             exit 1
           }
+          $crashLogDir = python -c "from utils.app_paths import log_dir; print(log_dir())"
+          $crashLogPath = Join-Path $crashLogDir "crash.log"
+          $beforeSize = if (Test-Path $crashLogPath) { (Get-Item $crashLogPath).Length } else { 0 }
+
           $proc = Start-Process -FilePath $exe -WorkingDirectory $installDir -PassThru
           Start-Sleep -Seconds 10
-          if ($proc.HasExited) {
+
+          $exitedEarly = $proc.HasExited
+          if ($exitedEarly) {
             Write-Host "::error::Kurulu uygulama erken kapandı (exit=$($proc.ExitCode))."
+          }
+
+          $afterSize = if (Test-Path $crashLogPath) { (Get-Item $crashLogPath).Length } else { 0 }
+          $crashLogGrew = $afterSize -gt $beforeSize
+          if ($crashLogGrew) {
+            Write-Host "::error::Kurulu uygulama ayakta kaldı ama crash.log büyüdü — yakalanmış ama sessiz kalmış bir istisna olabilir. Son satırlar:"
+            Get-Content $crashLogPath -Tail 40
+          }
+
+          if (-not $exitedEarly) {
+            Stop-Process -Id $proc.Id -Force
+          }
+          if ($exitedEarly -or $crashLogGrew) {
             exit 1
           }
-          Stop-Process -Id $proc.Id -Force
           $uninstaller = Join-Path $installDir "unins000.exe"
           $remove = Start-Process -FilePath $uninstaller -Wait -PassThru `
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"

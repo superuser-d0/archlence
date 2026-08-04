@@ -211,7 +211,11 @@ class InsightsMixin:
             # "Hesaplanıyor..." durumunda kalmasına yol açıyordu.
             tab_manager = nav.ids.tab_manager
             current_tab = getattr(tab_manager, "current", None)
-        except Exception:
+        except (AttributeError, KeyError):
+            # Yalnızca `ids` erişimi korunuyor: kök/nav henüz kurulmadıysa
+            # AttributeError, id yoksa KeyError (ölçüldü). `current_tab=None`
+            # sonucu payload'ı erteler — bu, sekme bilinmiyorken doğru
+            # davranış, çünkü kartlar görünmeyen bir sekmede kurulmamalı.
             current_tab = None
         if current_tab != "home_tab":
             self._pending_insights_payload = payload
@@ -355,7 +359,10 @@ class InsightsMixin:
         try:
             recycler = self.root.ids.active_incomes_rv
             container = self.root.ids.active_incomes_container
-        except Exception:
+        except (AttributeError, KeyError):
+            # Kök widget henüz kurulmadıysa `.ids` erişimi AttributeError,
+            # id gerçekten yoksa KeyError verir (ölçüldü). Daha genişini
+            # yakalamak, KV'de adı değişmiş bir id'yi sessizce yutardı.
             return
 
         container.clear_widgets()
@@ -374,7 +381,8 @@ class InsightsMixin:
         try:
             recycler = self.root.ids.active_subscriptions_rv
             container = self.root.ids.recurring_candidates_container
-        except Exception:
+        except (AttributeError, KeyError):
+            # bkz. render_active_incomes'taki aynı gerekçe.
             return
 
         container.clear_widgets()
@@ -586,7 +594,8 @@ class InsightsMixin:
         """Olağandışı harcamaları uyarı kartı olarak basar (en fazla 5)."""
         try:
             container = self.root.ids.anomalies_container
-        except Exception:
+        except (AttributeError, KeyError):
+            # bkz. render_active_incomes'taki aynı gerekçe.
             return
 
         container.clear_widgets()

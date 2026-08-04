@@ -223,7 +223,7 @@ class BudgetMixin:
         if old is not None:
             try:
                 old.dismiss()
-            except Exception:
+            except AttributeError:
                 pass
 
         panel = Factory.BudgetPlannerPanel()
@@ -1008,7 +1008,10 @@ class BudgetMixin:
             if field is not None:
                 try:
                     field.text = ""
-                except Exception:
+                except AttributeError:
+                    # `text` StringProperty; "" her zaman geçerli. Kalan tek
+                    # yüzey, alanın MDTextField DIŞINDA (ör. salt-okunur
+                    # AliasProperty taşıyan) bir nesne tutması.
                     pass
 
         def rebuild_list(_dt):

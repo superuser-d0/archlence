@@ -27,6 +27,15 @@ dist/
 AppDir/
 *.AppImage
 
+# makepkg (PKGBUILD) çıktıları. Bunlar izlenmediği hâlde ağaçta kaldıklarında
+# TARAYAN ARAÇLARI yanıltıyorlar: `src/` altına açılan AppImage, KivyMD'nin
+# kendi kaynağının bir kopyasını taşıyor ve hem tests/test_icon_names.py hem
+# scripts/audit_exception_handlers.py bunu PROJE KAYNAĞI sanıp yanlış pozitif
+# üretti (ikisi de ayrıca `AppDir` hariç tutacak şekilde düzeltildi).
+pkg/
+src/
+*.pkg.tar.zst
+
 # Inno Setup çıktısı — installer/archlence.iss'ten CI her seferinde üretir
 installer_output/
 

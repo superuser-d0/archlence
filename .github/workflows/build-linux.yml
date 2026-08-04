@@ -111,12 +111,34 @@ jobs:
         run: python scripts/inspect_package_contents.py dist/Archlence
 
       - name: "Smoke test: AppImage gerçek SDL penceresinde çalışıyor"
+        # İKİ ayrı kontrol, ikisi de gerekli:
+        #   (1) süreç 12 saniye ayakta mı — sessizce kapanmadı mı,
+        #   (2) crash.log'a bir şey yazıldı mı — süreç AYAKTA KALIP yakalanmış
+        #       bir istisnayı loglamış olabilir; o hâlde uygulama açılır ama
+        #       ekran bozuk gelir ve (1) bunu göremez.
+        # (2) build-windows.yml'deki ham .exe smoke testinde zaten vardı,
+        # burada YOKTU. Aynı asimetri installer smoke testinde de vardı;
+        # ikisi de bu değişiklikle eşitlendi.
+        #
+        # XDG_STATE_HOME bilerek sandbox'lanıyor: `utils.app_paths.log_dir()`
+        # crash.log'u oraya yazar (ölçüldü: $XDG_STATE_HOME/Archlence/log/).
+        # Sandbox'lanmazsa runner'ın gerçek state dizinine yazar ve temiz bir
+        # taban çizgisi kalmaz.
+        #
+        # DİKKAT — "dosya var mı" diye BAKMAYIN: crash.log main.py import
+        # edilirken BOŞ olarak açılıyor, yani her zaman var olur. Ölçüldü:
+        # sağlıklı çalıştırmada 0 bayt, yakalanmamış bir istisnada dolu.
+        # Doğru kontrol bu yüzden `-s` (boş değil).
         run: |
           set -euo pipefail
           chmod +x dist/Archlence-x86_64.AppImage
+          smoke_state="$RUNNER_TEMP/archlence-smoke-state"
+          crash_log="$smoke_state/Archlence/log/crash.log"
+          rm -rf "$smoke_state"
           set +e
           XDG_DATA_HOME="$RUNNER_TEMP/archlence-smoke-data" \
           XDG_CACHE_HOME="$RUNNER_TEMP/archlence-smoke-cache" \
+          XDG_STATE_HOME="$smoke_state" \
           timeout 12s xvfb-run -a \
             dist/Archlence-x86_64.AppImage --appimage-extract-and-run
           status=$?
@@ -125,6 +147,12 @@ jobs:
             echo "::error::AppImage 12 saniye ayakta kalmadı (status=$status)."
             exit 1
           fi
+          if [ -s "$crash_log" ]; then
+            echo "::error::AppImage ayakta kaldı ama crash.log'a yazıldı — yakalanmış ama sessiz kalmış bir istisna olabilir. Son satırlar:"
+            tail -n 40 "$crash_log"
+            exit 1
+          fi
+          echo "Smoke test geçti: 12 saniye ayakta, crash.log boş."
 
       - name: AppImage'ı artifact olarak yükle
         uses: actions/upload-artifact@v4

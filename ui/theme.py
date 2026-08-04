@@ -304,7 +304,14 @@ def restyle_text_fields(root, theme_cls):
             for key, value in opts.items():
                 try:
                     setattr(widget, key, value)
-                except Exception:
+                except (AttributeError, ValueError):
+                    # Anahtar da değer de `field_style` içindeki sabitler,
+                    # hedef sınıf `isinstance` ile kapalı. Gerçek app ağacında
+                    # ölçüldü: dokuz anahtarın hepsi MDTextField'da gerçek
+                    # birer property (sessiz no-op yok) ve hiçbiri hata
+                    # vermiyor. Kalan yüzey yalnızca sürüm kayması: property
+                    # salt-okunur olursa AttributeError, tipi renk olmaktan
+                    # çıkarsa ValueError.
                     pass
 
 

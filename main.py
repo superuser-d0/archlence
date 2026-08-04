@@ -47,6 +47,12 @@ def _log_unhandled_exception(exc_type, exc_value, exc_tb):
             )
             _traceback.print_exception(exc_type, exc_value, exc_tb, file=f)
     except Exception:
+        # EXCEPTION-AUDIT: bilinçli geniş — crash günlüğünü YAZAN yol.
+        # BİLEREK sessiz: burası crash günlüğünü YAZAN yol. `get_logger()`
+        # çağırmak, log altyapısının kendisi bozuksa (disk dolu, izin hatası)
+        # aynı hatayı yeniden tetikleyip özyinelemeye ya da ikinci bir
+        # istisnaya yol açar. Aşağıdaki `sys.__excepthook__` zaten asıl
+        # istisnayı stderr'e basar — tek iz kaybı olmaz.
         pass
     sys.__excepthook__(exc_type, exc_value, exc_tb)
 
@@ -386,7 +392,8 @@ class ArchlenceApp(
                 _get_key(DEFAULT_PASSWORD)
                 _get_aead_key()
             except Exception:
-                pass
+                from utils.logging_config import get_logger
+                get_logger().exception("Şifreleme anahtarı arka planda ısıtılamadı")
 
         thread = threading.Thread(target=_warm, daemon=True)
         thread.start()
@@ -616,15 +623,31 @@ class ArchlenceApp(
         try:
             _refresh(self.theme_cls)
         except Exception:
-            pass
+            from utils.logging_config import get_logger
+            get_logger().exception("Tema sonrası yüzey renkleri tazelenemedi")
         self._normalize_card_shadows()
         self._resync_text_fields()
+        # EXCEPTION-AUDIT: bilinçli geniş — canlı widget ağacı, açık
+        # gözlemci yüzeyi; kozmetik kazanç, çökme riski.
+        # BİLEREK geniş: bu döngü CANLI widget ağacının tamamını gezer; içinde
+        # KV'de tanımlı ve üçüncü parti widget'lar da var. Kivy'de özellik
+        # ataması gözlemcileri EŞZAMANLI çalıştırdığı için tip kümesi kapalı
+        # değil. Buradan kaçan bir istisna tema geçişini komple çökertir,
+        # kazancı ise yalnızca kozmetik. Sessiz `pass` yerine sayaçla
+        # loglanıyor: etiket başına spam üretmeden görünür oluyor.
+        failures = []
         for widget in self._all_widgets():
             if isinstance(widget, MDLabel):
                 try:
                     widget.on_theme_text_color(widget, widget.theme_text_color)
-                except Exception:
-                    pass
+                # EXCEPTION-AUDIT: bilinçli geniş — yukarıdaki gerekçe.
+                except Exception as exc:
+                    failures.append(exc)
+        if failures:
+            from utils.logging_config import get_logger
+            get_logger().warning(
+                "Tema sonrası %d etiketin metin rengi tazelenemedi; ilki: %r",
+                len(failures), failures[0])
         Clock.schedule_once(self._rebuild_after_theme_layout, 0.2)
 
     def _rebuild_after_theme_layout(self, *args):
@@ -659,13 +682,26 @@ class ArchlenceApp(
         Clock.schedule_once(self._refresh_text_textures, 0.05)
 
     def _refresh_text_textures(self, *args):
+        # EXCEPTION-AUDIT: bilinçli geniş — gerekçe
+        # `_after_theme_switch`'teki döngüyle aynı.
+        # Ölçülen gerçek hata: `font_name` diskte yoksa `texture_update()`
+        # OSError veriyor ("Label: File '...' not found"). Eskiden bu tamamen
+        # sessizdi; paketlenmiş derlemede eksik bir font, hiçbir iz bırakmadan
+        # tüm metinlerin yeniden çizilmemesine yol açardı.
+        failures = []
         for widget in self._all_widgets():
             if isinstance(widget, MDLabel):
                 try:
                     widget.texture_update()
                     widget.canvas.ask_update()
-                except Exception:
-                    pass
+                # EXCEPTION-AUDIT: bilinçli geniş — yukarıdaki gerekçe.
+                except Exception as exc:
+                    failures.append(exc)
+        if failures:
+            from utils.logging_config import get_logger
+            get_logger().warning(
+                "Tema sonrası %d etiketin dokusu yenilenemedi; ilki: %r",
+                len(failures), failures[0])
 
     def _normalize_card_shadows(self, *args):
         if not self.root:
@@ -673,6 +709,9 @@ class ArchlenceApp(
 
         from kivymd.uix.card import MDCard
 
+        # EXCEPTION-AUDIT: bilinçli geniş — gerekçe
+        # `_after_theme_switch`'teki döngüyle aynı.
+        failures = []
         for widget in self._all_widgets():
             if isinstance(widget, MDCard):
                 try:
@@ -683,8 +722,14 @@ class ArchlenceApp(
                         widget.shadow_softness = 0
                     if hasattr(widget, "shadow_color"):
                         widget.shadow_color = (0, 0, 0, 0)
-                except Exception:
-                    pass
+                # EXCEPTION-AUDIT: bilinçli geniş — yukarıdaki gerekçe.
+                except Exception as exc:
+                    failures.append(exc)
+        if failures:
+            from utils.logging_config import get_logger
+            get_logger().warning(
+                "%d kartın gölge/renk normalizasyonu yapılamadı; ilki: %r",
+                len(failures), failures[0])
 
     def _resync_text_fields(self):
         if not self.root:
@@ -729,7 +774,8 @@ class ArchlenceApp(
                 try:
                     os.remove(f)
                 except Exception:
-                    pass
+                    from utils.logging_config import get_logger
+                    get_logger().exception("Eski Kivy log dosyası silinemedi")
             print("Purged Kivy logs due to size > 5MB")
 
     def vacuum_database(self):
@@ -943,7 +989,8 @@ class ArchlenceApp(
                     _set_changed(warning_row, "height", 0)
                     _set_changed(warning_row, "opacity", 0)
             except Exception:
-                pass
+                from utils.logging_config import get_logger
+                get_logger().exception("Negatif bakiye uyarı satırı güncellenemedi")
 
             localized_filter = translate(filter_text)
             _set_changed(
@@ -978,7 +1025,8 @@ class ArchlenceApp(
                 if not hasattr(self, "_assets_cache") or not self._assets_cache:
                     self._update_wealth_label(total_balance, None)
             except Exception:
-                pass
+                from utils.logging_config import get_logger
+                get_logger().exception("Servet etiketi güncellenemedi")
 
             savings_key = (
                 round(total_balance, 2),
@@ -991,7 +1039,8 @@ class ArchlenceApp(
                 )
 
         except Exception:
-            pass
+            from utils.logging_config import get_logger
+            get_logger().exception("Dashboard metrikleri uygulanamadı")
 
         if "metric_val_income" in self.root.ids:
             total_income = m["total_income"]
@@ -1077,7 +1126,8 @@ class ArchlenceApp(
                 else:
                     pnl.text_color = ftheme.accent(self.theme_cls, "muted")
         except Exception:
-            pass
+            from utils.logging_config import get_logger
+            get_logger().exception("Günlük kâr/zarar rengi uygulanamadı")
 
     def toggle_wealth_visibility(self):
         self._wealth_visible = not self._wealth_visible
@@ -1251,7 +1301,8 @@ class ArchlenceApp(
                     btn.md_bg_color = bg_inactive
                     btn.text_color = ftheme.inactive_control_text(self.theme_cls)
         except Exception:
-            pass
+            from utils.logging_config import get_logger
+            get_logger().exception("Filtre butonları görünümü eşitlenemedi")
 
     def update_sg_period(self, segment, item):
         self.sg_period = item.text
@@ -1471,7 +1522,8 @@ class ArchlenceApp(
                 ):
                     return "login"
         except Exception:
-            pass
+            from utils.logging_config import get_logger
+            get_logger().exception("Güvenlik kaydı okunamadı; kurulum ekranına düşülüyor")
         return "pin_setup"
 
     def route_after_auth(self):
@@ -1888,8 +1940,14 @@ class ArchlenceApp(
                 "positive",
             )
         return (
+            # `f` ÖNEKİ YOK, bilerek: `{month_end}` çeviriden SONRA
+            # doldurulmalı. Tutar önce enterpole edilirse ortaya her seferinde
+            # farklı bir dize çıkar, sözlükteki statik şablonla eşleşmez ve
+            # İngilizce arayüzde Türkçe metin görünür (v0.0.4'te düzeltilen
+            # hata buydu). Eski `f` öneki etkisizdi — bu parçada hiç
+            # placeholder yok — ama yanıltıcıydı.
             translate(
-                f"Son 3 ayın istatistiğine göre bu ay sonunda bakiyenizin yaklaşık "
+                "Son 3 ayın istatistiğine göre bu ay sonunda bakiyenizin yaklaşık "
                 "{month_end} olması bekleniyor."
             ).format(month_end=month_end),
             "neutral",
@@ -1919,7 +1977,8 @@ class ArchlenceApp(
                     app.theme_cls, state_colors[state]
                 )
         except Exception:
-            pass
+            from utils.logging_config import get_logger
+            get_logger().exception("Finansal tavsiye metni arayüze yazılamadı")
 
     # -------------------------------------------------------------------------
     # Dialogs & Reset Functionality

@@ -174,5 +174,108 @@ class FallbackToCacheTests(unittest.TestCase):
         self.assertAlmostEqual(out["total"], 2.0 * 3_000_000.0)  # qty * cached price
 
 
+class Bist100PriceParsingTests(unittest.TestCase):
+    """`fetch_bist100_prices`'ın hücre başına hata dalı.
+
+    Bu dalın hiç testi yoktu. Geniş `except Exception` ölçülmüş dört tipe
+    (`KeyError, IndexError, TypeError, ValueError`) daraltıldı; test o kümenin
+    diş taşıdığını, yani her birinin GERÇEKTEN oluştuğunu kanıtlar. Kümeden
+    biri çıkarılırsa thread istisnayı dış bloğa taşır, sağlam kodlar da
+    kaybolur ve testler kırılır.
+    """
+
+    def _run(self, codes, fake_download):
+        """Toplu çekmeyi çalıştırır; (fiyatlar, dış-blok-hata-logladı-mı) döner.
+
+        İkinci değer kritik: hücre içi hata dalı kümesinden bir tip
+        çıkarıldığında istisna DIŞ `except Exception`'a kaçar ve orada
+        `_log().error(...)` düşer. Dış blok yakaladığı için `callback` yine
+        çağrılır; yani yalnızca sonuç sözlüğüne bakan bir test daralmanın
+        yanlış olduğunu GÖREMEZ (ilk yazımda böyleydi, dişsizdi).
+        """
+        import logging
+        import threading
+        from services import asset_service
+
+        done = threading.Event()
+        out = {}
+        logger = logging.getLogger("archlence")
+        with mock.patch.dict(
+            "sys.modules",
+            {"yfinance": mock.Mock(download=fake_download)},
+        ), mock.patch.object(logger, "error") as fake_error:
+            asset_service.fetch_bist100_prices(
+                codes, lambda p: (out.update(p), done.set()))
+            self.assertTrue(done.wait(10))
+        return out, fake_error.called
+
+    def test_broken_cells_are_skipped_and_sound_ones_survive(self):
+        import numpy as np
+        import pandas as pd
+
+        # Bozulma biçimleri:
+        #   THYAO.IS -> NaN  (hata değil, math.isnan ile eleniyor)
+        #   GARAN.IS -> None (TypeError)
+        #   BAD.IS   -> metin (ValueError)
+        #   YOK.IS   -> sütun hiç yok (KeyError)
+        # AKBNK BİLEREK EN SONDA: bir tip kümeden düşerse döngü ondan önce
+        # kırılır ve sağlam fiyat da kaybolur.
+        row = pd.Series({
+            "AKBNK.IS": 42.5,
+            "THYAO.IS": np.nan,
+            "GARAN.IS": None,
+            "BAD.IS": "n/a",
+        })
+
+        prices, outer_error = self._run(
+            ["THYAO", "GARAN", "BAD", "YOK", "AKBNK"],
+            lambda *a, **k: _FrameStub(row),
+        )
+        # Bozuk hücreler sessizce elenmeli, SONRAKİ sağlam kod yine fiyatlanmalı.
+        self.assertEqual(prices, {"AKBNK": 42.5})
+        self.assertFalse(outer_error, "hücre hatası dış bloğa kaçmamalı")
+
+    def test_single_ticker_scalar_shape_does_not_kill_the_batch(self):
+        """yf.download TEK ticker'da Series yerine skaler döndürüyor.
+
+        Ölçüldü: `scalar['AKBNK.IS']` -> IndexError ("invalid index to scalar
+        variable"). Küme bu tipi içermezse istisna dış bloğa kaçar; sonuç
+        sözlüğü yine boş olduğu için FARK yalnızca dış blokta düşen hata
+        kaydından anlaşılır.
+        """
+        import numpy as np
+
+        prices, outer_error = self._run(
+            ["AKBNK", "THYAO"],
+            lambda *a, **k: _FrameStub(np.float64(42.5)),
+        )
+        self.assertEqual(prices, {})  # çökmeden, boş ama TAMAMLANMIŞ sonuç
+        self.assertFalse(outer_error, "skaler şekil dış bloğa kaçmamalı")
+
+
+class _FrameStub:
+    """`data["Close"].iloc[-1]` erişimini taklit eden asgari yfinance stub'ı."""
+
+    def __init__(self, last_row):
+        self._last_row = last_row
+
+    def __getitem__(self, key):
+        assert key == "Close"
+        return self
+
+    @property
+    def iloc(self):
+        return _IlocStub(self._last_row)
+
+
+class _IlocStub:
+    def __init__(self, last_row):
+        self._last_row = last_row
+
+    def __getitem__(self, index):
+        assert index == -1
+        return self._last_row
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -102,5 +102,6 @@ def fetch_and_cache_logo(code: str) -> bool:
                 f.write(resp.content)
             return True
     except Exception:
-        pass
+        from utils.logging_config import get_logger
+        get_logger().exception("Logo indirilemedi")
     return False
