@@ -1,8 +1,9 @@
-"""Atomic portfolio purchase boundary.
+"""Atomic portfolio asset-entry boundary.
 
-An asset row, its liquid-account transaction, the balance mutation and the
-balance-event ledger entry are one financial operation.  They must therefore
-share one SQLite transaction.
+For a newly purchased asset, its asset row, liquid-account transaction,
+balance mutation and balance-event ledger entry are one financial operation.
+An asset the user already owned only creates the portfolio row; it must not
+retroactively alter today's wallet balance or expense reports.
 """
 
 from datetime import datetime
@@ -70,6 +71,7 @@ class AssetPurchaseService:
         quantity,
         account_id=None,
         purchase_date=None,
+        deduct_from_balance=True,
     ):
         price = float(purchase_price)
         qty = float(quantity)
@@ -77,15 +79,16 @@ class AssetPurchaseService:
             raise ValueError("Fiyat ve miktar sıfırdan büyük olmalıdır.")
         invested_amount = price * qty
 
-        if account_id is None:
+        if deduct_from_balance and account_id is None:
             account_id = AssetPurchaseService._pick_funding_account(
                 invested_amount)
 
-        allowed, reason = AccountService.check_spending_allowed(
-            account_id, invested_amount, "expense"
-        )
-        if not allowed:
-            raise ValueError(reason)
+        if deduct_from_balance:
+            allowed, reason = AccountService.check_spending_allowed(
+                account_id, invested_amount, "expense"
+            )
+            if not allowed:
+                raise ValueError(reason)
 
         when = purchase_date or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         description = (
@@ -115,33 +118,36 @@ class AssetPurchaseService:
                     ),
                 )
                 asset_id = cursor.lastrowid
-                cursor.execute(
-                    """
-                    INSERT INTO transactions
-                        (account_id, amount, type, category, description,
-                         transaction_date)
-                    VALUES (?, ?, 'expense', 'Varlık Alımı', ?, ?)
-                    """,
-                    (
+                transaction_id = None
+                if deduct_from_balance:
+                    cursor.execute(
+                        """
+                        INSERT INTO transactions
+                            (account_id, amount, type, category, description,
+                             transaction_date)
+                        VALUES (?, ?, 'expense', 'Varlık Alımı', ?, ?)
+                        """,
+                        (
+                            account_id,
+                            encrypt(str(invested_amount), SECRET_KEY),
+                            encrypt(description, SECRET_KEY),
+                            when,
+                        ),
+                    )
+                    transaction_id = cursor.lastrowid
+                    adjust_account_balance(
+                        cursor,
                         account_id,
-                        encrypt(str(invested_amount), SECRET_KEY),
-                        encrypt(description, SECRET_KEY),
-                        when,
-                    ),
-                )
-                transaction_id = cursor.lastrowid
-                adjust_account_balance(
-                    cursor,
-                    account_id,
-                    "expense",
-                    invested_amount,
-                    ref_id=transaction_id,
-                    source="asset_purchase",
-                )
+                        "expense",
+                        invested_amount,
+                        ref_id=transaction_id,
+                        source="asset_purchase",
+                    )
             return {
                 "asset_id": asset_id,
                 "transaction_id": transaction_id,
                 "invested_amount": invested_amount,
+                "deducted_from_balance": bool(deduct_from_balance),
             }
         finally:
             conn.close()
