@@ -14,6 +14,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from datetime import datetime
 from unittest import mock
 from zoneinfo import ZoneInfo
@@ -206,7 +207,11 @@ class PriceFallbackTest(unittest.TestCase):
         from services import price_service
 
         # Sütunu düşürüp sürüm-öncesi durumu birebir kur.
-        with sqlite3.connect(self.db_path) as conn:
+        # `closing()` ŞART: `with sqlite3.connect(...)` yalnızca işlemi
+        # yönetir, bağlantıyı KAPATMAZ. Açık kalan bağlantı Windows'ta
+        # tearDown'daki `os.unlink`i WinError 32 ile düşürür (Linux açık
+        # dosyanın silinmesine izin verdiği için yerelde fark edilmiyordu).
+        with closing(sqlite3.connect(self.db_path)) as conn:
             conn.execute("DROP TABLE IF EXISTS asset_price_cache")
             conn.execute("""
                 CREATE TABLE asset_price_cache (
@@ -220,13 +225,14 @@ class PriceFallbackTest(unittest.TestCase):
                 "INSERT INTO asset_price_cache VALUES (?, ?, ?, ?)",
                 ("ASELS", 245.5, "STOCK", WEEKDAY_NOON.isoformat()),
             )
+            conn.commit()
 
         status = price_service.get_price_status(
             "ASELS", "STOCK", now=WEEKDAY_NOON)
         self.assertEqual(status.source, "Yahoo Finance")
         self.assertIsNotNone(status.price)  # veri kaybolmadı
 
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn:
             columns = {
                 row[1]
                 for row in conn.execute("PRAGMA table_info(asset_price_cache)")
