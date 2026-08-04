@@ -90,12 +90,39 @@ guarantees established earlier.
    (real provider succeeds; genuinely broken provider fails loudly without
    the flag; degrades gracefully with it).
 
-3. **Smoke-test the built `.exe` in CI.** Once (2) removes the silent
-   fallback, add a step after the PyInstaller build that launches the
-   packaged executable and verifies it actually opens a window and exits
-   cleanly, rather than only checking that `dist/Archlence/` contains
-   files. Depends on (2) — testing a fallback that's designed to hide
-   failures proves nothing.
+3. ~~**Smoke-test the built `.exe` in CI.**~~ **Done** — this entry was
+   stale: three launch smoke tests already existed and go further than the
+   text above described. `build-windows.yml` launches the raw
+   `dist/Archlence/Archlence.exe`, and separately installs the Inno Setup
+   package silently, launches the installed copy, then uninstalls and
+   verifies removal. `build-linux.yml` runs the AppImage under `xvfb-run`
+   and requires `timeout` to be the thing that kills it (exit 124), i.e.
+   the process was still alive.
+   - **Real gap found and closed while verifying this.** Only the raw-`.exe`
+     step checked `crash.log`; the installer and AppImage steps checked
+     *only* that the process stayed alive. An app that starts, catches an
+     exception, logs it and keeps running with a broken screen therefore
+     passed two of the three packaging paths. Both now compare `crash.log`
+     the same way the raw-`.exe` step already did.
+   - Measured, not assumed: `crash.log` is opened (empty) at `main.py`
+     import time, so it *always exists* — checking for the file's presence
+     would fail every run. The check is "non-empty"/"grew". Verified both
+     directions on a real run: healthy launch leaves it at 0 bytes; an
+     injected unhandled exception writes 91 bytes and is detected.
+   - The Linux step was validated by extracting its body from the YAML and
+     running it verbatim against a wrapper standing in for the AppImage:
+     healthy run exits 0, and a process that stays alive but writes to
+     `crash.log` now exits 1 — a case the previous version passed.
+   - **Not verified here:** the Windows PowerShell changes. They mirror the
+     already-proven raw-`.exe` step line for line, but no Windows runner was
+     available in this environment; the first CI run on Windows is their
+     real acceptance test.
+   - Still open, deliberately: none of the three asserts that a window
+     actually *appeared* (they infer it from "process alive + nothing
+     logged"). On Windows `$proc.MainWindowHandle` would assert it directly;
+     on Linux it needs `xdotool`/`x11-utils`, which the runner does not
+     install today. Left alone rather than added blind — an unverifiable
+     assertion that misfires would break every build for a non-issue.
 
 4. ~~**Move user data out of the install directory, via `platformdirs`.**~~
    **Core done** — `database/db.py:6-7` derived `DB_NAME` from `BASE_DIR`
