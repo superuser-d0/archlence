@@ -19,22 +19,25 @@ source=(
   "LICENSE::https://raw.githubusercontent.com/superuser-d0/archlence/v${pkgver}/LICENSE"
 )
 
-# DİKKAT: Bu hash'ler henüz v0.0.4'e güncellenmedi — release.yml v0.0.4
-# varlıklarını yayınlayana kadar gerçek değerler bilinemez. Etiket push
-# edilip GitHub Release + SHA256SUMS.txt yayınlandıktan SONRA, `updpkgsums`
-# (pacman-contrib) veya SHA256SUMS.txt'ten elle güncellenmeli.
+# v0.0.4 (2026-08-03 yayınlandı) varlıklarının GERÇEK hash'leri. Sıra
+# yukarıdaki `source` dizisiyle birebir aynı olmalıdır.
 #
-# BİLEREK geçersiz (tamamı sıfır) placeholder kullanılıyor, 'SKIP' DEĞİL:
-# 'SKIP' makepkg'de doğrulamayı tamamen KAPATIR ve indirilen her dosyayı
-# sessizce kabul eder — burada tam tersini istiyoruz. Geçersiz bir hash,
-# gerçek değerler yazılana kadar `makepkg`'i GÜVENLİ şekilde, yüksek sesle
-# başarısız kılar (checksum mismatch), yanlış/sahte bir ikili sessizce
-# kurulmaz.
+# Nasıl doğrulandı (yayınlanan checksum'a körü körüne güvenilmedi):
+#   - AppImage indirilip sha256'sı DOĞRUDAN hesaplandı; release'teki
+#     SHA256SUMS.txt ile birebir uyuştu.
+#   - Diğer üçü hem `git cat-file blob v0.0.4:<yol>` ile yerelde, hem de
+#     raw.githubusercontent'ten indirilerek hesaplandı; ikisi de aynı çıktı.
+#
+# YENİ SÜRÜMDE: `pkgver` yükseltildikten sonra bu dört değer YENİDEN
+# hesaplanmalı — `updpkgsums` (pacman-contrib) ya da release'in
+# SHA256SUMS.txt'i kullanılabilir. Değerleri güncellemeden pkgver'i
+# yükseltmek makepkg'i checksum uyuşmazlığıyla durdurur; bu İSTENEN
+# davranıştır, 'SKIP' yazıp doğrulamayı kapatmak DEĞİL.
 sha256sums=(
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
+  'f22543415c8b9cbbd4d1f0b96170121f83af4b2a67dec08b8a343cea0cc9c656'
+  '4cf21f62e33e87cf69cd015fb9148dbe99badaf75c3caf3b87db1b8813089d71'
+  '1df0fe8c33ba3b13cee650cab7e254964e18acbd27c330dce19ac0aaf7110b9f'
+  'ecc8a7af57166c272c3b008712981c02f42898b6f2fad6889b7b51f9bf366c83'
 )
 
 package() {
