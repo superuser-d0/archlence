@@ -274,6 +274,14 @@ def initialize_database():
                       FROM asset_price_cache_legacy
                 """)
             cursor.execute("DROP TABLE asset_price_cache_legacy")
+        # `source` sütunu (hangi sağlayıcı verdi) sonradan eklendi. Aynı
+        # migration price_service._ensure_cache içinde de var — orası fiyat
+        # cache'ine her erişimin geçtiği kapı, burası ise açılıştaki tek
+        # seferlik yol. İkisi de idempotent; hangisi önce koşarsa koşsun.
+        cursor.execute("PRAGMA table_info(asset_price_cache)")
+        if "source" not in {row[1] for row in cursor.fetchall()}:
+            cursor.execute(
+                "ALTER TABLE asset_price_cache ADD COLUMN source TEXT")
     else:
         cursor.execute(ASSET_PRICE_CACHE_SCHEMA)
 

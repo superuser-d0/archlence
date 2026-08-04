@@ -22,8 +22,12 @@ and are archived baselines, not the current status.
 
 - The legacy CBC reader remains deprecated for compatibility with old profiles
   and backups. New data cannot be written in that format.
-- Yahoo Finance is the only price provider. A second adapter is planned; a
-  very old cache is not presented as a definitively current price.
+- Yahoo Finance is the primary price provider. When it returns nothing for a
+  symbol, cryptocurrency falls back to CoinGecko and foreign currency to
+  Frankfurter (ECB), and the reported source names whichever provider actually
+  answered. **BIST equities and gold have no fallback** — no free source for
+  them is currently integrated, so those stay on Yahoo Finance alone. A very
+  old cache is not presented as a definitively current price.
 - Broad exception handlers and `print()` calls remain in UI mixins. CI blocks
   new broad or silent handlers and freezes a decreasing baseline.
 - Packages are not code-signed. Windows SmartScreen may warn, and the AppImage
