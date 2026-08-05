@@ -1,5 +1,136 @@
 # Changelog
 
+## [0.0.6] — 2026-08-06
+
+This release is about failures the application was hiding from itself. A
+fail-closed decryption contract added in 0.0.3 had never reached its callers,
+so on real corruption the handlers written to catch it never ran; the CI gate
+meant to hold the line on broad exception handlers had 44 unused slots and was
+accepting new ones silently; and a dashboard summary was decrypting ten
+thousand records on every render. It remains a **pre-release**.
+
+### Highlights
+
+- Corrupt or unreadable financial data no longer produces a confident wrong
+  number. Values that feed a **total** now refuse rather than silently counting
+  as zero, while values that only feed a **list** still degrade per-row — a
+  wrong row is visible and correctable, the same zero inside a sum is not.
+- The dashboard summary is cached on the data revision. At 10,000
+  transactions a repeat render drops from **328 ms to 0 ms**.
+- After **Settings → Delete Data**, the forecast and asset-history sections
+  clear along with everything else. They previously kept showing results
+  derived from records that no longer existed.
+- **TAB** moves between fields in the add-account dialog instead of inserting a
+  tab character, and the optional card-number field now reads as optional.
+
+### Financial correctness and reliability
+
+- `utils.crypto.decrypt()` was made fail-closed in 0.0.3, raising typed errors
+  for corrupt envelopes, tampered ciphertext and an unreachable key. Its 21
+  call sites were never updated and still caught `except (ValueError,
+  TypeError)`, written for the old contract. Measured: all four corruption
+  modes raise `DecryptionError` subclasses, and **none** is a `ValueError` or
+  `TypeError` — so on real corruption those handlers never ran at all and the
+  exception escaped to wherever it happened to land. Four files even carried a
+  comment asserting the opposite; those comments are gone.
+- `KeyUnavailableError` is now deliberately distinguished from per-value
+  corruption everywhere. An unreachable key means *no* row can be read, so
+  swallowing it per-row would render a total failure as "every amount is
+  0,00 TL". It propagates; per-value corruption still degrades locally.
+- `get_transactions_by_period` raises instead of zeroing. Its only production
+  consumer already wraps the call, logs, and degrades to an empty chart — a
+  visible-but-graceful failure rather than a wrong one.
+- Seven functions across `main.py`, `calendar_service.py` and
+  `transaction_service.py` opened a database connection and closed it as a
+  plain statement, leaking the handle on any exception in between. This was not
+  theoretical: it is how `export_all_to_csv` began leaking once the key error
+  started propagating, and on Windows a leaked handle keeps the database file
+  locked. All now use the repository's `managed_connection()`.
+
+### Performance
+
+- `_compute_dashboard_metrics` was profiled at 10,000 transactions: 328 ms,
+  with **99% of it in AES-GCM decryption** — 10,800 `decrypt` calls, the cost
+  sitting in cipher construction rather than in any Archlence code. Amounts are
+  encrypted TEXT, so SQL cannot sum them and every row must be decrypted in
+  Python. There is nothing meaningful to shave off the decryption itself; the
+  win is not repeating it when nothing changed. The cache key is (revision,
+  period filter, today), and each of the three parts earns its place — removing
+  any one of them breaks a test.
+
+### UI and accessibility
+
+- TAB inserted a literal tab character into account fields instead of advancing
+  focus. Measured: Kivy's `write_tab` defaults to `True`, and turning it off
+  alone does not advance focus — `focus_next` must be set too. Both are now
+  handled, with a wrap-around focus ring that the account dialog rebuilds
+  whenever the account type changes, because the visible fields change with it.
+- The card-number field was already optional in both the UI and the service,
+  but did not read as optional. It now says so.
+- The add-account empty state clears correctly.
+- After a data reset, "Algoritmik Öngörü" and "Varlık Geçmişi" no longer show
+  stale results. Both are computed only at startup or from their own triggers,
+  and neither trigger fires during a reset, so both kept their last computed
+  state indefinitely.
+
+### Testing and packaging
+
+- **The exception-handler CI gate had 44 free slots and was only half
+  working.** Real broad handlers on `main` numbered 143; the baseline file
+  recorded 187, because it was never regenerated after the 0.0.5 narrowing work
+  took the count from 184 down. Measured by injection: a new broad handler in a
+  *new* function was caught either way, but one added to an *existing* function
+  with baseline slack was **silently accepted**. That is the more likely
+  direction, and it is how the condition was found — a handler added during
+  this release passed the gate while the count rose. The baseline is
+  regenerated to the true count and both directions are verified.
+- Windows installer smoke tests could hang indefinitely. Five
+  `Start-Process -Wait` calls were bounded first; a subsequent hang proved the
+  audit incomplete, and three further unbounded operations were found — an
+  `Invoke-WebRequest` with no `-TimeoutSec` (the PowerShell default is `0`,
+  meaning indefinite), an argument-less `WaitForExit()` that also waits on
+  child processes holding inherited handles, and an unbounded recursive
+  directory walk. Both smoke steps now carry a step-level timeout, which
+  matters less for the minutes saved than because a step that times out
+  **keeps its log**; a force-cancelled job does not, and that is why the first
+  hang could not be diagnosed.
+- The `PKGBUILD` checksums for 0.0.5 were verified and filled in after that
+  release published. They are placeholders again here for the same reason.
+
+### Additional issues found and fixed
+
+- `export_all_to_csv` leaked its database connection whenever export raised.
+  Found by a Windows CI failure (`WinError 32`, file in use) on a new
+  key-unavailable test — a real production leak the test exposed, not a
+  test-setup mistake. Local Linux runs stayed green because the same leak is
+  silent there.
+- A documentation entry still described `decrypt()` as fail-open, three
+  releases after it stopped being so.
+- A reset test could leave a background thread running past its own end.
+
+### Known limitations
+
+- This is still a pre-release and is not considered stable.
+- Packages are unsigned; Windows SmartScreen may warn on first launch.
+- Two functions still close their database connection without protection:
+  `initialize_database()` (~590 lines, runs once at startup) and
+  `generate_mock_data.main()` (a development script that is never packaged).
+  Wrapping either means re-indenting the entire body for negligible gain.
+- The price fallback covers cryptocurrency and foreign currency only. BIST
+  equities and gold still depend on Yahoo Finance alone.
+- The legacy CBC reader remains deprecated for old profiles and backups.
+- Existing 4-digit PINs are still not migrated to the password policy
+  introduced in 0.0.3; unaffected by this release.
+- Checking accounts that go negative still show only the raw negative balance,
+  with no dedicated overdrawn indicator.
+
+### Installation and checksum verification
+
+- Windows: `ArchlenceSetup-0.0.6.exe`
+- Linux: `Archlence-0.0.6-x86_64.AppImage`
+- Download `SHA256SUMS.txt` from the same release and verify the matching
+  asset. The SBOM is published as `Archlence-0.0.6-sbom.cdx.json`.
+
 ## [0.0.5] — 2026-08-04
 
 This release lets you record an asset you already owned without disturbing your

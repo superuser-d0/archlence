@@ -1,7 +1,7 @@
 # Maintainer: Archlence contributors
 
 pkgname=archlence-bin
-pkgver=0.0.5
+pkgver=0.0.6
 pkgrel=1
 pkgdesc="Local-first personal finance manager (prebuilt AppImage)"
 arch=('x86_64')
@@ -19,13 +19,34 @@ source=(
   "LICENSE::https://raw.githubusercontent.com/superuser-d0/archlence/v${pkgver}/LICENSE"
 )
 
-# v0.0.5 kaynakları yayın manifesti, Git etiketi ve bağımsız indirmelerle
-# doğrulandı.
+# SÜRÜM YAYINLANDIKTAN SONRA DOLDURULACAK — şu an bilerek geçersiz.
+#
+# `pkgver` 0.0.6'ya yükseltildi; yukarıdaki `source` dizisi artık HENÜZ VAR
+# OLMAYAN v0.0.6 varlıklarını gösteriyor, dolayısıyla gerçek hash'ler
+# hesaplanamaz. (v0.0.5'inkiler biliniyordu ve doğrulanmıştı, ama başka bir
+# etiketin dosyalarına aitler — burada tutmak yanlış sürümü doğrulamak olurdu.)
+#
+# `v0.0.6` etiketi push edilip GitHub Release yayınlandıktan SONRA, depo
+# kökünde:
+#     updpkgsums          # pacman-contrib
+# ya da release'in SHA256SUMS.txt'inden elle girilir. v0.0.4 ve v0.0.5'te
+# izlenen ve tekrarlanması önerilen yöntem: AppImage'ı indirip sha256'sını
+# DOĞRUDAN hesaplayıp yayınlanan SHA256SUMS.txt ile karşılaştırmak; diğer
+# üçünü hem `git cat-file blob v0.0.6:<yol>` ile hem raw.githubusercontent'ten
+# alıp eşleştirmek. Sonuç `makepkg --verifysource` ile (depo dışında bir
+# dizinde) doğrulanmalı.
+#
+# BİLEREK geçersiz (tamamı sıfır) placeholder kullanılıyor, 'SKIP' DEĞİL:
+# 'SKIP' makepkg'de doğrulamayı tamamen KAPATIR ve indirilen her dosyayı
+# sessizce kabul eder — burada tam tersini istiyoruz. Geçersiz bir hash,
+# gerçek değerler yazılana kadar `makepkg`'i GÜVENLİ şekilde, yüksek sesle
+# başarısız kılar (checksum mismatch), yanlış/sahte bir ikili sessizce
+# kurulmaz.
 sha256sums=(
-  '84597fc518f171e37555c78c575dc8de3c244853638135daff3900a2f1da14ef'
-  '4cf21f62e33e87cf69cd015fb9148dbe99badaf75c3caf3b87db1b8813089d71'
-  '1df0fe8c33ba3b13cee650cab7e254964e18acbd27c330dce19ac0aaf7110b9f'
-  'ecc8a7af57166c272c3b008712981c02f42898b6f2fad6889b7b51f9bf366c83'
+  '0000000000000000000000000000000000000000000000000000000000000000'
+  '0000000000000000000000000000000000000000000000000000000000000000'
+  '0000000000000000000000000000000000000000000000000000000000000000'
+  '0000000000000000000000000000000000000000000000000000000000000000'
 )
 
 package() {
