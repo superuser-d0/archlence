@@ -19,34 +19,16 @@ source=(
   "LICENSE::https://raw.githubusercontent.com/superuser-d0/archlence/v${pkgver}/LICENSE"
 )
 
-# SÜRÜM YAYINLANDIKTAN SONRA DOLDURULACAK — şu an bilerek geçersiz.
-#
-# `pkgver` 0.0.6'ya yükseltildi; yukarıdaki `source` dizisi artık HENÜZ VAR
-# OLMAYAN v0.0.6 varlıklarını gösteriyor, dolayısıyla gerçek hash'ler
-# hesaplanamaz. (v0.0.5'inkiler biliniyordu ve doğrulanmıştı, ama başka bir
-# etiketin dosyalarına aitler — burada tutmak yanlış sürümü doğrulamak olurdu.)
-#
-# `v0.0.6` etiketi push edilip GitHub Release yayınlandıktan SONRA, depo
-# kökünde:
-#     updpkgsums          # pacman-contrib
-# ya da release'in SHA256SUMS.txt'inden elle girilir. v0.0.4 ve v0.0.5'te
-# izlenen ve tekrarlanması önerilen yöntem: AppImage'ı indirip sha256'sını
-# DOĞRUDAN hesaplayıp yayınlanan SHA256SUMS.txt ile karşılaştırmak; diğer
-# üçünü hem `git cat-file blob v0.0.6:<yol>` ile hem raw.githubusercontent'ten
-# alıp eşleştirmek. Sonuç `makepkg --verifysource` ile (depo dışında bir
-# dizinde) doğrulanmalı.
-#
-# BİLEREK geçersiz (tamamı sıfır) placeholder kullanılıyor, 'SKIP' DEĞİL:
-# 'SKIP' makepkg'de doğrulamayı tamamen KAPATIR ve indirilen her dosyayı
-# sessizce kabul eder — burada tam tersini istiyoruz. Geçersiz bir hash,
-# gerçek değerler yazılana kadar `makepkg`'i GÜVENLİ şekilde, yüksek sesle
-# başarısız kılar (checksum mismatch), yanlış/sahte bir ikili sessizce
-# kurulmaz.
+# v0.0.6 kaynakları yayın manifesti (SHA256SUMS.txt), Git etiketi
+# (`git cat-file blob v0.0.6:<yol>`) ve bağımsız raw.githubusercontent
+# indirmeleriyle doğrulandı. AppImage ayrıca doğrudan indirilip yerelde
+# yeniden hesaplandı. Üç statik kaynağın (desktop dosyası, ikon, LICENSE)
+# hash'i v0.0.5'tekiyle aynı — içerikleri sürümler arası değişmedi.
 sha256sums=(
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
+  'e37bcb57bcd7d494b4ee46dafdb92051c914422b878b11d0250431438a5193d4'
+  '4cf21f62e33e87cf69cd015fb9148dbe99badaf75c3caf3b87db1b8813089d71'
+  '1df0fe8c33ba3b13cee650cab7e254964e18acbd27c330dce19ac0aaf7110b9f'
+  'ecc8a7af57166c272c3b008712981c02f42898b6f2fad6889b7b51f9bf366c83'
 )
 
 package() {
