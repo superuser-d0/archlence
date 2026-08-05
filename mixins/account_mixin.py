@@ -119,7 +119,13 @@ class AccountMixin:
         self.acc_debt_field = create_modern_tf(_t("Mevcut Borç (₺)"), "float")
         self.acc_limit_field = create_modern_tf(_t("Toplam Limit (₺)"), "float")
         self.acc_statement_field = create_modern_tf(_t("Hesap Kesim Günü (1-31, opsiyonel)"), "int")
-        self.acc_card_number_field = create_modern_tf(_t("Kart Numarası (Örn: 1234 5678 1234 5678)"))
+        # Etikette "opsiyonel" AÇIKÇA yazıyor: alan kod tarafında zaten
+        # opsiyoneldi (boş metin `None`'a düşüyor, servis de `if
+        # card_number_full:` ile atlıyor) ama ipucu bunu söylemediği için
+        # kullanıcı zorunlu sanıyordu. Hesap Kesim Günü alanı aynı kalıbı
+        # zaten kullanıyor.
+        self.acc_card_number_field = create_modern_tf(
+            _t("Kart Numarası (opsiyonel — kartsız hesap için boş bırakın)"))
 
         self.selected_account_type = _t("Nakit / Vadesiz")
 
@@ -161,6 +167,23 @@ class AccountMixin:
                 # dynamic_container'da kalan boşluğu tek başına doldurur —
                 # kaç sabit alan önce geldiğinden bağımsız.
                 dynamic_container.add_widget(Widget())
+
+            # TAB zinciri, GÖRÜNEN alanların sırasına göre burada yeniden
+            # kuruluyor. Sabit bir zincir yanlış olurdu: hesap türü
+            # değiştiğinde alanlar değişiyor ve TAB o an ağaçta olmayan bir
+            # alana geçerse odak görünmez bir yere gider.
+            if account_type_label == _t("Kredi Kartı"):
+                ordered = [
+                    self.acc_name_field, self.acc_card_number_field,
+                    self.acc_debt_field, self.acc_limit_field,
+                    self.acc_statement_field,
+                ]
+            else:
+                ordered = [
+                    self.acc_name_field, self.acc_initial_balance_field,
+                    self.acc_card_number_field,
+                ]
+            ftheme.chain_focus(ordered)
 
         fill_dynamic(self.selected_account_type)
 
@@ -812,7 +835,13 @@ class AccountMixin:
             if getattr(child, "_archlence_account_id", None) is not None
         }
         for child in list(container_accounts.children):
-            if getattr(child, "_archlence_loading", False):
+            # `_archlence_empty_state` de temizleniyor: "Henüz hesap
+            # eklenmedi…" etiketi aşağıda ekleniyordu ama HİÇBİR yerde
+            # kaldırılmıyordu — hesap eklendikten sonra kartların altında
+            # asılı kalıyordu. Yükleme göstergesiyle aynı işaretleme
+            # kalıbı kullanılıyor.
+            if (getattr(child, "_archlence_loading", False)
+                    or getattr(child, "_archlence_empty_state", False)):
                 container_accounts.remove_widget(child)
 
         self._update_account_summary(summary)
@@ -839,6 +868,7 @@ class AccountMixin:
                 halign="center", size_hint_y=None, height=dp(40),
             )
             lbl.bind(size=lbl.setter("text_size"))
+            lbl._archlence_empty_state = True
             container_accounts.add_widget(lbl)
             return
 
