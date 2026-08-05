@@ -153,9 +153,13 @@ class CategoryToggleRapidTapTest(unittest.TestCase):
 
         clock = _FakeClock()
         conn = mock.MagicMock()
+        # `update_category_importance` bağlantıyı `managed_connection()` ile
+        # alıyor (düz `get_connection()` + `conn.close()` değil), bu yüzden
+        # patch'lenen de context manager olmalı.
+        managed = mock.MagicMock()
+        managed.return_value.__enter__.return_value = conn
         with mock.patch.object(archlence_main, "Clock", clock), \
-                mock.patch.object(archlence_main, "get_connection",
-                                  return_value=conn):
+                mock.patch.object(archlence_main, "managed_connection", managed):
             for index in range(10):
                 app.update_category_importance(f"Kategori {index}", index % 2 == 0)
 

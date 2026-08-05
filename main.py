@@ -193,7 +193,6 @@ except (ImportError, AttributeError) as exc:
 from utils.crypto import decrypt, key_protection_status
 from database.init_db import initialize_database
 from database.db import (
-    get_connection,
     managed_connection,
     COMPLETED_TX,
     COMPLETED_TX_T,
@@ -1383,9 +1382,6 @@ class ArchlenceApp(
 
         def fetch_task():
             try:
-                conn = get_connection()
-                cursor = conn.cursor()
-
                 select_body = (
                     "SELECT type, category, amount, description,"
                     " strftime('%d/%m %H:%M', transaction_date) FROM transactions"
@@ -1406,9 +1402,10 @@ class ArchlenceApp(
                     f"{select_body} WHERE {' AND '.join(where_parts)}"
                     " ORDER BY id DESC LIMIT 15"
                 )
-                cursor.execute(query)
-                transactions_raw = cursor.fetchall()
-                conn.close()
+                with managed_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(query)
+                    transactions_raw = cursor.fetchall()
 
                 processed_items = []
                 for t_type, category, amount_enc, desc_enc, t_date in transactions_raw:
@@ -1781,14 +1778,13 @@ class ArchlenceApp(
         generation = self._category_load_generation
 
         def _fetch(dt):
-            conn = get_connection()
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT name, type, importance FROM categories WHERE type = ? ORDER BY name",
-                (self.active_category_type,),
-            )
-            categories = cursor.fetchall()
-            conn.close()
+            with managed_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT name, type, importance FROM categories WHERE type = ? ORDER BY name",
+                    (self.active_category_type,),
+                )
+                categories = cursor.fetchall()
             self._add_categories_incrementally(settings_list, categories, generation)
 
         Clock.schedule_once(_fetch, 0.1)
@@ -1814,14 +1810,13 @@ class ArchlenceApp(
 
     def update_category_importance(self, category_name, is_active):
         new_importance = "main" if is_active else "extra"
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE categories SET importance = ? WHERE name = ?",
-            (new_importance, category_name),
-        )
-        conn.commit()
-        conn.close()
+        with managed_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE categories SET importance = ? WHERE name = ?",
+                (new_importance, category_name),
+            )
+            conn.commit()
 
         # `importance`, `summarize_transactions`'ın main/extra kovalarını
         # belirliyor — yani bakiye hiç değişmese de dashboard ÖZETİ değişir.
@@ -2098,19 +2093,18 @@ class ArchlenceApp(
                 self.store.clear()
             self.savings_goals = []
 
-            conn = get_connection()
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT name FROM sqlite_master
-                WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
-            """)
-            table_names = [row["name"] for row in cursor.fetchall()]
-            for table_name in table_names:
-                safe_name = table_name.replace('"', '""')
-                cursor.execute(f'DELETE FROM "{safe_name}"')
-            cursor.execute("DELETE FROM sqlite_sequence")
-            conn.commit()
-            conn.close()
+            with managed_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT name FROM sqlite_master
+                    WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+                """)
+                table_names = [row["name"] for row in cursor.fetchall()]
+                for table_name in table_names:
+                    safe_name = table_name.replace('"', '""')
+                    cursor.execute(f'DELETE FROM "{safe_name}"')
+                cursor.execute("DELETE FROM sqlite_sequence")
+                conn.commit()
 
             initialize_database()
             if self.config_store.exists("security"):
