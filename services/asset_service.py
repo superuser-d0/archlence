@@ -28,7 +28,11 @@ import threading
 import time
 from datetime import date
 
-from utils.errors import ArchlenceError
+from utils.errors import (
+    ArchlenceError,
+    DecryptionError,
+    KeyUnavailableError,
+)
 
 
 def _log():
@@ -960,7 +964,11 @@ def get_active_non_try_assets() -> list:
         try:
             quantity = float(decrypt(row["quantity"], SECRET_KEY))
             purchase_price = float(decrypt(row["purchase_price"], SECRET_KEY))
-        except (ValueError, TypeError) as e:
+        except KeyUnavailableError:
+            # Anahtar yoksa TÜM varlıklar etkilenir; satır bazında yutmak
+            # toplam arızayı boş portföy gibi gösterirdi.
+            raise
+        except (DecryptionError, ValueError, TypeError) as e:
             _log().error(
                 "[VERİ BÜTÜNLÜĞÜ] active_assets id=%s çözülemedi: %s",
                 row["id"], e)

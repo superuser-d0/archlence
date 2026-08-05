@@ -25,8 +25,14 @@ import math
 import os
 from datetime import datetime
 
-from database.db import get_connection, DEFAULT_ACCOUNT_ID, SECRET_KEY
+from database.db import (
+    DEFAULT_ACCOUNT_ID,
+    SECRET_KEY,
+    get_connection,
+    managed_connection,
+)
 from utils.crypto import decrypt
+from utils.errors import DecryptionError, KeyUnavailableError
 
 CSV_HEADER = ["kayit_turu", "tarih", "tur", "kategori", "tutar", "miktar", "aciklama", "detay"]
 
@@ -69,9 +75,15 @@ def _dec(value):
     tek bir bozuk satır tüm dışa aktarımı düşürmesin."""
     try:
         return decrypt(str(value), SECRET_KEY)
-    except (ValueError, TypeError):
-        # decrypt() tek başına hiçbir zaman raise etmez — pratikte
-        # tetiklenemez, aynı gerekçeyle daraltılmış hâliyle bırakıldı.
+    except KeyUnavailableError:
+        # Anahtar yoksa HİÇBİR alan çözülemez ve kullanıcı BAŞTAN SONA BOŞ
+        # bir CSV indirir — verisini kaybettiğini sanır. Tek bozuk satırı
+        # tolere etmek başka, tüm dışa aktarımın sessizce boşalması başka.
+        raise
+    except (DecryptionError, ValueError, TypeError):
+        from utils.logging_config import get_logger
+        get_logger().exception(
+            "[VERİ BÜTÜNLÜĞÜ] CSV dışa aktarımında bir alan çözülemedi")
         return ""
 
 
@@ -79,58 +91,65 @@ def export_all_to_csv(path=None):
     """transactions + active_assets + active_debts + recurring_payments
     tablolarını çözülmüş halde tek CSV'ye yazar. (yol, satır sayısı) döndürür."""
     path = path or get_export_path()
-    conn = get_connection()
-    cursor = conn.cursor()
     rows_out = []
 
-    cursor.execute(
-        "SELECT transaction_date, type, category, amount, description "
-        "FROM transactions ORDER BY id"
-    )
-    for r in cursor.fetchall():
-        tur = "gelir" if r["type"] in ("income", "Gelir") else "gider"
-        rows_out.append([
-            "islem", r["transaction_date"] or "", tur, r["category"] or "",
-            _dec(r["amount"]), "", _dec(r["description"]), "",
-        ])
+    # `managed_connection` ŞART, çıplak `get_connection()` DEĞİL: aşağıdaki
+    # `_dec()` çağrıları anahtar erişilemediğinde KeyUnavailableError
+    # fırlatıyor ve eski kodda `conn.close()` fonksiyonun sonunda tek başına
+    # duruyordu — araya giren her istisnada bağlantı sızıyordu. Windows'ta
+    # sızan bağlantı dosyayı kilitli tutuyor (CI bunu WinError 32 ile
+    # yakaladı); Linux'ta sessizce sızıyordu. Bu, database/db.py'deki
+    # `managed_connection` docstring'inin anlattığı hatanın aynısı.
+    with managed_connection() as conn:
+        cursor = conn.cursor()
 
-    cursor.execute(
-        "SELECT asset_name, asset_code, asset_type, purchase_price, quantity, purchase_date "
-        "FROM active_assets ORDER BY id"
-    )
-    for r in cursor.fetchall():
-        rows_out.append([
-            "varlik", r["purchase_date"] or "", r["asset_type"] or "", r["asset_code"] or "",
-            _dec(r["purchase_price"]), _dec(r["quantity"]), _dec(r["asset_name"]), "",
-        ])
-
-    cursor.execute(
-        "SELECT debt_name, total_amount, monthly_payment, total_installments, "
-        "paid_installments FROM active_debts WHERE is_active = 1 ORDER BY id"
-    )
-    for r in cursor.fetchall():
-        detay = (
-            f"aylik_odeme={_dec(r['monthly_payment'])};"
-            f"toplam_taksit={r['total_installments']};"
-            f"odenen_taksit={r['paid_installments']}"
+        cursor.execute(
+            "SELECT transaction_date, type, category, amount, description "
+            "FROM transactions ORDER BY id"
         )
-        rows_out.append([
-            "borc", "", "", "", _dec(r["total_amount"]), "", _dec(r["debt_name"]), detay,
-        ])
+        for r in cursor.fetchall():
+            tur = "gelir" if r["type"] in ("income", "Gelir") else "gider"
+            rows_out.append([
+                "islem", r["transaction_date"] or "", tur, r["category"] or "",
+                _dec(r["amount"]), "", _dec(r["description"]), "",
+            ])
 
-    cursor.execute(
-        "SELECT name, amount, category, frequency, next_due_date, "
-        "recurrence_day, auto_deduct "
-        "FROM recurring_payments WHERE is_active = 1 ORDER BY id"
-    )
-    for r in cursor.fetchall():
-        rows_out.append([
-            "tekrarlanan", r["next_due_date"] or "", r["frequency"] or "", r["category"] or "",
-            _dec(r["amount"]), "", _dec(r["name"]),
-            f"otomatik={r['auto_deduct']};gun={r['recurrence_day']}",
-        ])
+        cursor.execute(
+            "SELECT asset_name, asset_code, asset_type, purchase_price, quantity, purchase_date "
+            "FROM active_assets ORDER BY id"
+        )
+        for r in cursor.fetchall():
+            rows_out.append([
+                "varlik", r["purchase_date"] or "", r["asset_type"] or "", r["asset_code"] or "",
+                _dec(r["purchase_price"]), _dec(r["quantity"]), _dec(r["asset_name"]), "",
+            ])
 
-    conn.close()
+        cursor.execute(
+            "SELECT debt_name, total_amount, monthly_payment, total_installments, "
+            "paid_installments FROM active_debts WHERE is_active = 1 ORDER BY id"
+        )
+        for r in cursor.fetchall():
+            detay = (
+                f"aylik_odeme={_dec(r['monthly_payment'])};"
+                f"toplam_taksit={r['total_installments']};"
+                f"odenen_taksit={r['paid_installments']}"
+            )
+            rows_out.append([
+                "borc", "", "", "", _dec(r["total_amount"]), "", _dec(r["debt_name"]), detay,
+            ])
+
+        cursor.execute(
+            "SELECT name, amount, category, frequency, next_due_date, "
+            "recurrence_day, auto_deduct "
+            "FROM recurring_payments WHERE is_active = 1 ORDER BY id"
+        )
+        for r in cursor.fetchall():
+            rows_out.append([
+                "tekrarlanan", r["next_due_date"] or "", r["frequency"] or "", r["category"] or "",
+                _dec(r["amount"]), "", _dec(r["name"]),
+                f"otomatik={r['auto_deduct']};gun={r['recurrence_day']}",
+            ])
+
 
     # utf-8-sig: Excel'in Türkçe karakterleri doğru açması BOM'a bağlı
     with open(path, "w", newline="", encoding="utf-8-sig") as f:

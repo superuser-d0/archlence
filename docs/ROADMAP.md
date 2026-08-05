@@ -350,11 +350,39 @@ guarantees established earlier.
      still *readable* indefinitely (`decrypt()` handles both formats), so
      the migration remains opt-in rather than automatic, which was always
      the intent.
-   - **What is still genuinely open here:** `decrypt()`'s fail-open
-     behavior (returning an encrypted-data placeholder instead of raising)
-     is unchanged for both formats — flipping that touches the same ~55
-     call chains the Phase 2 exception-narrowing note already flagged as
-     unsafe to change blind without a way to verify GUI behavior here.
+   - [x] **Callers updated to the fail-closed contract.** This entry used to
+     say `decrypt()` was still fail-open and that fixing it meant touching
+     ~55 call chains unsafely. Both halves were wrong. `decrypt()` itself
+     has raised typed errors since PR #22 — the *callers* were the stale
+     part, and there are 21 of them, not 55.
+     - Measured: corrupt envelope, tampered ciphertext, non-base64 legacy
+       data and an unreachable key all raise `DecryptionError` subclasses
+       via `ArchlenceError`. **None is a `ValueError` or `TypeError`**, so
+       the old `except (ValueError, TypeError)` blocks never fired on real
+       corruption; the exception escaped to wherever it landed. Four files
+       carried a copied comment asserting the opposite.
+     - Every site now follows the pattern `financial_summary_service` and
+       `budget_service` already used: re-raise `KeyUnavailableError`,
+       handle `(DecryptionError, ValueError, TypeError)`. The distinction
+       is the point — per-record corruption is tolerated so one bad row
+       cannot drop a list, but an unreachable key fails *every* row, and
+       swallowing that per row would present a total failure as ordinary
+       data (all `0,00 TL`, all `Bilinmeyen Hedef`, or a CSV export that
+       comes out silently blank and reads as data loss).
+     - 8 sites (the display-text ones) previously left no trace at all;
+       they now log under `[VERİ BÜTÜNLÜĞÜ]` like the amount fields did.
+     - **Pre-existing bug the new tests found:**
+       `get_asset_transaction_history()` logged `r['id']` while its query
+       never selected `id`, so on a genuinely corrupt row the error handler
+       itself died with `IndexError`. That path had never been exercised.
+     - `tests/test_decrypt_error_contract.py` pins both halves and was
+       checked to have teeth in four independent ways.
+   - **Still open, deliberately (Aşama 3):** whether some *amount* fields
+     should propagate `FinancialDataIntegrityError` rather than falling
+     back to `0.0`. That changes what appears on screen — a list may stop
+     rendering entirely — so it wants GUI verification and is a product
+     call, not a mechanical one. The work above preserves every existing
+     fallback value unchanged.
 
 6. ~~**PIN hashing: Argon2id**~~ **Argon2id done** — [PR #14](https://github.com/superuser-d0/archlence/pull/14).
    **Attempt throttling/lockout still open.** `security/security_service.py`

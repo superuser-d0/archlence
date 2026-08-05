@@ -3,7 +3,11 @@ import os
 from contextlib import contextmanager
 from datetime import datetime
 from utils.crypto import encrypt, decrypt
-from utils.errors import DecryptionError, FinancialDataIntegrityError
+from utils.errors import (
+    DecryptionError,
+    FinancialDataIntegrityError,
+    KeyUnavailableError,
+)
 from utils.app_paths import data_dir, migrate_legacy_path
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -374,7 +378,13 @@ def get_asset_transaction_history(limit=50):
     with managed_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT type, category, amount, description,
+            -- `id` yalnızca hata kaydı için seçiliyor: aşağıdaki iki
+            -- [VERİ BÜTÜNLÜĞÜ] log satırı kaydı kimliğiyle işaretliyor.
+            -- Eskiden sorguda YOKTU, dolayısıyla gerçek bir bozuk satırda
+            -- hata işleyicisinin KENDİSİ `IndexError` ile çöküyordu; bu
+            -- yol hiç çalıştırılmadığı için fark edilmemişti
+            -- (tests/test_decrypt_error_contract.py yakaladı).
+            SELECT id, type, category, amount, description,
                    strftime('%d/%m/%Y %H:%M', transaction_date) as t_date
             FROM transactions
             WHERE category IN ('Varlık Alımı', 'Varlık Satışı')
@@ -387,17 +397,21 @@ def get_asset_transaction_history(limit=50):
     for r in rows:
         try:
             dec_amount = float(decrypt(str(r["amount"]), SECRET_KEY))
-        except (ValueError, TypeError) as e:
+        except KeyUnavailableError:
+            raise
+        except (DecryptionError, ValueError, TypeError):
             from utils.logging_config import get_logger
             get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] transactions id={r['id']} tutar çözülemedi")
             dec_amount = 0.0
-        # decrypt() tek başına (float() sarmalı olmadan) hiçbir zaman raise
-        # etmez — bu except pratikte tetiklenemez, ama gelecekte decrypt()
-        # değişirse sessizce yanlış davranmasın diye daraltılmış hâliyle
-        # bırakıldı.
         try:
             dec_desc = decrypt(str(r["description"]), SECRET_KEY)
-        except (ValueError, TypeError):
+        except KeyUnavailableError:
+            raise
+        except (DecryptionError, ValueError, TypeError):
+            from utils.logging_config import get_logger
+            get_logger().exception(
+                "[VERİ BÜTÜNLÜĞÜ] transactions id=%s açıklaması çözülemedi",
+                r["id"])
             dec_desc = ""
         result.append({
             "type":        r["type"],
@@ -454,9 +468,17 @@ def has_active_recurring_payment(name):
     for r in rows:
         try:
             existing_name = decrypt(r["name"], SECRET_KEY)
-        except (ValueError, TypeError):
-            # decrypt() tek başına hiçbir zaman raise etmez — pratikte
-            # tetiklenemez, aynı gerekçeyle daraltılmış hâliyle bırakıldı.
+        except KeyUnavailableError:
+            raise
+        except (DecryptionError, ValueError, TypeError):
+            # Arama döngüsü: çözülemeyen kayıt eşleşme sayılamaz, atlanır.
+            # Yine de iz bırakılır — sessiz atlama, "böyle bir kayıt yok" ile
+            # "kayıt bozuk" arasındaki farkı siler ve mükerrer abonelik
+            # oluşmasına yol açabilir.
+            from utils.logging_config import get_logger
+            get_logger().exception(
+                "[VERİ BÜTÜNLÜĞÜ] recurring_payments adı çözülemedi, "
+                "isim çakışma kontrolünde atlandı")
             continue
         if existing_name.strip().lower() == target:
             return True
@@ -474,15 +496,27 @@ def get_active_recurring_payments():
         try:
             dec_name = decrypt(r["name"], SECRET_KEY)
             dec_amount = float(decrypt(r["amount"], SECRET_KEY))
-        except (ValueError, TypeError) as e:
+        except KeyUnavailableError:
+            raise
+        except (DecryptionError, ValueError, TypeError):
             from utils.logging_config import get_logger
             get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] recurring_payments id={r['id']} çözülemedi")
             dec_name = "Bilinmeyen Ödeme"
             dec_amount = 0.0
+            amount_is_valid = False
+        else:
+            amount_is_valid = True
         payments.append({
             "id":            r["id"],
             "name":          dec_name,
             "amount":        dec_amount,
+            # Bu satır DÖRT görüntü listesini VE bütçe rezervi toplamını
+            # birden besliyor. Fonksiyonun tamamen raise etmesi listeleri de
+            # kırardı; 0.0'ı sessizce toplamak ise bütçeyi yanlış gösterirdi.
+            # Bayrak ikisini ayırıyor: listeler "Bilinmeyen Ödeme" gösterip
+            # çalışmaya devam eder, TOPLAM alan taraf (budget_service)
+            # bayrağı görüp reddeder.
+            "amount_is_valid": amount_is_valid,
             "category":      r["category"],
             "frequency":     r["frequency"],
             "next_due_date": r["next_due_date"],
