@@ -1426,17 +1426,36 @@ class AssetMixin:
                 # rozetini besliyor, varlık listesinin kendisini değil.
                 today_delta = None
 
-            # İlk sonuç yalnız SQLite'tan gelir; hiçbir ağ çağrısını beklemez.
-            cached = enrich_assets_from_cache(assets)
-            _apply(cached, today_delta, final=False)
+            try:
+                # İlk sonuç yalnız SQLite'tan gelir; hiçbir ağ çağrısını beklemez.
+                cached = enrich_assets_from_cache(assets)
+                _apply(cached, today_delta, final=False)
 
-            fetch_asset_prices_async(
-                assets,
-                callback=lambda enriched: _apply(
-                    enriched or cached, today_delta, final=True
-                ),
-                force_refresh=force_refresh,
-            )
+                fetch_asset_prices_async(
+                    assets,
+                    callback=lambda enriched: _apply(
+                        enriched or cached, today_delta, final=True
+                    ),
+                    force_refresh=force_refresh,
+                )
+            # EXCEPTION-AUDIT: bilinçli geniş — garantili tamamlanma sınırı.
+            except Exception:
+                # Bu iki çağrı KORUMASIZDI. Buradan kaçan bir istisna daemon
+                # thread'i öldürüyor, dolayısıyla `_apply(..., final=True)` HİÇ
+                # çalışmıyor: `_finish_active_asset_load` çağrılmadığı için
+                # `_asset_load_inflight` True'da kalıyor ve sonraki her
+                # `load_active_assets()` en baştaki koruma ile geri dönüyor.
+                # Sonuç: "Varlıklar hazırlanıyor…" iskeleti KALICI olarak
+                # ekranda kalıyor ve liste bir daha hiç yenilenmiyor.
+                #
+                # Yukarıdaki `get_all_assets()` dalı bu güvenceyi zaten
+                # veriyordu; eksik olan tek yer burasıydı. Daraltmıyoruz:
+                # buradan kaçan HER tip aynı kalıcı sonucu üretir, yani
+                # tip listesini eksik yazmak sessizce aynı hatayı geri getirir.
+                from utils.logging_config import get_logger
+                get_logger().exception(
+                    "Varlık listesi zenginleştirilemedi; yükleme kapatılıyor")
+                _apply([], None, final=True)
 
         threading.Thread(target=_fetch_and_enrich, daemon=True).start()
 
