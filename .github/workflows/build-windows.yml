@@ -211,6 +211,28 @@ jobs:
             exit 0
           }
 
+          # Inno Setup kurulum/kaldırma çağrıları SÜRESİZ bekliyordu
+          # (`Start-Process -Wait`). Kurulum askıda kalırsa adım, job'ın
+          # 30 dakikalık sınırına kadar oturuyor: 2026-08-05'te bir runner
+          # tam da böyle takıldı ve "Upgrade smoke" 23 dakika sürdü, sonunda
+          # elle iptal edilmesi gerekti. Sınırlı bekleme, askıyı 2 dakikada
+          # NET bir hataya çeviriyor.
+          #
+          # Zaman aşımından sonra `WaitForExit()` (argümansız) ÇAĞRILIYOR:
+          # .NET'te `ExitCode`'un dolu olması için çıkışın tam olarak
+          # işlenmiş olması gerekir; yalnızca `WaitForExit(ms)` bunu
+          # garanti etmez.
+          function Invoke-Bounded {
+            param($Proc, [int]$TimeoutSeconds, [string]$Label)
+            if (-not $Proc.WaitForExit($TimeoutSeconds * 1000)) {
+              try { $Proc.Kill() } catch { }
+              Write-Host "::error::$Label $TimeoutSeconds saniyede tamamlanmadı (askıda kaldı)."
+              exit 1
+            }
+            $Proc.WaitForExit()
+            return $Proc.ExitCode
+          }
+
           $installDir = Join-Path $env:RUNNER_TEMP "Archlence-Upgrade"
           $oldInstaller = Join-Path $env:RUNNER_TEMP $env:UPGRADE_BASELINE_ASSET
           $url = "https://github.com/${{ github.repository }}/releases/download/$($env:UPGRADE_BASELINE_TAG)/$($env:UPGRADE_BASELINE_ASSET)"
@@ -225,10 +247,10 @@ jobs:
             Write-Host "::error::Taban kurulum paketinin hash'i eşleşmiyor."
             exit 1
           }
-          $oldSetup = Start-Process $oldInstaller -Wait -PassThru `
+          $oldSetup = Start-Process $oldInstaller -PassThru `
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", `
               "/SP-", "/DIR=$installDir"
-          if ($oldSetup.ExitCode -ne 0) { exit 1 }
+          if ((Invoke-Bounded $oldSetup 120 "Taban kurulum") -ne 0) { exit 1 }
           $oldExe = Join-Path $installDir "Archlence.exe"
           $oldProc = Start-Process $oldExe -WorkingDirectory $installDir -PassThru
           Start-Sleep -Seconds 8
@@ -249,10 +271,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           $newInstaller = (Resolve-Path "installer_output\ArchlenceSetup.exe").Path
-          $upgrade = Start-Process $newInstaller -Wait -PassThru `
+          $upgrade = Start-Process $newInstaller -PassThru `
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", `
               "/SP-", "/DIR=$installDir"
-          if ($upgrade.ExitCode -ne 0) { exit 1 }
+          if ((Invoke-Bounded $upgrade 120 "Yükseltme kurulumu") -ne 0) { exit 1 }
           $newProc = Start-Process $oldExe -WorkingDirectory $installDir -PassThru
           Start-Sleep -Seconds 8
           if ($newProc.HasExited) {
@@ -264,9 +286,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           $uninstaller = Join-Path $installDir "unins000.exe"
-          $remove = Start-Process $uninstaller -Wait -PassThru `
+          $remove = Start-Process $uninstaller -PassThru `
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
-          if ($remove.ExitCode -ne 0 -or -not (Test-Path $db.FullName)) {
+          $removeExit = Invoke-Bounded $remove 120 "Yükseltme sonrası kaldırma"
+          if ($removeExit -ne 0 -or -not (Test-Path $db.FullName)) {
             Write-Host "::error::Yükseltme sonrası kaldırma kullanıcı verisini korumadı."
             exit 1
           }
@@ -285,13 +308,36 @@ jobs:
         # edilirken boş açılıyor), o yüzden varlığına değil BOYUT ARTIŞINA
         # bakılıyor — ham .exe adımındaki kalıbın aynısı.
         run: |
+          # Inno Setup kurulum/kaldırma çağrıları SÜRESİZ bekliyordu
+          # (`Start-Process -Wait`). Kurulum askıda kalırsa adım, job'ın
+          # 30 dakikalık sınırına kadar oturuyor: 2026-08-05'te bir runner
+          # tam da böyle takıldı ve "Upgrade smoke" 23 dakika sürdü, sonunda
+          # elle iptal edilmesi gerekti. Sınırlı bekleme, askıyı 2 dakikada
+          # NET bir hataya çeviriyor.
+          #
+          # Zaman aşımından sonra `WaitForExit()` (argümansız) ÇAĞRILIYOR:
+          # .NET'te `ExitCode`'un dolu olması için çıkışın tam olarak
+          # işlenmiş olması gerekir; yalnızca `WaitForExit(ms)` bunu
+          # garanti etmez.
+          function Invoke-Bounded {
+            param($Proc, [int]$TimeoutSeconds, [string]$Label)
+            if (-not $Proc.WaitForExit($TimeoutSeconds * 1000)) {
+              try { $Proc.Kill() } catch { }
+              Write-Host "::error::$Label $TimeoutSeconds saniyede tamamlanmadı (askıda kaldı)."
+              exit 1
+            }
+            $Proc.WaitForExit()
+            return $Proc.ExitCode
+          }
+
           $installDir = Join-Path $env:RUNNER_TEMP "Archlence-Installed"
           $installer = (Resolve-Path "installer_output\ArchlenceSetup.exe").Path
-          $setup = Start-Process -FilePath $installer -Wait -PassThru `
+          $setup = Start-Process -FilePath $installer -PassThru `
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", `
               "/SP-", "/DIR=$installDir"
-          if ($setup.ExitCode -ne 0) {
-            Write-Host "::error::Installer başarısız (exit=$($setup.ExitCode))."
+          $setupExit = Invoke-Bounded $setup 120 "Installer"
+          if ($setupExit -ne 0) {
+            Write-Host "::error::Installer başarısız (exit=$setupExit)."
             exit 1
           }
           $exe = Join-Path $installDir "Archlence.exe"
@@ -325,9 +371,10 @@ jobs:
             exit 1
           }
           $uninstaller = Join-Path $installDir "unins000.exe"
-          $remove = Start-Process -FilePath $uninstaller -Wait -PassThru `
+          $remove = Start-Process -FilePath $uninstaller -PassThru `
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
-          if ($remove.ExitCode -ne 0 -or (Test-Path $exe)) {
+          $removeExit = Invoke-Bounded $remove 120 "Kaldırma"
+          if ($removeExit -ne 0 -or (Test-Path $exe)) {
             Write-Host "::error::Kaldırma doğrulanamadı."
             exit 1
           }
