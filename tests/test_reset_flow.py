@@ -87,6 +87,16 @@ class ResetFlowTest(unittest.TestCase):
         ))
         app.refresh_dashboard_data = mock.Mock()
         app.render_accounts = mock.Mock()
+        # Bu ikisi de `delete_all_data` içinden çağrılıyor ve HER BİRİ kendi
+        # daemon thread'ini açıp DB okuyor. Gerçek hâlleriyle bırakılırlarsa
+        # thread, `tearDown`'ın geçici dosyayı silmesiyle YARIŞIR: Windows
+        # açık tutulan dosyayı sildirmez ve test WinError 32 ile düşer
+        # (Linux açık dosyanın unlink'ine izin verdiği için orada sessizce
+        # geçiyordu). Bu test zaten warm-up/cache geçersiz kılmayı ölçüyor;
+        # türetilmiş görünümlerin tazelenmesi ayrı bir testin konusu
+        # (tests/test_reset_clears_derived_views.py).
+        app.generate_financial_advice = mock.Mock()
+        app.load_asset_history = mock.Mock()
         app._assets_cache = [{"id": 99}]
         app._liquid_balance_cache = 36710.01
         app._today_liquid_delta_cache = 125.0
