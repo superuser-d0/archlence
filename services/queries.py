@@ -10,7 +10,7 @@ sonra kaldırıldı.
 Not: Bu servisler amount/description kolonlarını çözmeden (şifreli haliyle)
 döndürür; şifre çözme çağıran tarafın sorumluluğundadır (bkz. utils/crypto.py).
 """
-from database.db import ACCOUNT, get_connection
+from database.db import ACCOUNT, managed_connection
 
 
 class CategoryService:
@@ -18,19 +18,16 @@ class CategoryService:
     @staticmethod
     def get_categories(category_type=None):
         """Türe (income/expense) göre kategorileri getirir; tür verilmezse hepsini."""
-        conn = get_connection()
-
-        if category_type:
-            rows = conn.execute(
-                "SELECT id, name FROM categories WHERE type = ?",
-                (category_type,)
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT id, name FROM categories"
-            ).fetchall()
-
-        conn.close()
+        with managed_connection() as conn:
+            if category_type:
+                rows = conn.execute(
+                    "SELECT id, name FROM categories WHERE type = ?",
+                    (category_type,)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT id, name FROM categories"
+                ).fetchall()
         return rows
 
 
@@ -38,16 +35,13 @@ class TransactionHistoryService:
 
     @staticmethod
     def get_last_transactions(limit=10):
-        conn = get_connection()
-
-        rows = conn.execute("""
-            SELECT *
-            FROM transactions
-            ORDER BY id DESC
-            LIMIT ?
-        """, (limit,)).fetchall()
-
-        conn.close()
+        with managed_connection() as conn:
+            rows = conn.execute("""
+                SELECT *
+                FROM transactions
+                ORDER BY id DESC
+                LIMIT ?
+            """, (limit,)).fetchall()
 
         return rows
 
@@ -56,13 +50,10 @@ class DashboardService:
 
     @staticmethod
     def get_total_balance():
-        conn = get_connection()
-
-        result = conn.execute(
-            "SELECT SUM(balance) as total FROM accounts"
-        ).fetchone()
-
-        conn.close()
+        with managed_connection() as conn:
+            result = conn.execute(
+                "SELECT SUM(balance) as total FROM accounts"
+            ).fetchone()
 
         return round(result["total"] or 0, 2)
 
@@ -87,26 +78,20 @@ class DashboardService:
         toplamına eşittir. Kredi kartı borcu negatif işaretli girdiğinden bu
         toplam otomatik olarak borç kadar azalır.
         """
-        conn = get_connection()
-        try:
+        with managed_connection() as conn:
             result = conn.execute(
                 "SELECT COALESCE(SUM(delta), 0) AS total FROM balance_events"
                 " WHERE entity_type = ? AND source = 'account_opened'",
                 (ACCOUNT,),
             ).fetchone()
-        finally:
-            conn.close()
         return round(result["total"] or 0.0, 2)
 
     @staticmethod
     def get_accounts():
-        conn = get_connection()
-
-        rows = conn.execute(
-            "SELECT * FROM accounts"
-        ).fetchall()
-
-        conn.close()
+        with managed_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM accounts"
+            ).fetchall()
 
         return rows
 
