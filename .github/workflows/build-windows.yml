@@ -183,6 +183,14 @@ jobs:
 
       - name: "Upgrade smoke: önceki sürüm profilini yeni sürümle aç"
         shell: pwsh
+        # ADIM DÜZEYİNDE ZAMAN AŞIMI: `Invoke-Bounded` yalnızca kurulum
+        # SÜREÇLERİNİ sınırlıyor; adımda süresiz bekleyebilen başka
+        # operasyonlar da var (aşağıdaki `Get-ChildItem -Recurse`). Bu adım
+        # sağlıklıyken ~1-2 dakika sürüyor, dolayısıyla 10 dakika bol bir
+        # tavan. Asıl kazancı şu: adım düzeyinde zaman aşımına uğrayan bir
+        # adım LOG'UNU KORUR. 2026-08-05'te askıda kalan job elle iptal
+        # edilince GitHub log üretemedi ve askının nerede olduğu ölçülemedi.
+        timeout-minutes: 10
         env:
           KIVY_GL_BACKEND: angle_sdl2
           # Yükseltmenin sınanacağı TABAN sürüm. Boş bırakılırsa adım
@@ -218,10 +226,15 @@ jobs:
           # elle iptal edilmesi gerekti. Sınırlı bekleme, askıyı 2 dakikada
           # NET bir hataya çeviriyor.
           #
-          # Zaman aşımından sonra `WaitForExit()` (argümansız) ÇAĞRILIYOR:
+          # Zaman aşımından sonra İKİNCİ ve YİNE SINIRLI bir bekleme:
           # .NET'te `ExitCode`'un dolu olması için çıkışın tam olarak
-          # işlenmiş olması gerekir; yalnızca `WaitForExit(ms)` bunu
-          # garanti etmez.
+          # işlenmiş olması gerekir, yalnızca `WaitForExit(ms)` bunu
+          # garanti etmez. Ama ARGÜMANSIZ `WaitForExit()` bu iş için
+          # tehlikeli: süreç çıkmış olsa bile, devraldığı handle'ları hâlâ
+          # açık tutan ÇOCUK süreçler varsa süresiz bekler — Inno Setup
+          # rutin olarak çocuk süreç açar. Yani askıyı sınırlamak için
+          # eklenen yardımcının içinde yeni bir sınırsız bekleme oluyordu.
+          # Sınırlı ikinci bekleme her iki ihtiyacı da karşılıyor.
           function Invoke-Bounded {
             param($Proc, [int]$TimeoutSeconds, [string]$Label)
             if (-not $Proc.WaitForExit($TimeoutSeconds * 1000)) {
@@ -229,7 +242,7 @@ jobs:
               Write-Host "::error::$Label $TimeoutSeconds saniyede tamamlanmadı (askıda kaldı)."
               exit 1
             }
-            $Proc.WaitForExit()
+            [void]$Proc.WaitForExit(10000)
             return $Proc.ExitCode
           }
 
@@ -237,7 +250,12 @@ jobs:
           $oldInstaller = Join-Path $env:RUNNER_TEMP $env:UPGRADE_BASELINE_ASSET
           $url = "https://github.com/${{ github.repository }}/releases/download/$($env:UPGRADE_BASELINE_TAG)/$($env:UPGRADE_BASELINE_ASSET)"
           try {
-            Invoke-WebRequest $url -OutFile $oldInstaller
+            # -TimeoutSec ZORUNLU: PowerShell'de varsayılan değer 0'dır ve
+            # 0 "SÜRESİZ" demektir. Bağlantı kurulup veri akmayı keserse
+            # `Invoke-WebRequest` sonsuza kadar bekler. Bu, adımdaki
+            # `Start-Process` çağrılarından bağımsız ikinci bir sınırsız
+            # bekleme noktasıydı; sınırlı bekleme çalışması onu atlamıştı.
+            Invoke-WebRequest $url -OutFile $oldInstaller -TimeoutSec 180
           } catch {
             Write-Host "::error::Taban sürüm indirilemedi: $url"
             exit 1
@@ -297,6 +315,8 @@ jobs:
 
       - name: "Smoke test: installer kur, çalıştır ve kaldır"
         shell: pwsh
+        # Gerekçe için yukarıdaki "Upgrade smoke" adımının notuna bakınız.
+        timeout-minutes: 10
         env:
           KIVY_GL_BACKEND: angle_sdl2
         # crash.log kontrolü yukarıdaki ham .exe smoke testinde vardı, BURADA
@@ -315,10 +335,15 @@ jobs:
           # elle iptal edilmesi gerekti. Sınırlı bekleme, askıyı 2 dakikada
           # NET bir hataya çeviriyor.
           #
-          # Zaman aşımından sonra `WaitForExit()` (argümansız) ÇAĞRILIYOR:
+          # Zaman aşımından sonra İKİNCİ ve YİNE SINIRLI bir bekleme:
           # .NET'te `ExitCode`'un dolu olması için çıkışın tam olarak
-          # işlenmiş olması gerekir; yalnızca `WaitForExit(ms)` bunu
-          # garanti etmez.
+          # işlenmiş olması gerekir, yalnızca `WaitForExit(ms)` bunu
+          # garanti etmez. Ama ARGÜMANSIZ `WaitForExit()` bu iş için
+          # tehlikeli: süreç çıkmış olsa bile, devraldığı handle'ları hâlâ
+          # açık tutan ÇOCUK süreçler varsa süresiz bekler — Inno Setup
+          # rutin olarak çocuk süreç açar. Yani askıyı sınırlamak için
+          # eklenen yardımcının içinde yeni bir sınırsız bekleme oluyordu.
+          # Sınırlı ikinci bekleme her iki ihtiyacı da karşılıyor.
           function Invoke-Bounded {
             param($Proc, [int]$TimeoutSeconds, [string]$Label)
             if (-not $Proc.WaitForExit($TimeoutSeconds * 1000)) {
@@ -326,7 +351,7 @@ jobs:
               Write-Host "::error::$Label $TimeoutSeconds saniyede tamamlanmadı (askıda kaldı)."
               exit 1
             }
-            $Proc.WaitForExit()
+            [void]$Proc.WaitForExit(10000)
             return $Proc.ExitCode
           }
 
