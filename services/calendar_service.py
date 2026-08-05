@@ -8,6 +8,7 @@ satırlar çekilip Python'da decrypt edilir. Servis Kivy'den bağımsızdır.
 """
 from database.db import COMPLETED_TX, SECRET_KEY, get_connection
 from utils.crypto import decrypt
+from utils.errors import DecryptionError, KeyUnavailableError
 
 
 def get_month_transaction_days(year, month):
@@ -57,14 +58,31 @@ def get_day_transactions(date_obj):
     for row in rows:
         try:
             amount = float(decrypt(str(row["amount"]), SECRET_KEY))
-        except (ValueError, TypeError):
+        except KeyUnavailableError:
+            # Anahtar yoksa HİÇBİR satır çözülemez. Bunu satır bazında yutmak,
+            # toplam bir arızayı "hepsi 0,00 TL" diye normal veri gibi
+            # gösterirdi; yukarı taşınır.
+            raise
+        except (DecryptionError, ValueError, TypeError):
+            # Sorgu `id` seçmiyor (ay ızgarası için gerekmiyor), o yüzden
+            # kayıt kimliği yerine tarih/saat ile işaretleniyor.
+            from utils.logging_config import get_logger
+            get_logger().exception(
+                "[VERİ BÜTÜNLÜĞÜ] takvim işlemi (%s %s) tutarı çözülemedi",
+                date_obj, row["time"])
             amount = 0.0
         try:
             description = (
                 decrypt(str(row["description"]), SECRET_KEY)
                 if row["description"] else ""
             )
-        except (ValueError, TypeError):
+        except KeyUnavailableError:
+            raise
+        except (DecryptionError, ValueError, TypeError):
+            from utils.logging_config import get_logger
+            get_logger().exception(
+                "[VERİ BÜTÜNLÜĞÜ] takvim işlemi (%s %s) açıklaması çözülemedi",
+                date_obj, row["time"])
             description = ""
         items.append({
             "type": row["type"],

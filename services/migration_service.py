@@ -27,6 +27,7 @@ from datetime import datetime
 
 from database.db import get_connection, DEFAULT_ACCOUNT_ID, SECRET_KEY
 from utils.crypto import decrypt
+from utils.errors import DecryptionError, KeyUnavailableError
 
 CSV_HEADER = ["kayit_turu", "tarih", "tur", "kategori", "tutar", "miktar", "aciklama", "detay"]
 
@@ -69,9 +70,15 @@ def _dec(value):
     tek bir bozuk satır tüm dışa aktarımı düşürmesin."""
     try:
         return decrypt(str(value), SECRET_KEY)
-    except (ValueError, TypeError):
-        # decrypt() tek başına hiçbir zaman raise etmez — pratikte
-        # tetiklenemez, aynı gerekçeyle daraltılmış hâliyle bırakıldı.
+    except KeyUnavailableError:
+        # Anahtar yoksa HİÇBİR alan çözülemez ve kullanıcı BAŞTAN SONA BOŞ
+        # bir CSV indirir — verisini kaybettiğini sanır. Tek bozuk satırı
+        # tolere etmek başka, tüm dışa aktarımın sessizce boşalması başka.
+        raise
+    except (DecryptionError, ValueError, TypeError):
+        from utils.logging_config import get_logger
+        get_logger().exception(
+            "[VERİ BÜTÜNLÜĞÜ] CSV dışa aktarımında bir alan çözülemedi")
         return ""
 
 

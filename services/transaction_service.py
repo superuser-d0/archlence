@@ -1,6 +1,10 @@
 import sqlite3
 
-from utils.errors import ArchlenceError
+from utils.errors import (
+    ArchlenceError,
+    DecryptionError,
+    KeyUnavailableError,
+)
 from database.db import (
     COMPLETED_TX, COMPLETED_TX_T, get_connection, adjust_account_balance,
 )
@@ -224,7 +228,9 @@ class TransactionService:
                     continue
                 try:
                     amount = float(decrypt(str(row["amount"]), SECRET_KEY))
-                except (ValueError, TypeError) as e:
+                except KeyUnavailableError:
+                    raise
+                except (DecryptionError, ValueError, TypeError):
                     from utils.logging_config import get_logger
                     get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] pending işlem id={row['id']} tutarı çözülemedi")
                     # Tutar çözülemiyorsa bakiyeye körlemesine dokunmaktansa
@@ -289,13 +295,19 @@ class TransactionService:
         for r in rows:
             try:
                 amount = float(decrypt(str(r["amount"]), SECRET_KEY))
-            except (ValueError, TypeError) as e:
+            except KeyUnavailableError:
+                raise
+            except (DecryptionError, ValueError, TypeError):
                 from utils.logging_config import get_logger
                 get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] pending işlem id={r['id']} tutarı çözülemedi")
                 amount = 0.0
             try:
                 description = decrypt(str(r["description"]), SECRET_KEY) or ""
-            except (ValueError, TypeError):
+            except KeyUnavailableError:
+                raise
+            except (DecryptionError, ValueError, TypeError):
+                from utils.logging_config import get_logger
+                get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] pending işlem id={r['id']} açıklaması çözülemedi")
                 description = ""
             items.append({
                 "id": r["id"],
@@ -388,7 +400,9 @@ class TransactionService:
             try:
                 total = float(decrypt(str(r["total_amount"]), SECRET_KEY))
                 monthly = float(decrypt(str(r["monthly_amount"]), SECRET_KEY))
-            except (ValueError, TypeError) as e:
+            except KeyUnavailableError:
+                raise
+            except (DecryptionError, ValueError, TypeError):
                 from utils.logging_config import get_logger
                 get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] taksit planı id={r['id']} tutarı çözülemedi")
                 continue
@@ -396,7 +410,11 @@ class TransactionService:
             # şifreli durur; çözülemezse plan gizlenmez, ad boş bırakılmaz.
             try:
                 plan_description = decrypt(str(r["description"]), SECRET_KEY) or "Taksitli İşlem"
-            except (ValueError, TypeError):
+            except KeyUnavailableError:
+                raise
+            except (DecryptionError, ValueError, TypeError):
+                from utils.logging_config import get_logger
+                get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] taksit planı id={r['id']} açıklaması çözülemedi")
                 plan_description = "Taksitli İşlem"
             remaining = int(r["total_installments"]) - int(r["paid_installments"])
             plans.append({
@@ -436,7 +454,9 @@ class TransactionService:
         for r in rows:
             try:
                 decrypted_amount = float(decrypt(r[0], SECRET_KEY))
-            except (ValueError, TypeError) as e:
+            except KeyUnavailableError:
+                raise
+            except (DecryptionError, ValueError, TypeError):
                 from utils.logging_config import get_logger
                 get_logger().exception("[VERİ BÜTÜNLÜĞÜ] işlem tutarı çözülemedi")
                 decrypted_amount = 0.0
@@ -545,13 +565,19 @@ class TransactionService:
         for r in rows:
             try:
                 amount = float(decrypt(str(r["amount"]), SECRET_KEY))
-            except (ValueError, TypeError) as e:
+            except KeyUnavailableError:
+                raise
+            except (DecryptionError, ValueError, TypeError):
                 from utils.logging_config import get_logger
                 get_logger().exception("[VERİ BÜTÜNLÜĞÜ] son işlem tutarı çözülemedi")
                 amount = 0.0
             try:
                 desc = decrypt(str(r["description"]), SECRET_KEY) or ""
-            except (ValueError, TypeError):
+            except KeyUnavailableError:
+                raise
+            except (DecryptionError, ValueError, TypeError):
+                from utils.logging_config import get_logger
+                get_logger().exception("[VERİ BÜTÜNLÜĞÜ] son işlem açıklaması çözülemedi")
                 desc = ""
             items.append({
                 "amount": amount,
