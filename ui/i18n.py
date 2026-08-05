@@ -467,7 +467,7 @@ EN = {
     "Mevcut Borç (₺)": "Current Debt (₺)",
     "Toplam Limit (₺)": "Total Limit (₺)",
     "Hesap Kesim Günü (1-31, opsiyonel)": "Statement Day (1–31, optional)",
-    "Kart Numarası (Örn: 1234 5678 1234 5678)": "Card Number (e.g. 1234 5678 1234 5678)",
+    "Kart Numarası (opsiyonel — kartsız hesap için boş bırakın)": "Card Number (optional — leave empty for an account without a card)",
     "Son Kullanma Tarihi (AA/YY)": "Expiry Date (MM/YY)",
     "CVC (Arkada yer alan 3 hane)": "CVC (3 digits on the back)",
     "Nakit / Vadesiz": "Cash / Checking",
