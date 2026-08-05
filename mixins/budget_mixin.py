@@ -1036,32 +1036,30 @@ class BudgetMixin:
         button.opacity = 1 if button.is_selected else 0.55
 
     def delete_budget_item(self, item_id):
-        from database.db import get_connection
+        from database.db import managed_connection
         month, year = self._budget_period()
-        conn = get_connection()
-        conn.execute(
-            "DELETE FROM monthly_budget_plan "
-            "WHERE id = ? AND (is_template = 1 OR "
-            "(target_month = ? AND target_year = ?))",
-            (item_id, month, year),
-        )
-        conn.commit()
-        conn.close()
+        with managed_connection() as conn:
+            conn.execute(
+                "DELETE FROM monthly_budget_plan "
+                "WHERE id = ? AND (is_template = 1 OR "
+                "(target_month = ? AND target_year = ?))",
+                (item_id, month, year),
+            )
+            conn.commit()
         self.load_budget_list()
         self.generate_next_month_projection()
         toast(_t("Kalem silindi."))
 
     def edit_budget_item(self, item_id):
-        from database.db import get_connection
+        from database.db import managed_connection
         month, year = self._budget_period()
-        conn = get_connection()
-        row = conn.execute(
-            "SELECT * FROM monthly_budget_plan "
-            "WHERE id = ? AND (is_template = 1 OR "
-            "(target_month = ? AND target_year = ?))",
-            (item_id, month, year),
-        ).fetchone()
-        conn.close()
+        with managed_connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM monthly_budget_plan "
+                "WHERE id = ? AND (is_template = 1 OR "
+                "(target_month = ? AND target_year = ?))",
+                (item_id, month, year),
+            ).fetchone()
         if not row:
             return
         self.editing_item_id = item_id

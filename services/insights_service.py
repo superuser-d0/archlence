@@ -23,7 +23,7 @@ import sqlite3
 import statistics
 from datetime import datetime, timedelta
 
-from database.db import COMPLETED_TX, get_connection, SECRET_KEY
+from database.db import COMPLETED_TX, get_connection, managed_connection, SECRET_KEY
 from utils.crypto import decrypt
 
 # ── Ayarlanabilir eşikler ──────────────────────────────────────────────────
@@ -133,24 +133,23 @@ def _load_transactions(lookback_days, types, decrypt_description=True):
     radarı ve anomali tespiti açıklamaya İHTİYAÇ DUYAR (adayı ondan türetir),
     o yüzden varsayılan `True` — sessizce boş açıklama görmesinler.
     """
-    conn = get_connection()
-    cursor = conn.cursor()
-    placeholders = ",".join("?" for _ in types)
-    # Abonelik radarı ve anomali tespiti gerçekleşmiş harcama davranışına
-    # bakar; ileri tarihli (pending) kayıtlar henüz olmamış harcamalardır.
-    cursor.execute(
-        f"""
-        SELECT id, amount, type, category, description, transaction_date
-        FROM transactions
-        WHERE type IN ({placeholders})
-          AND date(transaction_date) >= date('now', ?, 'localtime')
-          AND {COMPLETED_TX}
-        ORDER BY transaction_date ASC
-        """,
-        (*types, f"-{int(lookback_days)} days"),
-    )
-    rows = cursor.fetchall()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        placeholders = ",".join("?" for _ in types)
+        # Abonelik radarı ve anomali tespiti gerçekleşmiş harcama davranışına
+        # bakar; ileri tarihli (pending) kayıtlar henüz olmamış harcamalardır.
+        cursor.execute(
+            f"""
+            SELECT id, amount, type, category, description, transaction_date
+            FROM transactions
+            WHERE type IN ({placeholders})
+              AND date(transaction_date) >= date('now', ?, 'localtime')
+              AND {COMPLETED_TX}
+            ORDER BY transaction_date ASC
+            """,
+            (*types, f"-{int(lookback_days)} days"),
+        )
+        rows = cursor.fetchall()
 
     records = []
     for r in rows:
@@ -346,14 +345,13 @@ def detect_recurring_candidates(lookback_days=180):
 
 def dismiss_recurring_candidate(key):
     """Bir adayı kalıcı olarak reddeder (radar bir daha önermez)."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO recurring_candidate_dismissals (candidate_key, dismissed_at) VALUES (?, ?)",
-        (key, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-    )
-    conn.commit()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO recurring_candidate_dismissals (candidate_key, dismissed_at) VALUES (?, ?)",
+            (key, datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
+        )
+        conn.commit()
 
 
 # ── 2. Anomali tespiti ─────────────────────────────────────────────────────
@@ -599,15 +597,14 @@ def save_health_score(score, breakdown, computed_at=None):
 
 def get_health_history(limit=30):
     """Son N skoru en yeniden eskiye döndürür (gelecekteki geçmiş görünümü için)."""
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT date, score, breakdown_json FROM financial_health_history"
-        " ORDER BY id DESC LIMIT ?",
-        (int(limit),),
-    )
-    rows = cursor.fetchall()
-    conn.close()
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT date, score, breakdown_json FROM financial_health_history"
+            " ORDER BY id DESC LIMIT ?",
+            (int(limit),),
+        )
+        rows = cursor.fetchall()
 
     history = []
     for r in rows:
