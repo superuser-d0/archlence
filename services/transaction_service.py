@@ -7,7 +7,8 @@ from utils.errors import (
     KeyUnavailableError,
 )
 from database.db import (
-    COMPLETED_TX, COMPLETED_TX_T, get_connection, adjust_account_balance,
+    COMPLETED_TX, COMPLETED_TX_T, get_connection, managed_connection,
+    adjust_account_balance,
 )
 from services.account_service import AccountService
 from utils.crypto import encrypt, decrypt
@@ -433,24 +434,22 @@ class TransactionService:
 
     @staticmethod
     def get_transactions_by_period(filter_type):
-        conn = get_connection()
-        cursor = conn.cursor()
-
         date_cond = _period_date_cond(filter_type, "t.transaction_date")
 
-        # status filtresi: ileri tarihli (pending) işlemler bakiyeye
-        # işlenmediği için raporlanan gelir/gider/tasarruf metriklerine de
-        # girmemeli — yoksa bakiye ile dashboard birbirini tutmaz.
-        cursor.execute(f"""
-            SELECT t.amount, t.type, t.category, t.transaction_date, c.importance
-            FROM transactions t
-            LEFT JOIN categories c ON t.category = c.name
-            WHERE {date_cond}
-              AND {COMPLETED_TX_T}
-        """)
-        rows = cursor.fetchall()
-        conn.close()
-        
+        with managed_connection() as conn:
+            cursor = conn.cursor()
+            # status filtresi: ileri tarihli (pending) işlemler bakiyeye
+            # işlenmediği için raporlanan gelir/gider/tasarruf metriklerine de
+            # girmemeli — yoksa bakiye ile dashboard birbirini tutmaz.
+            cursor.execute(f"""
+                SELECT t.amount, t.type, t.category, t.transaction_date, c.importance
+                FROM transactions t
+                LEFT JOIN categories c ON t.category = c.name
+                WHERE {date_cond}
+                  AND {COMPLETED_TX_T}
+            """)
+            rows = cursor.fetchall()
+
         data = []
         for r in rows:
             try:
