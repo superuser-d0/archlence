@@ -503,10 +503,20 @@ def get_active_recurring_payments():
             get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] recurring_payments id={r['id']} çözülemedi")
             dec_name = "Bilinmeyen Ödeme"
             dec_amount = 0.0
+            amount_is_valid = False
+        else:
+            amount_is_valid = True
         payments.append({
             "id":            r["id"],
             "name":          dec_name,
             "amount":        dec_amount,
+            # Bu satır DÖRT görüntü listesini VE bütçe rezervi toplamını
+            # birden besliyor. Fonksiyonun tamamen raise etmesi listeleri de
+            # kırardı; 0.0'ı sessizce toplamak ise bütçeyi yanlış gösterirdi.
+            # Bayrak ikisini ayırıyor: listeler "Bilinmeyen Ödeme" gösterip
+            # çalışmaya devam eder, TOPLAM alan taraf (budget_service)
+            # bayrağı görüp reddeder.
+            "amount_is_valid": amount_is_valid,
             "category":      r["category"],
             "frequency":     r["frequency"],
             "next_due_date": r["next_due_date"],

@@ -123,6 +123,16 @@ def get_reserved_recurring_items(target_month, target_year):
         )
         if not occurrences:
             continue
+        if not payment.get("amount_is_valid", True):
+            # Burası TOPLAM üretiyor: `reserved_amount` aylık bütçe rezervine
+            # giriyor. Çözülemeyen bir tutar 0,00 sayılırsa rezerv sessizce
+            # eksik çıkar ve kullanıcı bütçesinde olmayan bir boşluk görür.
+            # Görüntü listeleri aynı kaydı "Bilinmeyen Ödeme" olarak
+            # göstermeye devam eder (bkz. db.get_active_recurring_payments);
+            # yanlış olan TOPLAM reddediliyor, listeler değil.
+            raise FinancialDataIntegrityError(
+                "recurring_payments", payment.get("id"), "amount"
+            )
         item = dict(payment)
         item["occurrences"] = occurrences
         item["reserved_amount"] = fiat(

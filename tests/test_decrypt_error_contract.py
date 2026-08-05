@@ -28,7 +28,7 @@ import unittest
 from contextlib import closing
 from unittest import mock
 
-from utils.errors import KeyUnavailableError
+from utils.errors import FinancialDataIntegrityError, KeyUnavailableError
 
 # `AEADv1:` önekli ama gövdesi bozuk — decrypt() bunu
 # IntegrityVerificationError ile reddeder (ölçüldü).
@@ -47,7 +47,13 @@ class _LogCapture(logging.Handler):
         return [r.getMessage() for r in self.records]
 
 
-class DecryptErrorContractTest(unittest.TestCase):
+class _ContractTestBase(unittest.TestCase):
+    """Ortak kurulum. Kendisi test İÇERMEZ — iki test sınıfı da bunu miras
+    alır. `AggregatePaths...` sınıfını doğrudan `DecryptErrorContractTest`'ten
+    türetmek, ebeveynin testlerini İKİNCİ KEZ çalıştırıyordu (7 test 18'e
+    çıkmıştı); unittest, miras alınan `test_*` metodlarını da toplar.
+    """
+
     def setUp(self):
         fd, self.db_path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
@@ -80,6 +86,16 @@ class DecryptErrorContractTest(unittest.TestCase):
             tuple(values.values()),
         )
 
+    def _corrupt_recurring(self):
+        self._corrupt_row(
+            "recurring_payments", ["name", "amount"],
+            {"frequency": "monthly", "next_due_date": "2026-09-01",
+             "transaction_type": "expense", "is_active": 1,
+             "recurrence_day": 1, "auto_deduct": 0, "category": "Test"},
+        )
+
+
+class DecryptErrorContractTest(_ContractTestBase):
     # ── 1. Kayıt bazında bozulma: yakala, logla, devam et ────────────────
 
     def test_corrupt_savings_goal_is_caught_and_logged(self):
@@ -194,6 +210,67 @@ class DecryptErrorContractTest(unittest.TestCase):
         with self._with_unavailable_key("services.migration_service"):
             with self.assertRaises(KeyUnavailableError):
                 export_all_to_csv(export_path)
+
+
+class AggregatePathsRefuseToBeSilentlyWrongTest(_ContractTestBase):
+    """Aşama 3: bir TOPLAMA giren tutar, çözülemezse 0,00 sayılmaz.
+
+    Ayrım "tutar mı metin mi" değil, "bu değer toplanıyor mu". Bir listede
+    yanlış tek satır görünür ve düzeltilebilir; bir TOPLAMDA aynı 0,00
+    sessizce yanlış bir grafik/bütçe üretir ve kullanıcı bunu fark edemez.
+    Uygulama bu politikayı zaten uyguluyordu (`financial_summary_service`
+    ve `main.py::_apply_dashboard_integrity_error`); burada tutarsız kalan
+    iki yol hizalanıyor.
+    """
+
+    def test_chart_data_refuses_a_corrupt_amount_instead_of_zeroing_it(self):
+        from services.transaction_service import TransactionService
+
+        self._corrupt_row(
+            "transactions", ["amount", "description"],
+            {"account_id": 1, "type": "expense", "category": "Test",
+             "transaction_date": "2026-08-01 10:00:00"},
+        )
+        with self.assertRaises(FinancialDataIntegrityError):
+            TransactionService.get_transactions_by_period("Hayat Boyu")
+
+    def test_budget_reserve_refuses_a_corrupt_recurring_amount(self):
+        from services.budget_service import get_reserved_recurring_items
+
+        self._corrupt_recurring()
+        with self.assertRaises(FinancialDataIntegrityError):
+            get_reserved_recurring_items(9, 2026)
+
+    def test_display_lists_still_render_the_same_corrupt_recurring_row(self):
+        """Bütçe reddederken listeler ÇALIŞMAYA DEVAM etmeli.
+
+        Aynı kayıt dört görüntü listesini besliyor; hepsini birden kırmak,
+        yanlış toplamı düzeltmek için ödenecek çok ağır bir bedel olurdu.
+        """
+        from database.db import get_active_recurring_payments
+
+        self._corrupt_recurring()
+        payments = get_active_recurring_payments()
+
+        self.assertEqual(len(payments), 1, "liste düşmemeli")
+        self.assertEqual(payments[0]["name"], "Bilinmeyen Ödeme")
+        self.assertFalse(
+            payments[0]["amount_is_valid"],
+            "bozuk tutar bayrakla işaretlenmeli — toplam alan taraf buna bakıyor",
+        )
+
+    def test_sound_recurring_row_is_flagged_valid_and_reserved(self):
+        """Sağlam kayıt etkilenmemeli — bayrak yanlış pozitif üretmemeli."""
+        from database.db import insert_recurring_payment
+        from services.budget_service import get_reserved_recurring_items
+
+        insert_recurring_payment(
+            "Netflix", 99.99, "Abonelik", "monthly", "2026-09-01",
+            recurrence_day=1, auto_deduct=0,
+        )
+        items = get_reserved_recurring_items(9, 2026)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["name"], "Netflix")
 
 
 if __name__ == "__main__":

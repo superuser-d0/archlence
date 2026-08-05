@@ -3,6 +3,7 @@ import sqlite3
 from utils.errors import (
     ArchlenceError,
     DecryptionError,
+    FinancialDataIntegrityError,
     KeyUnavailableError,
 )
 from database.db import (
@@ -456,10 +457,19 @@ class TransactionService:
                 decrypted_amount = float(decrypt(r[0], SECRET_KEY))
             except KeyUnavailableError:
                 raise
-            except (DecryptionError, ValueError, TypeError):
-                from utils.logging_config import get_logger
-                get_logger().exception("[VERİ BÜTÜNLÜĞÜ] işlem tutarı çözülemedi")
-                decrypted_amount = 0.0
+            except (DecryptionError, ValueError, TypeError) as exc:
+                # 0.0'A DÜŞÜLMÜYOR — bu satırlar TOPLANIYOR. Tek çağıranı
+                # `ui/charts.py`, değerleri kategoriye göre toplayıp pasta ve
+                # trend grafiğini çiziyor. Bozuk bir tutarı 0,00 saymak,
+                # kullanıcıya sessizce YANLIŞ bir grafik göstermek olurdu;
+                # oysa grafiğin hiç çizilmemesi görünür ve dürüsttür.
+                # Çağıran zaten `except Exception` ile boş grafiğe düşüp
+                # logluyor, yani bu bir çökme değil nazik bir bozulma.
+                # Aynı politika `financial_summary_service.decrypt_decimal`
+                # ve `main.py::_apply_dashboard_integrity_error` ile birebir.
+                raise FinancialDataIntegrityError(
+                    "transactions", None, "amount", reason=exc
+                ) from exc
 
             data.append({
                 'amount': decrypted_amount,
