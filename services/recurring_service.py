@@ -14,6 +14,7 @@ from database.db import (
     SECRET_KEY, _advance_due_date, adjust_account_balance, get_connection,
 )
 from utils.crypto import decrypt, encrypt
+from utils.errors import DecryptionError, KeyUnavailableError
 
 
 SUBSCRIPTION_CATEGORY = "Dijital Abonelik"
@@ -212,16 +213,23 @@ def _get_payment(cursor, payment_id):
 def _plain_name(raw):
     try:
         return decrypt(str(raw), SECRET_KEY) or ""
-    except (ValueError, TypeError):
-        # decrypt() tek başına hiçbir zaman raise etmez — pratikte
-        # tetiklenemez, aynı gerekçeyle daraltılmış hâliyle bırakıldı.
+    except KeyUnavailableError:
+        # Anahtar yoksa TÜM kayıtlar etkilenir; satır bazında yutmak toplam
+        # arızayı "hepsi adsız" diye normal veri gibi gösterirdi.
+        raise
+    except (DecryptionError, ValueError, TypeError):
+        from utils.logging_config import get_logger
+        get_logger().exception(
+            "[VERİ BÜTÜNLÜĞÜ] recurring_payments adı çözülemedi")
         return ""
 
 
 def _plain_amount(raw):
     try:
         return float(decrypt(str(raw), SECRET_KEY))
-    except (ValueError, TypeError) as e:
+    except KeyUnavailableError:
+        raise
+    except (DecryptionError, ValueError, TypeError):
         from utils.logging_config import get_logger
         get_logger().exception("[VERİ BÜTÜNLÜĞÜ] recurring_payments tutarı çözülemedi")
         return 0.0
@@ -336,7 +344,16 @@ def find_current_period_charge(payment_id, today=None):
     for candidate in candidates:
         try:
             description = decrypt(str(candidate["description"]), SECRET_KEY)
-        except (ValueError, TypeError):
+        except KeyUnavailableError:
+            raise
+        except (DecryptionError, ValueError, TypeError):
+            # Bu bir ARAMA döngüsü: çözülemeyen aday atlanır, çünkü onu
+            # eşleşme sayamayız. Yine de iz bırakılır — sessizce atlamak,
+            # "eşleşme bulunamadı" ile "veri bozuk" arasındaki farkı siler.
+            from utils.logging_config import get_logger
+            get_logger().exception(
+                "[VERİ BÜTÜNLÜĞÜ] aday işlem id=%s açıklaması çözülemedi",
+                candidate["id"] if "id" in candidate.keys() else "?")
             continue
         if description == expected_description:
             return {

@@ -23,6 +23,7 @@ from database.db import (
     record_balance_event,
 )
 from utils.crypto import encrypt, decrypt
+from utils.errors import DecryptionError, KeyUnavailableError
 
 STATUS_ACTIVE = "aktif"
 STATUS_COMPLETED = "tamamlandi"
@@ -76,9 +77,16 @@ class SavingsService:
         for r in rows:
             try:
                 name = decrypt(r["goal_name"], SECRET_KEY)
-            except (ValueError, TypeError):
-                # decrypt() tek başına hiçbir zaman raise etmez — pratikte
-                # tetiklenemez, aynı gerekçeyle daraltılmış hâliyle bırakıldı.
+            except KeyUnavailableError:
+                # Anahtar yoksa TÜM hedefler etkilenir; satır bazında yutmak
+                # toplam arızayı "hepsi Bilinmeyen Hedef" diye normal veri
+                # gibi gösterirdi.
+                raise
+            except (DecryptionError, ValueError, TypeError):
+                from utils.logging_config import get_logger
+                get_logger().exception(
+                    "[VERİ BÜTÜNLÜĞÜ] savings_goals id=%s adı çözülemedi",
+                    r["id"])
                 name = "Bilinmeyen Hedef"
             goals.append({
                 "id": r["id"],
@@ -211,7 +219,12 @@ class SavingsService:
             return None
         try:
             name = decrypt(r["goal_name"], SECRET_KEY)
-        except (ValueError, TypeError):
+        except KeyUnavailableError:
+            raise
+        except (DecryptionError, ValueError, TypeError):
+            from utils.logging_config import get_logger
+            get_logger().exception(
+                "[VERİ BÜTÜNLÜĞÜ] savings_goals id=%s adı çözülemedi", goal_id)
             name = "Bilinmeyen Hedef"
         return {
             "id": r["id"],
