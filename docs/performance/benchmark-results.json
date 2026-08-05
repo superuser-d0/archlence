@@ -1,163 +1,111 @@
 {
-  "generated_at": "2026-07-30T08:17:38.578223",
+  "generated_at": "2026-08-05T20:32:18.015649",
   "python": "3.14.6 (main, Jun 23 2026, 15:11:00) [GCC 16.1.1 20260430]",
   "platform": "linux",
   "results": [
     {
       "transactions": 1000,
       "database_startup": {
-        "median_ms": 1.122,
-        "min_ms": 1.122,
+        "median_ms": 1.374,
+        "min_ms": 1.374,
         "samples": 1
       },
       "dashboard_summary": {
-        "median_ms": 5.772,
-        "min_ms": 5.65,
+        "median_ms": 5.765,
+        "min_ms": 5.742,
         "samples": 3
       },
       "monthly_summary": {
-        "median_ms": 0.717,
-        "min_ms": 0.703,
+        "median_ms": 0.27,
+        "min_ms": 0.233,
         "samples": 3
       },
       "budget_summary": {
-        "median_ms": 0.145,
-        "min_ms": 0.128,
+        "median_ms": 0.264,
+        "min_ms": 0.165,
         "samples": 3
       },
       "insights_365d": {
-        "median_ms": 17.971,
-        "min_ms": 17.971,
+        "median_ms": 12.348,
+        "min_ms": 12.348,
         "samples": 1
       },
       "decrypt_full_dataset": {
-        "median_ms": 5.856,
-        "min_ms": 5.856,
+        "median_ms": 5.736,
+        "min_ms": 5.736,
         "samples": 1
       },
       "legacy_migration": {
-        "median_ms": 502.974,
-        "min_ms": 502.974,
+        "median_ms": 514.374,
+        "min_ms": 514.374,
         "samples": 1
       },
       "backup": {
-        "median_ms": 483.685,
-        "min_ms": 483.685,
+        "median_ms": 480.792,
+        "min_ms": 480.792,
         "samples": 1
       },
       "restore": {
-        "median_ms": 300.133,
-        "min_ms": 300.133,
+        "median_ms": 297.402,
+        "min_ms": 297.402,
         "samples": 1
       },
       "migrated_fields": 2000,
       "backup_aead_fields": 2000,
       "database_bytes": 327680,
-      "backup_bytes": 103754
+      "backup_bytes": 103970
     },
     {
       "transactions": 10000,
       "database_startup": {
-        "median_ms": 0.995,
-        "min_ms": 0.995,
+        "median_ms": 1.012,
+        "min_ms": 1.012,
         "samples": 1
       },
       "dashboard_summary": {
-        "median_ms": 56.559,
-        "min_ms": 56.5,
+        "median_ms": 57.077,
+        "min_ms": 56.664,
         "samples": 3
       },
       "monthly_summary": {
-        "median_ms": 5.593,
-        "min_ms": 5.437,
+        "median_ms": 1.629,
+        "min_ms": 1.582,
         "samples": 3
       },
       "budget_summary": {
-        "median_ms": 0.149,
-        "min_ms": 0.125,
+        "median_ms": 0.159,
+        "min_ms": 0.127,
         "samples": 3
       },
       "insights_365d": {
-        "median_ms": 155.329,
-        "min_ms": 155.329,
+        "median_ms": 101.125,
+        "min_ms": 101.125,
         "samples": 1
       },
       "decrypt_full_dataset": {
-        "median_ms": 56.673,
-        "min_ms": 56.673,
+        "median_ms": 56.081,
+        "min_ms": 56.081,
         "samples": 1
       },
       "legacy_migration": {
-        "median_ms": 1627.342,
-        "min_ms": 1627.342,
+        "median_ms": 1587.615,
+        "min_ms": 1587.615,
         "samples": 1
       },
       "backup": {
-        "median_ms": 1529.012,
-        "min_ms": 1529.012,
+        "median_ms": 1471.293,
+        "min_ms": 1471.293,
         "samples": 1
       },
       "restore": {
-        "median_ms": 1325.733,
-        "min_ms": 1325.733,
+        "median_ms": 1286.488,
+        "min_ms": 1286.488,
         "samples": 1
       },
       "migrated_fields": 20000,
       "backup_aead_fields": 20000,
       "database_bytes": 2379776,
-      "backup_bytes": 999507
-    },
-    {
-      "transactions": 50000,
-      "database_startup": {
-        "median_ms": 1.388,
-        "min_ms": 1.388,
-        "samples": 1
-      },
-      "dashboard_summary": {
-        "median_ms": 287.019,
-        "min_ms": 286.054,
-        "samples": 3
-      },
-      "monthly_summary": {
-        "median_ms": 25.918,
-        "min_ms": 25.497,
-        "samples": 3
-      },
-      "budget_summary": {
-        "median_ms": 0.147,
-        "min_ms": 0.124,
-        "samples": 3
-      },
-      "insights_365d": {
-        "median_ms": 778.779,
-        "min_ms": 778.779,
-        "samples": 1
-      },
-      "decrypt_full_dataset": {
-        "median_ms": 290.033,
-        "min_ms": 290.033,
-        "samples": 1
-      },
-      "legacy_migration": {
-        "median_ms": 6754.325,
-        "min_ms": 6754.325,
-        "samples": 1
-      },
-      "backup": {
-        "median_ms": 6186.228,
-        "min_ms": 6186.228,
-        "samples": 1
-      },
-      "restore": {
-        "median_ms": 5938.589,
-        "min_ms": 5938.589,
-        "samples": 1
-      },
-      "migrated_fields": 100000,
-      "backup_aead_fields": 100000,
-      "database_bytes": 11509760,
-      "backup_bytes": 4989721
+      "backup_bytes": 999720
     }
   ]
 }

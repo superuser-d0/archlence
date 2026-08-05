@@ -283,11 +283,45 @@ def make_text_field(hint, theme_cls, filter=None, mode="fill", **kwargs):
         hint_text=hint,
         mode=mode,
         radius=[dp(12), dp(12), dp(12), dp(12)],
+        # Kivy'de `write_tab` VARSAYILAN OLARAK True (ölçüldü) — yani TAB
+        # metnin içine bir sekme karakteri yazar, kullanıcı bunu "imleç 4
+        # boşluk ilerledi" diye görür. Bir tutar/ad alanına sekme yazmak
+        # hiçbir zaman istenmez, o yüzden varsayılan burada kapatılıyor.
+        #
+        # DİKKAT: bu TEK BAŞINA odağı ilerletmez (ölçüldü: write_tab=False
+        # ama focus_next yokken odak yerinde kalıyor). TAB'ın bir sonraki
+        # alana geçmesi için `chain_focus()` ile zincir de kurulmalı.
+        write_tab=False,
     )
     if filter is not None:
         opts["input_filter"] = filter
     opts.update(kwargs)
     return MDTextField(**opts)
+
+
+def chain_focus(fields):
+    """Verilen alanları TAB/Shift+TAB ile gezilebilir bir halkaya bağlar.
+
+    Sondan sonra başa döner: odak formun dışına kaçıp kullanıcının klavyeyi
+    kaybetmesini önler. `None` girdiler atlanır, böylece çağıran koşullu
+    olarak gösterilen alanları filtrelemek zorunda kalmaz.
+
+    Görünürlüğü değişen formlarda HER değişiklikte yeniden çağrılmalıdır;
+    aksi halde gizlenmiş bir alana TAB ile geçilir ve odak görünmeyen bir
+    yere gider (bkz. transaction_mixin._rebuild_focus_chain).
+    """
+    visible = [field for field in fields if field is not None]
+    if len(visible) < 2:
+        # Tek alan varsa halka anlamsız; yine de sekme yazılmasın.
+        for field in visible:
+            field.write_tab = False
+        return visible
+
+    for index, field in enumerate(visible):
+        field.write_tab = False
+        field.focus_next = visible[(index + 1) % len(visible)]
+        field.focus_previous = visible[(index - 1) % len(visible)]
+    return visible
 
 
 def restyle_text_fields(root, theme_cls):

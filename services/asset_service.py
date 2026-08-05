@@ -97,6 +97,20 @@ def mark_account_cache_stale():
     _financial_data_revision += 1
 
 
+def mark_financial_data_changed():
+    """Türetilmiş finansal sonuçları eskitir — hesap snapshot'ına DOKUNMADAN.
+
+    `mark_account_cache_stale` bakiyeye dokunan yazımlar içindir. Bazı
+    değişiklikler ise bakiyeyi HİÇ değiştirmediği hâlde türetilmiş özeti
+    değiştirir: kategori `importance` alanı (main/extra ayrımı)
+    `summarize_transactions`'ın kovalarını belirliyor. Bunun için hesap
+    snapshot'ını da eskitmek gereksiz iş olurdu, ama sürüm artmazsa
+    dashboard metrik önbelleği BAYAT kalırdı.
+    """
+    global _financial_data_revision
+    _financial_data_revision += 1
+
+
 def get_financial_data_revision():
     """Grafiklerin dayandığı finansal verinin süreç-içi monoton sürümü."""
     return _financial_data_revision

@@ -829,6 +829,30 @@ class ArchlenceApp(
         )
 
     def _compute_dashboard_metrics(self):
+        # ÖNBELLEK. Bu fonksiyonun maliyetinin ~%99'u AES-GCM şifre çözme
+        # (10.000 işlemli bir profilde 10.800 `decrypt` çağrısı, ~318 ms).
+        # Tutarlar şifreli TEXT olduğu için SQL'de toplanamıyor; tek çare
+        # her satırı Python'da çözmek. Dolayısıyla asıl kazanç çözmeyi
+        # hızlandırmak değil, GEREKMEDİKÇE HİÇ YAPMAMAK.
+        #
+        # Anahtardaki üç bileşenin her biri gerekli:
+        #   * revision — bakiyeye dokunan her yazım `record_balance_event`
+        #     üzerinden artırır (defter değişmezi), ayrıca kategori
+        #     `importance` değişimi (bkz. mark_financial_data_changed).
+        #   * filtre   — "Bugün/1 Hafta/…" dönem toplamlarını değiştirir.
+        #   * tarih    — gün dönünce "Bugün" penceresi kayar, veri
+        #     değişmemiş olsa bile sonuç eskir.
+        from services.asset_service import get_financial_data_revision
+
+        cache_key = (
+            get_financial_data_revision(),
+            getattr(self, "home_filter", "Bugün"),
+            datetime.date.today().isoformat(),
+        )
+        cached = getattr(self, "_dashboard_metrics_cache", None)
+        if cached is not None and cached[0] == cache_key:
+            return cached[1]
+
         with managed_connection() as conn:
             rows = conn.execute(f"""
                 SELECT t.id, t.amount, t.type,
@@ -894,7 +918,7 @@ class ArchlenceApp(
             get_logger().exception("Değişim oranı hesaplanamadı")
             change_rate = None
 
-        return {
+        metrics = {
             "filter_text": filter_text,
             "total_income": total_income,
             "total_expense": total_expense,
@@ -906,6 +930,12 @@ class ArchlenceApp(
             "projection_daily_expense": daily_expense,
             "change_rate": change_rate,
         }
+        # Yalnızca HATASIZ tamamlanan hesap önbelleğe alınır: yukarıdaki
+        # `summarize_transactions` bozuk bir kayıtta
+        # `FinancialDataIntegrityError` fırlatıyor ve o durumda buraya hiç
+        # gelinmiyor — yani hatalı bir sonuç asla önbelleğe girmez.
+        self._dashboard_metrics_cache = (cache_key, metrics)
+        return metrics
 
     def _apply_dashboard_integrity_error(self, error_id):
         if not self.root:
@@ -1793,6 +1823,12 @@ class ArchlenceApp(
         conn.commit()
         conn.close()
 
+        # `importance`, `summarize_transactions`'ın main/extra kovalarını
+        # belirliyor — yani bakiye hiç değişmese de dashboard ÖZETİ değişir.
+        # Sürüm artmazsa `_compute_dashboard_metrics` önbelleği bayat kalır.
+        from services.asset_service import mark_financial_data_changed
+        mark_financial_data_changed()
+
         pending = getattr(self, "_category_chart_refresh_event", None)
         if pending is not None:
             pending.cancel()
@@ -2111,6 +2147,17 @@ class ArchlenceApp(
             )
 
             self.refresh_dashboard_data()
+
+            # `refresh_dashboard_data` bu İKİSİNİ KAPSAMIYOR — ikisi de
+            # yalnızca açılışta (on_start) ve kendi tetikleyicilerinde
+            # (işlem ekleme / varlık satışı) çalışıyor. Sıfırlamadan sonra
+            # çağrılmadıkları için ekranda SİLİNMİŞ verinin sonucu kalıyordu:
+            # "Algoritmik Öngörü" eski harcama yorumunu, "Varlık Geçmişi"
+            # eski satırları göstermeye devam ediyordu (ölçüldü).
+            self.generate_financial_advice()
+            if hasattr(self, "load_asset_history"):
+                self.load_asset_history()
+
             if "wealth_balance" in self.root.ids:
                 self.root.ids.wealth_balance.text = "₺0.00"
                 self.root.ids.wealth_pnl.text = "+₺0.00 / %0.00"
