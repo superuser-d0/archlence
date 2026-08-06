@@ -138,6 +138,18 @@ def initialize_database():
     if "execution_date" not in existing_trans_cols:
         cursor.execute("ALTER TABLE transactions ADD COLUMN execution_date TEXT")
 
+    # Durable financial-operation identities.  UI state is not an idempotency
+    # boundary: retries and two processes must be rejected by SQLite itself.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS recurring_operation_markers (
+            recurring_payment_id INTEGER NOT NULL,
+            due_date TEXT NOT NULL,
+            operation_type TEXT NOT NULL,
+            transaction_id INTEGER,
+            PRIMARY KEY (recurring_payment_id, due_date, operation_type)
+        )
+    """)
+
 
     # 3. Kategoriler Tablosu
     cursor.execute("""

@@ -607,6 +607,16 @@ def process_due_recurring_payment(payment):
     )
     with managed_connection() as conn:
         cursor = conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+        # Stale UI objects intentionally retain the old due date.  The marker
+        # therefore keys the financial generation, not the mutable next due.
+        cursor.execute(
+            "INSERT OR IGNORE INTO recurring_operation_markers "
+            "(recurring_payment_id, due_date, operation_type) VALUES (?, ?, 'charge')",
+            (payment["id"], payment["next_due_date"]),
+        )
+        if cursor.rowcount == 0:
+            return False
         transaction_type = str(
             payment.get("transaction_type") or "expense"
         ).strip().lower()
@@ -635,7 +645,13 @@ def process_due_recurring_payment(payment):
         )
 
         cursor.execute("UPDATE recurring_payments SET next_due_date = ? WHERE id = ?", (new_due, payment["id"]))
+        cursor.execute(
+            "UPDATE recurring_operation_markers SET transaction_id=? "
+            "WHERE recurring_payment_id=? AND due_date=? AND operation_type='charge'",
+            (cursor.lastrowid, payment["id"], payment["next_due_date"]),
+        )
         conn.commit()
+    return True
 
 def update_debt_last_auto_pay(debt_id, current_month_str):
     with managed_connection() as conn:
