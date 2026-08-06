@@ -1,14 +1,122 @@
 # Changelog
 
-## Unreleased
+## [0.0.7] — 2026-08-06
 
-- Dashboard period cards now calculate nominal and percentage changes from the
-  same balance baseline, show an unavailable percentage for an unknown or zero
-  baseline, and ignore stale background results after a filter change.
-- Dashboard totals now use account balances directly, so savings transfers and
-  other ledger-only movements remain consistent with the Accounts screen.
-- Runtime language changes now rebuild chart labels, month names, asset-type
-  labels, and asset history instead of leaving Turkish text in an English view.
+The dashboard's period cards were answering a different question than the one
+they appeared to ask: the percentage compared this period's cash flow with the
+previous period's, which is a growth rate, not a balance change — and it forced
+±100% whenever the previous period happened to be empty. Switching the
+interface to English also left Turkish text inside every chart. Both are fixed
+here. It remains a **pre-release**.
+
+### Highlights
+
+- **Dashboard period cards now measure what they claim to.** The nominal
+  change, the percentage, the heading and the active filter all come from one
+  shared period definition, and the percentage is a genuine balance change
+  measured against the balance at the end of the day before the period starts.
+- **An unknown or zero baseline no longer produces a fabricated number.** A
+  move away from an actual zero balance has no finite percentage, so the card
+  shows `—` instead of ±100%. Zero to zero is the one well-defined no-change
+  case and reads as 0%.
+- **Switching to English now translates the charts too.** Legends, month
+  abbreviations, day labels, asset-type names and the asset history all rebuild
+  on a language change instead of leaving Turkish text in an English view.
+- The README is rebuilt around the application itself, with a full screenshot
+  set generated from a synthetic profile rather than hand-edited images.
+
+### Financial correctness and reliability
+
+- `services/dashboard_period_service.py` is the single definition of the four
+  dashboard periods (Today, 1 Week, 1 Month, 1 Year) and of the change
+  calculation. The periods use inclusive bounds, and the baseline is the end of
+  the day immediately before the period begins.
+- The percentage is `(current − starting) / |starting| × 100`, computed in
+  `Decimal` rather than binary floating point.
+- `percentage_change` returns no value — rendered as `—` — when the baseline is
+  unknown or when the balance moved away from an actual zero. Both cases
+  previously produced a confident number that meant nothing.
+- Dashboard totals are taken from account balances directly, so savings
+  transfers and other ledger-only movements no longer make the dashboard
+  disagree with the Accounts screen.
+- Stale background results are discarded after a filter change, so a slow
+  query for the previous period can no longer overwrite the selected one.
+
+### Performance
+
+- No intentional performance changes in this release. The dashboard metrics
+  cache introduced in 0.0.6 is unaffected; its tests were extended to cover the
+  new period key so a filter change cannot serve a cached result from a
+  different period.
+
+### UI and accessibility
+
+- Chart legends ("Income", "Expense", "Opening Balance"), month abbreviations
+  and day labels are generated from the application language instead of
+  hardcoded Turkish or the process locale.
+- Asset types display as Currency, Gold, Crypto and Stock in English.
+- A language change clears the chart texture cache and re-renders active assets
+  and asset history; previously those kept their original-language text until
+  the view was rebuilt some other way.
+- Turkish remains unchanged.
+
+### Testing and packaging
+
+- New coverage: `test_dashboard_period_change.py`, `test_chart_localization.py`
+  and `test_readme_sample_profile.py`, alongside extensions to
+  `test_dashboard_metrics_cache.py`. Cases include each period boundary,
+  positive and negative change, a zero baseline, a missing snapshot with ledger
+  replay, no data at all, a stale cache result after a filter change, and
+  dashboard/accounts agreement after a savings transfer.
+- 680 tests pass locally; 2 are skipped for platform reasons (one needs a real
+  Kivy window, one is Windows-only `chmod` behaviour).
+- `scripts/dev/seed_readme_profile.py` and
+  `scripts/dev/capture_readme_screens.py` make the screenshots reproducible
+  from a seed rather than from a private profile. The seeding tool refuses to
+  touch a real Archlence data directory, refuses home, the repository root and
+  anything beneath it, and will only reset a profile it marked itself.
+- `scripts/check_version_consistency.py` no longer requires a per-version
+  heading in the README, which now carries a dynamic latest-release badge
+  instead of a pinned version.
+- The `PKGBUILD` checksums for 0.0.6 were verified and filled in after that
+  release published. They are placeholders again here for the same reason.
+
+### Additional issues found and fixed
+
+- These two defects were found while regenerating the README screenshots — the
+  screenshots were the test. Reviewing what the application actually rendered,
+  rather than what the tests asserted, is what surfaced both.
+- The README carried pinned checksums and version-specific download links that
+  went stale on every release; general downloads now point at
+  `/releases/latest`.
+
+### Known limitations
+
+- This is still a pre-release and is not considered stable.
+- Packages are unsigned; Windows SmartScreen may warn on first launch.
+- The shared `Decimal` policy is not yet applied across every financial path.
+  The new period service uses `Decimal` throughout; older paths are unchanged.
+- Two functions still close their database connection without protection:
+  `initialize_database()` and `generate_mock_data.main()`, both unchanged since
+  0.0.6 and both deliberate.
+- Broad exception-handler debt and the pyflakes backlog are both still open.
+- DPAPI and OS-keystore behaviour still deserves verification on real Windows
+  hardware rather than CI runners.
+- Some GitHub Actions versions emit a Node.js 20 deprecation warning and are
+  forced to Node.js 24 by the runner. CI is unaffected, but the action versions
+  should be updated.
+- The price fallback covers cryptocurrency and foreign currency only. BIST
+  equities and gold still depend on Yahoo Finance alone.
+- The legacy CBC reader remains deprecated for old profiles and backups.
+- Existing 4-digit PINs are still not migrated to the password policy
+  introduced in 0.0.3; unaffected by this release.
+
+### Installation and checksum verification
+
+- Windows: `ArchlenceSetup-0.0.7.exe`
+- Linux: `Archlence-0.0.7-x86_64.AppImage`
+- Download `SHA256SUMS.txt` from the same release and verify the matching
+  asset. The SBOM is published as `Archlence-0.0.7-sbom.cdx.json`.
 
 ## [0.0.6] — 2026-08-06
 
