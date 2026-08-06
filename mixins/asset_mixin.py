@@ -1614,6 +1614,9 @@ class AssetMixin:
                 None,
             )
             if existing_card is not None:
+                existing_card._archlence_type_lbl.text = _t(
+                    asset.get("asset_type", "")
+                )
                 existing_card._archlence_buy_lbl.text = _t(
                     f"Alım: {asset['purchase_price']:,.4f} ₺  ×  "
                     f"{asset['quantity']:g}"
@@ -1678,7 +1681,7 @@ class AssetMixin:
                 theme_text_color="Primary",
             )
             type_lbl = MDLabel(
-                text=asset.get("asset_type", ""),
+                text=_t(asset.get("asset_type", "")),
                 font_style="Caption",
                 theme_text_color="Secondary",
                 halign="right",
@@ -1760,6 +1763,7 @@ class AssetMixin:
             card._archlence_buy_lbl = buy_lbl
             card._archlence_cur_lbl = cur_lbl
             card._archlence_pnl_lbl = pnl_lbl
+            card._archlence_type_lbl = type_lbl
             container.add_widget(card)
 
         # Kart yüksekliğini dinamik güncelle

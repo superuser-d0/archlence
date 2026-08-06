@@ -750,7 +750,7 @@ EN = {
     "Hisse": "Stock",
     "Altın": "Gold",
     "Tahvil": "Bond",
-    "Döviz": "Foreign Currency",
+    "Döviz": "Currency",
     "Kripto": "Crypto",
     "Diğer": "Other",
     "Miktar: ": "Quantity: ",

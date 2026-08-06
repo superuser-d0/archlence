@@ -455,6 +455,8 @@ class ArchlenceApp(
 
     def set_language(self, code, persist=True):
         self.language = set_active_language(code)
+        from ui.charts import invalidate_localized_chart_cache
+        invalidate_localized_chart_cache()
         if persist:
             try:
                 self.config_store.put("language", code=self.language)
@@ -472,6 +474,11 @@ class ArchlenceApp(
                 if trend_empty is not None:
                     trend_empty.text = self.tr("Veri Yok")
             Clock.schedule_once(lambda dt: self.refresh_dashboard_data(), 0)
+            # Asset-type labels and history descriptions are created at render
+            # time.  Rebuild them too; otherwise a runtime language switch can
+            # leave Turkish cards below an English chart (or vice versa).
+            Clock.schedule_once(lambda dt: self.load_active_assets(), 0.02)
+            Clock.schedule_once(lambda dt: self.load_asset_history(), 0.03)
             Clock.schedule_once(lambda dt: self.load_active_debts(), 0.05)
             Clock.schedule_once(lambda dt: self.load_upcoming_recurring(), 0.1)
             Clock.schedule_once(self._refresh_language_widgets, 0)

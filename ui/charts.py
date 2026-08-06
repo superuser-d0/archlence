@@ -13,6 +13,11 @@ from kivymd.app import MDApp
 from services.transaction_service import TransactionService
 from ui.i18n import tr as _t
 from ui import theme as ftheme
+from ui.chart_localization import (
+    format_chart_day,
+    localized_month_abbreviation,
+    trend_legend_labels,
+)
 
 # Forward import
 from ui.components import LegendWidget
@@ -23,6 +28,11 @@ from ui.components import LegendWidget
 # dokuyu değil, önüne konan Color komutunun alfasını değiştirir — böylece aynı
 # metin animasyon boyunca tek doku kullanır.
 _LABEL_TEXTURE_CACHE = {}
+
+
+def invalidate_localized_chart_cache():
+    """Drop text textures after a runtime language switch."""
+    _LABEL_TEXTURE_CACHE.clear()
 
 
 def _label_texture(text, font_size, color, bold=False):
@@ -306,10 +316,11 @@ class CurvedTrendChart(Widget):
                 leg_alpha = min(1.0, (p - 0.8) * 5.0)
                 leg_y     = cy1 - dp(2)
                 leg_x     = cx1
-                legend_items = [('Gider', expense_line),
-                                ('Gelir', income_line)]
+                legend_labels = trend_legend_labels(has_opening)
+                legend_items = [(legend_labels[0], expense_line),
+                                (legend_labels[1], income_line)]
                 if has_opening:
-                    legend_items.append(('Açılış', opening_line))
+                    legend_items.append((legend_labels[2], opening_line))
                 for ltext, lcol in legend_items:
                     lt2 = _label_texture(ltext, dp(11), (*lcol[:3], 1.0), bold=True)
                     sw_w, sw_h = dp(16), dp(3)
@@ -927,10 +938,9 @@ class DashboardChartManager(MDBoxLayout):
 
             for d in range(days):
                 dt = start_dt + datetime.timedelta(days=d)
-                result.append(row(dt.strftime('%d %b'), dt.strftime('%Y-%m-%d')))
+                result.append(row(format_chart_day(dt), dt.strftime('%Y-%m-%d')))
 
         elif filter_text == '1 Yıl':
-            month_names = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara']
             start_dt = now - datetime.timedelta(days=364)
             for dt, kind, amount in events:
                 if dt.date() >= start_dt.date():
@@ -943,7 +953,7 @@ class DashboardChartManager(MDBoxLayout):
                     m += 12
                     y -= 1
                 result.append(
-                    row(f"{month_names[m-1]} '{str(y)[2:]}", f'{y}-{m:02d}')
+                    row(f"{localized_month_abbreviation(m)} '{str(y)[2:]}", f'{y}-{m:02d}')
                 )
 
         elif filter_text == 'Hayat Boyu':
