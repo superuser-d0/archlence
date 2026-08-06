@@ -9,6 +9,7 @@ from utils.errors import (
     KeyUnavailableError,
 )
 from utils.app_paths import data_dir, migrate_legacy_path
+from utils.financial_decimal import fiat
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # docs/ROADMAP.md Faz 1 madde 4. Paketlenmiş bir Windows kurulumunda
@@ -203,9 +204,25 @@ def adjust_account_balance(cursor, account_id, transaction_type, amount,
 def insert_debt(debt_name, total_amount, monthly_payment, total_installments, is_auto_pay=0, auto_pay_day=1):
     with managed_connection() as conn:
         cursor = conn.cursor()
+        # Tutarlar kuruşa yuvarlanarak SAKLANIR. Buradaki değerler tipik
+        # olarak HESAPLANMIŞ olarak gelir: kredi hesaplayıcısı anüite
+        # formülünden `emi` üretir ve yuvarlamaz, `total_amount` da `emi * n`
+        # olarak türetilir. Ham hâlleriyle 5493.320123592063 ve
+        # 197759.52444931428 gibi on altı anlamlı haneli değerler deftere
+        # şifrelenip yazılıyordu.
+        #
+        # Yalnızca kozmetik değil: otomatik taksit döngüsü
+        # (mixins/recurring_mixin.py) saklanan `monthly_payment` ile GERÇEK
+        # işlem yazıp bakiyeden düşüyor — 36 taksitlik bir kredide ham tutar
+        # bakiyeyi kuruşlu tutardan 0,0044 TL saptırır ve her işlem satırı
+        # ekranda "5.493,32" görünürken diskte farklı bir sayı tutar.
+        #
+        # Sınır burada seçildi (çağıranlarda değil) çünkü paranın veriye
+        # dönüştüğü yer burası; her çağıran ayrı ayrı yuvarlamayı hatırlamak
+        # zorunda kalmasın.
         enc_name = encrypt(str(debt_name), SECRET_KEY)
-        enc_total = encrypt(str(total_amount), SECRET_KEY)
-        enc_monthly = encrypt(str(monthly_payment), SECRET_KEY)
+        enc_total = encrypt(str(fiat(total_amount)), SECRET_KEY)
+        enc_monthly = encrypt(str(fiat(monthly_payment)), SECRET_KEY)
 
         cursor.execute("""
             INSERT INTO active_debts (debt_name, total_amount, monthly_payment, total_installments, paid_installments, is_active, is_auto_pay, auto_pay_day)
