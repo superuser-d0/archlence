@@ -3,6 +3,7 @@ import re
 import sqlite3
 from kivy.clock import Clock
 from utils.errors import ArchlenceError
+from utils.financial_decimal import decimal_from, fiat
 from utils.toast import toast
 
 
@@ -1863,8 +1864,23 @@ class AssetMixin:
 
         def _do_sell():
             try:
-                total_proceeds = sell_price_per_unit * asset["quantity"]
-                cost_basis     = asset["purchase_price"] * asset["quantity"]
+                # Alım tarafındaki (asset_purchase_service.create_purchase)
+                # yuvarlamanın simetriği: cüzdana GİREN para da kuruşa
+                # yuvarlanır. Ham çarpım hem bakiyeye yazılıyor hem işlem
+                # tutarı olarak saklanıyordu, yani ikili kayan nokta artığı
+                # deftere kalıcı giriyordu.
+                #
+                # K/Z, yuvarlanmış iki nakit tutarın FARKI olarak
+                # hesaplanıyor — açıklamada ve bildirimde gösterilen kâr,
+                # cüzdanın gerçekten gördüğü değişimle birebir tutsun diye.
+                total_proceeds = fiat(
+                    decimal_from(sell_price_per_unit)
+                    * decimal_from(asset["quantity"])
+                )
+                cost_basis = fiat(
+                    decimal_from(asset["purchase_price"])
+                    * decimal_from(asset["quantity"])
+                )
                 pnl            = total_proceeds - cost_basis
                 sign           = "+" if pnl >= 0 else "-"
 
@@ -1877,7 +1893,9 @@ class AssetMixin:
                 # Cüzdana ekle: income + 'Varlık Satışı'
                 insert_asset_transaction(
                     account_id=DEFAULT_ACCOUNT_ID,
-                    amount=total_proceeds,
+                    # sqlite3 Decimal parametresini REDDEDER
+                    # (ProgrammingError), bu yüzden sınırda float'a çevriliyor.
+                    amount=float(total_proceeds),
                     tx_type="income",
                     category="Varlık Satışı",
                     description=desc,
