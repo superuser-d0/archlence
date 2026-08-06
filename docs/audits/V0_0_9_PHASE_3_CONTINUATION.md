@@ -1,77 +1,74 @@
 # v0.0.9 Phase 3 — Devam Noktası
 
-**Dal:** `fix/v0.0.9-reliability` · **HEAD:** `bfb2b37` · **Taban:** `d5bd35f`
-**Durum:** Phase 3 TAMAMLANMADI · **Karar: RC NO-GO**
+**Dal:** `fix/v0.0.9-reliability` · **HEAD:** `6877dd5` · **Taban:** `d5bd35f`
+**Status: Phase 3 fixes in progress, RC blocked**
 
-## Bu turda tamamlanan
+## Bu turda kapanan blocker'lar
 
-`bfb2b37 test: restore regression coverage lost to the atomicity refactor`
+| Commit | Blocker | Kanıt |
+|---|---|---|
+| `bfb2b37` | (regresyon) | Suite kırmızıydı, 3 koruma sessizce devre dışıydı |
+| `05da34a` | **P1-1** restore generation | 5 fault noktası, DB+key+config birlikte geri dönüyor |
+| `652d512` | **P1-2** migration retry | `account_type_after_retry='credit_card'` (önce `None`) |
+| `6877dd5` | **A-1 + A-2** istisna kapısı | 4 bypass biçimi + slack yakalanıyor |
 
-Bu commit üç sessiz arıza kapattı:
+## P0 kapanış tablosu
 
-1. **Normal suite kırmızıydı** (3 hata) — `tests/test_asset_sale_cash_amount.py`
-   kaldırılmış bir yolu mock'luyordu, kuruş yuvarlama koruması devre dışıydı.
-2. **P0-4/P0-5 reproduction'ları bayattı** — fault hiç tetiklenmiyordu.
-3. **İstisna kapısı kırmızıydı** (8 handler) ve fark edilmemişti.
-
-## Kapanış kanıtı — P0
-
-| ID | Durum | Kanıt |
+| ID | Status | Kanıt |
 |---|---|---|
 | P0-1 backup authenticity | **Closed** | reproduction PASS |
 | P0-2 charge idempotency | **Closed** | reproduction PASS |
 | P0-3 refund idempotency | **Closed** | reproduction PASS |
 | P0-4 asset atomicity | **Closed** | 4 fault noktası, tam rollback |
 | P0-5 debt atomicity | **Closed** | 3 fault noktası, tam rollback |
-| P0-6 non-finite | **Closed** | reproduction PASS + nonfinite matrisi |
+| P0-6 non-finite | **Closed** | reproduction + nonfinite matrisi |
+| P0-7 kart limiti TOCTOU | **Closed** | concurrency testi |
 
-## Açık blocker — P1
+## P1 kapanış tablosu
 
-| ID | Durum | Kalan iş |
+| ID | Status | Kalan sınır |
 |---|---|---|
-| P1-1 restore generation atomicity | **Open** | Sözleşme madde 4 |
-| P1-2 migration crash recovery | **Open** | Sözleşme madde 5 |
-| P1-3 kapı bypass'ı (tuple/attribute/alias) | **Open** | Sözleşme madde 6 |
-| P1-4 kapı slack'i | **Open** | Sözleşme madde 6 |
+| P1-1 restore generation | **Closed** | `recover_interrupted_restore()` **açılışa bağlanmadı** |
+| P1-2 migration retry | **Closed** | `user_version` hâlâ 0 (P3/A-5) |
+| A-1 kapı bypass'ı | **Closed** | — |
+| A-2 kapı slack'i | **Closed** | — |
 
-## Yeni bulgu (bu turda)
+## Açık işler (sözleşme sırasıyla)
 
-**P2-6 — Satış açıklaması ayrıntı kaybetti.** `96049ee` sonrası defter
-açıklaması `"Test (TST) satıldı"`; miktar, birim fiyat ve K/Z bilgisi
-kayboldu. v0.0.8'de
-`"... — 0.12345678 adet, birim fiyat 2.456,78 ₺ (K/Z: +56,40)"` idi.
-`mixins/asset_mixin.py` hâlâ zengin `desc` kuruyor ama `AssetSaleService`
-kendi açıklamasını yazdığı için o değer **kullanılmıyor**.
-Üretim düzeltmesi yapılmadı — ürün kararı gerekiyor.
+| # | İş | Dosya / görev |
+|---|---|---|
+| 4 | Deterministic connection cleanup | `database/db.py::get_connection` — ownership tablosu, `contextlib.closing`, FD regression testi |
+| 5 | Version consistency gate | `scripts/check_version_consistency.py` — 16 mutation matrisi (workflow fallback, asset adı, tag mismatch, README official version) |
+| 6 | Packaging/upgrade gate | `.github/workflows/build-windows.yml` — `0.0.1` fallback'i kaldır; upgrade smoke gerçek önceki sürümü seçsin |
+| 6b | Supply-chain | Actions'ı immutable SHA'ya pinle |
+| 7 | CI promotion | Kalan audit testlerini `tests/` altına veya zorunlu ayrı CI job'a |
+| 8 | **P2-6** asset açıklama regresyonu | `services/asset_sale_service.py` — miktar/birim fiyat/K-Z açıklamaya geri |
+| 9 | Dokümantasyon | CHANGELOG `## Unreleased`, `docs/SECURITY_RELIABILITY_STATUS.md`, Phase 3 rapor/matris/gate belgeleri |
+| 10 | RC kararı | Yukarısı bitince |
 
-## Sonraki devam noktası (dosya/görev düzeyinde)
+## Bir sonraki oturumun ilk adımı
 
-1. **`services/backup_service.py`** — restore'u staging + durable journal ile
-   tek generation'a çevir (madde 4). Fault noktaları: DB/key/config
-   replacement sonrası, post-verification, success marker öncesi.
-   Yeni testler `tests/` altına.
-2. **`database/init_db.py`** — `PRAGMA user_version` + migration journal,
-   idempotent backfill (madde 5). `scripts/audit/test_migration_fault_injection.py`
-   düzeltme sonrası PASS olmalı ve `tests/` altına taşınmalı.
-3. **`scripts/audit_exception_handlers.py`** — `ast.Tuple`/`ast.Attribute`/
-   alias tanıma + `current == baseline` eşitliği (madde 6). Kapının kendi
-   testleri `tests/` altına.
-4. **`database/db.py::get_connection`** — deterministik kapatma (madde 7).
-5. **`scripts/check_version_consistency.py`** — mutation matrisi (madde 8).
-6. **`.github/workflows/build-windows.yml`** — `0.0.1` fallback'i kaldır,
-   upgrade smoke gerçek önceki sürümü seçsin (madde 9).
-7. **CHANGELOG `## Unreleased`** + `docs/` güncellemeleri (madde 11).
+`recover_interrupted_restore()` çağrısını uygulama açılışına bağla
+(`main.py` başlangıç akışı veya `database/init_db.py` öncesi). Şu an fonksiyon
+var ve test ediliyor ama **hiçbir üretim yolu onu çağırmıyor** — yarım restore
+otomatik toparlanmıyor.
 
 ## Doğrulama durumu
 
 ```
-normal suite      703 test OK (skip 2)
+normal suite      733 test OK (skip 2)   ← tur başında 703, +30
 bloklayan lint    0
-istisna kapısı    145 handler (bilinçli +1)
+istisna kapısı    145 handler yeşil
 sürüm kapısı      0.0.8 / tag v0.0.8
-adversarial       6/6 PASS
-compileall        temiz
+adversarial       10/10 PASS
+migration matrisi v0.0.1–v0.0.8 state/fresh_schema/idempotent hepsi True
 git diff --check  temiz
 ```
+
+## RC kararı: **NO-GO**
+
+P0 ve P1'lerin hepsi kapandı, ama sözleşmenin RC GO koşulları arasında olan
+connection cleanup, version mutation matrisi, upgrade smoke ve CI promotion
+henüz yapılmadı. Gerçek Windows doğrulaması da yok.
 
 Push/PR/tag/release YOK. Sürüm bump YOK.
