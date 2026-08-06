@@ -1,7 +1,9 @@
 # v0.0.9 Phase 3 — Release Gate
 
-HEAD: `2bd5f0d` · Taban: `d5bd35f` · 32 commit
+Phase 3 teknik final: `2bd5f0d` · Taban: `d5bd35f` · 32 commit
 Tam commit zinciri: `V0_0_9_PHASE_3_CONTINUATION.md` → "Commit zinciri"
+Phase 3 SONRASI doğrulama turu ve güncel statü:
+`V0_0_9_PRE_WINDOWS_GATE.md` (karar: **PRE-WINDOWS GO**)
 
 ## Karar: **RC GO — pending Windows validation**
 
@@ -18,19 +20,25 @@ sayılmaz. Bu yüzden karar `RC GO — pending Windows validation`;
 | P1-1 restore generation | **Closed** — visual validation pending | finansal mekanizma kapandı; yalnızca gerçek widget rendering doğrulanmadı |
 | P1-2 migration retry | **Closed** | — |
 | A-1 / A-2 kapı | **Closed** | — |
-| Connection cleanup | **Closed** | yeniden ölçüldü, delta 0; davranış testle sabitlendi |
+| Connection cleanup (P2-7) | **Closed — yanlış atıf düzeltildi** | bulgu üretim kodunun değil denetim probe'unun sızıntısıydı; beş commit'te ölçüldü, taban ile HEAD aynı çıktı. Ayrı bulunan `initialize_database` eksiği `dac9a15` ile kapandı. Bkz. `V0_0_9_PRE_WINDOWS_GATE.md` §3–§5 |
 | Version mutation matrisi | **Closed** | 16/16 yakalandı |
 | Packaging/upgrade gate | **Closed** | fallback kaldırıldı, taban semver ile seçiliyor |
 | P2-6 asset açıklama | **Closed** | miktar/fiyat/K-Z geri geldi |
 
 ## RC GO için kalan somut koşullar
 
-- [x] Connection cleanup bounded, explicit GC'ye bağlı değil
+- [x] Connection cleanup bounded, explicit GC'ye bağlı değil — sahiplik
+      sözleşmesi ayrıca açma/kapama sayarak (FD'den bağımsız) kanıtlandı
 - [x] 16 version mutation vakasının tamamı yakalanıyor
 - [x] Windows workflow `0.0.1` fallback'inden kurtuldu
 - [x] Upgrade smoke gerçek önceki sürümü seçiyor
 - [x] P2-6 kapandı
-- [x] Kalan reliability testleri zorunlu CI kapsamında (`reliability-gates`)
+- [x] Kalan reliability testleri `reliability-gates` job'ında ve gerçekten
+      koşuyor (kaçış kapısı yok)
+- [ ] **`reliability-gates` merge'ü BLOKLUYOR** — hayır. Branch protection
+      yalnız `build-windows` ve `test` istiyor; `reliability-gates`,
+      `test-windows`, `lint`, `visual-regression` zorunlu değil. Repo ayarı,
+      kod değil. Bkz. `V0_0_9_PRE_WINDOWS_GATE.md` §8
 - [x] CHANGELOG `## Unreleased` güncel
 - [x] Gerçek Windows checklist hazır (aşağıda)
 - [ ] **Gerçek Windows doğrulaması yapıldı** ← tek kalan

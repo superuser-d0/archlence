@@ -1,6 +1,10 @@
 # v0.0.9 Denetim İndeksi
 
-Taban: `d5bd35f` · Dal: `audit/v0.0.9-deep-review`
+Taban: `d5bd35f` · Dal: `audit/v0.0.9-deep-review` → `fix/v0.0.9-reliability`
+
+**GÜNCEL STATÜ tek yerde:** `V0_0_9_PRE_WINDOWS_GATE.md`. Bu indeksteki
+Phase 1/2 tabloları o fazların KENDİ anlarını kaydeder; sonradan kapanan
+maddeler için o tabloları değil, aşağıdaki Phase 3 belgelerini okuyun.
 
 ## Belgeler
 
@@ -11,7 +15,14 @@ Taban: `d5bd35f` · Dal: `audit/v0.0.9-deep-review`
 | `V0_0_9_RELEASE_GATE.md` | Phase 1 release gate |
 | `V0_0_9_DEEP_AUDIT_PHASE_2.md` | Phase 2 — üretim davranışı, adversarial |
 | `V0_0_9_PHASE_2_TEST_MATRIX.md` | Phase 2 test matrisi |
-| `V0_0_9_PHASE_2_RELEASE_GATE.md` | Phase 2 release gate — **NO-GO** |
+| `V0_0_9_PHASE_2_RELEASE_GATE.md` | Phase 2 release gate — **NO-GO** (o an) |
+| `V0_0_9_PHASE_3_BASELINE.md` | Phase 3 başlangıç durumu |
+| `V0_0_9_PHASE_3_FIX_REPORT.md` | Phase 3 düzeltme raporu — **anlık görüntü** (`6bb7a4f`) |
+| `V0_0_9_PHASE_3_TEST_MATRIX.md` | Phase 3 test matrisi — **anlık görüntü** (`493dd3c`) |
+| `V0_0_9_PHASE_3_HANDOFF.md` | Phase 3 devir notu |
+| `V0_0_9_PHASE_3_CONTINUATION.md` | Phase 3 kapanış durumu + **tam commit zinciri** |
+| `V0_0_9_PHASE_3_RELEASE_GATE.md` | Phase 3 release gate — RC GO, pending Windows |
+| `V0_0_9_PRE_WINDOWS_GATE.md` | **Windows öncesi son kapı — GÜNCEL STATÜ.** P2-7 yeniden değerlendirmesi, FD ölçüm matrisi, açık iş listesi |
 
 ## Phase 1 — kapılar yalan söylüyor mu
 
@@ -34,7 +45,14 @@ Bulgular: **A-1** kapı bypass'ı (P1) · **A-2** baseline slack'i (P1) ·
 **Yöntem:** üretim yoluna ulaşan adversarial testler + fault injection +
 property-based testing.
 
-| Alan | Durum |
+> Aşağıdaki tablo **Phase 2'nin kendi anını** kaydeder. `Not started` /
+> `Partially completed` satırlarının çoğu Phase 3'te kapandı — güncel
+> statü için `V0_0_9_PHASE_3_CONTINUATION.md` ve
+> `V0_0_9_PRE_WINDOWS_GATE.md`. Özellikle *Resource leak* satırı:
+> o turda **P2-7** olarak açılan bulgu, `V0_0_9_PRE_WINDOWS_GATE.md` §3'te
+> denetim probe'unun kendi sızıntısı olduğu kanıtlanarak kapandı.
+
+| Alan | Durum (Phase 2 anı) |
 |---|---|
 | Backup authenticity | Completed — P0-1 |
 | Backup/restore completeness | Partially completed — P1-1 |
@@ -85,7 +103,9 @@ P1-3 kapı bypass'ı · P1-4 kapı slack'i
 | `scripts/audit/test_phase2_concurrency.py` | deterministic two-worker P0-2/P0-3/P0-7 evidence |
 | `scripts/audit/test_phase2_nonfinite_matrix.py` | multi-service P0-6 evidence |
 | `scripts/audit/test_phase2_backup_archive.py` | traversal/allow-list evidence |
-| `scripts/audit/check_resource_leaks.py` | temporary-profile backend resource trend |
+| `scripts/audit/check_resource_leaks.py` | temporary-profile backend resource trend (probe'un kendi sızıntısı `28e43f0`'da düzeltildi — bkz. `V0_0_9_PRE_WINDOWS_GATE.md` §3) |
+| `scripts/audit/version_mutation_matrix.py` | 16 vakalık sürüm tutarlılık mutation matrisi |
+| `tests/test_connection_ownership_contract.py` | Bağlantı sahipliği — açma/kapama sayımı, platformdan bağımsız |
 
 ## Final Phase 2 status
 

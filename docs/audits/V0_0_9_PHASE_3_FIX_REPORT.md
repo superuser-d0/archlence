@@ -1,7 +1,13 @@
 # v0.0.9 Phase 3 — Düzeltme Raporu
 
+> **BU BELGE BİR ANLIK GÖRÜNTÜDÜR — `6bb7a4f` HEAD'inde yazıldı.**
+> Aşağıdaki "Açık işler" ve "RC kararı: NO-GO" satırları O AN doğruydu;
+> **bugünün statüsü değildir.** Güncel durum:
+> `V0_0_9_PHASE_3_CONTINUATION.md` ve `V0_0_9_PRE_WINDOWS_GATE.md`.
+> Kayıt olduğu gibi bırakıldı — denetim izinin bir parçası.
+
 **Dal:** `fix/v0.0.9-reliability` · **HEAD:** `6bb7a4f` · **Taban:** `d5bd35f`
-**Status: Phase 3 fixes in progress, RC blocked**
+**Status (o an): Phase 3 fixes in progress, RC blocked**
 
 ---
 
@@ -116,16 +122,19 @@ commit `96049ee`. Testlerin neden sonucu görülmeden commit edildiği hakkında
 
 ## Açık işler
 
-| # | İş | Status |
-|---|---|---|
-| 3 | Deterministic connection cleanup | **Open** |
-| 4 | Version consistency mutation matrisi (16 vaka) | **Open** |
-| 5 | Packaging/upgrade gate (`0.0.1` fallback, sabit upgrade kaynağı) | **Open** |
-| 6 | **P2-6** asset açıklama regresyonu | **Open** |
-| 7 | Kalan testlerin CI'a taşınması | **Partially** |
-| 8 | CHANGELOG + dokümantasyon | **Partially** |
-| — | COMMITTED-cleanup crash senaryosu | **Open** |
-| — | Gerçek Windows doğrulaması | **Blocked by environment** |
+Sağdaki sütun bu belgenin yazılmasından SONRA ne olduğunu gösterir; sol
+taraf `6bb7a4f` anındaki kaydın kendisidir.
+
+| # | İş | Status (`6bb7a4f`) | Sonradan |
+|---|---|---|---|
+| 3 | Deterministic connection cleanup | **Open** | Kapandı — bulgu yanlış atıfmış (`28e43f0`); ayrı üretim eksiği `dac9a15` |
+| 4 | Version consistency mutation matrisi (16 vaka) | **Open** | Kapandı — `5d05084` + `1223935`, 16/16 |
+| 5 | Packaging/upgrade gate (`0.0.1` fallback, sabit upgrade kaynağı) | **Open** | Kapandı — `ddda5ed` (runtime doğrulaması Windows'ta) |
+| 6 | **P2-6** asset açıklama regresyonu | **Open** | Kapandı — `8b1744e` |
+| 7 | Kalan testlerin CI'a taşınması | **Partially** | Job kapandı (`ad6296f`); ZORUNLU olması hâlâ açık — branch protection, bkz. `V0_0_9_PRE_WINDOWS_GATE.md` §8 |
+| 8 | CHANGELOG + dokümantasyon | **Partially** | Kapandı — `3cdff27`, `2bd5f0d`, `3551049` ve bu tur |
+| — | COMMITTED-cleanup crash senaryosu | **Open** | Kapandı — `efadc1c`; gerçek process-kill doğrulaması Windows'ta |
+| — | Gerçek Windows doğrulaması | **Blocked by environment** | Hâlâ blocked — sıradaki tur |
 
 ---
 

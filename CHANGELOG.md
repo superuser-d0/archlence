@@ -61,8 +61,16 @@ this section records what is already fixed on the branch.
 - The upgrade smoke test selects the real previous release by semantic version
   instead of a fixed `v0.0.1`, and reads the expected checksum from that
   release's own manifest.
-- Database connection cleanup is pinned by regression tests that assert
-  descriptors stay bounded without an explicit garbage collection.
+- `initialize_database()` now closes its connection on every exit path. A
+  failure part-way through schema setup previously left it open, which on
+  Windows means a lock on the database file — the same lock that would block
+  the restore step this release hardened.
+- Database connection ownership is pinned by regression tests that count
+  connection opens against closes rather than file descriptors, so the
+  guarantee also holds on Windows. The earlier descriptor-based measurement
+  that reported a leak turned out to be the audit probe's own: it used
+  sqlite3's context manager, which commits but does not close. The probe is
+  fixed; no production path ever used that pattern.
 
 ### Known limitations
 
@@ -72,6 +80,9 @@ this section records what is already fixed on the branch.
   orchestration level; actual widget rendering was not exercised.
 - `accounts.balance` and `savings_goals.current_amount` remain `REAL` columns.
 - Broad exception-handler debt and the pyflakes backlog are still open.
+- The `reliability-gates` and `test-windows` CI jobs run on every pull request
+  but are not in the branch's required status checks, so a red run does not
+  block a merge. This is a repository setting, not a code change.
 
 ## [0.0.8] — 2026-08-06
 

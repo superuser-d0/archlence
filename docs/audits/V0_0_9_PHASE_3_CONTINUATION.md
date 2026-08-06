@@ -13,13 +13,14 @@
 | P1-2 migration retry | **Closed** | `652d512` |
 | A-1 / A-2 istisna kapısı | **Closed** | `6877dd5` |
 | Fault injection güvenilirliği | **Closed** | `493dd3c` |
-| Connection cleanup | **Closed** — bulgu üretilemedi, davranış sabitlendi | `94db19f` |
+| Connection cleanup (P2-7) | **Closed — bulgu yanlış atfedilmişti**; kök neden denetim probe'unun kendi sızıntısı, üretimde düzeltme gerekmedi. Ayrı bir üretim eksiği (`initialize_database` try/finally) aynı incelemede bulunup düzeltildi | harness `28e43f0`, regresyon `94db19f` + `28e43f0`, üretim düzeltmesi `dac9a15` — ayrıntı `V0_0_9_PRE_WINDOWS_GATE.md` §3–§5 |
 | Windows `0.0.1` fallback | **Closed** | `ddda5ed` |
 | Upgrade previous-release | **Closed** — runtime doğrulanmadı | `ddda5ed` |
 | P2 asset açıklama | **Closed** | `8b1744e` |
 | Version 16-mutation matrisi | **Closed** — 16/16 | `5d05084` `1223935` |
 | Supply-chain pinning | **Closed** | `1223935` |
-| Zorunlu CI kapsamı | **Closed** | `ad6296f` |
+| Reliability CI job'ı | **Closed** — job gerçek, kaçış kapısı yok | `ad6296f` |
+| Reliability CI'ın ZORUNLU olması | **Açık — repo ayarı.** Branch protection yalnız `build-windows` ve `test` istiyor; `reliability-gates` ve `test-windows` merge'ü bloklamıyor | kod değişikliği yok — `V0_0_9_PRE_WINDOWS_GATE.md` §8 |
 
 ## Blocked by environment
 
@@ -40,7 +41,7 @@
 ## Doğrulama
 
 ```
-normal suite         781 test OK (skip 2)
+normal suite         796 test OK (skip 2)   ← Phase 3 kapanışında 781
 reliability-gates    16/16 version mutation · migration matrisi · 21 adversarial · property
 bloklayan lint       0
 istisna kapısı       145 handler yeşil
@@ -49,10 +50,11 @@ compileall           temiz
 git diff --check     temiz
 ```
 
-## Commit zinciri (`d5bd35f..2bd5f0d`)
+## Commit zinciri
 
 Denetim izinin eksiksiz olması için Phase 3'ün tamamı kronolojik sırada.
-Taban `d5bd35f` (origin/main), final HEAD `2bd5f0d`, toplam 32 commit.
+Taban `d5bd35f` (origin/main). Tur 1–4 Phase 3'ün kendisi (32 commit,
+`d5bd35f..2bd5f0d`); Tur 5 Windows öncesi doğrulama turu.
 
 ### Tur 1 — denetim ve P0 kapanışları (`d5bd35f..2212e10`)
 
@@ -103,18 +105,32 @@ Taban `d5bd35f` (origin/main), final HEAD `2bd5f0d`, toplam 32 commit.
 |---|---|---|
 | `5d05084` | test: harden version consistency gate | 16-mutation matrisinin kendisi — `scripts/audit/version_mutation_matrix.py`, `scripts/check_version_consistency.py` |
 | `1223935` | ci: pin packaging tools and actions | Supply-chain pinning + matris düzeltmesi — 4 workflow |
-| `ad6296f` | test: promote reliability regressions into CI | Zorunlu CI kapsamı — `reliability-gates`, `requirements-dev.txt` |
+| `ad6296f` | test: promote reliability regressions into CI | `reliability-gates` job'ı — `requirements-dev.txt` (job'ın ZORUNLU olması ayrı mesele, yukarıdaki tabloya bkz.) |
 | `2bd5f0d` | docs: record phase 3 completion and RC decision | Phase 3 kapanış kararı |
+
+### Tur 5 — Windows öncesi doğrulama turu
+
+| Commit | Konu | Kapattığı madde |
+|---|---|---|
+| `3551049` | docs: complete phase 3 commit traceability | Tur 3 ve Tur 4'ün rapordaki boşluğu |
+| `dac9a15` | fix: close database connections deterministically | `initialize_database()` hata yolunda bağlantı bırakıyordu — `database/init_db.py` |
+| `28e43f0` | test: correct connection cleanup regression harness | P2-7'nin yanlış atfı; denetim probe'unun kendi sızıntısı (13 site) + 15 sahiplik testi |
+| *(bu commit)* | docs: finalize pre-Windows release traceability | `V0_0_9_PRE_WINDOWS_GATE.md` + statü düzeltmeleri |
 
 ### İzlenebilirlik notu
 
 Önceki rapor turu `ac67447` HEAD'inde yazılmıştı; kapanış raporu `3cdff27`
-tabanlıydı. Yukarıdaki Tur 3 ve Tur 4 tabloları bu iki boşluğu kapatır.
-Kod değişikliği yapılmadı — yalnızca commit listesi tamamlandı.
+tabanlıydı. Tur 3 ve Tur 4 tabloları bu iki boşluğu kapatır. Tur 5 ise
+Phase 3'ün kendisi değil, Windows'a geçmeden önce kalan teknik
+belirsizlikleri kapatan doğrulama turudur.
 
 ## Sonraki adım
 
-**Gerçek Windows doğrulaması.** Bu olmadan final release GO verilemez.
+Phase 3 sonrası bir doğrulama turu daha koşuldu (`V0_0_9_PRE_WINDOWS_GATE.md`):
+connection cleanup bulgusu kesinleştirildi, bir üretim eksiği düzeltildi,
+statü atıfları denetlendi. Karar **PRE-WINDOWS GO**.
+
+**Sırada: gerçek Windows doğrulaması.** Bu olmadan final release GO verilemez.
 Kontrol listesi `V0_0_9_PHASE_3_RELEASE_GATE.md` içinde.
 
 Push/PR/tag/release YOK. Sürüm bump YOK.

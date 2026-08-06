@@ -1,5 +1,10 @@
 # v0.0.9 Phase 3 — Test Matrisi
 
+> **BU BELGE BİR ANLIK GÖRÜNTÜDÜR — `493dd3c` HEAD'inde yazıldı.**
+> Aşağıdaki "Denetlenmeyen / açık alanlar" tablosu O AN doğruydu;
+> **bugünün statüsü değildir.** Güncel durum:
+> `V0_0_9_PHASE_3_CONTINUATION.md` ve `V0_0_9_PRE_WINDOWS_GATE.md`.
+
 HEAD: `493dd3c` · Normal suite: **741 test OK** (skip 2)
 
 ## Normal suite'e eklenen reliability testleri
@@ -45,13 +50,13 @@ Mutation: servisten hook kaldırılınca → `Lists differ: [] != ['after_asset_
 
 ## Denetlenmeyen / açık alanlar
 
-| Alan | Status |
-|---|---|
-| COMMITTED-cleanup crash senaryosu | **Open** |
-| Connection cleanup (FD) | **Open** |
-| Version mutation matrisi (16 vaka) | **Open** |
-| Packaging/upgrade gate | **Open** |
-| P2-6 asset açıklama | **Open** |
-| Gerçek Windows runtime | **Blocked by environment** |
-| Gerçek Tab/DPI/klavye | **Blocked by environment** |
-| Dependency güvenlik taraması | **Not started** |
+| Alan | Status (`493dd3c`) | Sonradan |
+|---|---|---|
+| COMMITTED-cleanup crash senaryosu | **Open** | Kapandı — `efadc1c` |
+| Connection cleanup (FD) | **Open** | Kapandı — `28e43f0`; FD ölçümünün yerini açma/kapama sayımı aldı |
+| Version mutation matrisi (16 vaka) | **Open** | Kapandı — `5d05084` + `1223935` |
+| Packaging/upgrade gate | **Open** | Kapandı — `ddda5ed` |
+| P2-6 asset açıklama | **Open** | Kapandı — `8b1744e` |
+| Gerçek Windows runtime | **Blocked by environment** | Hâlâ blocked |
+| Gerçek Tab/DPI/klavye | **Blocked by environment** | Hâlâ blocked |
+| Dependency güvenlik taraması | **Not started** | Hâlâ açık — P3, araç ortamda yok |
