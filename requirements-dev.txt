@@ -7,6 +7,10 @@
 # Çalışan uygulama bunlara hiç ihtiyaç duymaz (bkz. archlence.spec'in
 # excludes listesi, aynı dört paketi bu gerekçeyle paketlenmiş .exe'den de
 # çıkarıyor).
+# Property-based testler (scripts/audit/test_phase2_financial_properties.py)
+# yalnızca DENETİM tarafında kullanılıyor. Runtime bağımlılığı DEĞİL —
+# archlence.spec'in excludes listesindeki gerekçenin aynısı geçerli.
+hypothesis==6.165.2
 flake8==7.3.0
 ast-serialize==0.6.0
 librt==0.13.0
