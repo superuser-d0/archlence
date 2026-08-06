@@ -174,10 +174,11 @@ class RecurringMixin:
     def process_due_auto_deductions(self):
         from database.db import (
             get_active_recurring_payments, process_due_recurring_payment,
-            get_active_debts, update_debt_progress, update_debt_last_auto_pay,
+            get_active_debts,
             DEFAULT_ACCOUNT_ID,
         )
         from services.transaction_service import TransactionService
+        from services.debt_payment_service import DebtPaymentService
 
         def process():
             try:
@@ -274,23 +275,10 @@ class RecurringMixin:
                     # tek bir bozuk borç kaydı, kendisinden sonraki borçların
                     # otomatik taksitlerini sessizce iptal etmemeli.
                     try:
-                        update_debt_progress(debt['id'], installments_to_pay, is_active=is_active)
-                        update_debt_last_auto_pay(debt['id'], current_month_str)
-
-                        desc = f"{debt['debt_name']} (Otomatik Taksit Ödemesi)"
-                        if installments_to_pay > 1:
-                            desc = f"{debt['debt_name']} (Otomatik Taksit Ödemesi — {installments_to_pay} ay telafi)"
-
-                        # Atlanan her ay için ayrı gider kaydı oluştur ki toplam bakiye
-                        # ve işlem geçmişi gerçek taksit sayısını yansıtsın.
-                        for _ in range(installments_to_pay):
-                            TransactionService.add_transaction(
-                                account_id=DEFAULT_ACCOUNT_ID,
-                                amount=debt['monthly_payment'],
-                                transaction_type="expense",
-                                category="Kredi Taksiti",
-                                description=desc
-                            )
+                        DebtPaymentService.pay_auto(
+                            debt['id'], DEFAULT_ACCOUNT_ID,
+                            installments_to_pay, current_month_str,
+                        )
                         ui_needs_refresh = True
                     except Exception as exc:
                         from utils.logging_config import get_logger
