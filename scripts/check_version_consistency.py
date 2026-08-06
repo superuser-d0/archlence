@@ -1,4 +1,4 @@
-"""Fail release builds when duplicated packaging metadata drifts."""
+"""Fail release builds when packaging metadata or release-facing docs drift."""
 
 import re
 import sys
@@ -13,9 +13,7 @@ from utils.version import APP_VERSION
 def require(pattern, path, description):
     text = (ROOT / path).read_text(encoding="utf-8")
     if not re.search(pattern, text, re.MULTILINE):
-        raise SystemExit(
-            f"{description} {APP_VERSION!r} ile eşleşmiyor: {path}"
-        )
+        raise SystemExit(f"{description} eksik veya geçersiz: {path}")
 
 
 def main():
@@ -36,9 +34,11 @@ def main():
         "Arch Linux paket sürümü",
     )
     require(
-        rf"### {escaped} —",
+        r"\[!\[Latest release\]\(https://img\.shields\.io/github/v/release/"
+        r"superuser-d0/archlence\?include_prereleases\)\]"
+        r"\(https://github\.com/superuser-d0/archlence/releases/latest\)",
         "README.md",
-        "README changelog sürümü",
+        "README dinamik pre-release rozeti",
     )
     require(
         rf"## \[{escaped}\]",
