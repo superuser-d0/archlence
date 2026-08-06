@@ -25,37 +25,28 @@ source=(
   "LICENSE::https://raw.githubusercontent.com/superuser-d0/archlence/v${pkgver}/LICENSE"
 )
 
-# SÜRÜM YAYINLANDIKTAN SONRA DOLDURULACAK — şu an bilerek geçersiz.
-#
-# `pkgver` 0.0.8'e yükseltildi; `source` dizisi artık HENÜZ VAR OLMAYAN v0.0.8
-# varlıklarını gösteriyor, dolayısıyla gerçek hash'ler hesaplanamaz.
+# v0.0.8 kaynakları üç bağımsız yoldan doğrulandı:
+#   - AppImage: doğrudan indirilip yerelde sha256'sı hesaplandı; yayın
+#     manifesti (SHA256SUMS.txt) ve GitHub'ın asset digest'i ile eşleşti.
+#   - Diğer dördü: hem `git cat-file blob v0.0.8:<yol>` hem
+#     raw.githubusercontent'ten v0.0.8 etiketiyle alınıp karşılaştırıldı.
+# Sonuç `makepkg --verifysource` ile depo dışında sınandı: beşi de Passed.
 #
 # SIRA ÖNEMLİ: bu dizi `source` ile POZİSYON POZİSYON eşleşir, isimle değil.
-# v0.0.7'de SVG dördüncü sıraya eklenmişti; beş değerin sırası `source` ile
-# birebir aynı kalmalı.
 #
-# DİKKAT: son dört kaynağın (desktop dosyası, PNG, SVG, LICENSE) hash'i
-# sürümler arası DEĞİŞMİYOR — içerikleri sabit. Bu, önceki diziyi olduğu gibi
-# taşımayı zararsız gösteriyor; DEĞİL. AppImage'ın hash'i her sürümde değişir
-# (v0.0.6 e37bcb57..., v0.0.7 ba33aa5b...) ve beşinin de AYNI etiketten gelmesi
-# gerekir, aksi halde dört dosya doğru, asıl gönderilen ikili yanlış doğrulanır.
-#
-# `v0.0.8` etiketi yayınlandıktan SONRA, v0.0.4-v0.0.7'de izlenen yöntem:
-# AppImage'ı indirip sha256'sını DOĞRUDAN hesaplayıp yayınlanan
-# SHA256SUMS.txt ile karşılaştırmak; diğer dördünü hem
-# `git cat-file blob v0.0.8:<yol>` ile hem raw.githubusercontent'ten alıp
-# eşleştirmek. Sonuç `makepkg --verifysource` ile (depo dışında) doğrulanmalı.
-#
-# BİLEREK geçersiz (tamamı sıfır) placeholder, 'SKIP' DEĞİL: 'SKIP' makepkg'de
-# doğrulamayı tamamen KAPATIR ve indirilen her dosyayı sessizce kabul eder.
-# Geçersiz bir hash ise gerçek değerler yazılana kadar makepkg'i GÜVENLİ
-# şekilde, yüksek sesle başarısız kılar.
+# DİKKAT — her sürümde tekrar eden tuzak: aşağıdaki SON DÖRT hash v0.0.7'deki
+# değerlerin BİREBİR AYNISI, çünkü desktop dosyası, iki ikon ve LICENSE
+# içerikleri sürümler arası değişmiyor. Bu, eski diziyi olduğu gibi taşımayı
+# zararsız gösteriyor — DEĞİL: yalnızca AppImage'ın hash'i değişir
+# (v0.0.6 e37bcb57..., v0.0.7 ba33aa5b..., v0.0.8 770539c5...). Kopyalanan bir
+# dizi dört dosyayı DOĞRU, asıl gönderilen ikiliyi YANLIŞ doğrular ve makepkg
+# beş satırın hepsini yeşil basar.
 sha256sums=(
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
+  '770539c58f2b596464d6710954f019069342dacae84480ff8d048e4b062c66d5'
+  '4cf21f62e33e87cf69cd015fb9148dbe99badaf75c3caf3b87db1b8813089d71'
+  '1df0fe8c33ba3b13cee650cab7e254964e18acbd27c330dce19ac0aaf7110b9f'
+  'e27e0925f3d0d33dcd212391b038c04dbc89020f212d145bfdca6f0600b2e9ec'
+  'ecc8a7af57166c272c3b008712981c02f42898b6f2fad6889b7b51f9bf366c83'
 )
 
 package() {
