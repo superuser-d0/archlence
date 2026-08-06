@@ -1,5 +1,78 @@
 # Changelog
 
+## Unreleased
+
+Reliability work from the v0.0.9 audit. No version bump and no release date —
+this section records what is already fixed on the branch.
+
+### Financial correctness and reliability
+
+- Non-finite amounts (`NaN`, `±Infinity`) are rejected at the service boundary
+  before any write. Previously an infinity expense drove an account balance to
+  `-inf` and then to `NULL`, at which point the account silently dropped out of
+  the portfolio total — a 5.000 TL account made 7.500 TL read as 2.500 TL, with
+  no error raised.
+- A recurring payment can no longer be charged twice for the same due period,
+  and the same charge can no longer be refunded twice.
+- The credit-card limit check and the write that follows it are now serialised,
+  closing a race where two concurrent spends could both pass the same check.
+- Asset sales and automatic debt instalments each run in a single database
+  transaction. A failure part-way through no longer leaves cash credited with
+  the asset still in the portfolio, or an instalment marked paid with no ledger
+  entry.
+- Asset sale entries record quantity, unit price and profit/loss again. Without
+  them a partial sale was indistinguishable from a full one in the ledger.
+
+### Backup, restore and migration
+
+- Backup packages are authenticated. Rewriting the financial data and
+  recomputing the stored SHA-256 no longer produces a package the application
+  accepts.
+- Archive members are validated against an allow-list; unexpected entries and
+  traversal-style paths are rejected before extraction.
+- Restore treats the database, encryption key and config as one profile
+  generation. A failure rolls all three back together — previously the config
+  was left from the backup while the database was rolled back, leaving a mixed
+  profile.
+- An interrupted restore is now recovered at startup, before the key, database
+  or config is used. A crash after the restore committed keeps the new
+  generation and only finishes cleanup; a crash before it rolls back. A journal
+  that cannot be read stops startup rather than guessing.
+- Database migrations are retry-safe. A crash after `ALTER TABLE` but before
+  the backfill no longer leaves the column permanently unpopulated: completion
+  is decided by a postcondition, not by the column's existence.
+
+### Security and privacy
+
+- Plaintext CSV exports are created with owner-only permissions on POSIX
+  systems.
+- A restore failure shows a fixed message that carries no key, passphrase,
+  journal content, file path or traceback.
+
+### Testing and packaging
+
+- The exception-handler gate now recognises `except (Exception,)`,
+  `except (Exception, OSError)`, `except builtins.Exception` and aliased forms,
+  all of which were previously invisible. It also fails when the baseline holds
+  more entries than reality, which is how 44 unused slots accumulated in 0.0.6.
+- The Windows installer no longer falls back to a hard-coded `0.0.1` when no
+  version input is supplied; the version comes from the single source and a
+  mismatch fails the build.
+- The upgrade smoke test selects the real previous release by semantic version
+  instead of a fixed `v0.0.1`, and reads the expected checksum from that
+  release's own manifest.
+- Database connection cleanup is pinned by regression tests that assert
+  descriptors stay bounded without an explicit garbage collection.
+
+### Known limitations
+
+- Real Windows validation has not been performed: DPAPI, SmartScreen,
+  installer upgrade/uninstall and DPI scaling are unverified.
+- The visual presentation of a restore-recovery failure is verified only at the
+  orchestration level; actual widget rendering was not exercised.
+- `accounts.balance` and `savings_goals.current_amount` remain `REAL` columns.
+- Broad exception-handler debt and the pyflakes backlog are still open.
+
 ## [0.0.8] — 2026-08-06
 
 Every defect in this release comes from the same place: money handled as binary
