@@ -338,6 +338,112 @@ def verify_backup(package_path, passphrase):
         }
 
 
+_JOURNAL_DIRNAME = ".archlence-restore"
+_JOURNAL_NAME = "journal.json"
+
+# Journal'ın kaydettiği state'ler. Sıra önemli: ROLLBACK_GENERATION_READY'den
+# ÖNCE kesilen bir restore hedefe hiç dokunmamıştır, sonrasında kesilen ise
+# yarım bir generation bırakmıştır ve geri alınması gerekir.
+_JOURNAL_STATES = (
+    "STAGED",
+    "ROLLBACK_GENERATION_READY",
+    "DB_REPLACED",
+    "KEY_REPLACED",
+    "CONFIG_REPLACED",
+)
+
+
+def _restore_journal_dir(db_path):
+    return Path(db_path).parent / _JOURNAL_DIRNAME
+
+
+def _write_journal(journal_dir, state, db_path, config, had_config):
+    """Journal'ı ATOMİK yaz: geçici dosya + os.replace.
+
+    Doğrudan yazmak, tam bu satırda çökme hâlinde yarım/bozuk bir journal
+    bırakırdı ve kurtarma neye güveneceğini bilemezdi.
+    """
+    payload = {
+        "state": state,
+        "db_path": str(db_path),
+        "config_path": str(config) if config else None,
+        "had_config": bool(had_config),
+    }
+    target = journal_dir / _JOURNAL_NAME
+    fd, staged = tempfile.mkstemp(dir=str(journal_dir), prefix=".journal-")
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(staged, target)
+    os.chmod(target, 0o600)
+
+
+def _rollback_config(config, old_config, had_config):
+    """Config'i restore ÖNCESİ hâline döndürür.
+
+    `had_config` ayrımı şart: restore öncesi config YOKSA, restore'un yazdığı
+    dosya silinmelidir — eski bir kopyayı geri koymak yanlış olur.
+    """
+    if not config:
+        return
+    if had_config and Path(old_config).exists():
+        os.replace(old_config, config)
+    elif not had_config and Path(config).exists():
+        Path(config).unlink()
+
+
+def _discard_journal(journal_dir):
+    shutil.rmtree(journal_dir, ignore_errors=True)
+
+
+def recover_interrupted_restore(db_path=DB_NAME, *, key_provider=None,
+                                config_path=None):
+    """Yarım kalmış bir restore'u başlangıçta güvenli biçimde geri alır.
+
+    Uygulama açılışında çağrılır. Journal yoksa hiçbir şey yapmaz. Journal
+    varsa restore süreç çökmesiyle kesilmiş demektir ve profil karma durumda
+    olabilir; eski generation geri getirilir.
+
+    FAIL-CLOSED: journal okunamıyor veya tanınmayan bir state taşıyorsa
+    sessizce yok sayılmaz, `DataMigrationError` fırlatılır. Bozuk bir
+    journal'a bakıp "her şey yolunda" varsaymak, karma profille açılmaktan
+    daha kötüdür.
+    """
+    journal_dir = _restore_journal_dir(db_path)
+    journal_file = journal_dir / _JOURNAL_NAME
+    if not journal_file.exists():
+        return {"recovered": False, "reason": "no-journal"}
+
+    try:
+        payload = json.loads(journal_file.read_text(encoding="utf-8"))
+        state = payload["state"]
+    except (OSError, ValueError, KeyError) as exc:
+        raise DataMigrationError(
+            "Yarım restore journal'ı okunamadı; profil elle incelenmeli."
+        ) from exc
+    if state not in _JOURNAL_STATES:
+        raise DataMigrationError(
+            f"Tanınmayan restore journal state'i: {state!r}"
+        )
+
+    db_path = Path(payload.get("db_path") or db_path)
+    config = Path(payload["config_path"]) if payload.get("config_path") else (
+        Path(config_path) if config_path else None
+    )
+    had_config = payload.get("had_config", False)
+    old_db = journal_dir / "old-finance.db"
+    old_config = journal_dir / "old-config.json"
+
+    if old_db.exists():
+        if db_path.exists():
+            db_path.unlink()
+        os.replace(old_db, db_path)
+    _rollback_config(config, old_config, had_config)
+    _discard_journal(journal_dir)
+    return {"recovered": True, "state": state, "db_path": str(db_path)}
+
+
 def restore_backup(
     package_path,
     passphrase,
@@ -386,13 +492,37 @@ def restore_backup(
         staged_key.write_bytes(verification["key"])
         os.chmod(staged_key, 0o600)
 
-        old_db = temp / "old-finance.db"
+        # ROLLBACK GENERATION DAYANIKLI BİR DİZİNDE tutulur, geçici dizinde
+        # DEĞİL. Eskiden `old-finance.db` `TemporaryDirectory` içindeydi:
+        # süreç replacement ile doğrulama arasında ÇÖKERSE o dizin silinir ve
+        # geri dönülecek hiçbir şey kalmazdı. Journal ve eski dosyalar artık
+        # profil dizininde yaşıyor, böylece bir sonraki açılış toparlayabilir.
+        journal_dir = _restore_journal_dir(db_path)
+        old_db = journal_dir / "old-finance.db"
+        old_config = journal_dir / "old-config.json"
         try:
+            journal_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+            # Config'in ESKİ hâli, değiştirilmeden ÖNCE saklanır. Eski kod
+            # config'i yazıyor ama rollback yolunda hiç geri almıyordu:
+            # başarısız restore'da DB eski, config yeni kalıyordu — karma
+            # profil (denetim bulgusu P1-1).
+            had_config = bool(config and config.exists())
+            if had_config:
+                shutil.copy2(config, old_config)
+            _write_journal(journal_dir, "STAGED", db_path, config, had_config)
+
             if db_path.exists():
                 os.replace(db_path, old_db)
+            _write_journal(
+                journal_dir, "ROLLBACK_GENERATION_READY",
+                db_path, config, had_config,
+            )
             if _failure_hook:
                 _failure_hook("after_old_files_staged")
             os.replace(staged_db, db_path)
+            _write_journal(
+                journal_dir, "DB_REPLACED", db_path, config, had_config
+            )
             if _failure_hook:
                 _failure_hook("after_database_replaced")
             incoming_key = staged_key.read_bytes()
@@ -402,11 +532,23 @@ def restore_backup(
                 provider.replace_key(
                     incoming_key, expected_current=current_key
                 )
+            _write_journal(
+                journal_dir, "KEY_REPLACED", db_path, config, had_config
+            )
+            if _failure_hook:
+                _failure_hook("after_key_replaced")
             if config and verification["config"] is not None:
                 config.parent.mkdir(parents=True, exist_ok=True)
                 config.write_bytes(verification["config"])
+            _write_journal(
+                journal_dir, "CONFIG_REPLACED", db_path, config, had_config
+            )
+            if _failure_hook:
+                _failure_hook("after_config_replaced")
             _integrity_check(db_path)
             verify_database_key(db_path, provider.load_key())
+            if _failure_hook:
+                _failure_hook("after_post_verification")
         except Exception as exc:
             if db_path.exists():
                 db_path.unlink()
@@ -423,9 +565,13 @@ def restore_backup(
                 )
             elif current_key is None and restored_key is not None:
                 provider.delete_key(expected_current=restored_key)
+            # Config de AYNI generation ile geri alınır.
+            _rollback_config(config, old_config, had_config)
+            _discard_journal(journal_dir)
             raise DataMigrationError(
                 "Restore başarısız oldu; önceki veriler geri yüklendi."
             ) from exc
+        _discard_journal(journal_dir)
 
     from utils.crypto import _get_aead_key
     _get_aead_key.cache_clear()
