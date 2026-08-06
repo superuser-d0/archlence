@@ -23,6 +23,8 @@ hem de jenerik "Tarih,Tür,Kategori,Tutar,Açıklama" başlıklı CSV'leri tanı
 import csv
 import math
 import os
+import tempfile
+from pathlib import Path
 from datetime import datetime
 
 from database.db import (
@@ -151,11 +153,25 @@ def export_all_to_csv(path=None):
             ])
 
 
-    # utf-8-sig: Excel'in Türkçe karakterleri doğru açması BOM'a bağlı
-    with open(path, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.writer(f)
-        writer.writerow(CSV_HEADER)
-        writer.writerows(rows_out)
+    # Plaintext finance exports are private files, irrespective of umask.
+    # Stage beside the target so replace is atomic and never follows an
+    # existing symlink target.
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, staged = tempfile.mkstemp(prefix=".archlence-export-", dir=target.parent)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.writer(f)
+            writer.writerow(CSV_HEADER)
+            writer.writerows(rows_out)
+            f.flush(); os.fsync(f.fileno())
+        os.replace(staged, target)
+        os.chmod(target, 0o600)
+    except Exception:
+        try: os.unlink(staged)
+        except FileNotFoundError: pass
+        raise
 
     return path, len(rows_out)
 
