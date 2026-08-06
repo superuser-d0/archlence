@@ -728,18 +728,23 @@ MDScreen:
 
                                 # ZAMAN FİLTRESİ
                                 MDSegmentedControl:
+                                    id: home_period_control
                                     pos_hint: {"center_x": .5}
                                     size_hint_x: 0.9
                                     md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
                                     segment_color: ftheme.card_bg(app.theme_cls.theme_style)
                                     on_active: app.change_home_filter(args[1].text)
                                     MDSegmentedControlItem:
+                                        id: segment_filter_today
                                         text: app.tr("Bugün", app.language)
                                     MDSegmentedControlItem:
+                                        id: segment_filter_week
                                         text: app.tr("1 Hafta", app.language)
                                     MDSegmentedControlItem:
+                                        id: segment_filter_month
                                         text: app.tr("1 Ay", app.language)
                                     MDSegmentedControlItem:
+                                        id: segment_filter_year
                                         text: app.tr("1 Yıl", app.language)
 
                                 MDBoxLayout:
@@ -906,6 +911,7 @@ MDScreen:
 
                                 # FAZ 1: ABONELİK RADARI ("sessiz sızıntı")
                                 MDCard:
+                                    id: active_subscriptions_card
                                     elevation: 0
                                     line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     orientation: "vertical"
@@ -965,6 +971,7 @@ MDScreen:
 
                                 # YENİ: AKTİF GELİRLERİM KARTI
                                 MDCard:
+                                    id: active_incomes_card
                                     elevation: 0
                                     line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     orientation: "vertical"
@@ -1018,6 +1025,7 @@ MDScreen:
 
                                 # FAZ 1: OLAĞANDIŞI HARCAMA UYARILARI
                                 MDCard:
+                                    id: unusual_spending_card
                                     elevation: 0
                                     line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     orientation: "vertical"
@@ -1055,6 +1063,7 @@ MDScreen:
 
                                 # YENİ: AKTİF BORÇLARIM KARTI
                                 MDCard:
+                                    id: active_debts_card
                                     elevation: 0
                                     line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     orientation: "vertical"
@@ -1094,6 +1103,7 @@ MDScreen:
 
                                 # YENİ: YAKLAŞAN ÖDEMELER KARTI
                                 MDCard:
+                                    id: upcoming_payments_card
                                     elevation: 0
                                     line_color: ftheme.card_line(app.theme_cls.theme_style)
                                     orientation: "vertical"

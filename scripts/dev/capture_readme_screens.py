@@ -41,6 +41,13 @@ def parse_args():
         "--delay", type=float, default=1.8,
         help="Seconds allowed for each target view to settle",
     )
+    parser.add_argument(
+        "--screens",
+        nargs="+",
+        choices=SCREEN_NAMES,
+        default=list(SCREEN_NAMES),
+        help="Capture only these filenames (default: all eight)",
+    )
     return parser.parse_args()
 
 
@@ -111,7 +118,7 @@ class ReadmeCaptureApp(ArchlenceApp):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._capture_index = 0
-        self._captures = [
+        all_captures = [
             ("dashboard.png", "home_tab", self.prepare_dashboard),
             ("portfolio-overview.png", "assets_tab", self.prepare_portfolio),
             ("asset-history.png", "assets_tab", self.prepare_asset_history),
@@ -121,6 +128,8 @@ class ReadmeCaptureApp(ArchlenceApp):
             ("financial-tools.png", "tools_tab", self.prepare_tools),
             ("settings.png", "settings_tab", self.prepare_settings),
         ]
+        requested = set(ARGS.screens)
+        self._captures = [item for item in all_captures if item[0] in requested]
 
     def on_start(self):
         super().on_start()
@@ -132,6 +141,7 @@ class ReadmeCaptureApp(ArchlenceApp):
         manager.current = "home"
         self.root.ids.login_error_label.text = ""
         self.root.ids.password_input.text = ""
+        self.set_language("en", persist=False)
         self.change_home_filter(self.tr("1 Yıl"))
         Clock.schedule_once(self._capture_next, 2.5)
 
@@ -189,8 +199,37 @@ class ReadmeCaptureApp(ArchlenceApp):
             scroll.scroll_y = fallback_y
         return scroll
 
+    def _align_section_top(self, target_id, top_margin=8):
+        """Place a complete section card just below the application toolbar."""
+        target = self.root.ids.get(target_id)
+        scroll = self._find_scroll(target) if target else None
+        if not (scroll and target):
+            return scroll
+        scroll.scroll_to(target, padding=0, animate=False)
+
+        def align(_dt):
+            # ``scroll_to`` only guarantees visibility.  Move the resolved
+            # top edge to a deliberate viewport coordinate in the same
+            # coordinate system used by Kivy's own implementation.
+            target_top = scroll.parent.to_widget(
+                *target.to_window(target.right, target.top)
+            )[1]
+            desired_top = scroll.top - top_margin
+            _dsx, dsy = scroll.convert_distance_to_scroll(
+                0, desired_top - target_top
+            )
+            scroll.scroll_y = max(0.0, min(1.0, scroll.scroll_y - dsy))
+
+        Clock.schedule_once(align, 0.05)
+        return scroll
+
     def prepare_dashboard(self, filename):
         self.change_home_filter(self.tr("1 Yıl"))
+        # Apply one synchronous result so the selected button, title, nominal
+        # change and percentage are guaranteed to describe the same period.
+        metrics = self._compute_dashboard_metrics()
+        self._apply_dashboard_metrics(metrics)
+        self.sync_filter_buttons_ui()
         self.refresh_dashboard_data(list_filter="1 Yıl")
         self._scroll_top("chart_master_box")
         self._save(filename, 1.5)
@@ -220,13 +259,13 @@ class ReadmeCaptureApp(ArchlenceApp):
 
     def prepare_subscriptions(self, filename):
         self.refresh_insights()
-        self._scroll_to("active_subscriptions_rv", fallback_y=0.56, padding=54)
+        self._align_section_top("active_subscriptions_card")
         self._save(filename, 1.4)
 
     def prepare_debts(self, filename):
         self.load_active_debts()
         self.refresh_insights()
-        self._scroll_to("active_debts_container", fallback_y=0.24, padding=54)
+        self._align_section_top("active_incomes_card")
         self._save(filename, 1.4)
 
     def prepare_tools(self, filename):

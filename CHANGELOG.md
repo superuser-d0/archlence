@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Dashboard period cards now calculate nominal and percentage changes from the
+  same balance baseline, show an unavailable percentage for an unknown or zero
+  baseline, and ignore stale background results after a filter change.
+- Dashboard totals now use account balances directly, so savings transfers and
+  other ledger-only movements remain consistent with the Accounts screen.
+- Runtime language changes now rebuild chart labels, month names, asset-type
+  labels, and asset history instead of leaving Turkish text in an English view.
+
 ## [0.0.6] — 2026-08-06
 
 This release is about failures the application was hiding from itself. A
