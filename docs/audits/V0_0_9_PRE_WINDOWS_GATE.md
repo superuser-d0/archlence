@@ -323,9 +323,18 @@ Hepsi bu turun sonundaki ağaçta, `env -u PYTHONPATH`, Python 3.14.6.
 |---|---|---|
 | `dac9a15` | production fix | `initialize_database()` bağlantıyı her çıkış yolunda kapatıyor |
 | `28e43f0` | test/harness | Denetim probe'unun sızıntısı düzeltildi (13 site) + 15 sahiplik testi |
-| *(bu commit)* | docs | Bu belge + Phase 3 statü düzeltmeleri |
+| `670cd11` | docs | Bu belge + Phase 3 statü düzeltmeleri |
+| `5af7fa0` | test | Statik kapı metin araması yerine AST ile tarıyor |
+| *(bu commit)* | docs | Commit tablosunun kapatılması |
 
 Push YOK · PR YOK · tag YOK · release YOK · version bump YOK.
+
+`5af7fa0` hakkında not: `670cd11` sonrası tam suite koşumunda statik kapı
+kendi açıklama docstring'ini yakaladı. Kapının kendisi doğru davranıyordu,
+tarama yöntemi kabaydı — metin araması bir kalıbı AÇIKLAYAN yorumla onu
+KULLANAN kodu ayırt edemiyor. AST taraması bu ayrımı yapıyor ve kapının
+"kendi dosyasını atla" muafiyetini de gereksiz kılıyor. Mutation yeniden
+doğrulandı.
 
 ---
 

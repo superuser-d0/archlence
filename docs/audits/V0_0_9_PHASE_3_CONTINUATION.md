@@ -115,7 +115,9 @@ Taban `d5bd35f` (origin/main). Tur 1–4 Phase 3'ün kendisi (32 commit,
 | `3551049` | docs: complete phase 3 commit traceability | Tur 3 ve Tur 4'ün rapordaki boşluğu |
 | `dac9a15` | fix: close database connections deterministically | `initialize_database()` hata yolunda bağlantı bırakıyordu — `database/init_db.py` |
 | `28e43f0` | test: correct connection cleanup regression harness | P2-7'nin yanlış atfı; denetim probe'unun kendi sızıntısı (13 site) + 15 sahiplik testi |
-| *(bu commit)* | docs: finalize pre-Windows release traceability | `V0_0_9_PRE_WINDOWS_GATE.md` + statü düzeltmeleri |
+| `670cd11` | docs: finalize pre-Windows release traceability | `V0_0_9_PRE_WINDOWS_GATE.md` + statü düzeltmeleri |
+| `5af7fa0` | test: scan for the leaking pattern with AST, not text | Statik kapının tarama yöntemi |
+| *(bu commit)* | docs: close the round-5 commit table | Commit tablosunun kapatılması |
 
 ### İzlenebilirlik notu
 
