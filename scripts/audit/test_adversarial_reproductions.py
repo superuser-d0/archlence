@@ -305,8 +305,16 @@ class CrossTransactionAtomicityReproduction(_TemporaryProfile):
 
                 before = self._asset_state(asset_id, account_id)
 
+                # HOOK'UN GERÇEKTEN TETİKLENDİĞİNİ SAY. Yalnızca son
+                # duruma bakmak yetmez: patch yanlış sembole bağlanırsa
+                # fault hiç çalışmaz, işlem normal tamamlanır ve test
+                # YANLIŞ SEBEPLE kırmızı/yeşil olur. Bu tam olarak bu
+                # dosyada bir kez yaşandı (bkz. bfb2b37).
+                fired = []
+
                 def _fault(point, _target=hook_point):
                     if point == _target:
+                        fired.append(point)
                         raise OSError(f"injected at {point}")
 
                 raised = None
@@ -317,6 +325,11 @@ class CrossTransactionAtomicityReproduction(_TemporaryProfile):
                     )
                 except OSError as exc:
                     raised = str(exc)
+                self.assertEqual(
+                    fired, [hook_point],
+                    f"{hook_point} noktasına HİÇ ULAŞILMADI; test yanlış "
+                    "sebeple sonuç veriyor",
+                )
 
                 after = self._asset_state(asset_id, account_id)
                 print(
@@ -372,8 +385,11 @@ class CrossTransactionAtomicityReproduction(_TemporaryProfile):
 
                 before = _state()
 
+                fired = []
+
                 def _fault(point, _target=hook_point):
                     if point == _target:
+                        fired.append(point)
                         raise OSError(f"injected at {point}")
 
                 raised = None
@@ -383,6 +399,10 @@ class CrossTransactionAtomicityReproduction(_TemporaryProfile):
                     )
                 except OSError as exc:
                     raised = str(exc)
+                self.assertEqual(
+                    fired, [hook_point],
+                    f"{hook_point} noktasına HİÇ ULAŞILMADI",
+                )
 
                 after = _state()
                 print(
