@@ -14,6 +14,7 @@ sarmalanır, her açılan bağlantı kaydedilir, blok sonunda
 bağımsızdır, dolayısıyla Windows'ta da aynı anlamı taşır.
 """
 
+import ast
 import gc
 import os
 import sqlite3
@@ -349,25 +350,43 @@ class ProductionUsesNoNonClosingContextManagerTest(unittest.TestCase):
     SCANNED = ("database", "services", "mixins", "utils", "widgets",
                "views", "components", "scripts", "tests")
 
+    @staticmethod
+    def _is_bare_get_connection(node):
+        """`get_connection()` — `closing(...)` gibi bir sarmalayıcı OLMADAN."""
+        if not isinstance(node, ast.Call):
+            return False
+        func = node.func
+        if isinstance(func, ast.Name):
+            return func.id == "get_connection"
+        if isinstance(func, ast.Attribute):
+            return func.attr == "get_connection"
+        return False
+
     def test_no_module_uses_get_connection_as_a_context_manager(self):
+        """Tarama AST üzerinden yapılır, metin araması ile DEĞİL.
+
+        Metin araması docstring ve hata mesajlarındaki anmaları da yakalıyordu
+        — kalıbı AÇIKLAYAN bir yorum, kalıbı KULLANMAK değildir. AST bu ayrımı
+        ücretsiz veriyor ve `closing(get_connection())` gibi doğru sarmalanmış
+        çağrıları da doğal olarak muaf tutuyor.
+        """
         offenders = []
         for name in self.SCANNED:
             root = REPO_ROOT / name
             if not root.is_dir():
                 continue
             for path in root.rglob("*.py"):
-                # Bu dosyanın KENDİSİ kalıbı açıklamak için anmak zorunda;
-                # docstring ve hata mesajı kod değildir.
-                if path.name == Path(__file__).name:
+                try:
+                    tree = ast.parse(path.read_text(encoding="utf-8"))
+                except (SyntaxError, UnicodeDecodeError):
                     continue
-                text = path.read_text(encoding="utf-8", errors="replace")
-                for lineno, line in enumerate(text.splitlines(), 1):
-                    stripped = line.strip()
-                    if stripped.startswith("#"):
+                for node in ast.walk(tree):
+                    if not isinstance(node, ast.With):
                         continue
-                    if ("with get_connection() as" in stripped
-                            and "closing(" not in stripped):
-                        offenders.append(f"{path.relative_to(REPO_ROOT)}:{lineno}")
+                    for item in node.items:
+                        if self._is_bare_get_connection(item.context_expr):
+                            offenders.append(
+                                f"{path.relative_to(REPO_ROOT)}:{node.lineno}")
         self.assertEqual(
             offenders, [],
             "`with get_connection() as conn:` KAPATMAZ — bağlantı sızdırır. "
