@@ -1859,7 +1859,8 @@ class AssetMixin:
     def _execute_sell(self, asset, sell_price_per_unit):
         """Satış işlemini background thread'de gerçekleştirir."""
         import threading
-        from database.db import delete_asset, insert_asset_transaction, DEFAULT_ACCOUNT_ID
+        from database.db import DEFAULT_ACCOUNT_ID
+        from services.asset_sale_service import AssetSaleService
         from utils.toast import toast
 
         def _do_sell():
@@ -1890,18 +1891,10 @@ class AssetMixin:
                     f"(K/Z: {sign}{format_price_tl(abs(pnl))})"
                 )
 
-                # Cüzdana ekle: income + 'Varlık Satışı'
-                insert_asset_transaction(
-                    account_id=DEFAULT_ACCOUNT_ID,
-                    # sqlite3 Decimal parametresini REDDEDER
-                    # (ProgrammingError), bu yüzden sınırda float'a çevriliyor.
-                    amount=float(total_proceeds),
-                    tx_type="income",
-                    category="Varlık Satışı",
-                    description=desc,
+                AssetSaleService.sell(
+                    asset["id"], sell_price_per_unit, DEFAULT_ACCOUNT_ID,
+                    quantity=asset["quantity"],
                 )
-                # Portföyden çıkar
-                delete_asset(asset["id"])
 
                 Clock.schedule_once(
                     lambda dt: toast(
