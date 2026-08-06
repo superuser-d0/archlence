@@ -1,6 +1,6 @@
 # v0.0.9 Phase 3 — Düzeltme Raporu
 
-**Dal:** `fix/v0.0.9-reliability` · **HEAD:** `493dd3c` · **Taban:** `d5bd35f`
+**Dal:** `fix/v0.0.9-reliability` · **HEAD:** `6bb7a4f` · **Taban:** `d5bd35f`
 **Status: Phase 3 fixes in progress, RC blocked**
 
 ---
@@ -32,7 +32,7 @@ verilmiştir.
 
 ## P1-1 — Restore generation atomicity
 
-**Status: Partially closed**
+**Status: Closed — visual/manual presentation validation pending**
 
 | Alt bileşen | Status | Kanıt |
 |---|---|---|
@@ -40,13 +40,14 @@ verilmiştir.
 | Dayanıklı restore journal | **Closed** | `.archlence-restore/`, atomik yazım |
 | Journal corruption fail-closed | **Closed** (test edildiği ölçüde) | bozuk + tanınmayan state |
 | Process crash sonrası startup recovery | **Closed** | `616224f`, çağrı sırası testi |
-| Recovery başarısızlığının kullanıcıya gösterimi | **Partially** | domain exception + sızıntısız mesaj var; **gerçek UI gösterimi doğrulanmadı** |
+| Recovery başarısızlığının kullanıcıya gösterimi | **Closed** (orchestration) | presenter sözleşmesi + sızıntı testi, `6bb7a4f` |
 | Recovery bitmeden DB/key/config kullanımının engellenmesi | **Closed** | çağrı sırası + fail-closed testleri |
-| COMMITTED marker sonrası cleanup crash | **Open** | journal COMMITTED state yazmıyor; senaryo test edilmedi |
+| COMMITTED marker sonrası cleanup crash | **Closed** | 6 test + 4 mutation, `efadc1c` |
+| Gerçek görsel dialog rendering | **Blocked by environment** | dummy window provider; Windows/manuel listede |
 
-**Neden hâlâ "Partially closed":** sözleşme madde 6.6'daki
-"success marker sonrası, cleanup öncesi crash" senaryosu kapsanmadı. Journal
-şu an başarıda doğrudan siliniyor, ayrı bir COMMITTED durumu yazmıyor.
+**Neden "visual validation pending":** finansal kurtarma mekanizmasının tamamı
+kapandı ve mutation ile doğrulandı. Kalan tek şey gerçek widget rendering'in
+gözle görülmesi; bu bir finansal blocker değil, ortam sınırı.
 
 **Root cause:** config rollback yolu yoktu; rollback generation
 `TemporaryDirectory` içindeydi.

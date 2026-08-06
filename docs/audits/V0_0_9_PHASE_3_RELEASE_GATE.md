@@ -1,18 +1,18 @@
 # v0.0.9 Phase 3 — Release Gate
 
-HEAD: `493dd3c`
+HEAD: `6bb7a4f`
 
 ## Karar: **RC NO-GO**
 
-Bütün P0'lar Closed. **P1-1 Partially closed**, ve RC GO koşullarından beşi
-açık.
+Bütün P0'lar ve P1'ler Closed. RC GO koşullarından **dördü hâlâ açık**;
+karar bu yüzden NO-GO.
 
 ## Blocker tablosu
 
 | ID | Status | Neden hâlâ blocker |
 |---|---|---|
 | P0-1 … P0-7 | **Closed** | — |
-| P1-1 restore generation | **Partially closed** | COMMITTED-cleanup crash senaryosu test edilmedi; UI gösterimi doğrulanmadı |
+| P1-1 restore generation | **Closed** — visual validation pending | finansal mekanizma kapandı; yalnızca gerçek widget rendering doğrulanmadı |
 | P1-2 migration retry | **Closed** | — |
 | A-1 / A-2 kapı | **Closed** | — |
 | Connection cleanup | **Open** | FD 4→71 davranışı yeniden ölçülmedi |
@@ -22,7 +22,6 @@ açık.
 
 ## RC GO için kalan somut koşullar
 
-- [ ] COMMITTED-cleanup crash senaryosu test edildi
 - [ ] Connection cleanup bounded, explicit GC'ye bağlı değil
 - [ ] 16 version mutation vakasının tamamı yakalanıyor
 - [ ] Windows workflow `0.0.1` fallback'inden kurtuldu
