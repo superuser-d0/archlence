@@ -68,6 +68,53 @@ def main():
         ".github/workflows/release.yml",
         "Release başlığı",
     )
+    # Aşağıdakiler kapının DENETLEMEDİĞİ boşluklardı; 16 vakalık mutation
+    # matrisi (scripts/audit/version_mutation_matrix.py) bunları kaçırdığını
+    # gösterdi.
+    require(
+        r'Archlence-\$\{v\}-x86_64\.AppImage',
+        ".github/workflows/release.yml",
+        "AppImage release asset adı",
+    )
+    require(
+        r'SHA256SUMS\.txt',
+        ".github/workflows/release.yml",
+        "Checksum dosya adı",
+    )
+    require(
+        r'Archlence-\$\{\{ needs\.version\.outputs\.version \}\}-sbom\.cdx\.json',
+        ".github/workflows/release.yml",
+        "SBOM dosya adı",
+    )
+    # Tag/uygulama sürümü uyuşmazlığını release.yml'in KENDİSİ yakalamalı.
+    # Bu kontrolün varlığını doğruluyoruz: silinirse yanlış etiketle yayın
+    # yapılabilir hale gelir.
+    require(
+        r'Tag/input sürümü .* uygulama sürümüyle .* eşleşmiyor',
+        ".github/workflows/release.yml",
+        "Tag/uygulama sürüm eşleşme kontrolü",
+    )
+    # Windows workflow'unda SABİT sürüm fallback'i OLMAMALI. Eskiden
+    # `inputs.version || '0.0.1'` her normal derlemeyi 0.0.1 damgalıyordu.
+    windows = (ROOT / ".github/workflows/build-windows.yml").read_text(
+        encoding="utf-8"
+    )
+    # Yorum satırları HARİÇ: düzeltmeyi anlatan yorum metni eşleşmemeli.
+    windows_code = "\n".join(
+        line for line in windows.splitlines()
+        if not line.lstrip().startswith("#")
+    )
+    if re.search(r"inputs\.version\s*\|\|\s*'[0-9]", windows_code):
+        raise SystemExit(
+            "Windows workflow'unda sabit sürüm fallback'i var: "
+            ".github/workflows/build-windows.yml"
+        )
+    # Upgrade smoke tabanı SABİT bir sürüme bağlı OLMAMALI.
+    if re.search(r'UPGRADE_BASELINE_TAG:\s*"v[0-9]', windows_code):
+        raise SystemExit(
+            "Upgrade smoke tabanı sabit bir sürüme bağlı: "
+            ".github/workflows/build-windows.yml"
+        )
     print(f"Sürüm tutarlı: {APP_VERSION} / tag v{APP_VERSION}")
 
 

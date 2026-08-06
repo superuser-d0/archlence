@@ -1,0 +1,180 @@
+#!/usr/bin/env python3
+"""Sürüm/paketleme kapısını 16 mutation vakasıyla sınar.
+
+Her vaka, ayrı bir detached `git worktree` içinde tek bir sürüm kaynağını
+bozar, kapıyı çalıştırır ve `Detected` / `Escaped` sonucunu kaydeder. Ana
+çalışma ağacına HİÇBİR mutation uygulanmaz.
+
+Kullanım:
+
+    python scripts/audit/version_mutation_matrix.py
+    python scripts/audit/version_mutation_matrix.py --json /tmp/matrix.json
+
+Çıkış kodu: kaçan vaka varsa 1, yoksa 0.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+# (id, açıklama, dosya, aranan, yerine konan)
+# `None` yerine-konan => satırın tamamı silinir (kontrolün kaldırılması).
+CASES = [
+    ("01-app-version", "Uygulama sürümü",
+     "utils/version.py", 'APP_VERSION = "', 'APP_VERSION = "9.9.9"  #'),
+    ("02-installer-version", "Installer sürümü",
+     "installer/archlence.iss", '#define MyAppVersion "0.0.8"',
+     '#define MyAppVersion "9.9.9"'),
+    ("03-workflow-input-default", "Windows workflow input default",
+     ".github/workflows/build-windows.yml", 'default: "0.0.8"',
+     'default: "9.9.9"'),
+    ("04-workflow-fallback", "Sabit sürüm fallback'i geri getirildi",
+     ".github/workflows/build-windows.yml",
+     '          $version = "${{ inputs.version }}"',
+     '          $version = "${{ inputs.version || \'0.0.1\' }}"'),
+    ("05-pkgbuild-version", "Arch paket sürümü (Linux paketleme)",
+     "PKGBUILD", "pkgver=0.0.8", "pkgver=9.9.9"),
+    ("06-appimage-filename", "AppImage release asset adı",
+     ".github/workflows/release.yml", "Archlence-${v}-x86_64.AppImage",
+     "Archlence-x86_64.AppImage"),
+    ("07-changelog-latest", "CHANGELOG en son sürüm başlığı",
+     "CHANGELOG.md", "## [0.0.8]", "## [9.9.9]"),
+    ("08-readme-marker", "README dinamik release rozeti",
+     "README.md",
+     "[![Latest release](https://img.shields.io/github/v/release/"
+     "superuser-d0/archlence?include_prereleases)]"
+     "(https://github.com/superuser-d0/archlence/releases/latest)",
+     "[![Latest release](https://example.invalid/badge)](https://example.invalid)"),
+    ("09-windows-asset-filename", "Windows release asset adı",
+     "CHANGELOG.md", "ArchlenceSetup-0.0.8.exe", "ArchlenceSetup.exe"),
+    ("10-appimage-asset-in-notes", "AppImage adı (release notlarında)",
+     "CHANGELOG.md", "Archlence-0.0.8-x86_64.AppImage",
+     "Archlence-x86_64.AppImage"),
+    ("11-checksum-filename", "Checksum dosya adı",
+     ".github/workflows/release.yml", "SHA256SUMS.txt", "CHECKSUMS.txt"),
+    ("12-sbom-version", "SBOM dosya adı/sürümü",
+     ".github/workflows/release.yml",
+     "Archlence-${{ needs.version.outputs.version }}-sbom.cdx.json",
+     "Archlence-sbom.cdx.json"),
+    ("13-release-title", "Release başlığı",
+     ".github/workflows/release.yml", '--title "Archlence v${v}"',
+     '--title "Archlence"'),
+    ("14-tag-mismatch-check", "Tag/uygulama eşleşme kontrolü kaldırıldı",
+     ".github/workflows/release.yml",
+     'echo "::error::Tag/input sürümü ($version) uygulama sürümüyle '
+     '($expected) eşleşmiyor."',
+     'echo "surum farkli ama devam"'),
+    ("15-fixed-upgrade-baseline", "Upgrade tabanı sabit sürüme bağlandı",
+     ".github/workflows/build-windows.yml", 'UPGRADE_BASELINE_TAG: ""',
+     'UPGRADE_BASELINE_TAG: "v0.0.1"'),
+    ("16-about-screen-binding", "About ekranı sürüm binding'i",
+     "ui/dashboard.kv", 'text: "Archlence v" + app.version',
+     'text: "Archlence"'),
+]
+
+
+def _run_gate(worktree):
+    """Kapıyı çalıştırır; `(exit_code, output)` döner."""
+    result = subprocess.run(
+        [sys.executable, "scripts/check_version_consistency.py"],
+        cwd=worktree, capture_output=True, text=True,
+    )
+    return result.returncode, (result.stdout + result.stderr).strip()
+
+
+def _apply(worktree, relative, needle, replacement):
+    path = Path(worktree) / relative
+    text = path.read_text(encoding="utf-8")
+    if text.count(needle) < 1:
+        return False
+    path.write_text(text.replace(needle, replacement, 1), encoding="utf-8")
+    return True
+
+
+def run_matrix(verbose=True):
+    results = []
+    base = tempfile.mkdtemp(prefix="archlence-version-mut-")
+    worktree = str(Path(base) / "wt")
+    subprocess.run(
+        ["git", "worktree", "add", "--quiet", "--detach", worktree, "HEAD"],
+        cwd=ROOT, check=True, capture_output=True,
+    )
+    try:
+        # Mutation UYGULANMADAN kapı yeşil olmalı; değilse matris anlamsız.
+        code, output = _run_gate(worktree)
+        if code != 0:
+            raise SystemExit(
+                f"Temiz worktree'de kapı zaten kırmızı; matris geçersiz:\n{output}"
+            )
+
+        for case_id, label, relative, needle, replacement in CASES:
+            subprocess.run(
+                ["git", "checkout", "--quiet", "--", "."],
+                cwd=worktree, check=True,
+            )
+            applied = _apply(worktree, relative, needle, replacement)
+            if not applied:
+                results.append({
+                    "id": case_id, "label": label, "file": relative,
+                    "status": "NOT-APPLICABLE", "exit_code": None,
+                    "message": f"desen bulunamadı: {needle[:60]!r}",
+                })
+                if verbose:
+                    print(f"  {case_id:<28} UYGULANAMADI ({relative})")
+                continue
+
+            code, output = _run_gate(worktree)
+            status = "Detected" if code != 0 else "ESCAPED"
+            results.append({
+                "id": case_id, "label": label, "file": relative,
+                "status": status, "exit_code": code,
+                "message": output.splitlines()[-1] if output else "",
+            })
+            if verbose:
+                mark = "yakalandı" if status == "Detected" else "*** KAÇTI ***"
+                print(f"  {case_id:<28} {mark:<16} exit={code}")
+        subprocess.run(
+            ["git", "checkout", "--quiet", "--", "."],
+            cwd=worktree, check=True,
+        )
+    finally:
+        subprocess.run(
+            ["git", "worktree", "remove", "--force", worktree],
+            cwd=ROOT, capture_output=True,
+        )
+        shutil.rmtree(base, ignore_errors=True)
+    return results
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Sürüm kapısını 16 mutation vakasıyla sınar."
+    )
+    parser.add_argument("--json", help="Sonuçları bu dosyaya JSON olarak yaz.")
+    args = parser.parse_args()
+
+    print(f"Sürüm mutation matrisi — {len(CASES)} vaka\n")
+    results = run_matrix()
+    escaped = [r for r in results if r["status"] == "ESCAPED"]
+    skipped = [r for r in results if r["status"] == "NOT-APPLICABLE"]
+
+    print(f"\nyakalanan={len(results) - len(escaped) - len(skipped)} "
+          f"kaçan={len(escaped)} uygulanamayan={len(skipped)}")
+    if args.json:
+        Path(args.json).write_text(
+            json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        print(f"JSON: {args.json}")
+    return 1 if escaped or skipped else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
