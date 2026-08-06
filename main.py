@@ -413,6 +413,25 @@ class ArchlenceApp(
                 lambda _dt: callback(), 0
             )
         )
+        # YARIM RESTORE KURTARMASI — anahtar, DB ve config'e dokunan HER
+        # ŞEYDEN ÖNCE. Sıra kritik: kurtarma bunlardan sonra çalışırsa
+        # uygulama yarım bir generation üzerinde açılmış olur (DB bir
+        # yedekten, config başka bir generation'dan).
+        #
+        # FAIL-CLOSED: kurtarma güvenle tamamlanamazsa açılış DURUR. Bozuk
+        # bir journal'a rağmen devam etmek, karma profille çalışmak demektir.
+        from services.startup_recovery import (
+            StartupRecoveryError,
+            run_startup_recovery,
+        )
+        try:
+            run_startup_recovery(config_path=_resolve_config_path())
+        except StartupRecoveryError as exc:
+            from utils.logging_config import get_logger
+            get_logger().critical("Açılış kurtarması başarısız: %s", exc.outcome)
+            self._startup_recovery_failure = str(exc)
+            raise
+
         self._warm_crypto_key_in_background()
         migrate_legacy_database_location()
         initialize_database()
