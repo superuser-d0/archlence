@@ -27,15 +27,33 @@ def initialize_database():
     # 'checking'). Böylece hiçbir mevcut hesap türsüz kalmaz.
     cursor.execute("PRAGMA table_info(accounts)")
     existing_account_cols = {row[1] for row in cursor.fetchall()}
+    # ŞEMA ADIMI ile VERİ ADIMI AYRI. Eskiden backfill `if column not in
+    # cols` bloğunun İÇİNDEYDİ ve bu, kesintiye karşı savunmasızdı:
+    # `ALTER TABLE` kalıcı olur, backfill patlarsa sonraki açılış sütunu
+    # MEVCUT görüp bloğa hiç girmez ve `account_type` kalıcı olarak NULL
+    # kalırdı (denetim bulgusu P1-2, kanıt: account_type_after_retry=None).
+    #
+    # Artık sütunun varlığı TAMAMLANMA KANITI SAYILMIYOR. Backfill kendi
+    # postcondition'ına bakıyor: "geriye doldurulmamış satır var mı?"
+    # Bu, adımı idempotent ve retry-safe yapıyor — kaç kez kesilirse
+    # kesilsin, bir sonraki açılış eksiği tamamlar.
     if "account_type" not in existing_account_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN account_type TEXT")
+    cursor.execute(
+        "SELECT COUNT(*) FROM accounts "
+        "WHERE account_type IS NULL OR TRIM(account_type) = ''"
+    )
+    if cursor.fetchone()[0]:
         cursor.execute("""
             UPDATE accounts
             SET account_type = CASE WHEN type = 'credit' THEN 'credit_card' ELSE 'checking' END
+            WHERE account_type IS NULL OR TRIM(account_type) = ''
         """)
+
     if "credit_limit" not in existing_account_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN credit_limit REAL DEFAULT 0")
-        cursor.execute("UPDATE accounts SET credit_limit = 0 WHERE credit_limit IS NULL")
+    # Aynı gerekçe: backfill kendi eksikliğine bakar.
+    cursor.execute("UPDATE accounts SET credit_limit = 0 WHERE credit_limit IS NULL")
     if "statement_date" not in existing_account_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN statement_date INTEGER")
         
