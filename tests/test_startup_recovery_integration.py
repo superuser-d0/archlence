@@ -161,6 +161,12 @@ class StartupCallOrderTest(unittest.TestCase):
                 archlence_main, "JsonStore",
                 _record("config_store", side_effect=_StopBuild()),
             ),
+            # Presenter gerçek MDDialog kuruyor; bu testin ilgi alanı
+            # SIRA, gösterim değil.
+            mock.patch(
+                "services.startup_recovery.present_startup_recovery_failure",
+                lambda *a, **k: None,
+            ),
             mock.patch.object(archlence_main, "Clock", mock.MagicMock()),
             mock.patch(
                 "services.background_task_manager.BackgroundTaskManager",
@@ -206,6 +212,62 @@ class StartupCallOrderTest(unittest.TestCase):
             "kurtarma başarısızken anahtar yine de yüklendi",
         )
         self.assertNotIn("legacy_migration", order)
+
+
+class RecoveryFailurePresentationTest(unittest.TestCase):
+    """Kurtarma hatası kullanıcıya GÜVENLİ biçimde gösterilmeli.
+
+    Gerçek widget rendering bu ortamda doğrulanamıyor (dummy window
+    provider). Doğrulanan şey ORCHESTRATION sözleşmesi: presenter çağrılıyor
+    mu, doğru metni alıyor mu, hassas ayrıntı sızıyor mu.
+    """
+
+    def test_failure_calls_the_presenter_with_the_safe_message(self):
+        import main as archlence_main
+        from services.startup_recovery import USER_MESSAGE
+
+        shown = []
+
+        def _presenter(app, message):
+            shown.append(message)
+
+        app = archlence_main.ArchlenceApp.__new__(archlence_main.ArchlenceApp)
+        patches = [
+            mock.patch.object(
+                archlence_main, "setup_appimage_desktop_integration",
+                lambda *a, **k: None,
+            ),
+            mock.patch(
+                "services.startup_recovery.run_startup_recovery",
+                side_effect=StartupRecoveryError(
+                    "ic ayrinti: /gizli/yol/finance.db",
+                    outcome=RecoveryOutcome.MANUAL_INTERVENTION_REQUIRED,
+                ),
+            ),
+            mock.patch(
+                "services.startup_recovery.present_startup_recovery_failure",
+                _presenter,
+            ),
+            mock.patch.object(archlence_main, "Clock", mock.MagicMock()),
+            mock.patch(
+                "services.background_task_manager.BackgroundTaskManager",
+                mock.MagicMock(),
+            ),
+        ]
+        for patch in patches:
+            patch.start()
+        self.addCleanup(lambda: [p.stop() for p in patches])
+
+        with self.assertRaises(StartupRecoveryError):
+            app.build()
+
+        self.assertEqual(len(shown), 1, "presenter cagrilmadi")
+        self.assertEqual(shown[0], USER_MESSAGE)
+        # Hassas ayrinti kullanici metnine SIZMAMALI.
+        self.assertNotIn("/gizli/yol", shown[0])
+        self.assertNotIn("finance.db", shown[0])
+        self.assertNotIn("Traceback", shown[0])
+        self.assertEqual(app._startup_recovery_failure, USER_MESSAGE)
 
 
 class _StopBuild(Exception):

@@ -421,15 +421,20 @@ class ArchlenceApp(
         # FAIL-CLOSED: kurtarma güvenle tamamlanamazsa açılış DURUR. Bozuk
         # bir journal'a rağmen devam etmek, karma profille çalışmak demektir.
         from services.startup_recovery import (
+            USER_MESSAGE as _RECOVERY_USER_MESSAGE,
             StartupRecoveryError,
+            present_startup_recovery_failure,
             run_startup_recovery,
         )
         try:
             run_startup_recovery(config_path=_resolve_config_path())
         except StartupRecoveryError as exc:
             from utils.logging_config import get_logger
+            # Log'a outcome girer, kullanıcı metnine DEĞİL exception'ın
+            # kendisi de girmez — sabit `USER_MESSAGE` gösterilir.
             get_logger().critical("Açılış kurtarması başarısız: %s", exc.outcome)
-            self._startup_recovery_failure = str(exc)
+            self._startup_recovery_failure = _RECOVERY_USER_MESSAGE
+            present_startup_recovery_failure(self, _RECOVERY_USER_MESSAGE)
             raise
 
         self._warm_crypto_key_in_background()

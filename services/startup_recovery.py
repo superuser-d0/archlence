@@ -53,6 +53,23 @@ USER_MESSAGE = (
 )
 
 
+def present_startup_recovery_failure(app, message):
+    """Kurtarma hatasını kullanıcıya güvenli biçimde gösterir.
+
+    Ayrı fonksiyon olmasının sebebi test edilebilirlik: gerçek Kivy pencere
+    sağlayıcısı olmadan da çağrıldığı ve DOĞRU metni aldığı doğrulanabilsin.
+
+    `message` DAİMA `USER_MESSAGE` olmalıdır — çağıran, exception'ın kendi
+    metnini veya traceback'ini buraya geçirmemelidir. Anahtar, parola,
+    journal içeriği veya dosya yolu kullanıcı metnine girmemeli.
+    """
+    from kivymd.uix.dialog import MDDialog
+
+    dialog = MDDialog(title="Geri yükleme tamamlanamadı", text=message)
+    dialog.open()
+    return dialog
+
+
 def run_startup_recovery(db_path=None, *, config_path=None):
     """Yarım restore varsa geri alır; yoksa hiçbir şey yapmaz.
 
