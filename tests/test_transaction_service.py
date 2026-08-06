@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from decimal import Decimal
 from unittest import mock
 
 
@@ -100,6 +101,76 @@ class TransactionStatementTestCase(unittest.TestCase):
         self.assertEqual(plan["remaining_installments"], 6)
         self.assertEqual(plan["remaining_amount"], 6000.0)
         self.assertEqual(plan["description"], "Telefon (6 Taksit)")
+
+    def test_uneven_split_never_drifts_from_the_principal(self):
+        """Tam bölünmeyen taksit, anaparadan sapan bir borç göstermemeli.
+
+        Mevcut kapsam yalnızca 6000/6 gibi TAM BÖLÜNEN vakaları kullanıyordu,
+        bu yüzden kusuru hiç göremiyordu: `round(float(tutar)/n, 2)` ile
+        `aylık x kalan` birlikte anaparayı korumuyordu. 1000,00/3 -> 333,33 ve
+        3 x 333,33 = 999,99 (bir kuruş EKSİK); 12.500,00/12 -> 1.041,67 ve
+        12 x 1.041,67 = 12.500,04 (dört kuruş FAZLA). Sapma iki yönde de
+        oluşabildiği için tek yönlü bir kontrol yeterli değil.
+
+        Taksit sayısı uygulamada 1-12 ile sınırlı, o yüzden vakalar bu
+        aralıktan seçildi — erişilemeyen bir senaryoyu test etmek olmaz.
+        """
+        from services.transaction_service import TransactionService
+
+        for principal, count in ((1000, 3), (12500, 12), (4999.90, 7)):
+            with self.subTest(principal=principal, installments=count):
+                from services.account_service import AccountService
+                account_id = AccountService.create_account(
+                    f"Kart {principal}-{count}", "credit_card",
+                    credit_limit=100000,
+                )
+                TransactionService.add_transaction(
+                    account_id, principal, "expense", "Elektronik",
+                    f"{count} taksit",
+                    transaction_date="2026-07-22 10:00:00",
+                    installments=count,
+                )
+                plan = TransactionService.get_installment_plans(account_id)[0]
+
+                # Hiç ödeme yapılmamışken kalan borç TAM anapara olmalı.
+                self.assertEqual(plan["remaining_amount"], round(principal, 2))
+
+                # Ve tüm taksitlerin toplamı da anaparayı tutmalı: son taksit
+                # farkı emiyor, yani kalan borç aylık tutarın katı OLMAYABİLİR.
+                monthly = Decimal(str(plan["monthly_amount"]))
+                last = Decimal(str(plan["remaining_amount"])) - monthly * (count - 1)
+                total_paid = monthly * (count - 1) + last
+                self.assertEqual(total_paid, Decimal(str(round(principal, 2))))
+
+    def test_remaining_amount_shrinks_by_the_principal_not_the_instalment(self):
+        """Ödeme ilerledikçe kalan borç anaparadan düşülmeli."""
+        from services.transaction_service import TransactionService
+
+        from database.db import managed_connection
+        from services.account_service import AccountService
+        account_id = AccountService.create_account(
+            "Kart kalan", "credit_card", credit_limit=100000
+        )
+        TransactionService.add_transaction(
+            account_id, 1000, "expense", "Elektronik", "3 taksit",
+            transaction_date="2026-07-22 10:00:00", installments=3,
+        )
+        plan_id = TransactionService.get_installment_plans(account_id)[0]["id"]
+
+        with managed_connection() as conn:
+            cur = conn.cursor()
+            for paid, expected in ((1, 666.67), (2, 333.34)):
+                cur.execute(
+                    "UPDATE installment_plans SET paid_installments = ? "
+                    "WHERE id = ?",
+                    (paid, plan_id),
+                )
+                conn.commit()
+                plan = TransactionService.get_installment_plans(account_id)[0]
+                self.assertEqual(
+                    plan["remaining_amount"], expected,
+                    f"{paid} taksit ödenmişken kalan {expected} olmalı",
+                )
 
     def test_installment_plans_are_isolated_by_card(self):
         from services.transaction_service import TransactionService

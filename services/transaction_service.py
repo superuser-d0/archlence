@@ -12,6 +12,7 @@ from database.db import (
 )
 from services.account_service import AccountService
 from utils.crypto import encrypt, decrypt
+from utils.financial_decimal import decimal_from, fiat
 from datetime import datetime
 
 SECRET_KEY = "fi" + "nora_secure_2026"
@@ -139,7 +140,13 @@ class TransactionService:
 
             if installments:
                 # Taksit planı işlemle AYNI commit'te yazılır (atomiklik).
-                monthly = round(float(amount) / installments, 2)
+                #
+                # Bölme Decimal'de: `round(float(amount)/n, 2)` anaparayı
+                # korumuyordu. 1000,00 TL / 3 -> 333,33 ve 3 x 333,33 = 999,99;
+                # 12.500,00 / 12 -> 1.041,67 ve 12 x 1.041,67 = 12.500,04.
+                # Yani plan, anaparadan SAPAN bir borç gösteriyordu
+                # ve sapma iki yönde de olabiliyordu.
+                monthly = fiat(decimal_from(amount) / installments)
                 _ensure_installments_table(cursor)
                 cursor.execute(f"""
                     INSERT INTO {_INSTALLMENTS_TABLE}
@@ -400,8 +407,13 @@ class TransactionService:
         plans = []
         for r in rows:
             try:
-                total = float(decrypt(str(r["total_amount"]), SECRET_KEY))
-                monthly = float(decrypt(str(r["monthly_amount"]), SECRET_KEY))
+                # decimal_from ŞİFRE ÇÖZÜLMÜŞ METİN üzerinden çağrılıyor,
+                # float üzerinden değil: araya bir float sokmak, kaçınmak
+                # istediğimiz ikili yaklaşıklığı geri getirirdi.
+                total = decimal_from(decrypt(str(r["total_amount"]), SECRET_KEY))
+                monthly = decimal_from(
+                    decrypt(str(r["monthly_amount"]), SECRET_KEY)
+                )
             except KeyUnavailableError:
                 raise
             except (DecryptionError, ValueError, TypeError):
@@ -418,16 +430,26 @@ class TransactionService:
                 from utils.logging_config import get_logger
                 get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] taksit planı id={r['id']} açıklaması çözülemedi")
                 plan_description = "Taksitli İşlem"
-            remaining = int(r["total_installments"]) - int(r["paid_installments"])
+            paid_count = int(r["paid_installments"])
+            remaining = int(r["total_installments"]) - paid_count
+            # Kalan borç ANAPARADAN türetiliyor, `aylık x kalan`dan değil.
+            # Eski formül eşit taksitler varsayıyordu; bölme tam bölünmüyorsa
+            # taksitlerin toplamı anaparayı tutmaz. Anaparadan ödenen kısmı
+            # düşmek, farkı doğal olarak SON taksite yüklüyor: 1000,00 / 3 ->
+            # 333,33 + 333,33 + 333,34, toplam tam olarak 1000,00.
+            remaining_amount = fiat(total - monthly * paid_count)
             plans.append({
                 "id": r["id"],
                 "description": plan_description,
-                "total_amount": total,
-                "monthly_amount": monthly,
+                # Dış arayüz float kalıyor: kusur temsilde değil HESAPTAydı ve
+                # bu değerler zaten 2 haneye yuvarlanmış durumda. Decimal
+                # döndürmek her çağıranı değiştirmeyi gerektirirdi.
+                "total_amount": float(total),
+                "monthly_amount": float(monthly),
                 "total_installments": int(r["total_installments"]),
-                "paid_installments": int(r["paid_installments"]),
+                "paid_installments": paid_count,
                 "remaining_installments": remaining,
-                "remaining_amount": round(monthly * remaining, 2),
+                "remaining_amount": float(remaining_amount),
                 "created_at": r["created_at"],
             })
         return plans
