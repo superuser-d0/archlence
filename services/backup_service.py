@@ -8,6 +8,7 @@ import shutil
 import sqlite3
 import tempfile
 import zipfile
+import hmac
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,6 +32,7 @@ _SALT_LEN = 16
 _NONCE_LEN = 12
 _KEY_LEN = 32
 _AEAD_PREFIX = "AEADv1:"
+_AUTH_CONTEXT = b"archlence-backup-auth-v2"
 
 ENCRYPTED_FIELDS = {
     "transactions": ("amount", "description"),
@@ -117,6 +119,20 @@ def decrypt_recovery_material(payload, passphrase):
     if len(key) != _KEY_LEN:
         raise IntegrityVerificationError("Backup anahtar uzunluğu geçersiz.")
     return key
+
+
+def _backup_auth_tag(metadata, passphrase):
+    """HMAC metadata with a passphrase-derived, domain-separated key."""
+    material = dict(metadata)
+    material.pop("authentication_tag", None)
+    try:
+        salt = base64.b64decode(material["authentication_salt"], validate=True)
+    except (KeyError, ValueError, TypeError) as exc:
+        raise IntegrityVerificationError("Backup authentication metadata bozuk.") from exc
+    key = PBKDF2(passphrase.encode("utf-8"), _AUTH_CONTEXT + salt, dkLen=32,
+                 count=_RECOVERY_ITERATIONS, hmac_hash_module=SHA256)
+    encoded = json.dumps(material, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hmac.new(key, encoded, hashlib.sha256).hexdigest()
 
 
 def _sqlite_backup(source_path, destination_path):
@@ -210,12 +226,14 @@ def create_backup(
         _integrity_check(db_copy)
         aead_checked = verify_database_key(db_copy, key)
         metadata = {
-            "format_version": BACKUP_FORMAT_VERSION,
+            "format_version": 2,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "database_sha256": hashlib.sha256(db_copy.read_bytes()).hexdigest(),
             "key_fingerprint": hashlib.sha256(key).hexdigest(),
             "aead_records_verified": aead_checked,
+            "authentication_salt": base64.b64encode(os.urandom(16)).decode("ascii"),
         }
+        metadata["authentication_tag"] = _backup_auth_tag(metadata, passphrase)
         (temp / "metadata.json").write_text(
             json.dumps(metadata, indent=2), encoding="utf-8"
         )
@@ -281,8 +299,13 @@ def verify_backup(package_path, passphrase):
             raise IntegrityVerificationError(
                 "Backup metadata veya kurtarma materyali bozuk."
             ) from exc
-        if metadata.get("format_version") != BACKUP_FORMAT_VERSION:
+        if metadata.get("format_version") != 2:
             raise IntegrityVerificationError("Backup format sürümü desteklenmiyor.")
+        supplied_tag = metadata.get("authentication_tag")
+        if not isinstance(supplied_tag, str) or not hmac.compare_digest(
+            supplied_tag, _backup_auth_tag(metadata, passphrase)
+        ):
+            raise IntegrityVerificationError("Backup authentication doğrulanamadı.")
         db_copy = temp / "finance.db"
         digest = hashlib.sha256(db_copy.read_bytes()).hexdigest()
         if digest != metadata.get("database_sha256"):
