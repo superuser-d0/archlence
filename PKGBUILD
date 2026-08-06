@@ -19,36 +19,24 @@ source=(
   "LICENSE::https://raw.githubusercontent.com/superuser-d0/archlence/v${pkgver}/LICENSE"
 )
 
-# SÜRÜM YAYINLANDIKTAN SONRA DOLDURULACAK — şu an bilerek geçersiz.
+# v0.0.7 kaynakları üç bağımsız yoldan doğrulandı:
+#   - AppImage: doğrudan indirilip yerelde sha256'sı hesaplandı; yayın
+#     manifesti (SHA256SUMS.txt) ve GitHub'ın asset digest'i ile eşleşti.
+#   - Diğer üçü: hem `git cat-file blob v0.0.7:<yol>` hem
+#     raw.githubusercontent'ten v0.0.7 etiketiyle alınıp karşılaştırıldı.
 #
-# `pkgver` 0.0.7'ye yükseltildi; yukarıdaki `source` dizisi artık HENÜZ VAR
-# OLMAYAN v0.0.7 varlıklarını gösteriyor, dolayısıyla gerçek hash'ler
-# hesaplanamaz. (v0.0.6'nınkiler biliniyordu ve doğrulanmıştı, ama başka bir
-# etiketin dosyalarına aitler — burada tutmak yanlış sürümü doğrulamak olurdu.
-# Üç statik kaynağın içeriği değişmemiş olsa bile AppImage'ınki değişiyor ve
-# dört değerin hepsi aynı etiketten gelmeli.)
-#
-# `v0.0.7` etiketi push edilip GitHub Release yayınlandıktan SONRA, depo
-# kökünde:
-#     updpkgsums          # pacman-contrib
-# ya da release'in SHA256SUMS.txt'inden elle girilir. v0.0.4-v0.0.6'da izlenen
-# ve tekrarlanması önerilen yöntem: AppImage'ı indirip sha256'sını DOĞRUDAN
-# hesaplayıp yayınlanan SHA256SUMS.txt ile karşılaştırmak; diğer üçünü hem
-# `git cat-file blob v0.0.7:<yol>` ile hem raw.githubusercontent'ten alıp
-# eşleştirmek. Sonuç `makepkg --verifysource` ile (depo dışında bir dizinde)
-# doğrulanmalı.
-#
-# BİLEREK geçersiz (tamamı sıfır) placeholder kullanılıyor, 'SKIP' DEĞİL:
-# 'SKIP' makepkg'de doğrulamayı tamamen KAPATIR ve indirilen her dosyayı
-# sessizce kabul eder — burada tam tersini istiyoruz. Geçersiz bir hash,
-# gerçek değerler yazılana kadar `makepkg`'i GÜVENLİ şekilde, yüksek sesle
-# başarısız kılar (checksum mismatch), yanlış/sahte bir ikili sessizce
-# kurulmaz.
+# DİKKAT — sonraki sürümde de geçerli: aşağıdaki SON ÜÇ hash v0.0.5 ve
+# v0.0.6'dakiyle BİREBİR AYNI, çünkü desktop dosyası, ikon ve LICENSE
+# içerikleri sürümler arası değişmiyor. Bu, eski diziyi olduğu gibi taşımayı
+# zararsız gibi gösteriyor — DEĞİL: AppImage'ın hash'i her sürümde değişir
+# (v0.0.6 e37bcb57..., v0.0.7 ba33aa5b...). Dördünün de aynı etiketten
+# gelmesi gerekir; aksi halde üç dosya doğru, asıl önemli olan yanlış
+# doğrulanır.
 sha256sums=(
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
+  'ba33aa5b9e46a6351ba95dea7f7c5993dd778164a3f7bd3d55ecde09f3f3f3dc'
+  '4cf21f62e33e87cf69cd015fb9148dbe99badaf75c3caf3b87db1b8813089d71'
+  '1df0fe8c33ba3b13cee650cab7e254964e18acbd27c330dce19ac0aaf7110b9f'
+  'ecc8a7af57166c272c3b008712981c02f42898b6f2fad6889b7b51f9bf366c83'
 )
 
 package() {
