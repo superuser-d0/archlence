@@ -1,5 +1,130 @@
 # Changelog
 
+## [0.0.8] — 2026-08-06
+
+Every defect in this release comes from the same place: money handled as binary
+floating point. Instalment plans that did not add up to the amount financed,
+purchase and sale amounts written to the ledger with ten decimal places, and a
+savings balance the application displayed but refused to hand over. It remains a
+**pre-release**.
+
+### Highlights
+
+- **An instalment plan now adds up to what was financed.** A 1.000,00 TL
+  purchase over three instalments showed a 999,99 TL debt; 12.500,00 TL over
+  twelve showed 12.500,04 TL. The rounding difference now lands on the final
+  instalment, so the parts sum to the principal exactly.
+- **The application no longer refuses to give you money it is showing you.**
+  A savings goal built from many small deposits could hold 299,99999999 TL
+  internally, display "300,00 TL", and then reject a 300,00 TL withdrawal with
+  "Hedefte bu kadar birikim yok".
+- **Asset purchases and sales record exact kuruş amounts.** Buying with a
+  fractional quantity stored figures like `2419.1000000000004` and
+  `303.3061479684` as the transaction amount and deducted them from the balance.
+- **Loan instalments record exact kuruş amounts.** The loan calculator produced
+  an unrounded annuity payment — `5493.320123592063` — which the automatic
+  instalment run then wrote to the ledger every month.
+- The Arch package installs a scalable (SVG) icon alongside the high-resolution
+  PNG, so the icon stays sharp at panel and notification sizes.
+
+### Financial correctness and reliability
+
+- Instalment division uses `Decimal`, and the outstanding balance is derived
+  from the **principal minus what has been paid** rather than from
+  `monthly x remaining`. The old pair rounded each instalment independently and
+  then multiplied the rounded figure back up, so the product did not return to
+  where it started — missing in both directions.
+- The cash side of an asset trade is quantised on both the buy and the sell
+  path. Nothing is lost: price and quantity are stored in their own columns at
+  full precision and portfolio value is derived from them; only the cash
+  movement is rounded. On a sale, the profit shown now matches the change the
+  wallet actually saw, because both figures come from the same quantised
+  amounts.
+- Loan amounts are quantised in `insert_debt`, the boundary where money becomes
+  stored data, so every caller is covered rather than each having to remember.
+- Three threshold comparisons now decide at kuruş precision rather than at float
+  precision: the savings withdrawal guard, savings goal completion, and the
+  credit-card limit check. The limit check previously failed in a way the user
+  could not act on, printing the same figure twice — "kullanılabilir limit
+  1.000,00 ₺, harcama 1.000,00 ₺".
+- Storage is unchanged. `accounts.balance` and `savings_goals.current_amount`
+  stay `REAL` columns: measured across realistic deposit patterns the drift does
+  not reach the second decimal place, so a schema migration would have carried
+  real data-loss risk for a gain that could not be measured. What moved is the
+  arithmetic and the decisions, not the schema.
+
+### Performance
+
+- No intentional performance changes in this release.
+
+### UI and accessibility
+
+- No interface changes beyond the amounts themselves now being correct. Figures
+  that displayed as rounded while holding a longer number on disk are now the
+  same value in both places.
+
+### Testing and packaging
+
+- **The encrypted-field inventory is now anchored to the real schema.**
+  `ENCRYPTED_FIELDS` decides what is backed up, what the legacy-format migration
+  converts, and what key verification checks; a column missing from it is
+  silently absent from all three. Its guard verified the map against a schema
+  the test itself built, so the map and the fixture only agreed with each other.
+  The new test runs the application's own write paths and scans every column of
+  every table on disk for values carrying the `AEADv1:` marker, so detection
+  comes from the data rather than from a hand-maintained list. Both directions
+  are covered — an undeclared encrypted column, and a declared column that no
+  longer exists.
+- Regression coverage was verified by reverting each fix and confirming the new
+  tests fail with the exact measured discrepancies, then pass again. Several
+  tests also assert their own input is still unrounded, so a case cannot quietly
+  stop being a test.
+- There were no debt tests at all before this release.
+- The `PKGBUILD` checksums for 0.0.7 were verified and filled in after that
+  release published. They are placeholders again here for the same reason.
+
+### Additional issues found and fixed
+
+- Two guards in this project have now been found self-consistent but not
+  anchored to what they guard — the exception-handler baseline in 0.0.6 and the
+  encrypted-field inventory here. A coverage threshold written during this work
+  repeated the mistake: it passed at eleven encrypted columns while one table
+  was never written at all, because a card-only interceptor silently returned
+  nothing. A count does not measure coverage; the guard now asserts every
+  declared table actually received data.
+- The existing instalment tests used 6000/6, which divides exactly, so they
+  could not see the defect they were meant to cover.
+
+### Known limitations
+
+- This is still a pre-release and is not considered stable.
+- Packages are unsigned; Windows SmartScreen may warn on first launch.
+- Automatic instalment runs close a debt on instalment **count**, not on amount.
+  A loan carrying recurring extra expenses therefore closes having paid
+  `instalment x term`, which is less than the recorded total. Whether those
+  extras are meant to be paid through this ledger is a product decision, so this
+  is recorded rather than changed.
+- `accounts.balance` and `savings_goals.current_amount` remain `REAL` columns,
+  deliberately — see above.
+- Two functions still close their database connection without protection:
+  `initialize_database()` and `generate_mock_data.main()`, both unchanged and
+  both deliberate.
+- Broad exception-handler debt and the pyflakes backlog are both still open.
+- DPAPI and OS-keystore behaviour still deserves verification on real Windows
+  hardware rather than CI runners.
+- The price fallback covers cryptocurrency and foreign currency only. BIST
+  equities and gold still depend on Yahoo Finance alone.
+- The legacy CBC reader remains deprecated for old profiles and backups.
+- Existing 4-digit PINs are still not migrated to the password policy
+  introduced in 0.0.3; unaffected by this release.
+
+### Installation and checksum verification
+
+- Windows: `ArchlenceSetup-0.0.8.exe`
+- Linux: `Archlence-0.0.8-x86_64.AppImage`
+- Download `SHA256SUMS.txt` from the same release and verify the matching
+  asset. The SBOM is published as `Archlence-0.0.8-sbom.cdx.json`.
+
 ## [0.0.7] — 2026-08-06
 
 The dashboard's period cards were answering a different question than the one
