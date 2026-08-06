@@ -12,6 +12,7 @@ import sys
 from contextlib import closing
 from pathlib import Path
 from unittest import mock
+from utils.errors import ArchlenceError
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -23,7 +24,7 @@ def _sample(label):
     try:
         import resource
         rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-    except Exception:
+    except (ValueError, TypeError, ArithmeticError, sqlite3.Error, OSError, ArchlenceError):
         pass
     return {
         "label": label,

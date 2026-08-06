@@ -219,10 +219,16 @@ class RecurringIdempotencyReproduction(_TemporaryProfile):
         self.assertFalse(degraded["amount_is_valid"])
         from database.db import process_due_recurring_payment
 
+        # v0.0.9'un non-finite/geçersiz tutar reddi (998584e) bozuk zarfı
+        # `FinancialDataIntegrityError`'dan ÖNCE, servis sınırında ValueError
+        # ile reddediyor. Beklenen tip genişletildi: önemli olan hangi tipin
+        # fırlatıldığı değil, işlemin FAIL-CLOSED olması ve vadeyi
+        # ilerletmemesi. Tip daraltması testin gerçek değişmezi kaçırmasına
+        # yol açıyordu (ERROR olarak düşüyordu).
         caught = None
         try:
             process_due_recurring_payment(degraded)
-        except FinancialDataIntegrityError as exc:
+        except (FinancialDataIntegrityError, ValueError) as exc:
             caught = exc
 
         with get_connection() as conn:
@@ -237,7 +243,7 @@ class RecurringIdempotencyReproduction(_TemporaryProfile):
             "AUDIT_STATE corrupt_recurring_amount "
             f"before_due={original_due} after_due={row['next_due_date']} "
             f"transaction_count={tx_count} balance={self.balance(account_id)} "
-            "expected_exception=FinancialDataIntegrityError "
+            "expected_exception=FinancialDataIntegrityError|ValueError "
             f"caught_exception={type(caught).__name__ if caught else 'NONE'}"
         )
         self.assertIsNotNone(caught)
@@ -246,105 +252,149 @@ class RecurringIdempotencyReproduction(_TemporaryProfile):
 
 
 class CrossTransactionAtomicityReproduction(_TemporaryProfile):
-    @staticmethod
-    def _immediate_thread(target=None, daemon=None):
-        target()
-        return mock.Mock(start=mock.Mock())
+    """P0-4 / P0-5 kapanış kanıtı: her fault noktasında tam rollback.
 
-    def test_asset_sale_credit_and_asset_removal_are_one_transaction(self):
-        from database.db import get_connection, insert_asset
-        from mixins.asset_mixin import AssetMixin
+    ÖNCEKİ HÂLİ BAYATTI. Reproduction `database.db.delete_asset` ve
+    `insert_asset_transaction` fonksiyonlarını patch'leyerek hata enjekte
+    ediyordu; v0.0.9'un atomiklik düzeltmesi (96049ee, df46a31) bu yolları
+    kaldırıp işi `AssetSaleService` / `DebtPaymentService` altında tek
+    transaction'a taşıdı. Patch'ler artık HİÇ TETİKLENMİYORDU: satış ve ödeme
+    normal şekilde tamamlanıyor, test ise "varlık korunmalı" dediği için
+    YANLIŞ SEBEPLE kırmızı kalıyordu — düzeltmenin işe yarayıp yaramadığı
+    hakkında hiçbir sinyal vermiyordu.
 
-        account_id = self.create_account()
-        insert_asset("Audit Altını", "AUD", "Altın", 100.0, 2.0)
-        with get_connection() as conn:
-            asset_id = conn.execute("SELECT id FROM active_assets").fetchone()[0]
+    Ayrıca "before" değerleri ölçülmek yerine AUDIT_STATE satırına sabit
+    yazılıyordu; artık gerçekten okunuyorlar.
 
-        screen = AssetMixin.__new__(AssetMixin)
-        for name in (
-            "load_active_assets",
-            "load_asset_history",
-            "load_recent_transactions",
-            "safe_refresh_charts",
-        ):
-            setattr(screen, name, mock.Mock())
-        asset = {
-            "id": asset_id,
-            "asset_name": "Audit Altını",
-            "asset_code": "AUD",
-            "quantity": 2.0,
-            "purchase_price": 100.0,
-        }
+    Testler şimdi servislerin kendi `_fault_hook` noktalarını kullanıyor.
+    """
 
-        with mock.patch(
-            "database.db.delete_asset", side_effect=OSError("injected crash")
-        ), mock.patch("mixins.asset_mixin.Clock"), mock.patch(
-            "threading.Thread", self._immediate_thread
-        ):
-            screen._execute_sell(asset, 150.0)
+    def _asset_state(self, asset_id, account_id):
+        from database.db import get_connection
 
         with get_connection() as conn:
-            asset_count = conn.execute(
+            assets = conn.execute(
                 "SELECT COUNT(*) FROM active_assets WHERE id=?", (asset_id,)
             ).fetchone()[0]
-            sale_count = conn.execute(
-                "SELECT COUNT(*) FROM transactions WHERE category='Varlık Satışı'"
+            sales = conn.execute(
+                "SELECT COUNT(*) FROM transactions "
+                "WHERE category='Varlık Satışı'"
             ).fetchone()[0]
-        after_balance = self.balance(account_id)
-        print(
-            "AUDIT_STATE asset_sale_fault "
-            f"before_balance=1000.0 after_balance={after_balance} "
-            f"before_asset_count=1 after_asset_count={asset_count} "
-            f"before_sale_count=0 after_sale_count={sale_count} "
-            "injected_exception=OSError caught_by_ui_worker=yes"
-        )
-        self.assertEqual(asset_count, 1, "fault sonrası varlık korunmalı")
-        self.assertEqual(sale_count, 0, "fault sonrası nakit işlemi rollback olmalı")
-        self.assertEqual(after_balance, 1000.0)
+            events = conn.execute(
+                "SELECT COUNT(*) FROM balance_events WHERE source='asset_sale'"
+            ).fetchone()[0]
+        return assets, sales, events, self.balance(account_id)
 
-    def test_debt_progress_rolls_back_when_ledger_write_fails(self):
-        from database.db import get_connection, insert_debt
-        from mixins.recurring_mixin import RecurringMixin
+    def test_asset_sale_rolls_back_completely_at_every_fault_point(self):
+        from database.db import get_connection, insert_asset
+        from services.asset_sale_service import AssetSaleService
 
-        account_id = self.create_account()
-        insert_debt(
-            "Audit Borcu",
-            300.0,
-            100.0,
-            3,
-            is_auto_pay=1,
-            auto_pay_day=1,
-        )
-        screen = RecurringMixin.__new__(RecurringMixin)
-
-        with mock.patch(
-            "services.transaction_service.TransactionService.add_transaction",
-            side_effect=OSError("injected ledger failure"),
-        ), mock.patch("mixins.recurring_mixin.Clock"), mock.patch(
-            "mixins.recurring_mixin.threading.Thread", self._immediate_thread
+        for hook_point in (
+            "before_asset_write",
+            "after_asset_write",
+            "after_transaction_write",
+            "before_commit",
         ):
-            screen.process_due_auto_deductions()
+            with self.subTest(fault=hook_point):
+                account_id = self.create_account()
+                insert_asset(f"Audit {hook_point}", "AUD", "Altın", 100.0, 2.0)
+                with get_connection() as conn:
+                    asset_id = conn.execute(
+                        "SELECT id FROM active_assets ORDER BY id DESC LIMIT 1"
+                    ).fetchone()[0]
 
-        with get_connection() as conn:
-            row = conn.execute(
-                "SELECT paid_installments, last_auto_pay_date "
-                "FROM active_debts"
-            ).fetchone()
-            tx_count = conn.execute(
-                "SELECT COUNT(*) FROM transactions"
-            ).fetchone()[0]
-        print(
-            "AUDIT_STATE debt_ledger_fault "
-            "before_paid=0 before_last_auto_pay=NULL "
-            f"after_paid={row['paid_installments']} "
-            f"after_last_auto_pay={row['last_auto_pay_date']} "
-            f"transaction_count={tx_count} balance={self.balance(account_id)} "
-            "injected_exception=OSError caught_by_auto_worker=yes"
-        )
-        self.assertEqual(tx_count, 0)
-        self.assertEqual(row["paid_installments"], 0)
-        self.assertIsNone(row["last_auto_pay_date"])
+                before = self._asset_state(asset_id, account_id)
 
+                def _fault(point, _target=hook_point):
+                    if point == _target:
+                        raise OSError(f"injected at {point}")
 
-if __name__ == "__main__":
-    unittest.main()
+                raised = None
+                try:
+                    AssetSaleService.sell(
+                        asset_id, 150.0, account_id, quantity=2.0,
+                        _fault_hook=_fault,
+                    )
+                except OSError as exc:
+                    raised = str(exc)
+
+                after = self._asset_state(asset_id, account_id)
+                print(
+                    f"AUDIT_STATE asset_sale_fault point={hook_point} "
+                    f"raised={raised!r} "
+                    f"assets={before[0]}->{after[0]} sales={before[1]}->{after[1]} "
+                    f"events={before[2]}->{after[2]} "
+                    f"balance={before[3]}->{after[3]}"
+                )
+                self.assertIsNotNone(raised, "fault enjekte edilemedi")
+                self.assertEqual(
+                    after, before,
+                    f"{hook_point} noktasında yarım state kaldı",
+                )
+
+    def test_debt_payment_rolls_back_completely_at_every_fault_point(self):
+        from database.db import get_connection, insert_debt
+        from services.debt_payment_service import DebtPaymentService
+
+        for hook_point in (
+            "after_transaction",
+            "after_balance",
+            "before_commit",
+        ):
+            with self.subTest(fault=hook_point):
+                account_id = self.create_account()
+                insert_debt(
+                    f"Audit {hook_point}", 300.0, 100.0, 3,
+                    is_auto_pay=1, auto_pay_day=1,
+                )
+                with get_connection() as conn:
+                    debt_id = conn.execute(
+                        "SELECT id FROM active_debts ORDER BY id DESC LIMIT 1"
+                    ).fetchone()[0]
+
+                def _state():
+                    with get_connection() as conn:
+                        row = conn.execute(
+                            "SELECT paid_installments, last_auto_pay_date, "
+                            "is_active FROM active_debts WHERE id=?",
+                            (debt_id,),
+                        ).fetchone()
+                        txs = conn.execute(
+                            "SELECT COUNT(*) FROM transactions "
+                            "WHERE category='Kredi Taksiti'"
+                        ).fetchone()[0]
+                        evs = conn.execute(
+                            "SELECT COUNT(*) FROM balance_events "
+                            "WHERE source='debt_payment'"
+                        ).fetchone()[0]
+                    return (row[0], row[1], row[2], txs, evs,
+                            self.balance(account_id))
+
+                before = _state()
+
+                def _fault(point, _target=hook_point):
+                    if point == _target:
+                        raise OSError(f"injected at {point}")
+
+                raised = None
+                try:
+                    DebtPaymentService.pay_auto(
+                        debt_id, account_id, 1, "2026-08", _fault_hook=_fault
+                    )
+                except OSError as exc:
+                    raised = str(exc)
+
+                after = _state()
+                print(
+                    f"AUDIT_STATE debt_payment_fault point={hook_point} "
+                    f"raised={raised!r} "
+                    f"paid={before[0]}->{after[0]} "
+                    f"last_pay={before[1]}->{after[1]} "
+                    f"txs={before[3]}->{after[3]} events={before[4]}->{after[4]} "
+                    f"balance={before[5]}->{after[5]}"
+                )
+                self.assertIsNotNone(raised, "fault enjekte edilemedi")
+                self.assertEqual(
+                    after, before,
+                    f"{hook_point} noktasında yarım state kaldı",
+                )

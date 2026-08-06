@@ -168,6 +168,9 @@ def export_all_to_csv(path=None):
             f.flush(); os.fsync(f.fileno())
         os.replace(staged, target)
         os.chmod(target, 0o600)
+    # EXCEPTION-AUDIT: bilinçli geniş — staged dosyanın silinmesi HER hata
+    # türünde çalışmalı (şifresi çözülmüş finansal veri diskte kalmasın).
+    # Handler yutmuyor, yeniden fırlatıyor.
     except Exception:
         try: os.unlink(staged)
         except FileNotFoundError: pass

@@ -8,6 +8,7 @@ from datetime import date
 from unittest import mock
 
 from scripts.audit.test_adversarial_reproductions import _TemporaryProfile
+from utils.errors import ArchlenceError
 
 
 def _run_two_workers(action):
@@ -19,7 +20,7 @@ def _run_two_workers(action):
         try:
             gate.wait()
             action()
-        except Exception as exc:  # evidence: controlled conflict is acceptable
+        except (ValueError, TypeError, ArithmeticError, sqlite3.Error, OSError, ArchlenceError) as exc:  # evidence: controlled conflict is acceptable
             failures.append(type(exc).__name__)
 
     workers = [threading.Thread(target=worker) for _ in range(2)]

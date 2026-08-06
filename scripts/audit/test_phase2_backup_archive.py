@@ -4,7 +4,8 @@ from __future__ import annotations
 import zipfile
 
 from scripts.audit.test_adversarial_reproductions import _TemporaryProfile
-from utils.errors import IntegrityVerificationError
+from utils.errors import ArchlenceError, IntegrityVerificationError
+import sqlite3
 
 
 class BackupArchiveSecurityReproduction(_TemporaryProfile):
@@ -29,7 +30,7 @@ class BackupArchiveSecurityReproduction(_TemporaryProfile):
         caught = None
         try:
             verify_backup(package, self.PASSPHRASE)
-        except Exception as exc:
+        except (ValueError, TypeError, ArithmeticError, sqlite3.Error, OSError, ArchlenceError) as exc:
             caught = exc
         return caught
 
