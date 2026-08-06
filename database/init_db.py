@@ -3,7 +3,26 @@ from datetime import date
 from database.models import ASSET_PRICE_CACHE_SCHEMA
 
 def initialize_database():
+    """Şemayı kurar/günceller — bağlantıyı HER ÇIKIŞ YOLUNDA kapatarak.
+
+    Gövde ayrı bir fonksiyona alındı ki `try/finally` tek yerde dursun ve
+    600 satır yeniden girintilenmesin. Sarmalayıcı olmadan kurulum ortasında
+    fırlayan herhangi bir istisna bağlantıyı AÇIK bırakıyordu; bu teorik
+    değil: `_maybe_backfill_account_type` gibi migration adımları bilerek
+    fırlatabiliyor (bkz. tests/test_migration_retry_safety.py, kesinti
+    enjeksiyonu) ve `initialize_database` aynı süreçte İKİ kez çağrılıyor
+    (main.py açılış + sıfırlama akışı). Linux'ta sızan handle yalnız bir
+    descriptor; Windows'ta ise finance.db üzerinde duran bir kilit, yani
+    sonraki restore/rename/silme adımını bloklardı.
+    """
     conn = get_connection()
+    try:
+        _initialize_database(conn)
+    finally:
+        conn.close()
+
+
+def _initialize_database(conn):
     cursor = conn.cursor()
 
     # 1. Hesaplar Tablosu
@@ -621,5 +640,5 @@ def initialize_database():
     # açılış bakiyeleri deftere girsin.
     _backfill_ledger_baseline()
     # ─────────────────────────────────────────────────────────────────────────
-
-    conn.close()
+    # Kapatma ARTIK BURADA DEĞİL: sarmalayıcı `initialize_database`'in
+    # `finally` bloğu yapıyor, böylece hata yolları da kapsanıyor.
