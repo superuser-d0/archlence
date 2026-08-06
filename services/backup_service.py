@@ -266,7 +266,8 @@ def verify_backup(package_path, passphrase):
         temp = Path(temp_dir)
         try:
             with zipfile.ZipFile(package_path, "r") as archive:
-                names = set(archive.namelist())
+                raw_names = archive.namelist()
+                names = set(raw_names)
                 required = {
                     "finance.db", "metadata.json", "key.recovery.json",
                 }
@@ -274,8 +275,15 @@ def verify_backup(package_path, passphrase):
                     raise IntegrityVerificationError(
                         "Backup paketi gerekli dosyaları içermiyor."
                     )
+                allowed = required | {"config.json"}
+                if len(raw_names) != len(names) or names - allowed:
+                    raise IntegrityVerificationError(
+                        "Backup paketi beklenmeyen veya yinelenen dosya içeriyor."
+                    )
                 if any(
                     Path(name).is_absolute() or ".." in Path(name).parts
+                    or name.startswith(("\\\\", "/"))
+                    or (len(name) >= 2 and name[1] == ":")
                     for name in names
                 ):
                     raise IntegrityVerificationError(
