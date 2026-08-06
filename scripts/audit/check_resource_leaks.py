@@ -53,7 +53,20 @@ def main():
             account_id = AccountService.create_account("Resource audit", "checking", 1000)
             samples = [_sample("baseline")]
             for iteration in range(1, 101):
-                with get_connection() as conn:
+                # `closing(...)` ŞART. Bu satır eskiden
+                # `with get_connection() as conn:` idi ve sqlite3'ün context
+                # manager'ı commit/rollback yapar ama KAPATMAZ — yani bu
+                # probe iterasyon başına bir bağlantı sızdırıyordu. P2-7
+                # olarak raporlanan "FD 4→14→21→71, sonra GC ile 4" ölçümü
+                # üretim kodunun değil TAM OLARAK BU SATIRIN sonucuydu:
+                # sızan Connection nesneleri statement cache üzerinden
+                # referans döngüsüne girdiği için ancak generational GC
+                # onları toplayınca descriptor'lar geri veriliyordu. Ölçüm
+                # aynı iş yükünde d5bd35f (Phase 3 öncesi taban) ile
+                # 3551049'da bit bit aynı çıkıyor; üretim tarafında
+                # değişen hiçbir şey yoktu.
+                # `, conn` içerideki transaction semantiğini korur.
+                with closing(get_connection()) as conn, conn:
                     conn.execute("SELECT balance FROM accounts WHERE id=?", (account_id,)).fetchone()
                     conn.execute("SELECT COUNT(*) FROM transactions").fetchone()
                 # Explicit raw open/close checks the connection factory does not retain FDs.

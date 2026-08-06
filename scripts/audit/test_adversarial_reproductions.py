@@ -155,7 +155,7 @@ class RecurringIdempotencyReproduction(_TemporaryProfile):
         process_due_recurring_payment(payment)
         process_due_recurring_payment(payment)  # retry/stale UI object
 
-        with get_connection() as conn:
+        with closing(get_connection()) as conn, conn:
             count = conn.execute(
                 "SELECT COUNT(*) FROM transactions "
                 "WHERE category='Dijital Platformlar'"
@@ -208,7 +208,7 @@ class RecurringIdempotencyReproduction(_TemporaryProfile):
         account_id = self.create_account()
         payment = self._payment(account_id, auto_deduct=True)
         original_due = payment["next_due_date"]
-        with get_connection() as conn:
+        with closing(get_connection()) as conn, conn:
             conn.execute(
                 "UPDATE recurring_payments SET amount=? WHERE id=?",
                 ("AEADv1:bozuk-zarf", payment["id"]),
@@ -231,7 +231,7 @@ class RecurringIdempotencyReproduction(_TemporaryProfile):
         except (FinancialDataIntegrityError, ValueError) as exc:
             caught = exc
 
-        with get_connection() as conn:
+        with closing(get_connection()) as conn, conn:
             row = conn.execute(
                 "SELECT next_due_date FROM recurring_payments WHERE id=?",
                 (payment["id"],),
@@ -272,7 +272,7 @@ class CrossTransactionAtomicityReproduction(_TemporaryProfile):
     def _asset_state(self, asset_id, account_id):
         from database.db import get_connection
 
-        with get_connection() as conn:
+        with closing(get_connection()) as conn, conn:
             assets = conn.execute(
                 "SELECT COUNT(*) FROM active_assets WHERE id=?", (asset_id,)
             ).fetchone()[0]
@@ -298,7 +298,7 @@ class CrossTransactionAtomicityReproduction(_TemporaryProfile):
             with self.subTest(fault=hook_point):
                 account_id = self.create_account()
                 insert_asset(f"Audit {hook_point}", "AUD", "Altın", 100.0, 2.0)
-                with get_connection() as conn:
+                with closing(get_connection()) as conn, conn:
                     asset_id = conn.execute(
                         "SELECT id FROM active_assets ORDER BY id DESC LIMIT 1"
                     ).fetchone()[0]
@@ -360,13 +360,13 @@ class CrossTransactionAtomicityReproduction(_TemporaryProfile):
                     f"Audit {hook_point}", 300.0, 100.0, 3,
                     is_auto_pay=1, auto_pay_day=1,
                 )
-                with get_connection() as conn:
+                with closing(get_connection()) as conn, conn:
                     debt_id = conn.execute(
                         "SELECT id FROM active_debts ORDER BY id DESC LIMIT 1"
                     ).fetchone()[0]
 
                 def _state():
-                    with get_connection() as conn:
+                    with closing(get_connection()) as conn, conn:
                         row = conn.execute(
                             "SELECT paid_installments, last_auto_pay_date, "
                             "is_active FROM active_debts WHERE id=?",

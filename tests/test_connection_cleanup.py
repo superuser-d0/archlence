@@ -1,15 +1,23 @@
 """SQLite bağlantıları deterministik kapanmalı — GC'ye bağlı olmadan.
 
-DURUM KAYDI: Phase 2 denetimi 100 operasyon boyunca file descriptor sayısının
-4 → 71 çıktığını, sonra GC veya zamanla düştüğünü ölçmüştü. Bu bulgu Phase 3
-sonrası HEAD'de **YENİDEN ÜRETİLEMEDİ**: yedi ayrı operasyon türünde 100'er
-tekrar sonrası delta 0 çıktı.
+DURUM KAYDI (2026-08-06'da düzeltildi): Phase 2 denetimi 100 operasyon
+boyunca file descriptor sayısının 4 → 71 çıktığını, sonra GC ile düştüğünü
+ölçmüştü ve bu P2-7 olarak ÜRETİM bulgusu sayılmıştı. **Bu atıf yanlıştı.**
 
-Muhtemel sebep, Phase 3'ün atomiklik düzeltmelerinin (`AssetSaleService`,
-`DebtPaymentService`, `managed_connection` yaygınlaşması) o yolları zaten
-deterministik hale getirmesi. Bu dosya bir DÜZELTME değil, davranışı
-SABİTLEYEN regresyon korumasıdır: ileride bir yol `try/finally` veya
-`managed_connection` olmadan yazılırsa test kırılır.
+Ölçüm gerçekti ama ölçtüğü şey denetim probe'unun KENDİ sızıntısıydı:
+`scripts/audit/check_resource_leaks.py` iterasyon gövdesini
+`with get_connection() as conn:` ile yazıyordu ve sqlite3'ün context
+manager'ı commit/rollback yapar, KAPATMAZ. Kanıt: aynı iş yükü Phase 3
+ÖNCESİ tabanda (`d5bd35f`) ile Phase 3 sonrası HEAD'de bit bit aynı sonucu
+veriyor (4 → 14 → 54 → 104, GC sonrası 4); probe'un tek satırı düzeltilince
+her iki commit'te de düz 4 kalıyor. Yani üretim tarafında değişen bir şey
+yoktu — üretim kodu bu kalıbı hiç kullanmamıştı.
+
+Bu dosya bir DÜZELTME değil, davranışı SABİTLEYEN regresyon korumasıdır:
+ileride bir yol `try/finally` veya `managed_connection` olmadan yazılırsa
+test kırılır. Sahiplik sözleşmesinin FD sayımından bağımsız, platformdan
+bağımsız kanıtı için bkz. `tests/test_connection_ownership_contract.py`
+(açma/kapama sayar, `/proc` gerektirmez, Windows'ta da anlamlıdır).
 
 Ayrıca ownership sözleşmesi test ediliyor: Python'da `with conn:` bağlantıyı
 KAPATMAZ, yalnızca commit/rollback yapar. Bu ayrım kolayca kaçırılır.

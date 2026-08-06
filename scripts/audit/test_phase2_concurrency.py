@@ -50,7 +50,7 @@ class ConcurrentRecurringReproduction(_TemporaryProfile):
         account_id = self.create_account()
         payment = self._payment(account_id)
         failures = _run_two_workers(lambda: process_due_recurring_payment(payment))
-        with get_connection() as conn:
+        with closing(get_connection()) as conn, conn:
             tx_count = conn.execute(
                 "SELECT COUNT(*) FROM transactions WHERE category='Concurrent'"
             ).fetchone()[0]
@@ -73,7 +73,7 @@ class ConcurrentRecurringReproduction(_TemporaryProfile):
         failures = _run_two_workers(
             lambda: refund_current_period_charge(payment["id"])
         )
-        with get_connection() as conn:
+        with closing(get_connection()) as conn, conn:
             income_count = conn.execute(
                 "SELECT COUNT(*) FROM transactions WHERE type='income'"
             ).fetchone()[0]
