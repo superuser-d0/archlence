@@ -1,0 +1,65 @@
+name: Feature request
+description: Propose a focused improvement that fits Archlence's local-first scope.
+title: "[Feature]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the user problem before the solution. Do not include real financial records or security-sensitive details.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What task is difficult or impossible today, and who encounters it?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome
+      description: Describe the behavior and user-visible result, not only a UI mockup.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Include current workarounds when available.
+  - type: textarea
+    id: data_privacy
+    attributes:
+      label: Data, privacy, and recovery impact
+      description: Would this add stored fields, migrations, external requests, imports, exports, or recovery requirements?
+    validations:
+      required: true
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Primary area
+      options:
+        - Transactions and ledger
+        - Accounts or credit cards
+        - Subscriptions or recurring payments
+        - Budgeting, debt, or savings
+        - Investments and prices
+        - Backup, recovery, or security
+        - UI, accessibility, or localization
+        - Packaging or contributor tooling
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Mockups or examples
+      description: Use generated sample data only.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and the roadmap for this request.
+          required: true
+        - label: This request does not contain real financial data or a vulnerability disclosure.
+          required: true

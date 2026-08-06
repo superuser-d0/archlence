@@ -1,0 +1,105 @@
+name: Windows testing report
+description: Report structured Windows installer, upgrade, persistence, and removal results.
+title: "[Windows testing]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use generated sample data only. Do not upload a real database, credentials, keys, recovery material, or unredacted logs. Report suspected vulnerabilities privately.
+  - type: input
+    id: version
+    attributes:
+      label: Archlence version
+      placeholder: v0.0.x
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows 10 or 11 version
+      placeholder: Windows 11 24H2, build 26100
+    validations:
+      required: true
+  - type: input
+    id: scaling
+    attributes:
+      label: Display and scaling
+      placeholder: 1920x1080 at 125%, one display
+    validations:
+      required: true
+  - type: dropdown
+    id: install_kind
+    attributes:
+      label: Test path
+      options:
+        - Clean install
+        - Upgrade from the previous release
+        - Both clean install and upgrade
+    validations:
+      required: true
+  - type: checkboxes
+    id: launch_setup
+    attributes:
+      label: Installer and first run
+      options:
+        - label: The installer launched and completed.
+          required: true
+        - label: Archlence opened from the Start menu.
+          required: true
+        - label: First-run password and account setup completed with sample data.
+          required: true
+  - type: checkboxes
+    id: lifecycle
+    attributes:
+      label: Persistence, upgrade, and removal
+      options:
+        - label: The sample database persisted after closing and reopening the application.
+          required: true
+        - label: Upgrade behavior was checked or marked not applicable in the notes below.
+          required: true
+        - label: Uninstall completed and application files/shortcuts were removed.
+          required: true
+        - label: User-data retention after uninstall matched the documented behavior.
+          required: true
+  - type: textarea
+    id: crash_log
+    attributes:
+      label: Crash log presence and contents
+      description: State whether a crash log was created or grew. Paste only a minimal sanitized excerpt.
+      placeholder: No non-empty crash log observed, or sanitized excerpt...
+    validations:
+      required: true
+  - type: textarea
+    id: smartscreen
+    attributes:
+      label: SmartScreen behavior
+      description: Record whether a warning appeared and whether the downloaded checksum was verified first.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Upgrade, uninstall, and other notes
+      description: Explain not-applicable checklist items, unexpected persistence, visual issues, or exact reproduction steps.
+    validations:
+      required: true
+  - type: checkboxes
+    id: result
+    attributes:
+      label: Overall result
+      options:
+        - label: Installer launch tested
+        - label: First-run setup tested
+        - label: Database persistence tested
+        - label: Upgrade tested or explained as not applicable
+        - label: Uninstall tested
+        - label: SmartScreen behavior recorded
+        - label: Crash-log behavior recorded
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: This report uses generated sample data and contains no credentials, keys, recovery material, or real financial information.
+          required: true

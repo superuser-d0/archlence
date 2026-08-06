@@ -1,540 +1,272 @@
 # Archlence
 
 <p align="center">
-  <strong>A local-first personal finance, cash-flow, and portfolio dashboard.</strong>
+  <strong>A privacy-first, local-first desktop workspace for personal finance, cash flow, and portfolio tracking.</strong>
 </p>
 
-<p align="center">
-  Track accounts, transactions, subscriptions, debts, credit cards, and investments from a privacy-focused desktop application.
-</p>
+[![Latest release](https://img.shields.io/github/v/release/superuser-d0/archlence?include_prereleases)](https://github.com/superuser-d0/archlence/releases/latest)
+[![Tests](https://github.com/superuser-d0/archlence/actions/workflows/tests.yml/badge.svg)](https://github.com/superuser-d0/archlence/actions/workflows/tests.yml)
+[![License](https://img.shields.io/github/license/superuser-d0/archlence)](LICENSE)
+![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
+![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS%20source-5C3EE8)
+![Status](https://img.shields.io/badge/status-pre--release-orange)
 
 <p align="center">
-  <img alt="Python" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white">
-  <img alt="Kivy" src="https://img.shields.io/badge/UI-Kivy%20%2F%20KivyMD-5C3EE8">
-  <img alt="SQLite" src="https://img.shields.io/badge/Storage-SQLite-003B57?logo=sqlite&logoColor=white">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-unittest-brightgreen">
-  <img alt="Privacy" src="https://img.shields.io/badge/privacy-local--first-00A896">
-  <a href="https://github.com/superuser-d0/archlence/releases/tag/v0.0.6"><img alt="Current release" src="https://img.shields.io/badge/release-v0.0.6-blue"></a>
-  <img alt="Status" src="https://img.shields.io/badge/status-pre--release-orange">
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-yellow">
+  <a href="https://github.com/superuser-d0/archlence/releases/latest">Download</a> ·
+  <a href="docs/">Documentation</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a> ·
+  <a href="https://github.com/superuser-d0/archlence/issues">Report a bug</a>
 </p>
+
+> [!WARNING]
+> Archlence is in active pre-release development. It is suitable for testing
+> and development, but it is not yet recommended as the sole store for
+> day-to-day financial records. Keep verified backups and review the
+> [current limitations](#project-status) before using real data.
 
 ![Archlence dashboard](docs/screenshots/dashboard.png)
 
-> All screenshots use generated sample data. No real financial information is included.
+> All screenshots use generated sample data. No real financial information is
+> included.
 
 ## About Archlence
 
-Personal finance data should remain useful without becoming somebody else's dataset.
+Personal finance data should remain useful without becoming somebody else's
+dataset.
 
-Archlence is an independently maintained, local-first desktop application for personal finance, cash-flow analysis, recurring payments, debt tracking, credit cards, and portfolio monitoring.
+Archlence is an independently developed local-first desktop application. It
+brings accounts, cash flow, transactions, subscriptions, debts, credit cards,
+and investments into one workspace built with Python, Kivy/KivyMD, and SQLite.
 
-The repository is public to support transparent development, technical review, and future community contributions. Archlence is still under active development and should not yet be considered production-ready financial infrastructure.
+The repository is open for transparent development, technical review, and
+future community contributions. Archlence remains an active pre-release.
 
-The current public release is **[v0.0.6](https://github.com/superuser-d0/archlence/releases/tag/v0.0.6)**. It is a pre-release focused on failures the application was hiding from itself: a fail-closed decryption contract that had never reached its callers, corrupt values that fed totals as a confident zero, and a CI gate that had stopped catching the thing it was written to catch.
+### Latest release
+
+The latest public release focuses on data integrity, packaged-app reliability,
+CI enforcement, and dashboard performance.
+
+See the [full changelog](CHANGELOG.md) and
+[download the latest release](https://github.com/superuser-d0/archlence/releases/latest).
 
 ## Why Archlence?
 
-- **One financial overview:** balances, income, expenses, debts, subscriptions, cards, and investments in one interface.
-- **Local-first storage:** core financial records are stored in a local SQLite database.
-- **Actionable insights:** financial health scoring, cash-flow projections, and unusual-spending detection.
-- **Automated routines:** recurring-payment tracking, subscription detection, and scheduled deductions.
-- **Portfolio awareness:** stocks, cryptocurrencies, precious metals, and foreign currencies with background price refreshes.
-- **Desktop-focused experience:** Turkish and English interface options with dark and light modes.
-- **Open development:** technical debt, security work, and incomplete areas are documented rather than hidden.
-
-## Application overview
-
-### Dashboard and financial health
-
-The dashboard combines current balance, period comparisons, a trend-based month-end balance forecast with actionable recommendations, a financial health score, active subscriptions, upcoming obligations, and recent activity.
-
-
-### Portfolio overview
-
-Review income, expenses, allocation, balance trends, and active positions from a unified portfolio workspace.
-
-![Portfolio overview](docs/screenshots/portfolio-overview.png)
-
-Price refreshes run outside the main UI path and use asset-aware caching to keep navigation responsive while avoiding unnecessary requests.
-
-### Asset history
-
-Track historical buy and sell activity, review transaction-level outcomes, and preserve the timeline behind portfolio decisions.
-
-![Asset history](docs/screenshots/asset-history.png)
-
-### Accounts and credit cards
-
-Archlence supports cash and checking accounts as well as credit cards.
-
-Card views expose available limits, current debt, statement access, payment actions, and local card controls.
-
-![Accounts and credit cards](docs/screenshots/mycards.png)
-
-### Subscriptions and recurring-payment detection
-
-Review active subscriptions, upcoming renewal dates, monthly costs, and recurring-payment candidates detected from transaction history.
-
-![Subscriptions and recurring-payment detection](docs/screenshots/subscriptions.png)
-
-### Insights, debts, and upcoming payments
-
-Archlence highlights unusual spending, tracks active debts and installment progress, and keeps upcoming automatic payments visible from the same workflow.
-
-![Insights, debts, and upcoming payments](docs/screenshots/debts-and-payments.png)
-
-### Financial planning tools
-
-The tools workspace includes monthly budgets, a calendar, general and compound-interest calculators, loan planning, savings goals, what-if scenarios, and local data operations.
-
-The calendar is a month grid that marks the days carrying activity; selecting a day lists that day's transactions with their times and signed amounts.
-
-![Financial tools](docs/screenshots/financial-tools.png)
-
-### Personalization and privacy controls
-
-Choose Turkish or English, switch between light and dark appearances, manage categories, review balance history, and access local privacy controls.
-
-![Settings](docs/screenshots/settings.png)
+- **Local-first ownership:** core financial records stay in a local SQLite
+  database.
+- **Privacy by design:** sensitive fields are encrypted at rest, with no
+  analytics or advertising trackers.
+- **Unified workspace:** accounts, cards, cash flow, recurring payments,
+  debts, savings, and investments share one desktop interface.
+- **Actionable insights:** projections, financial-health indicators, and
+  unusual-spending analysis help turn records into decisions.
+- **Desktop focus:** packaged Windows and Linux options avoid a browser-first
+  workflow.
+- **Turkish and English:** both interfaces are maintained in the application.
+- **Transparent development:** limitations, technical debt, and release work
+  are documented openly.
 
 ## Core capabilities
 
-| Area | Capabilities |
+| Area | Current capabilities |
 | --- | --- |
-| Dashboard | Period summaries, balance trends, projections, health score, subscriptions, debts, and recent activity |
-| Transactions | Income and expense entry, categories, dates, pending items, recurring entries, and installments |
-| Subscriptions | Detection radar, recurring schedules, automatic deductions, updates, and cancellation |
-| Budgeting | Monthly plans, category allocations, recurring-payment reservations, and trend review |
-| Accounts | Cash and checking accounts, balances, and account-based transaction tracking |
-| Credit cards | Limits, current debt, statements, payment actions, and local card controls |
-| Investments | Multi-asset portfolio, price refreshes, profit/loss calculations, and asset history |
-| Debt and savings | Debt progress, installment tracking, upcoming payments, and savings goals |
+| Dashboard | Period summaries, balance trends, projections, health score, obligations, and recent activity |
+| Transactions | Income and expenses, categories, dates, pending items, recurring entries, and installments |
+| Accounts | Cash and checking balances with account-based transaction tracking |
+| Credit cards | Limits, debt, statements, payment actions, and local card controls |
+| Subscriptions | Detection candidates, recurring schedules, renewals, updates, and cancellation |
+| Budgeting and planning | Monthly budgets, category allocations, calendars, scenarios, calculators, and projections |
+| Investments | Stocks, cryptoassets, precious metals, currencies, price refreshes, and transaction history |
+| Debt and savings | Debt progress, installments, upcoming payments, and savings goals |
 | Data portability | CSV import and export for supported financial records |
-| Experience | Turkish and English localization, dark and light modes, and desktop-oriented navigation |
+| Localization and desktop experience | Turkish and English interfaces, light and dark themes, and desktop navigation |
 
-## Architecture
+## Screenshots
 
-Archlence separates interface, application workflows, business rules, and persistence concerns:
+### Portfolio and asset history
 
-```text
-main.py
-├── ui/          Kivy layouts, reusable components, charts, themes, and i18n
-├── mixins/      Application workflows and screen behavior
-├── services/    Transactions, accounts, cards, pricing, insights, and projections
-├── database/    SQLite schema, migrations, and ledger primitives
-├── security/    Local access-control and security services
-├── utils/       Formatting, currency, cryptography, and ticker helpers
-└── tests/       Unit, integration, and GUI-oriented regression tests
-```
+Review allocation, balance trends, positions, and the transaction history
+behind portfolio changes.
 
-Notable implementation details include:
+| Portfolio overview | Asset history |
+| --- | --- |
+| ![Portfolio overview](docs/screenshots/portfolio-overview.png) | ![Asset history](docs/screenshots/asset-history.png) |
 
-- atomic balance updates and ledger events;
-- `SAVEPOINT`-backed settlement for due transactions;
-- SQLite migration guards for existing installations;
-- asynchronous asset-price workers with dynamic cache lifetimes;
-- AEAD (AES-256-GCM) field-level encryption with a random per-install key for newly written sensitive values, with backward-compatible reads for records still in the previous format;
-- daily balance snapshots and event replay for historical balances.
+### Accounts and recurring payments
+
+Keep account and card state alongside subscriptions and upcoming renewals.
+
+| Accounts and credit cards | Subscriptions |
+| --- | --- |
+| ![Accounts and credit cards](docs/screenshots/mycards.png) | ![Subscriptions](docs/screenshots/subscriptions.png) |
+
+### Obligations and planning
+
+Track debt and payment progress, then use budgets, calendars, calculators,
+savings goals, and what-if tools for planning.
+
+| Debts and payments | Financial tools |
+| --- | --- |
+| ![Debts and payments](docs/screenshots/debts-and-payments.png) | ![Financial tools](docs/screenshots/financial-tools.png) |
+
+### Settings and privacy controls
+
+Manage language, appearance, categories, balance history, backups, and local
+data controls.
+
+| Settings |
+| --- |
+| ![Settings](docs/screenshots/settings.png) |
+
+## Quick installation
+
+Archlence is currently distributed as a pre-release.
+
+| Platform | Recommended package | Python required |
+| --- | --- | --- |
+| Windows | Per-user installer | No |
+| Arch-based Linux | `archlence-bin` package | No |
+| Other x86-64 Linux | AppImage | No |
+| macOS | Source installation | Yes |
+
+Download packages from the
+[latest GitHub release](https://github.com/superuser-d0/archlence/releases/latest).
+
+For checksum verification, source installation, upgrades, removal, release
+files, and troubleshooting, see the
+[installation guide](docs/INSTALLATION.md).
+
+## Privacy and data ownership
+
+- Core financial records are stored locally; Archlence does not operate a
+  server that receives them.
+- Sensitive transaction fields are encrypted at rest with authenticated
+  field encryption.
+- No analytics or advertising trackers are included.
+- External requests are limited to price data and selected visual metadata
+  features; those features do not intentionally upload core financial records.
+- A usable backup requires the database and matching password-protected
+  recovery material. A database copy alone is insufficient.
+- Losing both the active key and usable recovery material can make encrypted
+  data unrecoverable.
+
+Keep verified backups and store each recovery password separately. See
+[key management](docs/KEY_MANAGEMENT.md),
+[backup and recovery](docs/BACKUP_RECOVERY.md), and the current
+[security and reliability status](docs/SECURITY_RELIABILITY_STATUS.md).
+
+Archlence is not a bank, brokerage, accounting platform, or financial adviser.
 
 ## Project status
 
-Archlence v0.0.6 is a **pre-release**. It is not stable and is not
-recommended for day-to-day finance tracking yet.
+Archlence is under active pre-release development and is not yet recommended
+as the sole store for day-to-day financial records. Current stabilization work
+includes:
 
-The package installs and runs, and the flows listed in the changelog are
-covered by tests, but the 0.0.x line exists precisely to signal that the app is
-still being shaken out against real usage. See CHANGELOG.md for what is covered
-and what is still known-broken before trusting it with real data.
-
-The current focus is:
-
-- broader packaged-app validation of OS-keystore and recovery behavior;
-- completing the migration of remaining financial calculation paths to the shared `Decimal` policy;
+- completing the shared `Decimal` policy across remaining financial paths;
+- validating packaged OS-keystore and recovery behavior across more real
+  Windows and Linux configurations;
 - stabilizing credit-card and recurring-payment workflows;
-- expanding automated and regression test coverage;
-- reducing broad exception and UI-layer responsibility debt;
-- making the project easier for outside contributors to understand and extend.
+- expanding real-hardware Windows installation, upgrade, persistence, and
+  removal checks;
+- adding code signing for the Windows installer and Linux AppImage;
+- reducing broad exception handling and UI-layer responsibility debt.
 
-Some workflows, interface elements, sample-data states, and security components are still being refined.
+For scope and current guarantees, see the [product vision](docs/VISION.md),
+[security and reliability status](docs/SECURITY_RELIABILITY_STATUS.md), and
+[changelog](CHANGELOG.md).
 
-See [Vision and scope](docs/VISION.md) for what "stable" is meant to signal
-and the platform/versioning decisions behind the current 0.0.x line, and the
-single current [Security and reliability status](docs/SECURITY_RELIABILITY_STATUS.md)
-for the exact guarantees and limitations. Dated audit documents are archived
-baselines, not current status.
+## Architecture
 
-## Known limitations
+Archlence separates UI composition, application workflows, domain services,
+persistence, and security concerns:
 
-The following areas are actively being improved:
-
-- packaged OS-keystore and recovery coverage across more real Windows and Linux configurations; Windows DPAPI and Linux Secret Service/KWallet are supported, with a permission-restricted local-file fallback when no OS keystore is available;
-- migration of the remaining financial calculation paths to the shared `Decimal` policy;
-- code signing — both packages are unsigned, so Windows SmartScreen warns on
-  first run; the Linux AppImage is unsigned too;
-- the packaged builds are verified in CI (install, launch, upgrade-from-the-
-  previous-release, and uninstall, on real `windows-latest`/`ubuntu-latest`
-  runners) and on the maintainer's own Linux machine, but real-hardware
-  confirmation on a range of actual Windows installations is still limited;
-- consistency of sample-data presentation;
-- selected credit-card and recurring-payment flows;
-- some loading, localization, and UI edge cases;
-- broader contributor and architecture documentation.
-
-Known limitations are tracked openly so that progress can be reviewed over time.
-
-## Installation
-
-The current public build is the **v0.0.6 pre-release**. Use only the
-[official release](https://github.com/superuser-d0/archlence/releases/tag/v0.0.6).
-
-| Platform | Recommended method | Python required? | Desktop integration |
-| --- | --- | --- | --- |
-| Windows | Installer | No | Start menu; optional desktop shortcut |
-| Arch, Manjaro, CachyOS | `makepkg -si` | No | Application menu, icon, terminal command |
-| Other x86_64 Linux | AppImage | No | Portable application |
-| macOS | Source only | Yes | No packaged release |
-
-Choose one method below. Do not clone the repository when using the Windows
-installer or portable AppImage.
-
-### Windows
-
-1. Download [`ArchlenceSetup-0.0.6.exe`](https://github.com/superuser-d0/archlence/releases/download/v0.0.6/ArchlenceSetup-0.0.6.exe).
-2. Verify the checksum if desired:
-
-   ```powershell
-   $actual = (Get-FileHash .\ArchlenceSetup-0.0.6.exe -Algorithm SHA256).Hash
-   $expected = "42ff88d1366682497ca850b8ead885e60e05a1c0b0ba0b665c40d5f62f54983e"
-   if ($actual -ne $expected) { throw "Checksum verification failed" }
-   ```
-
-3. Run the installer and open Archlence from the Start menu.
-
-The installer is per-user, requires no administrator privileges, and installs
-under `%LOCALAPPDATA%\Programs\Archlence`. It is unsigned, so SmartScreen may
-warn on first launch. Verify the checksum before selecting **More info → Run
-anyway**.
-
-### Arch Linux, Manjaro, and CachyOS
-
-Build and install the `archlence-bin` package as a normal user:
-
-```bash
-git clone https://github.com/superuser-d0/archlence.git
-cd archlence
-makepkg -si
+```text
+main.py
+├── ui/          Kivy layouts, components, charts, themes, and localization
+├── mixins/      Application workflows and screen behavior
+├── services/    Finance, pricing, insights, projection, and recovery services
+├── database/    SQLite schema, migrations, models, and ledger primitives
+├── security/    Local authentication and access-control services
+├── utils/       Decimal, encryption, key storage, paths, and formatting
+└── tests/       Unit, integration, security, packaging, and UI regressions
 ```
 
-Do not run `makepkg` with `sudo`; it requests the administrator password only
-for the final Pacman installation. The package installs the application menu
-entry, system icon, `/usr/bin/archlence`, and the application under
-`/opt/archlence`.
-
-```bash
-# Launch
-archlence
-
-# Inspect the installed package
-pacman -Qi archlence-bin
-
-# Remove the application (user data is retained)
-sudo pacman -R archlence-bin
+```text
+Kivy UI
+   ↓
+Application workflows
+   ↓
+Domain services
+   ↓
+Ledger and SQLite
+   ↓
+Encryption and OS key storage
 ```
 
-Until the package is published to the AUR, update from the existing clean
-checkout whenever a new release is announced:
+Critical implementation contracts include atomic ledger and balance
+operations, transactional settlement, migration guards, asynchronous price
+refresh, authenticated field encryption, and balance history/replay.
+
+See the [architecture guide](docs/ARCHITECTURE.md) for boundaries, data flow,
+and testing responsibilities.
+
+## Development and tests
+
+Archlence supports Python 3.11 or newer. CI and packaged builds use the
+repository-defined Python 3.12 environment.
 
 ```bash
-cd ~/archlence
-git status
-git pull --ff-only
-makepkg -si
-```
-
-`archlence-bin` is not currently searchable on the AUR. Commit or stash local
-changes before pulling.
-
-### Other Linux distributions — AppImage
-
-The AppImage supports x86_64 Debian, Ubuntu, Linux Mint, Fedora, Arch-based
-distributions, and other compatible Linux systems. It does not support ARM.
-
-1. Download [`Archlence-0.0.6-x86_64.AppImage`](https://github.com/superuser-d0/archlence/releases/download/v0.0.6/Archlence-0.0.6-x86_64.AppImage)
-   and [`SHA256SUMS.txt`](https://github.com/superuser-d0/archlence/releases/download/v0.0.6/SHA256SUMS.txt).
-2. Open a terminal in the download directory and run:
-
-   ```bash
-   grep ' Archlence-0.0.6-x86_64.AppImage$' SHA256SUMS.txt | sha256sum -c -
-   chmod +x Archlence-0.0.6-x86_64.AppImage
-   ./Archlence-0.0.6-x86_64.AppImage
-   ```
-
-If FUSE mounting fails, use:
-
-```bash
-./Archlence-0.0.6-x86_64.AppImage --appimage-extract-and-run
-```
-
-Expected SHA-256:
-`31de4e4ce0b4730de9aa5afbd361b4a8e46085c727d5052c818a444bcb344935`.
-
-### Run from source
-
-Source setup is intended for development, macOS, or unreleased `main` code.
-Use Python 3.11 or newer; CI and packaged builds use Python 3.12.
-
-Install Linux system dependencies first:
-
-```bash
-# Debian, Ubuntu, Linux Mint
-sudo apt update
-sudo apt install git python3 python3-venv python3-pip \
-    libsdl2-2.0-0 libsdl2-image-2.0-0 libsdl2-ttf-2.0-0 \
-    libsdl2-mixer-2.0-0 libgl1
-
-# Fedora
-sudo dnf install git python3 python3-pip SDL2 SDL2_image SDL2_ttf SDL2_mixer mesa-libGL
-
-# Arch, Manjaro, CachyOS
-sudo pacman -S --needed git python python-pip sdl2-compat sdl2_image sdl2_ttf sdl2_mixer libglvnd
-```
-
-Clone and run without activating the virtual environment:
-
-```bash
-git clone https://github.com/superuser-d0/archlence.git
-cd archlence
-python3 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -r requirements-runtime.txt
-.venv/bin/python main.py
-```
-
-On macOS, install `python@3.12` and Git with Homebrew, then replace `python3`
-with `python3.12`. On Windows PowerShell, use:
-
-```powershell
-git clone https://github.com/superuser-d0/archlence.git
-cd archlence
-py -3.12 -m venv .venv
-.venv\Scripts\python.exe -m pip install --upgrade pip
-.venv\Scripts\python.exe -m pip install -r requirements-runtime.txt
-.venv\Scripts\python.exe main.py
-```
-
-For development tools and tests:
-
-```bash
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python run_tests.py
-```
-
-Use `.venv\Scripts\python.exe` instead on Windows. Exact lint and type-check
-commands live in [the CI workflow](.github/workflows/tests.yml).
-
-### Troubleshooting
-
-- **`destination path 'archlence' already exists`:** do not clone again. Run
-  `cd ~/archlence`, inspect `git status`, then use `git pull --ff-only` when the
-  tree is clean.
-- **Fish reports `case builtin not inside of switch block`:** either avoid
-  activation and use `.venv/bin/python` directly, or run
-  `source .venv/bin/activate.fish`.
-- **PowerShell blocks `Activate.ps1`:** activation is optional; use
-  `.venv\Scripts\python.exe` directly.
-- **AppImage reports a FUSE error:** use the `--appimage-extract-and-run`
-  command shown above.
-
-On first launch, Archlence guides you through creating a local PIN and first
-account. Upgrading or uninstalling a package does not intentionally remove the
-user database; keep a verified backup anyway.
-
-### Release files
-
-The release also contains `SHA256SUMS.txt`, the CycloneDX SBOM
-`Archlence-0.0.6-sbom.cdx.json`, and `THIRD_PARTY_NOTICES.md`. Packages are
-unsigned; checksums detect an incomplete or altered download but do not replace
-code signing.
-
-Untagged `main` builds are available as expiring GitHub Actions artifacts for
-[Windows](https://github.com/superuser-d0/archlence/actions/workflows/build-windows.yml)
-and [Linux](https://github.com/superuser-d0/archlence/actions/workflows/build-linux.yml).
-They are development artifacts, not public releases.
-
-## Changelog
-
-### 0.0.6 — a decryption contract its callers never honoured
-
-- Corrupt or unreadable data no longer produces a confident wrong number.
-  Values feeding a **total** refuse rather than counting as zero; values
-  feeding only a **list** still degrade per row, because a wrong row is
-  visible and correctable while the same zero inside a sum is not.
-- `decrypt()` became fail-closed in 0.0.3, but its 21 call sites still caught
-  the old contract's `ValueError`/`TypeError` — which the new typed errors are
-  not. On real corruption those handlers never ran.
-- The dashboard summary is cached on the data revision: at 10,000
-  transactions a repeat render drops from 328 ms to 0 ms.
-- Delete Data now clears the forecast and asset-history sections too, and TAB
-  moves between fields in the add-account dialog instead of inserting a tab.
-- The exception-handler CI gate had 44 unused baseline slots and was silently
-  accepting new broad handlers in existing functions; the baseline is
-  regenerated and both directions verified by injection.
-
-### 0.0.5 — record existing assets, price-provider fallback, honest sources
-
-- Adding an asset now asks whether it should come out of your wallet balance.
-  Choose No for a holding you already owned, so recording it no longer
-  distorts today's balance and expense reports.
-- Prices survive a single provider outage: cryptocurrency falls back to
-  CoinGecko and foreign currency to Frankfurter (ECB) when Yahoo Finance
-  returns nothing. BIST equities and gold remain Yahoo-only.
-- The source shown for a price now names the provider that actually answered.
-- Broad exception handlers dropped from 184 to 143, and the installer and
-  AppImage smoke tests now catch a launch that stays alive while logging a
-  silent failure.
-
-### 0.0.4 — negative-balance support, brand-icon quality, virtualized lists
-
-- Checking accounts, savings goals, and credit-card debt payments can now
-  go negative on purpose; net worth math is unaffected.
-- Brand-icon logos are sharper: a multi-provider fallback replaces the
-  single-provider lookup, and every image is decoded and re-encoded as a
-  real PNG instead of trusting the response's declared content type.
-- The Active Subscriptions / Active Incomes cards are now virtualized
-  (`RecycleView`); rendering cost no longer grows with subscription count.
-- Background failures that used to `print()` to a console nobody sees in
-  the packaged Windows build are now written to the rotating log file with
-  a full traceback.
-- See [CHANGELOG.md](CHANGELOG.md) for the full list, including known
-  limitations.
-
-### 0.0.3 — password policy, active-incomes card, Borsa Istanbul price fix
-
-- Local sign-in now requires a password (minimum length, one uppercase
-  letter, one special character) instead of a 4-digit PIN, with a
-  Settings > Change Password flow.
-- Recurring incomes now render in their own "Active Incomes" card instead
-  of the subscriptions (expenses) card.
-- Assets typed as "Hisse Senedi" resolve to their Borsa Istanbul ticker
-  again and fetch a live price instead of showing ₺0.00.
-- See [CHANGELOG.md](CHANGELOG.md) for the full list, including known
-  limitations.
-
-### 0.0.2 — Windows console encoding and instance-lock crash fixes
-
-- Turkish error text no longer crashes the process on a legacy Windows
-  console (a transaction could be silently lost when the subscription
-  radar failed mid-write).
-- The single-instance lock no longer risks crashing on shutdown on Windows.
-- The test suite now runs on Windows in CI, not just Linux — both fixes
-  above were only reachable because of that.
-
-### 0.0.1 — pre-release: input correctness and UI responsiveness
-
-- Amount field no longer scrambles typed digits (it recorded wrong values).
-- Calendar, monthly budget, category settings and transaction-add no longer
-  stall the UI; rapid taps coalesce instead of doing linear work per tap.
-- Asset purchases pick an account that can actually fund them.
-- Test reporting restored: the runner's output was being swallowed by Kivy.
-
-## Tests
-
-The repository includes automated coverage for the ledger, transactions, accounts, subscriptions, pricing, budgeting, history, projections, security, and UI contracts.
-
-Run the complete test suite with:
-
-```bash
-python -m unittest discover -s tests -p "test_*.py"
-```
-
-or the equivalent convenience wrapper (same discovery, verbose output, and
-a correct non-zero exit code on failure — this is what CI runs):
-
-```bash
+python -m pip install -r requirements.txt
 python run_tests.py
 ```
 
-GUI checks may require a virtual display on headless Linux:
+The suite covers ledger operations, transactions, accounts, subscriptions,
+pricing, budgeting, history, projections, security, and selected UI contracts.
+CI runs the full suite on Linux and Windows, with lint, type, version, and
+visual-regression checks on Linux.
 
-```bash
-xvfb-run -a python -m unittest tests.test_gui tests.test_ids
-```
-
-## Privacy and data
-
-Archlence is designed around local data ownership:
-
-- core financial records are stored locally in `finance.db`, in a
-  per-OS user-data directory resolved via [`platformdirs`](https://github.com/tox-dev/platformdirs)
-  (`utils/app_paths.py`) — not inside the application's own install
-  folder, which is commonly read-only once packaged (e.g. under `Program
-  Files` on Windows). On Linux this is `~/.local/share/Archlence/`
-  (config JSON lives alongside it); cached, re-fetchable data (brand
-  icons) goes to `~/.cache/Archlence/`; `crash.log` goes to
-  `~/.local/state/Archlence/log/`. Windows and macOS use the
-  corresponding OS-standard locations for each. Upgrading from an older
-  version that stored these next to the application migrates them
-  automatically on first launch;
-- sensitive transaction fields (amounts, descriptions) are encrypted at rest
-  with AES-256-GCM authenticated encryption, using a random key generated
-  per install — not a value shared across installs. Windows protects the key
-  with DPAPI; Linux uses Secret Service/KWallet when available. Settings
-  explicitly warns when a 0600 local-file fallback is active;
-- legacy CBC records are moved only through the user-controlled, backup-first
-  transactional migration flow;
-- application backups contain the database and password-protected recovery
-  material together. A database copy without its matching key is not enough;
-- settings, local databases, and runtime data are excluded from Git by default;
-- the application does not include analytics or advertising trackers;
-- CSV export provides a human-readable way to move supported records elsewhere;
-- portfolio price refreshes and some visual metadata features may contact external public data sources;
-- core financial records remain local and are not intentionally uploaded by those features.
-
-Keep regular verified backups and store each recovery password separately.
-Losing both the active key and recovery material makes encrypted data
-unrecoverable. See [key management](docs/KEY_MANAGEMENT.md) and
-[backup/recovery](docs/BACKUP_RECOVERY.md).
-
-Archlence is a personal finance management tool. It is not a bank, brokerage service, accounting platform, or source of financial advice.
-
-## Roadmap
-
-- Broader hardware-backed key-store coverage and recovery UX
-- Improved credit-card reliability and statement workflows
-- More consistent recurring-payment detection and presentation
-- Natural-language queries over local financial history
-- Local receipt parsing and categorization
-- Additional portfolio data sources and reporting options
-- Code signing for the Windows installer and the Linux AppImage
-- Contributor documentation and architecture decision records
+Financial-logic changes require regression tests that demonstrate ledger,
+balance, and transaction integrity. For environment and platform dependencies,
+see the [installation guide](docs/INSTALLATION.md).
 
 ## Contributing
 
-Issues and pull requests are welcome.
+Contributions are welcome.
 
-The project is still evolving, so opening an issue before a large change is recommended.
+1. Read [CONTRIBUTING.md](CONTRIBUTING.md).
+2. Browse the [open issues](https://github.com/superuser-d0/archlence/issues).
+3. Create a focused branch.
+4. Add regression tests where applicable.
+5. Run the full test suite.
+6. Open a draft pull request early for larger changes.
 
-For changes to financial logic, include tests that demonstrate balance, ledger, and transaction integrity before and after the operation.
+Financial-logic changes must demonstrate ledger, balance, and transaction
+integrity. UI changes should include screenshots or a short recording.
 
-For UI changes, screenshots or short screen recordings are helpful whenever possible.
+## Security reporting
 
-Useful contribution areas currently include:
+Do not share real financial information in issues, screenshots, fixtures, or
+pull requests. Do not open a public issue for a suspected vulnerability; use a
+[private GitHub security advisory](https://github.com/superuser-d0/archlence/security/advisories/new)
+instead.
 
-- security and key management;
-- test coverage;
-- packaging and release automation;
-- localization;
-- accessibility;
-- documentation;
-- UI edge cases and regression fixes.
+See [SECURITY.md](SECURITY.md) for the reporting process and pre-release support
+scope.
 
-## Security
+## Roadmap
 
-Please do not publish sensitive personal or financial information in issues, screenshots, test fixtures, or pull requests.
+Near-term work prioritizes reliability before feature expansion:
 
-For security-related findings, use a private GitHub security advisory when possible instead of creating a public issue.
+- data integrity and completion of shared financial-number policies;
+- backup, recovery, and key-management validation;
+- packaged Windows validation on a broader range of real systems;
+- credit-card and recurring-payment reliability;
+- package signing and release trust;
+- contributor experience and clearer architecture boundaries.
+
+See the detailed [technical roadmap](docs/ROADMAP.md) and
+[product vision](docs/VISION.md).
 
 ## License
 
-Archlence is licensed under the [MIT License](LICENSE).
+Archlence is available under the [MIT License](LICENSE).
