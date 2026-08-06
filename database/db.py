@@ -594,6 +594,11 @@ def process_due_recurring_payment(payment):
     # Sıklığı herhangi bir finansal yazımdan önce doğrula. Geçersiz eski bir
     # kayıt transaction/bakiye yazıp sonra vade hesabında yarım kalmamalı.
     from services.recurring_service import next_due_for_recurrence
+    from utils.financial_decimal import fiat
+    amount = fiat(payment["amount"])
+    if amount <= 0:
+        raise ValueError("Tekrarlanan işlem tutarı 0'dan büyük olmalıdır.")
+    amount = float(amount)
     new_due = next_due_for_recurrence(
         payment["next_due_date"],
         payment["frequency"],
@@ -609,11 +614,11 @@ def process_due_recurring_payment(payment):
             raise ValueError("Geçersiz tekrarlanan işlem türü.")
         from services.account_service import AccountService
         allowed, reason = AccountService.check_spending_allowed(
-            payment["account_id"], payment["amount"], transaction_type,
+            payment["account_id"], amount, transaction_type,
         )
         if not allowed:
             raise ValueError(reason)
-        enc_amount = encrypt(str(payment["amount"]), SECRET_KEY)
+        enc_amount = encrypt(str(amount), SECRET_KEY)
         enc_desc = encrypt(f"{payment['name']} (Otomatik)", SECRET_KEY)
         tx_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cursor.execute("""
@@ -625,7 +630,7 @@ def process_due_recurring_payment(payment):
         ))
         adjust_account_balance(
             cursor, payment["account_id"], transaction_type,
-            payment["amount"], ref_id=cursor.lastrowid,
+            amount, ref_id=cursor.lastrowid,
             source="recurring_payment",
         )
 

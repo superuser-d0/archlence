@@ -78,6 +78,15 @@ class TransactionService:
         taksit planı eklenir (aylık tutar = toplam / taksit sayısı). Böylece
         işlem ile plan hiçbir zaman birbirinden kopamaz.
         """
+        # This is the shared service boundary for user/API/import monetary
+        # input.  SQLite must never be allowed to decide what NaN/Infinity
+        # means for a financial operation.
+        amount = fiat(amount)
+        if amount <= 0:
+            raise ValueError("İşlem tutarı 0'dan büyük olmalıdır.")
+        # sqlite3 has no Decimal adapter; all persisted money in this legacy
+        # schema is REAL, so pass the already-quantized finite value only.
+        amount = float(amount)
         if installments is not None:
             installments = int(installments)
             if not 1 <= installments <= 12:
