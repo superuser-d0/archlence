@@ -344,13 +344,26 @@ _JOURNAL_NAME = "journal.json"
 # Journal'ın kaydettiği state'ler. Sıra önemli: ROLLBACK_GENERATION_READY'den
 # ÖNCE kesilen bir restore hedefe hiç dokunmamıştır, sonrasında kesilen ise
 # yarım bir generation bırakmıştır ve geri alınması gerekir.
-_JOURNAL_STATES = (
+
+# COMMITTED'DEN ÖNCE eski generation canonical'dır; sonrasında YENİ generation
+# canonical'dır. Bu ayrım olmadan, post-verification ile journal silme arasında
+# çöken bir süreç BAŞARILI bir restore'u geri aldırırdı: startup journal'ı
+# görüp "yarım restore" sanıyordu.
+_ROLLBACK_STATES = (
     "STAGED",
     "ROLLBACK_GENERATION_READY",
     "DB_REPLACED",
     "KEY_REPLACED",
     "CONFIG_REPLACED",
+    "VERIFIED",
 )
+# Bu state'lerde geri alma YAPILMAZ; yalnızca eski generation artefaktları
+# temizlenir ve temizlik idempotenttir.
+_COMMITTED_STATES = (
+    "COMMITTED",
+    "CLEANUP_COMPLETE",
+)
+_JOURNAL_STATES = _ROLLBACK_STATES + _COMMITTED_STATES
 
 
 def _restore_journal_dir(db_path):
@@ -435,13 +448,40 @@ def recover_interrupted_restore(db_path=DB_NAME, *, key_provider=None,
     old_db = journal_dir / "old-finance.db"
     old_config = journal_dir / "old-config.json"
 
+    if state in _COMMITTED_STATES:
+        # YENİ generation canonical. Restore başarıyla tamamlanmış ve
+        # doğrulanmıştı; süreç yalnızca temizlik sırasında çökmüş. Geri almak
+        # BAŞARILI bir restore'u iptal etmek olurdu.
+        #
+        # FAIL-CLOSED: COMMITTED deniyor ama yeni veritabanı ortada yoksa
+        # ortada anlayamadığımız bir durum var. Sessizce eski generation'a
+        # dönmek de, boş bir profille açmak da yanlış olur.
+        if not db_path.exists():
+            raise DataMigrationError(
+                "Restore tamamlanmış görünüyor ama veritabanı bulunamadı; "
+                "profil elle incelenmeli."
+            )
+        _discard_journal(journal_dir)      # idempotent: rmtree(ignore_errors)
+        return {
+            "recovered": True,
+            "state": state,
+            "action": "cleanup-only",
+            "db_path": str(db_path),
+        }
+
+    # COMMITTED'den önce: eski generation canonical, geri al.
     if old_db.exists():
         if db_path.exists():
             db_path.unlink()
         os.replace(old_db, db_path)
     _rollback_config(config, old_config, had_config)
     _discard_journal(journal_dir)
-    return {"recovered": True, "state": state, "db_path": str(db_path)}
+    return {
+        "recovered": True,
+        "state": state,
+        "action": "rolled-back",
+        "db_path": str(db_path),
+    }
 
 
 def restore_backup(
@@ -571,6 +611,22 @@ def restore_backup(
             raise DataMigrationError(
                 "Restore başarısız oldu; önceki veriler geri yüklendi."
             ) from exc
+
+        # POST-VERIFICATION BAŞARILI. Buradan itibaren YENİ generation
+        # canonical'dır ve geri alınmamalıdır.
+        #
+        # COMMITTED işareti TEMİZLİKTEN ÖNCE yazılır. Sıra kritik: eskiden
+        # başarıda journal doğrudan siliniyordu, yani bu iki adım arasında
+        # çöken bir süreç journal'ı `CONFIG_REPLACED` durumunda bırakıyor ve
+        # sonraki açılış BAŞARILI bir restore'u geri alıyordu.
+        _write_journal(journal_dir, "VERIFIED", db_path, config, had_config)
+        if _failure_hook:
+            _failure_hook("before_committed_marker")
+        _write_journal(journal_dir, "COMMITTED", db_path, config, had_config)
+        if _failure_hook:
+            _failure_hook("after_committed_marker")
+        # Eski generation artefaktlarını temizle. Buradaki her adım
+        # idempotenttir; kesilirse sonraki açılış tamamlar.
         _discard_journal(journal_dir)
 
     from utils.crypto import _get_aead_key
