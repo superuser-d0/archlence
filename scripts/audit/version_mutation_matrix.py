@@ -95,7 +95,11 @@ def _apply(worktree, relative, needle, replacement):
     text = path.read_text(encoding="utf-8")
     if text.count(needle) < 1:
         return False
-    path.write_text(text.replace(needle, replacement, 1), encoding="utf-8")
+    # HEPSİNİ değiştir. Yalnızca ilk eşleşmeyi değiştirmek yanlış "yakalandı"
+    # sonucu üretir: dosyada aynı adın başka kopyaları kalırsa kapı onları
+    # bulup yeşil kalır, oysa gerçek bir yeniden adlandırma hepsini
+    # değiştirirdi.
+    path.write_text(text.replace(needle, replacement), encoding="utf-8")
     return True
 
 
