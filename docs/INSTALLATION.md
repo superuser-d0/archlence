@@ -104,8 +104,8 @@ makepkg -si
 
 Do not run `makepkg` with `sudo`; it asks for the administrator password only
 for the final Pacman installation. The package installs the application under
-`/opt/archlence`, an application-menu entry, a system icon, and the
-`/usr/bin/archlence` launcher.
+`/opt/archlence`, an application-menu entry, scalable (SVG) and
+high-resolution (PNG) system icons, and the `/usr/bin/archlence` launcher.
 
 ```bash
 archlence
