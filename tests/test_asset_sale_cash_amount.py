@@ -127,5 +127,92 @@ class AssetSaleCashAmountTest(unittest.TestCase):
         self.assertEqual(events, 1)
 
 
+class AssetSaleDescriptionTest(AssetSaleCashAmountTest):
+    """Satış açıklaması denetim izi taşımalı — ALIM tarafıyla simetrik.
+
+    Atomiklik refactor'ü (96049ee) satışı `AssetSaleService`e taşırken
+    açıklamayı `"... satıldı"` seviyesine düşürmüştü. Alım tarafı ayrıntıyı
+    korumaya devam ettiği için defter kendi içinde tutarsız kaldı; daha
+    önemlisi KISMİ satışta ne kadar satıldığı yazmadığından defterden
+    kısmi/tam satış AYIRT EDİLEMİYORDU.
+    """
+
+    def _partial_sale(self):
+        from database.db import SECRET_KEY
+        from services.account_service import AccountService
+        from services.asset_purchase_service import AssetPurchaseService
+        from services.asset_sale_service import AssetSaleService
+        from utils.crypto import decrypt
+
+        account_id = AccountService.create_account(
+            "Kısmi", "checking", initial_balance=1_000_000.0
+        )
+        AssetPurchaseService.create_purchase(
+            asset_name="Gram Altın", asset_code="GC=F", asset_type="Altın",
+            purchase_price=2000.0, quantity=2.5, account_id=account_id,
+        )
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            asset_id = conn.execute(
+                "SELECT id FROM active_assets"
+            ).fetchone()[0]
+        AssetSaleService.sell(asset_id, 2400.0, account_id, quantity=1.0)
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            sale = conn.execute(
+                "SELECT description FROM transactions "
+                "WHERE category='Varlık Satışı'"
+            ).fetchone()[0]
+            remaining = conn.execute(
+                "SELECT quantity FROM active_assets"
+            ).fetchone()[0]
+        return (
+            decrypt(str(sale), SECRET_KEY),
+            Decimal(decrypt(str(remaining), SECRET_KEY)),
+        )
+
+    def test_partial_sale_records_how_much_was_sold(self):
+        description, remaining = self._partial_sale()
+        self.assertIn("1.0", description, "satılan miktar açıklamada yok")
+        self.assertEqual(remaining, Decimal("1.5"))
+
+    def test_sale_description_carries_unit_price_and_pnl(self):
+        description, _ = self._partial_sale()
+        self.assertIn("2,400.00", description, "birim fiyat açıklamada yok")
+        self.assertIn("K/Z", description, "K/Z açıklamada yok")
+        self.assertIn("+400.00", description, "K/Z değeri yanlış")
+
+    def test_sale_description_names_the_asset(self):
+        description, _ = self._partial_sale()
+        self.assertIn("Gram Altın", description)
+        self.assertIn("GC=F", description)
+        self.assertIn("satıldı", description)
+
+    def test_a_loss_is_signed_correctly(self):
+        from services.account_service import AccountService
+        from services.asset_purchase_service import AssetPurchaseService
+        from services.asset_sale_service import AssetSaleService
+        from database.db import SECRET_KEY
+        from utils.crypto import decrypt
+
+        account_id = AccountService.create_account(
+            "Zarar", "checking", initial_balance=1_000_000.0
+        )
+        AssetPurchaseService.create_purchase(
+            asset_name="Test", asset_code="TST", asset_type="Altın",
+            purchase_price=2000.0, quantity=1.0, account_id=account_id,
+        )
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            asset_id = conn.execute(
+                "SELECT id FROM active_assets"
+            ).fetchone()[0]
+        AssetSaleService.sell(asset_id, 1500.0, account_id, quantity=1.0)
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            sale = conn.execute(
+                "SELECT description FROM transactions "
+                "WHERE category='Varlık Satışı'"
+            ).fetchone()[0]
+        description = decrypt(str(sale), SECRET_KEY)
+        self.assertIn("-500.00", description, "zarar işareti yanlış")
+
+
 if __name__ == "__main__":
     unittest.main()

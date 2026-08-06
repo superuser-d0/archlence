@@ -34,7 +34,26 @@ class AssetSaleService:
                 else:
                     cursor.execute("UPDATE active_assets SET quantity=? WHERE id=?", (encrypt(str(remaining), SECRET_KEY), asset_id))
                 if _fault_hook: _fault_hook("after_asset_write")
-                desc = f"{row['asset_name']} ({row['asset_code']}) satıldı"
+                # Açıklama miktar, birim fiyat ve K/Z taşır — ALIM tarafıyla
+                # simetrik olsun diye.
+                #
+                # Atomiklik refactor'ü (96049ee) satışı bu servise taşırken
+                # açıklamayı `"... satıldı"` seviyesine düşürmüştü. Alım
+                # tarafı ayrıntıyı korumaya devam ettiği için defter kendi
+                # içinde tutarsız kalıyordu; daha önemlisi KISMİ satışta ne
+                # kadar satıldığı yazmadığından defterden kısmi/tam satış
+                # AYIRT EDİLEMİYORDU.
+                cost_basis = fiat(
+                    decimal_from(decrypt(row["purchase_price"], SECRET_KEY))
+                    * sold
+                )
+                pnl = proceeds - cost_basis
+                sign = "+" if pnl >= 0 else "-"
+                desc = (
+                    f"{row['asset_name']} ({row['asset_code']}) satıldı — "
+                    f"{sold:f} adet, birim fiyat {price:,.2f} ₺ "
+                    f"(K/Z: {sign}{abs(pnl):,.2f} ₺)"
+                )
                 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 cursor.execute("INSERT INTO transactions (account_id,amount,type,category,description,transaction_date) VALUES (?,?,'income','Varlık Satışı',?,?)", (account_id, encrypt(str(proceeds), SECRET_KEY), encrypt(desc, SECRET_KEY), now))
                 if _fault_hook: _fault_hook("after_transaction_write")
