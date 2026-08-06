@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Build an isolated, deterministic profile for README screenshots.
 
-The script refuses to touch a non-empty directory. It never discovers or
-opens the normal Archlence profile: ``--profile`` becomes ``ARCHLENCE_HOME``
-before application modules are imported.
+The script never discovers or opens the normal Archlence profile:
+``--profile`` becomes ``ARCHLENCE_HOME`` before application modules are
+imported.  ``--fresh`` may reset only a directory carrying this tool's sample
+marker; it refuses an unmarked non-empty directory.
 
 Example:
     .venv/bin/python scripts/dev/seed_readme_profile.py \
-        --profile /tmp/archlence-readme-profile --as-of 2026-08-06
+        --profile /tmp/archlence-readme-profile --fresh --as-of 2026-08-06
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ import calendar
 import json
 import os
 import random
+import shutil
 import sys
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
@@ -34,7 +36,7 @@ def parse_args():
         "--profile",
         type=Path,
         required=True,
-        help="New, empty directory used as ARCHLENCE_HOME",
+        help="Isolated directory used as ARCHLENCE_HOME",
     )
     parser.add_argument(
         "--as-of",
@@ -42,16 +44,41 @@ def parse_args():
         default=date.today(),
         help="Last day in the generated year (default: today)",
     )
+    parser.add_argument(
+        "--seed", type=int, default=RANDOM_SEED,
+        help=f"Deterministic random seed (default: {RANDOM_SEED})",
+    )
+    parser.add_argument(
+        "--fresh", action="store_true",
+        help="Reset an existing marked sample profile before generating",
+    )
     return parser.parse_args()
 
 
-def require_empty_profile(path: Path) -> Path:
+def prepare_profile(path: Path, *, fresh: bool) -> Path:
     profile = path.expanduser().resolve()
-    if profile == Path.home() or profile == PROJECT_ROOT:
-        raise SystemExit("Refusing to use a home or repository directory as a sample profile.")
+    forbidden = {Path.home().resolve(), PROJECT_ROOT.resolve(), Path("/")}
+    if profile in forbidden or PROJECT_ROOT.resolve() in profile.parents:
+        raise SystemExit(
+            "Refusing to use a home, repository, or repository child "
+            "as a sample profile."
+        )
     if profile.exists() and any(profile.iterdir()):
-        raise SystemExit(f"Profile must be empty: {profile}")
+        marker = profile / SAMPLE_MARKER
+        if not fresh:
+            raise SystemExit(f"Profile is not empty; use --fresh only for a marked sample: {profile}")
+        if not marker.is_file():
+            raise SystemExit(f"Refusing to reset an unmarked directory: {profile}")
+        for child in profile.iterdir():
+            if child.is_dir() and not child.is_symlink():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
     profile.mkdir(parents=True, exist_ok=True)
+    (profile / SAMPLE_MARKER).write_text(
+        "Archlence generated README sample profile; safe for --fresh reset.\n",
+        encoding="utf-8",
+    )
     return profile
 
 
@@ -74,7 +101,7 @@ def dt_on(day: date, hour: int, minute: int = 0) -> datetime:
 
 def main():
     args = parse_args()
-    profile = require_empty_profile(args.profile)
+    profile = prepare_profile(args.profile, fresh=args.fresh)
     as_of = args.as_of
     start = as_of - timedelta(days=365)
 
@@ -105,20 +132,21 @@ def main():
     from database.db import ACCOUNT, SECRET_KEY, get_connection
     from database.init_db import initialize_database
     from services.account_service import AccountService, CHECKING, CREDIT_CARD
-    from utils.crypto import encrypt
+    from services.insights_service import candidate_key
+    from utils.crypto import decrypt, encrypt
 
     initialize_database()
-    rng = random.Random(RANDOM_SEED)
+    rng = random.Random(args.seed)
 
     accounts = {
         "daily": AccountService.create_account(
-            "Everyday Account", CHECKING, initial_balance=350_000
+            "Everyday Account", CHECKING, initial_balance=315_000
         ),
         "salary": AccountService.create_account(
-            "Salary & Savings", CHECKING, initial_balance=325_000
+            "Salary & Savings", CHECKING, initial_balance=0
         ),
         "cash": AccountService.create_account(
-            "Cash Wallet", CHECKING, initial_balance=60_000
+            "Cash Wallet", CHECKING, initial_balance=42_000
         ),
         "world": AccountService.create_account(
             "World Platinum", CREDIT_CARD, credit_limit=120_000,
@@ -133,6 +161,7 @@ def main():
     # AccountService timestamps openings at runtime. Move those baseline events
     # to the beginning of the synthetic year so balance replay is meaningful.
     opening_ts = dt_on(start, 8).strftime("%Y-%m-%d %H:%M:%S")
+    goal_cards = []
     with get_connection() as conn:
         conn.execute(
             "UPDATE balance_events SET ts = ? WHERE source = 'account_opened'",
@@ -167,7 +196,7 @@ def main():
         add(day, "salary", amount, "income", "Freelance", description, 18)
 
     recurring_history = [
-        (1, "salary", 31_500, "Ev Kirası", "Rent"),
+        (1, "salary", 30_000, "Ev Kirası", "Rent"),
         (5, "daily", 1_480, "Elektrik", "Electricity bill"),
         (7, "daily", 410, "Su", "Water bill"),
         (9, "daily", 1_350, "Doğalgaz", "Natural gas bill"),
@@ -264,15 +293,15 @@ def main():
     # Asset cash flows and active positions. The transaction descriptions are
     # the same shape the application uses for its history parser.
     assets = [
-        ("Turkish Airlines", "THYAO", "Hisse", 252.0, 120.0, 318.0, start + timedelta(days=38)),
-        ("Aselsan", "ASELS", "Hisse", 73.0, 250.0, 92.0, start + timedelta(days=82)),
-        ("BİM Stores", "BIMAS", "Hisse", 425.0, 80.0, 512.0, start + timedelta(days=143)),
-        ("Şişecam", "SISE", "Hisse", 55.0, 450.0, 49.8, start + timedelta(days=206)),
-        ("Bitcoin", "BTC-USD", "Kripto", 2_700_000.0, 0.025, 3_350_000.0, start + timedelta(days=64)),
-        ("Ethereum", "ETH-USD", "Kripto", 115_000.0, 0.4, 142_000.0, start + timedelta(days=171)),
-        ("Gram Gold", "GC=F", "Altın", 3_180.0, 35.0, 4_210.0, start + timedelta(days=19)),
-        ("US Dollar", "USDTRY=X", "Döviz", 34.5, 2_500.0, 41.2, start + timedelta(days=108)),
-        ("Euro", "EURTRY=X", "Döviz", 37.8, 1_200.0, 47.3, start + timedelta(days=235)),
+        ("Turkish Airlines", "THYAO", "Hisse", 252.0, 50.0, 318.0, start + timedelta(days=38)),
+        ("Aselsan", "ASELS", "Hisse", 73.0, 100.0, 92.0, start + timedelta(days=82)),
+        ("BİM Stores", "BIMAS", "Hisse", 425.0, 25.0, 512.0, start + timedelta(days=143)),
+        ("Şişecam", "SISE", "Hisse", 55.0, 150.0, 49.8, start + timedelta(days=206)),
+        ("Bitcoin", "BTC-USD", "Kripto", 2_700_000.0, 0.008, 3_350_000.0, start + timedelta(days=64)),
+        ("Ethereum", "ETH-USD", "Kripto", 115_000.0, 0.12, 142_000.0, start + timedelta(days=171)),
+        ("Gram Gold", "GC=F", "Altın", 3_180.0, 12.0, 4_210.0, start + timedelta(days=19)),
+        ("US Dollar", "USDTRY=X", "Döviz", 34.5, 800.0, 41.2, start + timedelta(days=108)),
+        ("Euro", "EURTRY=X", "Döviz", 37.8, 400.0, 47.3, start + timedelta(days=235)),
     ]
     for name, code, asset_type, price, quantity, _current, bought in assets:
         value = price * quantity
@@ -285,7 +314,7 @@ def main():
     # Two completed round trips enrich asset history without pretending they
     # remain open positions.
     for name, code, quantity, buy_price, sell_price, bought, sold in [
-        ("Koza Gold", "KOZAA", 180, 26.4, 34.1, start + timedelta(days=31), start + timedelta(days=231)),
+        ("Koza Gold", "KOZAA", 180, 26.4, 34.1, start + timedelta(days=31), start + timedelta(days=190)),
         ("Technology Fund", "AFT", 420, 0.49, 0.63, start + timedelta(days=96), start + timedelta(days=302)),
     ]:
         add(bought, "salary", buy_price * quantity, "expense", "Varlık Alımı",
@@ -400,7 +429,7 @@ def main():
                 """INSERT OR REPLACE INTO asset_price_cache
                    (symbol, price, asset_type, updated_at, source)
                    VALUES (?, ?, ?, ?, ?)""",
-                (code, current, asset_type, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Generated sample snapshot"),
+                (code, current, asset_type, dt_on(as_of, 23, 0).strftime("%Y-%m-%d %H:%M:%S"), "Generated sample snapshot"),
             )
 
         # Current debt cards.
@@ -423,7 +452,7 @@ def main():
         # Active subscriptions/income with several upcoming dates in the next week.
         recurring = [
             ("Monthly salary", 132_000, "Maaş", 1, "salary", "income"),
-            ("Rent", 31_500, "Ev Kirası", 1, "salary", "expense"),
+            ("Rent", 30_000, "Ev Kirası", 1, "salary", "expense"),
             ("Netflix", 229.99, "Dijital Platformlar", 4, "world", "expense"),
             ("Spotify", 99.99, "Dijital Platformlar", 6, "bonus", "expense"),
             ("iCloud+", 149.99, "Dijital Abonelik", 9, "world", "expense"),
@@ -440,6 +469,21 @@ def main():
                    VALUES (?, ?, ?, 'monthly', ?, ?, 0, 1, ?, ?)""",
                 (encrypt(name, SECRET_KEY), encrypt(str(amount), SECRET_KEY), category,
                  next_due.isoformat(), next_due.day, accounts[account], tx_type),
+            )
+
+        # Instalments are already represented by the debt tracker.  Model the
+        # sample user's prior dismissal of those recurring-radar false
+        # positives so the screenshot can focus on the two genuine candidates.
+        for debt_name in ("Vehicle loan", "Laptop instalment", "Education loan"):
+            cursor.execute(
+                """INSERT INTO recurring_candidate_dismissals
+                   (candidate_key, dismissed_at) VALUES (?, ?)""",
+                (
+                    candidate_key("Kredi Taksiti", debt_name),
+                    dt_on(as_of - timedelta(days=14), 12).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    ),
+                ),
             )
 
         # Twelve months of budget history plus the current plan.
@@ -470,9 +514,7 @@ def main():
             month_cursor = date(next_year, next_month, 1)
 
         goals = [
-            ("Emergency fund", 300_000, 212_000, as_of + timedelta(days=210)),
-            ("Japan trip", 180_000, 94_500, as_of + timedelta(days=330)),
-            ("Home office refresh", 85_000, 53_000, as_of + timedelta(days=120)),
+            ("Emergency Fund", 350_000, 260_000, as_of + timedelta(days=210)),
         ]
         for name, target, current, target_date in goals:
             cursor.execute(
@@ -482,11 +524,35 @@ def main():
                 (encrypt(name, SECRET_KEY), target, current, target_date.isoformat()),
             )
             goal_id = cursor.lastrowid
+            goal_cards.append({
+                "id": goal_id,
+                "name": name,
+                "target": target,
+                "current": current,
+                "color": "green",
+                "auto_deposit": False,
+                "created_at": (as_of - timedelta(days=275)).isoformat(),
+            })
+            # A goal deposit is an internal allocation: move it out of the
+            # source account without recording a fake expense transaction.
+            goal_ts = dt_on(as_of - timedelta(days=90), 10).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            source_id = accounts["salary"]
+            balances[source_id] -= current
+            cursor.execute(
+                "UPDATE accounts SET balance = ? WHERE id = ?",
+                (balances[source_id], source_id),
+            )
+            insert_balance_event(
+                cursor, goal_ts, source_id, -current, balances[source_id],
+                "savings_deposit", goal_id,
+            )
             cursor.execute(
                 """INSERT INTO balance_events
                    (ts, entity_type, entity_id, delta, resulting_value, source)
                    VALUES (?, 'savings_goal', ?, ?, ?, 'savings_goal_created')""",
-                (opening_ts, goal_id, current, current),
+                (goal_ts, goal_id, current, current),
             )
 
         for index, day in enumerate(iter_months(start, as_of, 1)):
@@ -512,8 +578,12 @@ def main():
         }, indent=2),
         encoding="utf-8",
     )
+    (data_dir / "savings_goals.json").write_text(
+        json.dumps({"goals": {"data": goal_cards}}, indent=2),
+        encoding="utf-8",
+    )
     (profile / SAMPLE_MARKER).write_text(
-        f"Synthetic README profile generated through {as_of.isoformat()}\n",
+        f"Synthetic README profile generated through {as_of.isoformat()} with seed {args.seed}\n",
         encoding="utf-8",
     )
 
@@ -526,12 +596,79 @@ def main():
             )
         }
         account_rows = conn.execute(
-            "SELECT name, balance FROM accounts ORDER BY id"
+            "SELECT name, balance, account_type FROM accounts ORDER BY id"
         ).fetchall()
+        transaction_rows = conn.execute(
+            "SELECT amount, type, transaction_date FROM transactions "
+            "WHERE status = 'completed'"
+        ).fetchall()
+
+    period_start = as_of - timedelta(days=364)
+    annual_income = annual_expense = 0.0
+    for row in transaction_rows:
+        if (
+            not row["transaction_date"]
+            or row["transaction_date"][:10] < period_start.isoformat()
+        ):
+            continue
+        amount = float(decrypt(row["amount"], SECRET_KEY))
+        if row["type"] in ("income", "Gelir"):
+            annual_income += amount
+        elif row["type"] in ("expense", "Gider"):
+            annual_expense += amount
+
+    liquid_balance = sum(float(row["balance"] or 0) for row in account_rows)
+    card_debt = sum(
+        max(0.0, -float(row["balance"] or 0))
+        for row in account_rows if row["account_type"] == CREDIT_CARD
+    )
+    portfolio_value = sum(
+        float(current) * float(quantity)
+        for *_, quantity, current, _ in assets
+    )
+    net_worth = liquid_balance + portfolio_value
+    monthly_subscription_total = sum(
+        amount for name, amount, _category, _offset, _account, kind in recurring
+        if kind == "expense"
+    )
+    sanity = {
+        "annual_income": round(annual_income, 2),
+        "annual_expense": round(annual_expense, 2),
+        "liquid_balance": round(liquid_balance, 2),
+        "card_debt": round(card_debt, 2),
+        "portfolio_value": round(portfolio_value, 2),
+        "net_worth": round(net_worth, 2),
+        "monthly_subscription_total": round(monthly_subscription_total, 2),
+    }
+    limits = {
+        "annual_income": (1_100_000, 1_800_000),
+        "annual_expense": (750_000, 1_400_000),
+        "liquid_balance": (100_000, 350_000),
+        "net_worth": (500_000, 1_500_000),
+    }
+    violations = [
+        f"{key}={sanity[key]:,.2f} outside {low:,.0f}..{high:,.0f}"
+        for key, (low, high) in limits.items()
+        if not low <= sanity[key] <= high
+    ]
+    if violations:
+        raise SystemExit("Sample-data sanity check failed: " + "; ".join(violations))
+
+    manifest = {
+        "as_of": as_of.isoformat(),
+        "seed": args.seed,
+        "counts": counts,
+        "sanity": sanity,
+    }
+    (profile / "sample_manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
 
     print(f"Created isolated sample profile: {profile}")
     print(f"Synthetic period: {start.isoformat()} through {as_of.isoformat()}")
     print("Rows: " + ", ".join(f"{key}={value}" for key, value in counts.items()))
+    print("Sanity: " + ", ".join(f"{key}={value:,.2f}" for key, value in sanity.items()))
     for row in account_rows:
         print(f"  {row['name']}: {row['balance']:,.2f} TRY")
 
