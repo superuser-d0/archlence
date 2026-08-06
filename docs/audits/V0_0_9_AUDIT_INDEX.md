@@ -82,5 +82,17 @@ P1-3 kapı bypass'ı · P1-4 kapı slack'i
 | `scripts/audit/test_phase2_financial_properties.py` | Property testleri |
 | `scripts/audit/test_migration_fault_injection.py` | P1-2 |
 
+| `scripts/audit/test_phase2_concurrency.py` | deterministic two-worker P0-2/P0-3/P0-7 evidence |
+| `scripts/audit/test_phase2_nonfinite_matrix.py` | multi-service P0-6 evidence |
+| `scripts/audit/test_phase2_backup_archive.py` | traversal/allow-list evidence |
+| `scripts/audit/check_resource_leaks.py` | temporary-profile backend resource trend |
+
+## Final Phase 2 status
+
+**Completed with environment limitations.** The final 25-row ledger is in
+`V0_0_9_DEEP_AUDIT_PHASE_2.md` section 8; it contains no `Not started` row.
+The Phase 3-only confirmed/strong-evidence handoff is
+`V0_0_9_PHASE_3_HANDOFF.md`.
+
 **Adversarial testler normal suite'e dahil değildir ve bilerek kırmızıdır.**
 Düzeltmeler yapıldıkça yeşile dönmeleri beklenir.
