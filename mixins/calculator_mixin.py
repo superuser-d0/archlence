@@ -1,5 +1,6 @@
 import math
 from kivy.metrics import dp
+from utils.financial_decimal import fiat
 from utils.toast import toast
 from kivymd.uix.button import MDFlatButton, MDRaisedButton, MDIconButton
 from kivy.uix.scrollview import ScrollView
@@ -386,7 +387,26 @@ class CalculatorMixin:
                 total_upfront = file_expense_taxed + insurance + total_custom_upfront
                 net_cash = p - total_upfront
                 
+            # GÖSTERİLEN toplam: kredinin gerçek maliyeti, ek masraflar dahil.
             total_payment = (emi * n) + total_all_recurring
+            # DEFTERE YAZILAN toplam: yalnızca taksitlerin toplamı.
+            #
+            # İkisi bilerek AYRI. Borç kaydı, otomatik taksit döngüsünün
+            # gerçekten yapacağı şeyi modellemeli: o döngü ayda bir `emi`
+            # tutarında işlem yazar ve borcu taksit SAYISI dolunca kapatır.
+            # Ek masraflar bu deftere hiç uğramıyor (kendi vadeleri var ve
+            # ödeme tablosunda `amount / term` olarak ayrıca gösteriliyorlar),
+            # dolayısıyla onları borcun toplamına koymak, aylık ödemenin asla
+            # kapatamayacağı bir bakiye yaratıyordu: 12 taksit ödenmiş, borç
+            # "kapandı" işaretlenmiş, ama kayıtlı toplama hiç ulaşılmamış olurdu.
+            #
+            # Toplam, YUVARLANMIŞ taksitten türetiliyor — `emi * n` üzerinden
+            # değil. `insert_debt` ikisini de ayrı ayrı kuruşa yuvarlıyor ve
+            # iki yuvarlama sırası aynı sonucu vermeyebilir: emi=1,005 ve n=3
+            # için `fiat(emi) * n` = 3,00 ama `fiat(emi * n)` = 3,01. Aradaki
+            # kuruş, otomatik ödeme borcu kapattığında kapanmamış görünürdü.
+            # Bu sırayla değişmez yapısal olarak korunuyor.
+            ledger_total = float(fiat(emi) * n)
             
             f_emi = f"{emi:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             f_total = f"{total_payment:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -442,7 +462,7 @@ class CalculatorMixin:
 
             self.last_calculated_loan = {
                 "name": self.loan_custom_name.text.strip() if self.loan_custom_name.text.strip() else f"{self.loan_type_selected} Kredisi",
-                "total_amount": total_payment,
+                "total_amount": ledger_total,
                 "monthly_payment": emi,
                 "total_installments": n
             }
