@@ -26,10 +26,6 @@ class _App:
 
     home_filter = "Bugün"
 
-    def calculate_monthly_change_rate(self):
-        return None
-
-
 class DashboardMetricsCacheTest(unittest.TestCase):
     def setUp(self):
         fd, self.db_path = tempfile.mkstemp(suffix=".db")
@@ -156,6 +152,19 @@ class DashboardMetricsCacheTest(unittest.TestCase):
         for key in ("total_income", "total_expense", "total_balance",
                     "period_income", "period_expense", "period_net"):
             self.assertEqual(cached[key], fresh[key], f"{key} uyuşmuyor")
+
+    def test_dashboard_total_matches_accounts_after_savings_transfer(self):
+        from services.queries import DashboardService
+        from services.savings_service import SavingsService
+
+        goal_id = SavingsService.create_goal("Emergency", 1000)
+        SavingsService.deposit_to_goal(goal_id, 250, self.account_id)
+        metrics = self._metrics()
+
+        self.assertEqual(
+            metrics["total_balance"],
+            DashboardService.get_total_balance(),
+        )
 
 
 if __name__ == "__main__":

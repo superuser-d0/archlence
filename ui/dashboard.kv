@@ -728,18 +728,23 @@ MDScreen:
 
                                 # ZAMAN FİLTRESİ
                                 MDSegmentedControl:
+                                    id: home_period_control
                                     pos_hint: {"center_x": .5}
                                     size_hint_x: 0.9
                                     md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
                                     segment_color: ftheme.card_bg(app.theme_cls.theme_style)
                                     on_active: app.change_home_filter(args[1].text)
                                     MDSegmentedControlItem:
+                                        id: segment_filter_today
                                         text: app.tr("Bugün", app.language)
                                     MDSegmentedControlItem:
+                                        id: segment_filter_week
                                         text: app.tr("1 Hafta", app.language)
                                     MDSegmentedControlItem:
+                                        id: segment_filter_month
                                         text: app.tr("1 Ay", app.language)
                                     MDSegmentedControlItem:
+                                        id: segment_filter_year
                                         text: app.tr("1 Yıl", app.language)
 
                                 MDBoxLayout:

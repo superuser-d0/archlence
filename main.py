@@ -869,30 +869,31 @@ class ArchlenceApp(
 
         from utils.financial_decimal import decimal_from
 
-        opening_baseline = decimal_from(
-            DashboardService.get_opening_baseline()
-        )
-        total_balance = total_income - total_expense + opening_baseline
+        # Accounts are the authoritative wallet balance.  Reconstructing the
+        # total from income/expense rows misses non-transaction ledger moves
+        # such as savings deposits and can diverge from the Accounts screen.
+        total_balance = decimal_from(DashboardService.get_total_balance())
 
         filter_text = getattr(self, "home_filter", "Bugün")
-
-        if filter_text == "1 Hafta":
-            date_cond = ">= date('now', '-7 days', 'localtime')"
-        elif filter_text == "1 Ay":
-            date_cond = ">= date('now', '-1 month', 'localtime')"
-        elif filter_text == "1 Yıl":
-            date_cond = ">= date('now', '-1 year', 'localtime')"
-        elif filter_text == "Hayat Boyu":
-            date_cond = "> '2000-01-01'"
-        else:
-            date_cond = "= date('now', 'localtime')"
+        from services.dashboard_period_service import (
+            calculate_balance_change,
+            period_bounds,
+        )
+        period_start, period_end = period_bounds(filter_text)
 
         with managed_connection() as conn2:
-            period_rows = conn2.execute(
-                f"SELECT id, amount, type, 'extra' AS importance "
-                f"FROM transactions WHERE date(transaction_date) {date_cond}"
-                f" AND {COMPLETED_TX}"
-            ).fetchall()
+            if period_start is None:
+                period_rows = conn2.execute(
+                    f"SELECT id, amount, type, 'extra' AS importance "
+                    f"FROM transactions WHERE {COMPLETED_TX}"
+                ).fetchall()
+            else:
+                period_rows = conn2.execute(
+                    f"SELECT id, amount, type, 'extra' AS importance "
+                    f"FROM transactions WHERE date(transaction_date) BETWEEN ? AND ?"
+                    f" AND {COMPLETED_TX}",
+                    (period_start.isoformat(), period_end.isoformat()),
+                ).fetchall()
         period = summarize_transactions(period_rows)
         period_income = period.total_income
         period_expense = period.total_expense
@@ -911,11 +912,18 @@ class ArchlenceApp(
         daily_expense = recent.total_expense / 30
 
         try:
-            change_rate = self.calculate_monthly_change_rate()
+            period_change = calculate_balance_change(
+                filter_text,
+                total_balance,
+                today=period_end,
+            )
         except Exception as e:
             from utils.logging_config import get_logger
-            get_logger().exception("Değişim oranı hesaplanamadı")
-            change_rate = None
+            get_logger().exception("Dönem bakiye değişimi hesaplanamadı")
+            period_change = {
+                "nominal_change": None,
+                "percentage": None,
+            }
 
         metrics = {
             "filter_text": filter_text,
@@ -925,9 +933,10 @@ class ArchlenceApp(
             "period_income": period_income,
             "period_expense": period_expense,
             "period_net": period_net,
+            "balance_change": period_change["nominal_change"],
             "projection_daily_income": daily_income,
             "projection_daily_expense": daily_expense,
-            "change_rate": change_rate,
+            "change_rate": period_change["percentage"],
         }
         # Yalnızca HATASIZ tamamlanan hesap önbelleğe alınır: yukarıdaki
         # `summarize_transactions` bozuk bir kayıtta
@@ -957,6 +966,11 @@ class ArchlenceApp(
         toast(f"{unavailable} (Hata: {error_id})")
 
     def _apply_dashboard_metrics(self, m):
+        # A replaced background job may still finish after the user chooses a
+        # new filter.  Never let its old label/value pair overwrite the active
+        # period's UI.
+        if m.get("filter_text") != getattr(self, "home_filter", "Bugün"):
+            return
         if not self.root:
             return
 
@@ -968,6 +982,7 @@ class ArchlenceApp(
             "base_daily_expense": m.get("projection_daily_expense", 0.0),
         }
         period_net = m["period_net"]
+        balance_change = m.get("balance_change")
 
         def _set_changed(widget, prop, value):
             if getattr(widget, prop, None) != value:
@@ -1029,9 +1044,10 @@ class ArchlenceApp(
             )
             _set_changed(self.root.ids.today_card_title, "text", localized_filter)
 
-            prefix = "+" if period_net > 0 else ""
+            displayed_change = period_net if balance_change is None else balance_change
+            prefix = "+" if displayed_change > 0 else ""
             formatted_period = (
-                f"{period_net:,.2f} ₺".replace(",", "X")
+                f"{displayed_change:,.2f} ₺".replace(",", "X")
                 .replace(".", ",")
                 .replace("X", ".")
             )
@@ -1112,8 +1128,7 @@ class ArchlenceApp(
                 if card is not None:
                     card.opacity = 1
 
-        if m.get("change_rate") is not None:
-            self._apply_change_rate(m["change_rate"])
+        self._apply_change_rate(m.get("change_rate"))
 
     def _fmt_tr(self, value: float) -> str:
         return format_try(value)
@@ -1222,68 +1237,24 @@ class ArchlenceApp(
         self.refresh_dashboard_data()
 
     def calculate_monthly_change_rate(self):
-        now = datetime.datetime.now().date()
-        filter_text = getattr(self, "home_filter", "Bugün")
+        """Compatibility wrapper for callers that still use the old name."""
+        from services.dashboard_period_service import calculate_balance_change
+        from services.queries import DashboardService
 
-        if filter_text == "1 Hafta":
-            current_start = now - datetime.timedelta(days=7)
-            prev_start = current_start - datetime.timedelta(days=7)
-            prev_end = current_start
-        elif filter_text == "1 Ay":
-            current_start = now - datetime.timedelta(days=30)
-            prev_start = current_start - datetime.timedelta(days=30)
-            prev_end = current_start
-        elif filter_text == "1 Yıl":
-            current_start = now - datetime.timedelta(days=365)
-            prev_start = current_start - datetime.timedelta(days=365)
-            prev_end = current_start
-        else:
-            current_start = now
-            prev_start = now - datetime.timedelta(days=1)
-            prev_end = now
-
-        with managed_connection() as conn:
-            rows = conn.execute(
-                "SELECT amount, type, transaction_date FROM transactions"
-                f" WHERE {COMPLETED_TX}"
-            ).fetchall()
-
-        current_net = prev_net = 0.0
-
-        for amount_enc, t_type, t_date in rows:
-            if not t_date:
-                continue
-            try:
-                t_dt = datetime.datetime.strptime(t_date[:10], "%Y-%m-%d").date()
-                amount = float(decrypt(amount_enc, SECRET_KEY))
-            except (ValueError, TypeError):
-                continue
-
-            val = (
-                amount
-                if t_type in ("income", "Gelir")
-                else -amount if t_type in ("expense", "Gider") else 0.0
-            )
-
-            if current_start <= t_dt <= now:
-                current_net += val
-            elif prev_start <= t_dt < prev_end:
-                prev_net += val
-
-        if prev_net == 0:
-            change_rate = (
-                100.0 if current_net > 0 else -100.0 if current_net < 0 else 0.0
-            )
-        else:
-            change_rate = ((current_net - prev_net) / abs(prev_net)) * 100
-
-        return change_rate
+        result = calculate_balance_change(
+            getattr(self, "home_filter", "Bugün"),
+            DashboardService.get_total_balance(),
+        )
+        return result["percentage"]
 
     def _apply_change_rate(self, rate):
         try:
             if self.root and "change_rate_label" in self.root.ids:
                 label = self.root.ids.change_rate_label
-                if rate > 0:
+                if rate is None:
+                    label.text = "—"
+                    label.text_color = ftheme.accent(self.theme_cls, "muted")
+                elif rate > 0:
                     label.text = f"+%{rate:.1f}"
                     label.text_color = ftheme.accent(self.theme_cls, "green")
                 elif rate < 0:
@@ -1329,6 +1300,24 @@ class ArchlenceApp(
                 else:
                     btn.md_bg_color = bg_inactive
                     btn.text_color = ftheme.inactive_control_text(self.theme_cls)
+
+            # The compact control above the summary cards is a separate KivyMD
+            # widget. Programmatic changes (lower filter row, capture tooling,
+            # restored state) do not move its switch automatically.
+            segment_items = {
+                "Bugün": self.root.ids.segment_filter_today,
+                "1 Hafta": self.root.ids.segment_filter_week,
+                "1 Ay": self.root.ids.segment_filter_month,
+                "1 Yıl": self.root.ids.segment_filter_year,
+            }
+            selected = segment_items.get(getattr(self, "home_filter", "Bugün"))
+            segmented = self.root.ids.home_period_control
+            if (
+                selected is not None
+                and segmented.current_active_segment is not selected
+            ):
+                segmented.current_active_segment = selected
+                segmented.animation_segment_switch(selected)
         except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Filtre butonları görünümü eşitlenemedi")
