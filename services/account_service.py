@@ -12,6 +12,7 @@ düz metin olarak kullanılıyor; sonradan şifrelemek mevcut satırları okunam
 hale getirirdi.
 """
 from database.db import ACCOUNT, get_connection, record_balance_event
+from utils.financial_decimal import fiat
 
 CHECKING = "checking"
 CREDIT_CARD = "credit_card"
@@ -362,7 +363,13 @@ class AccountService:
             return False, "Geçersiz tutar."
         
         avail = float(acc["available_limit"])
-        if amount > avail:
+        # Karşılaştırma kuruş hassasiyetinde. `available_limit` zaten
+        # round(...,2) ile üretiliyor ama `amount` üretilmiş bir değer
+        # olabilir (varlık alımında fiyat x miktar gibi) ve bir kuruşun
+        # milyonda biri kadar aşan bir harcama, hata mesajında AYNI iki
+        # tutarı gösterip reddedilirdi: "kullanılabilir limit 1.000,00 ₺,
+        # harcama 1.000,00 ₺". Kullanıcının çözemeyeceği bir ret.
+        if fiat(amount) > fiat(avail):
             return False, (
                 f"Limit yetersiz: kullanılabilir limit "
                 f"{_fmt_try(avail)}, harcama {_fmt_try(amount)}."

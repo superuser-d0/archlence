@@ -24,6 +24,7 @@ from database.db import (
 )
 from utils.crypto import encrypt, decrypt
 from utils.errors import DecryptionError, KeyUnavailableError
+from utils.financial_decimal import fiat
 
 STATUS_ACTIVE = "aktif"
 STATUS_COMPLETED = "tamamlandi"
@@ -48,7 +49,9 @@ class SavingsService:
                 VALUES (?, ?, ?, ?, ?)
             """, (encrypt(str(goal_name), SECRET_KEY), target_amount,
                   current_amount, target_date,
-                  STATUS_COMPLETED if current_amount >= target_amount else STATUS_ACTIVE))
+                  STATUS_COMPLETED
+                  if fiat(current_amount) >= fiat(target_amount)
+                  else STATUS_ACTIVE))
             goal_id = cursor.lastrowid
             # [Faz 2 · defter] Hedef 0 birikimle açılır: delta 0, toplamı
             # etkilemez ama defterde hedefin doğuşu görünür.
@@ -130,10 +133,18 @@ class SavingsService:
                 conn.rollback()
                 raise ValueError("Hedef bulunamadı ya da zaten tamamlanmış")
 
-            # Hedefe ulaşıldıysa durumu aynı commit içinde işaretle
+            # Hedefe ulaşıldıysa durumu aynı commit içinde işaretle.
+            #
+            # ROUND(...,2) ZORUNLU: `current_amount` REAL bir sütun ve
+            # `current_amount + ?` ile birikiyor, yani ikili kayan nokta
+            # artığı taşıyabiliyor. 3000 x 0,10 TL yatırma 300,00 yerine
+            # 299.9999999999997 üretir — ekranda "300,00 TL" yazarken hedef
+            # tamamlanmamış sayılırdı. Para kuruştan ince değildir; karar da
+            # kuruş hassasiyetinde verilmeli.
             cursor.execute(
                 f"UPDATE savings_goals SET status = '{STATUS_COMPLETED}' "
-                f"WHERE id = ? AND current_amount >= target_amount",
+                f"WHERE id = ? AND ROUND(current_amount, 2) "
+                f">= ROUND(target_amount, 2)",
                 (goal_id,),
             )
 
@@ -169,9 +180,15 @@ class SavingsService:
         try:
             cursor = conn.cursor()
 
+            # ROUND(...,2): bu koruma olmadan uygulama, EKRANDA GÖSTERDİĞİ
+            # parayı kullanıcıya vermiyordu. 3000 x 0,10 TL yatıran birinin
+            # birikimi REAL sütunda 299.9999999999997 durur; ekranda
+            # "300,00 TL" yazar; 300,00 TL çekmek isteyince `current_amount
+            # >= ?` sağlanmaz ve "Hedefte bu kadar birikim yok" hatası alır.
+            # Kendi parasına erişemez.
             cursor.execute(
                 "UPDATE savings_goals SET current_amount = current_amount - ? "
-                "WHERE id = ? AND current_amount >= ?",
+                "WHERE id = ? AND ROUND(current_amount, 2) >= ROUND(?, 2)",
                 (amount, goal_id, amount),
             )
             if cursor.rowcount == 0:
