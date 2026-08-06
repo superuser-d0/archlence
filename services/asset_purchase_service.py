@@ -15,6 +15,7 @@ from database.db import (
 )
 from services.account_service import AccountService, _fmt_try
 from utils.crypto import encrypt
+from utils.financial_decimal import decimal_from, fiat
 
 
 class AssetPurchaseService:
@@ -77,7 +78,19 @@ class AssetPurchaseService:
         qty = float(quantity)
         if price <= 0 or qty <= 0:
             raise ValueError("Fiyat ve miktar sıfırdan büyük olmalıdır.")
-        invested_amount = price * qty
+        # NAKİT tutar kuruşa yuvarlanır. Ham `price * qty` çarpımı hem
+        # bakiyeden düşülüyor hem de işlem tutarı olarak ŞİFRELENİP
+        # SAKLANIYORDU; ikili kayan nokta artıkları böylece deftere kalıcı
+        # giriyordu: 142,30 x 17 -> "2419.1000000000004",
+        # 2.456,78 x 0,12345678 -> "303.3061479684" (on ondalıklı bir LİRA
+        # tutarı). Kullanıcı kuruşu olan bir tutar öder.
+        #
+        # Bilgi kaybı yok: `purchase_price` ve `quantity` ayrı sütunlarda tam
+        # hassasiyetle duruyor, portföy değeri onlardan türetiliyor. Burada
+        # yuvarlanan yalnızca CÜZDANDAN ÇIKAN paradır.
+        invested_amount = float(
+            fiat(decimal_from(purchase_price) * decimal_from(quantity))
+        )
 
         if deduct_from_balance and account_id is None:
             account_id = AssetPurchaseService._pick_funding_account(

@@ -60,6 +60,59 @@ class AssetPurchaseAtomicityTest(AccountFixtureMixin, unittest.TestCase):
         self.assertEqual(event[1], "asset_purchase")
         self.assertEqual(event[2], result["transaction_id"])
 
+    def test_cash_amount_is_quantised_to_kurus_not_a_raw_float_product(self):
+        """Cüzdandan çıkan tutar kuruşa yuvarlanmış olmalı.
+
+        `invested_amount = price * qty` ham çarpımı hem bakiyeden düşülüyor
+        hem de işlem tutarı olarak ŞİFRELENİP SAKLANIYORDU, yani ikili kayan
+        nokta artıkları deftere kalıcı giriyordu:
+
+            142,30 x 17          -> 2419.1000000000004
+            2.456,78 x 0,12345678 -> 303.3061479684  (on ondalıklı bir LİRA)
+
+        Fiyat ve miktar ayrı sütunlarda tam hassasiyetle durduğu için burada
+        bilgi kaybı yok; yuvarlanan yalnızca nakit hareketidir.
+        """
+        from decimal import Decimal
+        from services.asset_purchase_service import AssetPurchaseService
+        from utils.crypto import decrypt
+        from services.transaction_service import SECRET_KEY
+
+        for price, qty, expected in (
+            ("142.30", "17.0", Decimal("2419.10")),
+            ("2456.78", "0.12345678", Decimal("303.31")),
+            ("67234.56", "0.003125", Decimal("210.11")),
+        ):
+            with self.subTest(price=price, quantity=qty):
+                account_id = self.create_test_account(
+                    name=f"Nakit {price}-{qty}", balance=100_000.0
+                )
+                AssetPurchaseService.create_purchase(
+                    asset_name="Test", asset_code="TST", asset_type="Kripto",
+                    purchase_price=float(price), quantity=float(qty),
+                    account_id=account_id,
+                )
+                with closing(sqlite3.connect(self.db_path)) as conn:
+                    stored, = conn.execute(
+                        "SELECT amount FROM transactions "
+                        "WHERE account_id=? AND category='Varlık Alımı'",
+                        (account_id,),
+                    ).fetchone()
+                    balance, = conn.execute(
+                        "SELECT balance FROM accounts WHERE id=?",
+                        (account_id,),
+                    ).fetchone()
+
+                # Saklanan metin tam olarak kuruşlu tutar olmalı — ne
+                # "2419.1000000000004" ne de "303.3061479684".
+                self.assertEqual(
+                    Decimal(decrypt(str(stored), SECRET_KEY)), expected
+                )
+                # Bakiyeden düşülen de aynı tutar olmalı.
+                self.assertEqual(
+                    Decimal(str(balance)), Decimal("100000.00") - expected
+                )
+
     def test_failure_after_asset_insert_rolls_back_every_row(self):
         from services.asset_purchase_service import AssetPurchaseService
 
