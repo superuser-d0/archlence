@@ -141,7 +141,21 @@ def _semantic_snapshot(db_path, decrypt):
 
 
 def _configure_isolated_home(profile):
-    os.environ["ARCHLENCE_HOME"] = str(profile)
+    # `ARCHLENCE_HOME` BİLEREK SET EDİLMİYOR.
+    #
+    # O değişkeni YALNIZCA güncel kod tanıyor (`app_paths.HOME_OVERRIDE_ENV`);
+    # v0.0.1-v0.0.8 bilmiyor. Set edildiğinde iki kuşak profilin FARKLI
+    # yerlerine bakıyordu: eski kod `$XDG_DATA_HOME/Archlence`, güncel kod
+    # `$ARCHLENCE_HOME/data`. Sonuç: eski worker anahtarı bir yere yazıyor,
+    # güncel worker onu bulamayıp YENİSİNİ üretiyor ve eski verinin AEAD
+    # etiketini doğrulayamıyor — "MAC check failed". Yani matris migration'ı
+    # değil, kendi kurduğu anahtar uyuşmazlığını ölçüyordu.
+    #
+    # XDG değişkenleri her iki kuşakta da geçerli; onlarla izolasyon tam ve
+    # iki taraf aynı dosyayı görüyor. Bu bir ÜRÜN hatası değil: gerçek bir
+    # kurulumda `ARCHLENCE_HOME` set edilmez ve her iki sürüm de
+    # `~/.local/share/Archlence` yolunu çözer.
+    os.environ.pop("ARCHLENCE_HOME", None)
     os.environ["XDG_DATA_HOME"] = str(profile / "xdg-data")
     os.environ["XDG_CACHE_HOME"] = str(profile / "xdg-cache")
     os.environ["XDG_CONFIG_HOME"] = str(profile / "xdg-config")
@@ -301,6 +315,14 @@ def _subprocess(worker, code_root, db_path, profile, result):
     # herhangi bir yerinde bir GUI import'u kalırsa süreç en azından
     # deterministik davransın diye headless sözleşmesi korunuyor.
     environment["SDL_VIDEODRIVER"] = "dummy"
+    # ANAHTAR SAĞLAYICISI DETERMİNİSTİK OLMALI. Linux'ta OS keyring varsa
+    # anahtar profil dizininde DEĞİL, kullanıcının keyring'inde tutuluyor —
+    # ve orada her iki worker da aynı anahtarı aldığı için yukarıdaki yol
+    # uyuşmazlığı geliştirici makinesinde GÖRÜNMÜYORDU; hata yalnız
+    # keyring'i olmayan runner'da çıkıyordu. D-Bus adresi kaldırılınca
+    # Secret Service devre dışı kalıyor ve harness her yerde aynı (dosya
+    # tabanlı) yolu izliyor.
+    environment.pop("DBUS_SESSION_BUS_ADDRESS", None)
 
     completed = subprocess.run(
         command, text=True, capture_output=True, timeout=120, env=environment
