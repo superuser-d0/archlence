@@ -1,9 +1,32 @@
 # Changelog
 
-## Unreleased
+## [0.0.9] — 2026-08-08
 
-Reliability work from the v0.0.9 audit. No version bump and no release date —
-this section records what is already fixed on the branch.
+This release came out of an audit rather than a feature plan, and most of what
+it fixes could lose or corrupt data silently: an infinity typed into an amount
+field that quietly removed an account from the portfolio total, a recurring
+payment charged twice for the same period, an asset sale that credited cash
+while leaving the asset in the portfolio, and a backup whose contents could be
+rewritten without the application noticing. It remains a **pre-release**.
+
+### Highlights
+
+- **An amount field can no longer corrupt your balances.** Entering `Infinity`
+  as an expense drove an account balance to `-inf`, then to `NULL`, at which
+  point the account dropped out of the portfolio total with no error shown — a
+  5.000 TL account made 7.500 TL read as 2.500 TL.
+- **Money can no longer be moved twice by one action.** Recurring charges and
+  refunds are idempotent per period, concurrent card spends can no longer both
+  pass the same limit check, and asset sales and debt instalments now complete
+  or roll back as a whole.
+- **A tampered backup is rejected.** Rewriting the financial data and
+  recomputing the stored SHA-256 previously produced a package the application
+  accepted; packages are now authenticated.
+- **An interrupted restore no longer leaves a mixed profile.** The database,
+  key and config move as one generation, and startup finishes or rolls back the
+  interrupted attempt before anything reads them.
+- **An older build refuses to open a newer database** instead of writing to it
+  and dropping the columns it does not recognise.
 
 ### Financial correctness and reliability
 
@@ -63,6 +86,20 @@ this section records what is already fixed on the branch.
   request, and the scan blocks. Nothing had scanned them before, which is why
   eighteen advisories had accumulated unnoticed.
 
+### Performance
+
+- No performance-affecting changes. The reliability fixes add a transaction
+  boundary around asset sales and debt instalments and a `BEGIN IMMEDIATE`
+  around the card limit check; both are per-operation and were measured as no
+  change in the startup and rapid-tap tests that already cover those paths.
+
+### UI and accessibility
+
+- A failed restore recovery and a database written by a newer build each stop
+  startup with a plain explanation instead of proceeding. Both messages state
+  that no file was touched, and neither carries a path, key, version number or
+  traceback.
+
 ### Testing and packaging
 
 - The exception-handler gate now recognises `except (Exception,)`,
@@ -90,6 +127,21 @@ this section records what is already fixed on the branch.
   sqlite3's context manager, which commits but does not close. The probe is
   fixed; no production path ever used that pattern.
 
+### Additional issues found and fixed
+
+- A reported connection leak turned out to be the audit probe's own. The probe
+  used sqlite3's context manager, which commits but does not close, so it
+  leaked one connection per iteration; the same measurement is identical on the
+  commit before the reliability work and on the one after, and production never
+  used that pattern. The probe is fixed and the finding is recorded rather than
+  deleted.
+- Two copies of logic that had already moved into the service layer were still
+  being computed and discarded in the UI mixins — a sale description and a debt
+  is-active flag. Both are removed; keeping second copies is how they drift.
+- The mock data generator and the ledger baseline query were the last two
+  places not covered by the connection-ownership and identifier rules the rest
+  of the codebase follows.
+
 ### Known limitations
 
 - Real Windows validation has not been performed: DPAPI, SmartScreen,
@@ -101,6 +153,13 @@ this section records what is already fixed on the branch.
 - The `reliability-gates` and `test-windows` CI jobs run on every pull request
   but are not in the branch's required status checks, so a red run does not
   block a merge. This is a repository setting, not a code change.
+
+### Installation and checksum verification
+
+- Windows: `ArchlenceSetup-0.0.9.exe`
+- Linux: `Archlence-0.0.9-x86_64.AppImage`
+- Download `SHA256SUMS.txt` from the same release and verify the matching
+  asset. The SBOM is published as `Archlence-0.0.9-sbom.cdx.json`.
 
 ## [0.0.8] — 2026-08-06
 
