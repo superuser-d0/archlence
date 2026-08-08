@@ -41,6 +41,11 @@ this section records what is already fixed on the branch.
 - Database migrations are retry-safe. A crash after `ALTER TABLE` but before
   the backfill no longer leaves the column permanently unpopulated: completion
   is decided by a postcondition, not by the column's existence.
+- The database now records which schema generation wrote it, and an older
+  build refuses to open a newer one instead of writing to it and dropping the
+  columns it does not recognise. Existing profiles are unaffected: they all
+  carry the pre-marker value, which is older than the current generation, and
+  they pick up the marker on first start.
 
 ### Security and privacy
 
@@ -70,6 +75,10 @@ this section records what is already fixed on the branch.
 - The upgrade smoke test selects the real previous release by semantic version
   instead of a fixed `v0.0.1`, and reads the expected checksum from that
   release's own manifest.
+- The pyflakes scan blocks now that its backlog is empty. It had been
+  informational since the debt made it unenforceable; 15 dead imports and 100
+  unused assignments were cleared, two of which were stale copies of logic that
+  had moved into the service layer.
 - `initialize_database()` now closes its connection on every exit path. A
   failure part-way through schema setup previously left it open, which on
   Windows means a lock on the database file — the same lock that would block
@@ -88,7 +97,7 @@ this section records what is already fixed on the branch.
 - The visual presentation of a restore-recovery failure is verified only at the
   orchestration level; actual widget rendering was not exercised.
 - `accounts.balance` and `savings_goals.current_amount` remain `REAL` columns.
-- Broad exception-handler debt and the pyflakes backlog are still open.
+- Broad exception-handler debt is still open, though the gate holds it flat.
 - The `reliability-gates` and `test-windows` CI jobs run on every pull request
   but are not in the branch's required status checks, so a red run does not
   block a merge. This is a repository setting, not a code change.

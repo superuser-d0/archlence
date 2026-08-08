@@ -255,15 +255,18 @@ kılıyor. Belgeler bu turda düzeltildi.
 
 ## 9. Açık non-Windows problemler
 
-| # | İş | Sınıf | Release blocker |
+Aşağıdaki liste bu belgenin ilk yazımındaki hâliydi; **7 maddenin 6'sı
+sonradan kapatıldı** (bkz. §14).
+
+| # | İş | Sınıf | Durum |
 |---|---|---|---|
-| 1 | `reliability-gates` + `test-windows` branch protection'da zorunlu değil | P2 — süreç | Hayır (ürün etkilemiyor) |
-| 2 | `generate_mock_data.py` bağlantıyı `try/finally` olmadan kapatıyor | P3 — geliştirici aracı | Hayır |
-| 3 | `user_version` şema işareti hâlâ 0 (A-5) | P3 | Hayır |
-| 4 | Pyflakes backlog (bloklamayan tarama) | P3 | Hayır |
-| 5 | Geniş exception borcu (145 handler, kapı yeşil, borç büyümüyor) | P3 | Hayır |
-| 6 | `bandit` B608, `database/init_db.py:549` — tablo/kolon adları iç sabitler, kullanıcı girdisi değil | P3 — önceden mevcut | Hayır |
-| 7 | Dependency güvenlik taraması (`pip-audit`) çalıştırılmadı — araç ortamda yok | P3 | Hayır |
+| 1 | `reliability-gates` + `test-windows` branch protection'da zorunlu değil | P2 — süreç | **Açık** — repo ayarı, kullanıcı kararı |
+| 2 | `generate_mock_data.py` bağlantıyı `try/finally` olmadan kapatıyor | P3 | Kapandı — `3908c51` |
+| 3 | `user_version` şema işareti hâlâ 0 (A-5) | P3 → P2 | Kapandı — `63941a5` |
+| 4 | Pyflakes backlog (bloklamayan tarama) | P3 | Kapandı — `82cdae0`, `6f3096e`, `a7e1938` |
+| 5 | Geniş exception borcu (145 handler, kapı yeşil, borç büyümüyor) | P3 | **Açık** — bilinçli |
+| 6 | `bandit` B608, `database/init_db.py` — tablo/kolon adları iç sabitler | P3 | Kapandı — `d5310ab` |
+| 7 | Dependency güvenlik taraması (`pip-audit`) çalıştırılmadı | P3 → **P2** | Kapandı — `23985a7` |
 
 **Açık P0 yok. Açık P1 yok. Release-blocker P2 yok.**
 
@@ -357,5 +360,106 @@ artifact'in doğruluğunu değil, gelecekteki regresyonların ne kadar hızlı
 yakalanacağını etkiliyor. Yine de Windows turundan önce kullanıcı
 tarafından kapatılması önerilir.
 
-**Windows doğrulamasına gönderilecek commit:** bu belgenin commit'i
-(§12'nin üçüncü satırı) — yani bu turun son HEAD'i.
+**Windows doğrulamasına gönderilecek commit:** §14'ün son satırı.
+
+---
+
+## 14. Ek tur — opsiyonel/P3 kalemlerinin kapatılması
+
+Kullanıcı isteğiyle §9'daki "bloklamayan" liste ele alındı. Biri
+bloklamayan olmaktan çıktı.
+
+### 14.1 Bağımlılık güvenlik taraması — P3 değil, P2
+
+`pip-audit` hiç koşmamıştı (Phase 2'den beri *Not started*). İlk koşum
+3 pakette **18 benzersiz** bulgu verdi:
+
+| Paket | Sürüm | Bulgu | Yeni sürüm |
+|---|---|---|---|
+| pillow | 12.2.0 | 13 | 12.3.0 |
+| cryptography | 48.0.0 | 4 | 50.0.0 |
+| setuptools | 82.0.1 | 1 | 83.0.0 |
+
+**Pillow'unkiler teorik değil, erişilebilir.**
+`services/brand_icon_service.py` kullanıcının girdiği alan adı için üç
+üçüncü-taraf ikon servisinden (`google/s2/favicons`, `icon.horse`,
+`unavatar.io`) veri çekiyor ve yanıtı doğrudan `Image.open(BytesIO(payload))`
+ile Pillow'a veriyor, ardından `resize` uyguluyor. Bulguların birkaçı tam
+bu yollarda native heap OOB write: koordinat sınırları (PYSEC-2026-3451),
+JPEG2000 tile birikimi (3496), `raw` codec mmap yolu (3493), rank filter
+(3454). Bozulmuş bir ikon servisi ya da araya giren bir bağlantı yeterli.
+Pillow `archlence.spec`'in excludes listesinde DEĞİL — Windows kurulum
+paketiyle birlikte gidiyor.
+
+cryptography transitif (keyring/SecretStorage); uygulamanın kendi şifrelemesi
+pycryptodome kullanıyor, dolayısıyla erişilebilirlik daha düşük — ama
+wheel'ler OpenSSL'i statik linkliyor ve onlar da paketleniyor.
+
+Regresyon kanıtı: yükseltilmiş pin'lerle kurulan izole ortam ile orijinal
+pin'lerle kurulan kontrol ortamı **birebir aynı** sonucu veriyor; projenin
+kendi ortamında tam suite 796 → yeşil. Yükseltme sonrası tarama temiz.
+
+Tarama artık `reliability-gates` içinde **bloklayan** adım. `continue-on-error`
+BİLEREK yok: bu bulgular tam da bilgilendirici bırakıldığı için birikmişti.
+
+### 14.2 A-5 — şema kuşağı işareti ve downgrade koruması
+
+`PRAGMA user_version` sıfırdı; veritabanı hangi yapı tarafından yazıldığını
+söylemiyordu, dolayısıyla eski bir yapı yeni bir profili açıp tanımadığı
+sütunları yok sayarak üzerine yazabilirdi.
+
+`SCHEMA_VERSION = 1` kondu. Kontrol her şeyden ÖNCE (tek bir `CREATE TABLE`
+bile çalışmadan), işaret ise EN SONDA ve koşulsuz — böylece yarım kalan
+kurulum kendini tamamlanmış saymıyor, fresh ile upgraded aynı değeri
+taşıyor. Açılış fail-closed: sürüm numaraları log'a, kullanıcıya sabit metin.
+
+Mevcut hiçbir kurulumda tetiklenemez (hepsi 0 taşıyor, 0 < 1); yalnız daha
+yeni bir yapıdan geri dönüşte devreye girer.
+
+Migration matrisi: v0.0.1–v0.0.8'in **sekizi de** `user_version=1`'e göç
+ediyor, `fresh_schema=True` korunuyor.
+
+### 14.3 Pyflakes backlog: 115 → 0
+
+15 F401 ölü import; 100 F841'in 98'i kullanılmayan `except ... as e` bağı.
+Kalan 2'si servis katmanına taşınmış işin ölü kopyasıydı ve ayrışma riskiydi:
+`asset_mixin`'in kullanılmayan satış açıklaması (`AssetSaleService.sell`
+`8b1744e`'den beri kendisi yazıyor) ve `recurring_mixin`'in kullanılmayan
+`is_active` hesabı (`DebtPaymentService.pay_auto` aynı transaction içinde
+karar veriyor).
+
+Backlog 0 olduğu için CI adımı `continue-on-error`'dan kurtarıldı ve tam
+pyflakes kümesi artık blokluyor. Workflow'da hiç `continue-on-error` kalmadı.
+
+### 14.4 Ek turun commit'leri
+
+| Commit | Tür | İçerik |
+|---|---|---|
+| `23985a7` | security | pillow/cryptography/setuptools yükseltmesi + zorunlu `pip-audit` |
+| `d5310ab` | refactor | defter baseline sorgusunun tanımlayıcı allow-list'i (bandit B608) |
+| `3908c51` | fix | `generate_mock_data.py` bağlantı kapatma |
+| `82cdae0` | chore | 15 kullanılmayan import |
+| `6f3096e` | chore | 100 F841; ikisi ölü servis kalıntısı |
+| `a7e1938` | ci | tam pyflakes kümesi bloklayan hâle getirildi |
+| `63941a5` | fix | A-5 şema kuşağı işareti + downgrade reddi |
+| *(bu commit)* | docs | bu bölüm + CHANGELOG |
+
+### 14.5 Ek tur sonrası doğrulama
+
+```
+normal suite         809 test OK (skip 2)     ← turun başında 796
+TAM pyflakes         0  (artık zorunlu)
+bloklayan lint       0
+pip-audit            temiz
+istisna kapısı       145 handler yeşil
+16 version mutation  16/16
+migration matrisi    v0.0.1–v0.0.8 · fresh_schema=True · user_version=1
+adversarial+phase2   21 test OK
+property             6 test OK
+sürüm kapısı         0.0.8 / tag v0.0.8  (bump YOK)
+compileall           temiz
+git diff --check     temiz
+```
+
+Karar değişmedi: **PRE-WINDOWS GO**. Açık tek non-Windows madde branch
+protection ayarı (§9.1) ve bilinçli exception borcu (§9.5).

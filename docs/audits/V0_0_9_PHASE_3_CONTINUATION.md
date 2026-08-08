@@ -32,20 +32,25 @@
 
 ## Açık (release blocker DEĞİL)
 
-| İş | Sınıf |
-|---|---|
-| `user_version` şema işareti (A-5) | P3 |
-| Pyflakes backlog (109) | P3 |
-| Geniş exception borcu (145) | P3 — kapı sağlam, borç büyümüyor |
+| İş | Sınıf | Durum |
+|---|---|---|
+| `user_version` şema işareti (A-5) | P3 | **Kapandı** — `63941a5`, sekiz sürüm de `user_version=1`'e göç ediyor |
+| Pyflakes backlog | P3 | **Kapandı** — 115 → 0; CI adımı artık blokluyor (`a7e1938`) |
+| Bağımlılık güvenlik taraması | P2 | **Kapandı** — `23985a7`, 18 bulgu; tarama zorunlu CI'da |
+| Geniş exception borcu (145) | P3 | Açık — kapı sağlam, borç büyümüyor |
+| `reliability-gates` branch protection'da zorunlu değil | P2 — süreç | Açık — repo ayarı, kullanıcı kararı |
 
 ## Doğrulama
 
 ```
-normal suite         796 test OK (skip 2)   ← Phase 3 kapanışında 781
-reliability-gates    16/16 version mutation · migration matrisi · 21 adversarial · property
+normal suite         809 test OK (skip 2)   ← Phase 3 kapanışında 781
+reliability-gates    16/16 version mutation · migration matrisi · 21 adversarial ·
+                     property · pip-audit temiz
 bloklayan lint       0
+TAM pyflakes         0   (artık zorunlu)
 istisna kapısı       145 handler yeşil
 sürüm kapısı         0.0.8 / tag v0.0.8
+migration matrisi    v0.0.1–v0.0.8 · fresh_schema=True · user_version=1
 compileall           temiz
 git diff --check     temiz
 ```
@@ -117,7 +122,22 @@ Taban `d5bd35f` (origin/main). Tur 1–4 Phase 3'ün kendisi (32 commit,
 | `28e43f0` | test: correct connection cleanup regression harness | P2-7'nin yanlış atfı; denetim probe'unun kendi sızıntısı (13 site) + 15 sahiplik testi |
 | `670cd11` | docs: finalize pre-Windows release traceability | `V0_0_9_PRE_WINDOWS_GATE.md` + statü düzeltmeleri |
 | `5af7fa0` | test: scan for the leaking pattern with AST, not text | Statik kapının tarama yöntemi |
-| *(bu commit)* | docs: close the round-5 commit table | Commit tablosunun kapatılması |
+| `6621935` | docs: close the round-5 commit table | Commit tablosunun kapatılması |
+
+### Tur 6 — opsiyonel/P3 kalemlerinin kapatılması
+
+Ayrıntı: `V0_0_9_PRE_WINDOWS_GATE.md` §14.
+
+| Commit | Konu | Kapattığı madde |
+|---|---|---|
+| `23985a7` | fix: update dependencies with known vulnerabilities | 18 bulgu (pillow erişilebilirdi) + zorunlu `pip-audit` |
+| `d5310ab` | refactor: guard the ledger baseline query's identifiers | bandit B608 |
+| `3908c51` | fix: close the mock data generator's connection | son `try/finally` boşluğu |
+| `82cdae0` | chore: remove unused imports | 15 F401 |
+| `6f3096e` | chore: clear the pyflakes F841 backlog | 100 F841 |
+| `a7e1938` | ci: make the full pyflakes set blocking | bloklamayan lint adımı |
+| `63941a5` | fix: mark the schema generation and refuse newer databases | **A-5** |
+| *(bu commit)* | docs: record the optional-item round | bu tablo + CHANGELOG |
 
 ### İzlenebilirlik notu
 
