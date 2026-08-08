@@ -58,6 +58,12 @@ jobs:
     steps:
       - name: Kodu çek
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          # Upgrade smoke `previous_release.py` ile GERÇEK önceki yayını
+          # seçiyor, o da `git tag` okuyor. Varsayılan checkout etiketleri
+          # çekmiyor; bu adım etiketsiz kaldığında "önceki yayın yok" deyip
+          # smoke'u ATLARDI — sessizce yeşil, hiçbir şey doğrulamadan.
+          fetch-tags: true
 
       - name: Python kur
         # KARAR (kilitli — kasıtlı, 2026-07-29): paketleme için Python 3.12,
@@ -257,7 +263,20 @@ jobs:
           # Beklenen hash tabanın KENDİ yayınından; sabit sabit değil.
           $sumsUrl = "https://github.com/${{ github.repository }}/releases/download/$baseline/SHA256SUMS.txt"
           try {
-            $sums = (Invoke-WebRequest $sumsUrl -TimeoutSec 180).Content
+            # `.Content` METİN OLMAK ZORUNDA. GitHub yayın varlıklarını
+            # `application/octet-stream` ile sunuyor (302 sonrası
+            # objects.githubusercontent.com) ve PowerShell 7 metin olmayan
+            # content-type'ta `.Content`'i `byte[]` döndürüyor. O hâlde
+            # aşağıdaki `-split` bayt SAYILARINI diziyor, hiçbiri dosya adına
+            # uymuyor ve adım "manifestte bulunamadı" diyerek yanlış sebeple
+            # kırılıyor — manifest doğruyken. İlk gerçek koşumda tam olarak
+            # bu oldu.
+            $response = Invoke-WebRequest $sumsUrl -TimeoutSec 180
+            $sums = if ($response.Content -is [byte[]]) {
+              [System.Text.Encoding]::UTF8.GetString($response.Content)
+            } else {
+              [string]$response.Content
+            }
           } catch {
             Write-Host "::error::Taban yayının SHA256SUMS.txt dosyası indirilemedi: $sumsUrl"
             exit 1
