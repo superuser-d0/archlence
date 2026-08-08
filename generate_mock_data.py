@@ -17,7 +17,7 @@ Tasarım notları:
 """
 import random
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 from database.db import (
     DB_NAME, SECRET_KEY, get_connection,
@@ -79,7 +79,22 @@ def iter_monthly(start_d, end_d, day):
 
 
 def main():
+    """Bağlantıyı her çıkış yolunda kapatır.
+
+    `database/init_db.py::initialize_database` ile aynı kalıp ve aynı gerekçe:
+    gövde ayrı bir fonksiyonda ki `try/finally` tek yerde dursun ve 180 satır
+    yeniden girintilenmesin. Bu bir geliştirici aracı, paketlenmiyor — ama
+    `tests/test_connection_ownership_contract.py` sahiplik sözleşmesini
+    depo genelinde arıyor ve tek istisna bırakmak kuralı yumuşatırdı.
+    """
     conn = get_connection()
+    try:
+        _main(conn)
+    finally:
+        conn.close()
+
+
+def _main(conn):
     cursor = conn.cursor()
     n_tx = 0
 
@@ -256,8 +271,7 @@ def main():
         net = inc - exp
         flag = "  << EKSİ" if net < 0 else ""
         print(f"  {ym}:  +{inc:>12,.2f}  -{exp:>12,.2f}  net {net:>12,.2f}{flag}")
-
-    conn.close()
+    # Kapatma sarmalayıcı `main()`'in `finally` bloğunda.
 
 
 if __name__ == "__main__":
