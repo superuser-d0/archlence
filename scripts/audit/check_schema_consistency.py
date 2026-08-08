@@ -145,6 +145,12 @@ def _configure_isolated_home(profile):
     os.environ["XDG_DATA_HOME"] = str(profile / "xdg-data")
     os.environ["XDG_CACHE_HOME"] = str(profile / "xdg-cache")
     os.environ["XDG_CONFIG_HOME"] = str(profile / "xdg-config")
+    # KIVY DA İZOLE EDİLMELİ. XDG dizinleri ayrılıyordu ama Kivy kendi
+    # durumunu `~/.kivy` altında tutuyor ve orası paylaşık kalıyordu: aynı
+    # profil için önce ESKİ sürümün kodu, sonra GÜNCEL kod çalışıyor, yani
+    # ikinci koşum birincinin yazdığı Kivy config'ini okuyor. Bu, izolasyon
+    # iddiasındaki gerçek bir boşluktu.
+    os.environ["KIVY_HOME"] = str(profile / "kivy-home")
 
 
 def _load_code(code_root, db_path, profile):

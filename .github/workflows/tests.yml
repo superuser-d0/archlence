@@ -154,7 +154,7 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install system libraries Kivy loads at import time
+      - name: Install system libraries and a display for Kivy
         # `kivy.input.providers` KOŞULSUZ olarak `mtdev`'i import ediyor ve o
         # da `libmtdev.so.1`'i `cdll.LoadLibrary` ile yüklüyor. Runner'da bu
         # kütüphane yok; migration matrisinin alt süreçleri uygulama kodunu
@@ -164,7 +164,7 @@ jobs:
         # `test` job'ında görülmüyor çünkü orası Kivy'nin girdi sağlayıcı
         # taramasına hiç ulaşmıyor. Geliştirici makinelerinde kütüphane zaten
         # kurulu; bu yüzden yalnızca CI'da ortaya çıktı.
-        run: sudo apt-get update && sudo apt-get install -y libmtdev1
+        run: sudo apt-get update && sudo apt-get install -y libmtdev1 xvfb
 
       - name: Install dependencies
         run: |
@@ -177,8 +177,18 @@ jobs:
         run: python scripts/audit/version_mutation_matrix.py
 
       - name: Schema and migration matrix (v0.0.1 - v0.0.8)
+        # `xvfb-run`: bu adımın worker'ları `import main` yapıyor, yani Kivy
+        # gerçekten bir Window sağlayıcısı arıyor. Runner'da hiç ekran yok ve
+        # SDL'in `dummy` sürücüsünde OpenGL bulunmadığı için sağlayıcı
+        # seçimi CRITICAL ile ölüyordu.
+        #
+        # `KIVY_WINDOW=mock` ÇÖZÜM DEĞİL: Kivy 2.3.1'de mock gerçek bir
+        # sağlayıcı değil ve bu depoda daha önce tam olarak bu yüzden bir
+        # hata yaşandı (bkz. tests/test_startup_import.py'nin docstring'i) —
+        # gerçek pencere denemesi hiç yapılmadan sessizce atlanıyordu.
+        # Sanal ekran, kontrolü zayıflatmak yerine ortamı yeterli kılıyor.
         run: |
-          python scripts/audit/check_schema_consistency.py \
+          xvfb-run -a python scripts/audit/check_schema_consistency.py \
             --output migration-matrix.json
 
       - name: Adversarial financial reproductions
