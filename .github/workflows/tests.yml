@@ -212,38 +212,26 @@ jobs:
           --exclude=.venv,venv,build,dist,.git,AppDir
           --count
 
-      # Bilgilendirici, BLOKLAMAYAN pyflakes taraması (docs/ROADMAP.md Faz 0).
-      # Neden bloklamıyor: hâlâ 122 mevcut ihlal var (2026-08-04'te ölçüldü;
-      # 2026-07-27'de 117'ydi). Şimdi zorunlu yapmak, değişiklikle ilgisi
-      # olmayan sebeplerle her PR'ı kırardı. Amacı sayıyı GÖRÜNÜR kılmak:
-      # çıktı iş özetine yazılır, kimsenin log kazması gerekmez.
-      # Borç eritildikçe `continue-on-error` kaldırılıp zorunlu yapılmalıdır.
-      - name: Report pyflakes backlog (informational)
-        continue-on-error: true
-        run: |
-          set +e
-          python -m flake8 . --select=F \
-            --exclude=.venv,venv,build,dist,.git,AppDir > pyflakes.txt
-          total=$(wc -l < pyflakes.txt)
-          {
-            echo "### Pyflakes backlog: ${total} finding(s)"
-            echo ""
-            echo "Informational only — this step never fails the build."
-            echo ""
-            echo '```'
-            grep -oE 'F[0-9]+' pyflakes.txt | sort | uniq -c | sort -rn
-            echo '```'
-            echo ""
-            echo "<details><summary>Full list</summary>"
-            echo ""
-            echo '```'
-            cat pyflakes.txt
-            echo '```'
-            echo ""
-            echo "</details>"
-          } >> "$GITHUB_STEP_SUMMARY"
-          cat pyflakes.txt
-          exit 0
+      # ARTIK BLOKLUYOR (docs/ROADMAP.md Faz 0 kapandı).
+      #
+      # Bu adım uzun süre `continue-on-error: true` ile bilgilendiriciydi,
+      # çünkü 122 mevcut ihlal vardı ve zorunlu yapmak her PR'ı ilgisiz
+      # sebeplerle kırardı. v0.0.9'da borç sıfırlandı: 15 F401 ölü import
+      # kaldırıldı, 98 F841 kullanılmayan `except ... as e` bağı temizlendi,
+      # kalan 2 F841 ise servis katmanına taşınmış işin ölü kalıntısıydı
+      # (`AssetSaleService.sell` açıklaması, `DebtPaymentService.pay_auto`
+      # is_active hesabı) — ikisi de silindi.
+      #
+      # Sayı 0 olduğu için kapı artık bedava: yeni bir ihlal ancak o PR'ın
+      # kendi getirdiği ihlaldir. Tekrar `continue-on-error` eklemek yerine
+      # ihlali düzeltin; backlog'un nasıl biriktiğini bu dosyanın geçmişi
+      # zaten gösteriyor.
+      - name: Block the full pyflakes set
+        run: >-
+          python -m flake8 .
+          --select=F
+          --exclude=.venv,venv,build,dist,.git,AppDir
+          --count
 
       - name: Prevent new broad or silent exception handlers
         run: >-
