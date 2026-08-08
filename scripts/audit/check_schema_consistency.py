@@ -251,7 +251,61 @@ def _subprocess(worker, code_root, db_path, profile, result):
         )
 
 
+def _ensure_worktree(worktree, version):
+    """Eksikse etiketten detached worktree kurar; kurduysa `True` döner.
+
+    NEDEN VAR: bu adım worktree'leri HAZIR BULMAYI bekliyordu ve yoksa
+    `SystemExit` atıyordu. Kimse onları oluşturmadığı için `reliability-gates`
+    job'ında hiç çalışamadı — job `ad6296f` ile eklendi ama CI yalnız
+    `main`/PR'da koştuğu ve bu dal hiç push edilmediği için kırmızı olduğu
+    ilk gerçek koşuma kadar görülmedi. Yerelde de kırılgandı: worktree'ler
+    `/tmp` altındaydı, sistem `/tmp`'yi temizleyince adım bozuluyordu.
+
+    Artık eksikse kendisi kuruyor. Etiket yoksa açık hata verir — `git tag`
+    boşsa checkout tag çekmemiş demektir, bunu sessizce atlamak adımı
+    ölçmeden yeşile çevirirdi.
+    """
+    if (worktree / ".git").exists():
+        return False
+    probe = subprocess.run(
+        ["git", "rev-parse", "--verify", f"{version}^{{commit}}"],
+        cwd=CURRENT_ROOT, text=True, capture_output=True,
+    )
+    if probe.returncode:
+        raise SystemExit(
+            f"{version} etiketi bulunamadı; migration matrisi çalıştırılamaz. "
+            "CI'da checkout `fetch-depth: 0` (ya da `fetch-tags`) istiyor."
+        )
+    worktree.parent.mkdir(parents=True, exist_ok=True)
+    created = subprocess.run(
+        ["git", "worktree", "add", "--quiet", "--detach", str(worktree), version],
+        cwd=CURRENT_ROOT, text=True, capture_output=True,
+    )
+    if created.returncode:
+        raise SystemExit(
+            f"{version} için worktree kurulamadı:\n{created.stderr}"
+        )
+    return True
+
+
 def _main(args):
+    created_worktrees = []
+    try:
+        return _run_matrix(args, created_worktrees)
+    finally:
+        # YALNIZCA bu koşumun kurduklarını kaldır. Önceden var olan bir
+        # worktree'yi silmek, geliştiricinin elle kurduğu ortamı bozardı.
+        for worktree in created_worktrees:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(worktree)],
+                cwd=CURRENT_ROOT, capture_output=True,
+            )
+        subprocess.run(
+            ["git", "worktree", "prune"], cwd=CURRENT_ROOT, capture_output=True,
+        )
+
+
+def _run_matrix(args, created_worktrees):
     worktree_root = Path(args.worktree_root).resolve()
     output = Path(args.output).resolve()
     with tempfile.TemporaryDirectory(prefix="archlence-migration-matrix-") as tmp:
@@ -270,8 +324,8 @@ def _main(args):
         for patch in range(1, 9):
             version = f"v0.0.{patch}"
             worktree = worktree_root / f"archlence-audit-v00{patch}"
-            if not (worktree / ".git").exists():
-                raise SystemExit(f"Eksik detached worktree: {worktree}")
+            if _ensure_worktree(worktree, version):
+                created_worktrees.append(worktree)
             case = root / version
             case.mkdir()
             db_path = case / "finance.db"
