@@ -20,6 +20,13 @@ güncellemesi gerektiğinin hatırlatıcısıdır.
 Ayarı okumak için:
     gh api repos/superuser-d0/archlence/branches/main/protection \\
       --jq '.required_status_checks.contexts'
+
+NEDEN `tests/` ALTINDA DEĞİL: bu dosya YAML ayrıştırıyor, yani PyYAML'a
+ihtiyacı var. `test` job'ı bilerek yalnız `requirements-runtime.txt`
+kuruyor (uygulamayı çalıştırıyor, geliştirme araçlarına ihtiyacı yok), o
+yüzden `tests/` altındaki her şey RUNTIME bağımlılıklarıyla koşabilmeli.
+Bu kontrol `reliability-gates` içinde koşuyor; orası `requirements.txt`
+(runtime + dev) kuruyor ve o job da zorunlu bir status check.
 """
 
 import unittest
@@ -27,7 +34,7 @@ from pathlib import Path
 
 import yaml
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 
 # `main` üzerinde ZORUNLU olan status check'ler -> tanımlandıkları workflow.

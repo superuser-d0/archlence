@@ -15,6 +15,11 @@
 # `services/brand_icon_service.py` üzerinden ağdan gelen görüntülerle
 # ERİŞİLEBİLİRDİ, bkz. CHANGELOG). Artık `reliability-gates` içinde koşuyor,
 # yani sonraki bulgu sessizce birikmiyor.
+# Workflow/CI sözleşme testleri YAML ayrıştırıyor
+# (scripts/audit/test_ci_required_checks_contract.py). Yerel ortamlara
+# geçişli olarak geliyordu ve HİÇBİR YERDE tanımlı değildi; ilk CI
+# koşumunda `ModuleNotFoundError` verdi.
+PyYAML==6.0.3
 pip-audit==2.10.1
 hypothesis==6.165.2
 flake8==7.3.0

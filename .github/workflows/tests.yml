@@ -201,7 +201,8 @@ jobs:
             scripts.audit.test_migration_fault_injection \
             scripts.audit.test_phase2_backup_archive \
             scripts.audit.test_phase2_concurrency \
-            scripts.audit.test_phase2_nonfinite_matrix
+            scripts.audit.test_phase2_nonfinite_matrix \
+            scripts.audit.test_ci_required_checks_contract
 
       - name: Financial property tests (hypothesis)
         run: python -m unittest scripts.audit.test_phase2_financial_properties
