@@ -544,9 +544,28 @@ def _initialize_database(conn):
         """
         from database.db import ACCOUNT, SAVINGS_GOAL, record_balance_event
 
+        # Tablo ve kolon ADLARI SQL'de parametrelenemez (kimlik alanı, değer
+        # değil), dolayısıyla aşağıdaki f-string zorunlu. Güvenliği sağlayan
+        # şey, ikisinin de bu sabit eşlemeden gelmesi — dışarıdan bir değerin
+        # oraya ulaşma yolu yok. Eşleme açıkça yazıldı ki ileride değişken
+        # bir tablo adı geçirilmeye çalışılırsa sessizce çalışmasın.
+        allowed_columns = {
+            "accounts": "balance",
+            "savings_goals": "current_amount",
+        }
+
         def _baseline(entity_type, table, value_column, marker_source):
+            if allowed_columns.get(table) != value_column:
+                raise ValueError(
+                    f"Defter baseline'ı yalnızca {sorted(allowed_columns)} "
+                    f"tablolarında çalışır; verilen: {table}.{value_column}"
+                )
+            # `nosec B608`: bandit her f-string SQL'i işaretler, tanımlayıcının
+            # nereden geldiğini göremez. Buradaki iki değer de yukarıdaki
+            # `allowed_columns` eşlemesinden geçmek ZORUNDA — muafiyetin
+            # dayanağı o kontrol, "zaten güvenlidir" varsayımı değil.
             cursor.execute(
-                f"SELECT id, {value_column} AS value FROM {table}"
+                f"SELECT id, {value_column} AS value FROM {table}"  # nosec B608
             )
             rows = [(r["id"], r["value"] or 0.0) for r in cursor.fetchall()]
             for entity_id, current_value in rows:
