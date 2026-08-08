@@ -436,7 +436,7 @@ class AssetMixin:
                 def _refresh(dt):
                     try:
                         _build_list(search_field.text)
-                    except Exception as e:
+                    except Exception:
                         from utils.logging_config import get_logger
                         get_logger().exception("BIST liste yenileme hatası")
 
@@ -678,7 +678,7 @@ class AssetMixin:
             def _refresh(dt):
                 try:
                     _build_list(search_field.text)
-                except Exception as e:
+                except Exception:
                     from utils.logging_config import get_logger
                     get_logger().exception("Kripto liste yenileme hatası")
             Clock.schedule_once(_refresh, 0)
@@ -1404,7 +1404,7 @@ class AssetMixin:
         def _fetch_and_enrich():
             try:
                 assets = get_all_assets()
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Asset load error")
                 _apply([], None, final=True)
@@ -1541,7 +1541,7 @@ class AssetMixin:
         """
         try:
             container = self.root.ids.active_assets_container
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("render_active_assets: container bulunamadı")
             return
@@ -1884,12 +1884,10 @@ class AssetMixin:
                 pnl            = total_proceeds - cost_basis
                 sign           = "+" if pnl >= 0 else "-"
 
-                desc = (
-                    f"{asset['asset_name']} ({asset['asset_code']}) satıldı — "
-                    f"{asset['quantity']:g} adet, birim fiyat {format_price_tl(sell_price_per_unit)} "
-                    f"(K/Z: {sign}{format_price_tl(abs(pnl))})"
-                )
-
+                # Açıklama ARTIK BURADA KURULMUYOR: `8b1744e`'den beri
+                # `AssetSaleService.sell` miktar/birim fiyat/K-Z taşıyan
+                # açıklamayı kendisi yazıyor. Buradaki kopya hiçbir yere
+                # gitmiyordu; iki yerde kurmak da ikisinin ayrışması demekti.
                 AssetSaleService.sell(
                     asset["id"], sell_price_per_unit, DEFAULT_ACCOUNT_ID,
                     quantity=asset["quantity"],
@@ -1903,7 +1901,7 @@ class AssetMixin:
                 Clock.schedule_once(lambda dt: self.load_asset_history(), 0)
                 Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                 Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Asset sell error")
                 Clock.schedule_once(
@@ -1924,7 +1922,7 @@ class AssetMixin:
                 history = get_asset_transaction_history()
                 Clock.schedule_once(
                     lambda dt: self.render_asset_history(history), 0)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Asset history load error")
 
@@ -2019,7 +2017,7 @@ class AssetMixin:
                 try:
                     if fetch_and_cache_logo(code):
                         any_success = True
-                except Exception as e:
+                except Exception:
                     from utils.logging_config import get_logger
                     get_logger().exception(f"Logo indirme hatası: {code}")
             if any_success:

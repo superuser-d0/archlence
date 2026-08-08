@@ -24,7 +24,7 @@ class MigrationMixin:
                 path, count = export_all_to_csv()
                 Clock.schedule_once(
                     lambda dt: toast(_t(f"{count} kayıt dışa aktarıldı:\n{path}")), 0)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("CSV export error")
                 Clock.schedule_once(
@@ -101,7 +101,7 @@ class MigrationMixin:
                         self.generate_financial_advice()
 
                 Clock.schedule_once(_done, 0)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("CSV import error")
                 Clock.schedule_once(

@@ -197,7 +197,7 @@ class CalendarMixin:
         year, month = self._calendar_year, self._calendar_month
         try:
             days_with_tx = get_month_transaction_days(year, month)
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Takvim ay verisi okunamadı")
             days_with_tx = {}
@@ -332,7 +332,7 @@ class CalendarMixin:
             from services.calendar_service import get_day_transactions
             try:
                 items = get_day_transactions(date_obj)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Takvim gün verisi okunamadı")
                 items = None

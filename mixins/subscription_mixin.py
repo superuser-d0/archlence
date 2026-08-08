@@ -49,7 +49,7 @@ class SubscriptionMixin:
             try:
                 from database.db import get_active_recurring_payments
                 payments = get_active_recurring_payments()
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Abonelikler okunamadı")
                 Clock.schedule_once(
@@ -196,7 +196,7 @@ class SubscriptionMixin:
                     lambda dt, value=message: toast(_t(value)), 0,
                 )
                 return
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Abonelik ücreti güncellenemedi")
                 Clock.schedule_once(
@@ -266,7 +266,7 @@ class SubscriptionMixin:
             try:
                 from services.recurring_service import find_current_period_charge
                 charge = find_current_period_charge(payment["id"])
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Abonelik tahsilatı kontrol edilemedi")
                 charge = None
@@ -335,7 +335,7 @@ class SubscriptionMixin:
                     cancel_subscription(payment["id"])
                 else:
                     skip_next_occurrence(payment["id"])
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Abonelik kaldırılamadı")
                 Clock.schedule_once(
@@ -386,6 +386,6 @@ class SubscriptionMixin:
                 continue
             try:
                 method()
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception(f"{method_name} tazelenemedi")

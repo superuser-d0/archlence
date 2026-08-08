@@ -296,7 +296,7 @@ def setup_appimage_desktop_integration():
     if source_icon.exists() and not target_icon.exists():
         try:
             shutil.copy2(source_icon, target_icon)
-        except OSError as e:
+        except OSError:
             from utils.logging_config import get_logger
             get_logger().exception("İkon sisteme kopyalanamadı")
 
@@ -318,7 +318,7 @@ StartupNotify=true
         with open(app_menu_path, "w", encoding="utf-8") as f:
             f.write(desktop_content)
         app_menu_path.chmod(app_menu_path.stat().st_mode | stat.S_IEXEC)
-    except OSError as e:
+    except OSError:
         from utils.logging_config import get_logger
         get_logger().exception("Başlat menüsü kısayolu oluşturulamadı")
 
@@ -329,7 +329,7 @@ StartupNotify=true
                 with open(desktop_shortcut_path, "w", encoding="utf-8") as f:
                     f.write(desktop_content)
                 desktop_shortcut_path.chmod(desktop_shortcut_path.stat().st_mode | stat.S_IEXEC)
-            except OSError as e:
+            except OSError:
                 from utils.logging_config import get_logger
                 get_logger().exception("Masaüstü simgesi oluşturulamadı")
 
@@ -400,7 +400,7 @@ class ArchlenceApp(
     def build(self):
         try:
             setup_appimage_desktop_integration()
-        except (OSError, RuntimeError) as e:
+        except (OSError, RuntimeError):
             from utils.logging_config import get_logger
             get_logger().exception("Appimage entegrasyonu hatası")
 
@@ -483,7 +483,7 @@ class ArchlenceApp(
         if persist:
             try:
                 self.config_store.put("language", code=self.language)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Dil tercihi kaydedilemedi")
 
@@ -559,7 +559,7 @@ class ArchlenceApp(
         for card_id, callback in tool_card_bindings:
             try:
                 ftheme.bind_card_tap(self.root.ids[card_id], callback)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception(f"'{card_id}' karesi tıklanabilir yapılamadı")
 
@@ -588,7 +588,7 @@ class ArchlenceApp(
     def on_stop(self):
         try:
             self.stop_active_assets_refresh()
-        except Exception as exc:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Arka plan tazeleme durdurulamadı")
         if hasattr(self, "background_tasks"):
@@ -613,7 +613,7 @@ class ArchlenceApp(
                 if not hasattr(self, "config_store"):
                     self.config_store = JsonStore(_resolve_config_path())
                 self.config_store.put("theme", name=theme_name)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Tema tercihi kaydedilemedi")
 
@@ -639,7 +639,7 @@ class ArchlenceApp(
                 self.theme_cls.theme_style = desired_style
                 try:
                     self.config_store.put("display", style=desired_style)
-                except Exception as e:
+                except Exception:
                     from utils.logging_config import get_logger
                     get_logger().exception("Görünüm tercihi kaydedilemedi")
                 Clock.schedule_once(self._after_theme_switch, 0)
@@ -685,26 +685,26 @@ class ArchlenceApp(
             if chart_box is not None and hasattr(chart_box, "refresh_theme"):
                 try:
                     chart_box.refresh_theme()
-                except Exception as exc:
+                except Exception:
                     from utils.logging_config import get_logger
                     get_logger().exception("Tema sonrası grafikler yenilenemedi")
             for widget in self.root.walk():
                 if isinstance(widget, HorizontalBarChart):
                     try:
                         widget.update_chart()
-                    except Exception as exc:
+                    except Exception:
                         from utils.logging_config import get_logger
                         get_logger().exception("Tema sonrası çubuk grafik yenilenemedi")
                 elif isinstance(widget, ScenarioComparisonChart):
                     try:
                         widget.draw_immediate()
-                    except Exception as exc:
+                    except Exception:
                         from utils.logging_config import get_logger
                         get_logger().exception("Tema sonrası senaryo grafiği yenilenemedi")
         if hasattr(self, "render_accounts"):
             try:
                 self.render_accounts()
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Tema sonrası kartlar yenilenemedi")
         self._normalize_card_shadows()
@@ -816,7 +816,7 @@ class ArchlenceApp(
                     conn.execute("VACUUM")
                     conn.commit()
                 print("Database VACUUM completed.")
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("VACUUM failed")
 
@@ -827,7 +827,7 @@ class ArchlenceApp(
     def write_daily_balance_snapshot(self):
         try:
             write_daily_snapshot()
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Günlük bakiye snapshot'ı yazılamadı")
 
@@ -947,7 +947,7 @@ class ArchlenceApp(
                 total_balance,
                 today=period_end,
             )
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Dönem bakiye değişimi hesaplanamadı")
             period_change = {
@@ -1293,7 +1293,7 @@ class ArchlenceApp(
                 else:
                     label.text = "%0.0"
                     label.text_color = ftheme.accent(self.theme_cls, "muted")
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Error updating change rate UI")
 
@@ -1374,13 +1374,13 @@ class ArchlenceApp(
                 self.root.ids.chart_master_box.refresh_dashboard(
                     getattr(self, "home_filter", "Bugün")
                 )
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Error updating UI metrics")
 
         try:
             self.refresh_insights()
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Error refreshing insights")
 
@@ -1450,7 +1450,7 @@ class ArchlenceApp(
                 Clock.schedule_once(
                     lambda dt: self._render_recent_transactions(processed_items), 0
                 )
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Error fetching recent transactions")
 
@@ -1534,7 +1534,7 @@ class ArchlenceApp(
             recent_list.data = data
             if brand_names_to_prefetch:
                 self._prefetch_recent_brand_icons(brand_names_to_prefetch, transactions)
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Error rendering recent UI")
 
@@ -1578,7 +1578,7 @@ class ArchlenceApp(
 
             if not AccountService.has_any_account():
                 return "account_setup"
-        except Exception as exc:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Hesap kontrolü yapılamadı")
         return "home"
@@ -1862,7 +1862,7 @@ class ArchlenceApp(
         def _work():
             try:
                 advice_text = self._compute_financial_advice_text()
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Finansal tavsiye hesaplanamadı")
                 return
@@ -2181,7 +2181,7 @@ class ArchlenceApp(
             if hasattr(self, "reset_dialog"):
                 self.reset_dialog.dismiss()
             self.root.ids.screen_manager.current = "pin_setup"
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Factory reset failed")
 

@@ -632,7 +632,7 @@ class TransactionMixin:
                 account for account in AccountService.get_accounts()
                 if not is_read_only_asset_account(account)
             ]
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Ödeme yöntemleri okunamadı")
             self._payment_methods = []
@@ -709,7 +709,7 @@ class TransactionMixin:
                 account for account in AccountService.get_accounts()
                 if not is_read_only_asset_account(account)
             ]
-        except Exception as exc:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Ödeme yöntemleri yenilenemedi")
         methods = self._valid_payment_methods()
@@ -1029,7 +1029,7 @@ class TransactionMixin:
                 if hasattr(self, "load_pending_transactions"):
                     try:
                         self.load_pending_transactions()
-                    except Exception as e:
+                    except Exception:
                         from utils.logging_config import get_logger
                         get_logger().exception("Bekleyen özeti tazelenemedi")
                 toast(_t(
@@ -1116,7 +1116,7 @@ class TransactionMixin:
                 # olarak fırlatır; metni doğrudan kullanıcıya gösterilebilir.
                 error_message["text"] = str(e)
                 Clock.schedule_once(error_callback, 0)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Save Transaction Error")
                 Clock.schedule_once(error_callback, 0)
@@ -1188,12 +1188,12 @@ class TransactionMixin:
             # kez kurulup animasyon/yerleşim spam'i yaratıyordu.
             try:
                 self.refresh_dashboard_data(reuse_if_fresh=True)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Varlıklarım paneli yüklenemedi")
             try:
                 self.load_active_assets()
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Aktif varlıklar yüklenemedi")
 

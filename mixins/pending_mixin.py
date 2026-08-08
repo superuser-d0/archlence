@@ -81,7 +81,7 @@ class PendingMixin:
             try:
                 from services.transaction_service import TransactionService
                 pending = TransactionService.get_pending_transactions()
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Bekleyen işlemler okunamadı")
                 return
@@ -144,7 +144,7 @@ class PendingMixin:
             try:
                 from services.transaction_service import TransactionService
                 pending = TransactionService.get_pending_transactions()
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Bekleyen işlemler okunamadı")
                 Clock.schedule_once(
@@ -227,7 +227,7 @@ class PendingMixin:
             try:
                 from services.transaction_service import TransactionService
                 removed = TransactionService.cancel_pending_transaction(item["id"])
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Bekleyen işlem iptal edilemedi")
                 Clock.schedule_once(
@@ -269,7 +269,7 @@ class PendingMixin:
                 # uzlaştırmayı burada tetiklemek "tarihi bugüne aldım ama
                 # bakiyem değişmedi" durumunu önler.
                 settled = TransactionService.settle_due_transactions()
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Bekleyen işlem ertelenemedi")
                 Clock.schedule_once(
@@ -325,6 +325,6 @@ class PendingMixin:
                 continue
             try:
                 method()
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception(f"{method_name} tazelenemedi")

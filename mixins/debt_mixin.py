@@ -41,7 +41,7 @@ class DebtMixin:
                 Clock.schedule_once(lambda dt: toast(_t("Borç başarıyla eklendi!")), 0)
                 Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
                 Clock.schedule_once(lambda dt: self.loan_dialog.dismiss(), 0)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Error adding debt")
                 Clock.schedule_once(lambda dt: toast(_t("Borç eklenirken hata oluştu!")), 0)
@@ -55,7 +55,7 @@ class DebtMixin:
             try:
                 debts = get_active_debts()
                 Clock.schedule_once(lambda dt: self.render_active_debts(debts), 0)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Error fetching debts")
 
@@ -128,7 +128,7 @@ class DebtMixin:
                 card.add_widget(btn_layout)
 
                 container.add_widget(card)
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Error rendering debts")
 
@@ -158,7 +158,7 @@ class DebtMixin:
                     Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
                     Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                     Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
-                except Exception as e:
+                except Exception:
                     from utils.logging_config import get_logger
                     get_logger().exception("Error closing debt")
                     Clock.schedule_once(lambda dt: toast(_t("İşlem sırasında hata oluştu!")), 0)
@@ -221,7 +221,7 @@ class DebtMixin:
                     Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
                     Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                     Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
-                except Exception as e:
+                except Exception:
                     from utils.logging_config import get_logger
                     get_logger().exception("Error paying installment")
                     Clock.schedule_once(lambda dt: toast(_t("İşlem sırasında hata oluştu!")), 0)
@@ -275,7 +275,7 @@ class DebtMixin:
                     update_debt_auto_pay(debt["id"], is_auto_pay, auto_pay_day)
                     Clock.schedule_once(lambda dt: toast(_t("Otomatik ödeme ayarları güncellendi!")), 0)
                     Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
-                except Exception as e:
+                except Exception:
                     from utils.logging_config import get_logger
                     get_logger().exception("Error updating auto-pay settings")
                     Clock.schedule_once(lambda dt: toast(_t("Güncellenirken hata oluştu!")), 0)

@@ -42,7 +42,7 @@ class RecurringMixin:
                 Clock.schedule_once(
                     lambda dt, value=payments: apply_result(value), 0,
                 )
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Error fetching recurring payments")
 
@@ -126,7 +126,7 @@ class RecurringMixin:
                 card.add_widget(status_lbl)
                 card.add_widget(btn_layout)
                 container.add_widget(card)
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Error rendering upcoming payments")
 
@@ -148,7 +148,7 @@ class RecurringMixin:
                 Clock.schedule_once(lambda dt: self.load_upcoming_recurring(), 0)
                 Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                 Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Error paying recurring payment")
                 Clock.schedule_once(lambda dt: toast(_t("İşlem sırasında hata oluştu!")), 0)
@@ -165,7 +165,7 @@ class RecurringMixin:
                 Clock.schedule_once(lambda dt: self.load_upcoming_recurring(), 0)
                 if hasattr(self, "refresh_insights"):
                     Clock.schedule_once(lambda dt: self.refresh_insights(), 0)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Error deactivating recurring payment")
 
@@ -198,7 +198,7 @@ class RecurringMixin:
                 try:
                     if TransactionService.settle_due_transactions():
                         ui_needs_refresh = True
-                except Exception as exc:
+                except Exception:
                     from utils.logging_config import get_logger
                     get_logger().exception("Bekleyen işlemler işlenemedi")
 
@@ -222,7 +222,7 @@ class RecurringMixin:
                     try:
                         process_due_recurring_payment(p)
                         ui_needs_refresh = True
-                    except Exception as exc:
+                    except Exception:
                         from utils.logging_config import get_logger
                         get_logger().exception(
                             f"Tekrarlanan ödeme işlenemedi (id={p.get('id')}), "
@@ -268,8 +268,10 @@ class RecurringMixin:
                     months_missed = max(1, months_missed)
 
                     installments_to_pay = min(months_missed, remaining)
-                    new_paid_total = debt['paid_installments'] + installments_to_pay
-                    is_active = 0 if new_paid_total >= debt['total_installments'] else 1
+                    # `is_active` ARTIK BURADA HESAPLANMIYOR: borcun kapanıp
+                    # kapanmadığına `DebtPaymentService.pay_auto` aynı
+                    # transaction içinde karar veriyor. Buradaki kopya
+                    # kullanılmıyordu ve servisinkinden sapabilirdi.
 
                     # Yukarıdaki tekrarlanan ödeme döngüsüyle AYNI gerekçe:
                     # tek bir bozuk borç kaydı, kendisinden sonraki borçların
@@ -280,7 +282,7 @@ class RecurringMixin:
                             installments_to_pay, current_month_str,
                         )
                         ui_needs_refresh = True
-                    except Exception as exc:
+                    except Exception:
                         from utils.logging_config import get_logger
                         get_logger().exception(
                             f"Otomatik borç taksiti işlenemedi (id={debt.get('id')}), "
@@ -303,7 +305,7 @@ class RecurringMixin:
                 if hasattr(self, "load_pending_transactions"):
                     Clock.schedule_once(
                         lambda dt: self.load_pending_transactions(), 0)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Error processing auto deductions")
 

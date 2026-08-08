@@ -206,7 +206,7 @@ class TransactionService:
                     transaction_date=date_now,
                     is_credit_card=is_credit_card,
                 )
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Abonelik radarına yazılamadı")
 

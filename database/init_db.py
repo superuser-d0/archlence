@@ -134,7 +134,7 @@ def _initialize_database(conn):
                 network_logo = AccountService.check_card_network(dec_num)
                 last4 = dec_num[-4:] if len(dec_num) >= 4 else dec_num
                 masked_number = f"**** **** **** {last4}"
-            except (ValueError, TypeError) as e:
+            except (ValueError, TypeError):
                 # decrypt() hiçbir zaman raise etmez, string işlemleri de
                 # (slicing/len) raise etmez — bu except pratikte tetiklenemez.
                 # Yine de daraltılmış hâliyle bırakıldı: bu, tek seferlik bir

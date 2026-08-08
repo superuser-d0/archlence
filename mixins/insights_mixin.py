@@ -166,27 +166,27 @@ class InsightsMixin:
             try:
                 from services.insights_service import get_health_history
                 payload["health_history"] = get_health_history(limit=30)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Sağlık skoru geçmişi okunamadı")
                 payload["health_history"] = []
             try:
                 from services.insights_service import detect_recurring_candidates
                 payload["candidates"] = detect_recurring_candidates()
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Abonelik radarı çalışmadı")
             try:
                 from database.db import get_active_recurring_payments
                 payload["active_subscriptions"] = get_active_recurring_payments()
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Aktif abonelikler okunamadı")
                 payload["active_subscriptions"] = []
             try:
                 from services.insights_service import detect_anomalies
                 payload["anomalies"] = detect_anomalies()
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Anomali tespiti çalışmadı")
 
@@ -281,7 +281,7 @@ class InsightsMixin:
             ids.health_score_bar.value = max(0.0, min(100.0, score))
             ids.health_score_bar.color = ftheme.accent(style, accent)
             ids.health_score_bar.opacity = 1
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Sağlık skoru çizilemedi")
             self.render_health_error()
@@ -301,7 +301,7 @@ class InsightsMixin:
             )
             ids.health_score_bar.value = 0
             ids.health_score_bar.opacity = 0
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Sağlık skoru veri-yok durumu çizilemedi")
 
@@ -323,7 +323,7 @@ class InsightsMixin:
                 self.theme_cls.theme_style, "red"
             )
             ids.health_score_bar.opacity = 1
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Sağlık skoru hata durumu çizilemedi")
 
@@ -563,7 +563,7 @@ class InsightsMixin:
                     # tahmindir, kullanıcı onaylamadan hesaptan çekilmemeli.
                     auto_deduct=0,
                 )
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Abonelik eklenemedi")
                 Clock.schedule_once(lambda dt: toast(_t("Abonelik eklenemedi.")), 0)
@@ -580,7 +580,7 @@ class InsightsMixin:
             try:
                 from services.insights_service import dismiss_recurring_candidate
                 dismiss_recurring_candidate(cand["key"])
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Aday reddedilemedi")
                 return
@@ -645,7 +645,7 @@ class InsightsMixin:
             try:
                 from services.insights_service import dismiss_anomaly
                 dismiss_anomaly(anomaly["id"])
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Anomali gizlenemedi")
                 return
