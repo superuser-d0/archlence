@@ -404,16 +404,27 @@ class ProductionUsesNoNonClosingContextManagerTest(unittest.TestCase):
         fd, db_path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
         self.addCleanup(os.unlink, db_path)
+        opened = []
         try:
             with connection_ledger() as ledger:
                 for _ in range(10):
                     with sqlite3.connect(db_path) as conn:
                         conn.execute("SELECT 1")
+            opened = list(ledger.opened)
             self.assertEqual(len(ledger.opened), 10)
             self.assertEqual(len(ledger.closed), 0,
                              "`with conn:` kapatmamalı — sözleşme bu")
             self.assertEqual(len(ledger.leaked), 10)
         finally:
+            # SIZDIRILANLARI BURADA KAPAT. Testin amacı sızıntıyı GÖSTERMEK,
+            # ama Windows açık handle'ı olan dosyayı sildirmiyor: temizlik
+            # `PermissionError [WinError 32]` ile patlıyordu. Linux bunu
+            # affettiği için yalnız Windows CI'da görüldü.
+            for conn in opened:
+                try:
+                    conn.close()
+                except sqlite3.Error:
+                    pass
             gc.collect()
 
 
