@@ -70,6 +70,21 @@ def present_startup_recovery_failure(app, message):
     return dialog
 
 
+def present_schema_too_new_failure(app, message):
+    """Şema kuşağı hatasını kullanıcıya güvenli biçimde gösterir (A-5).
+
+    Kardeşiyle aynı sözleşme: `message` DAİMA
+    `database.init_db.SCHEMA_TOO_NEW_MESSAGE` olmalı, exception metni veya
+    bulunan/desteklenen sürüm numaraları buraya GEÇİRİLMEMELİ. Numaralar
+    geliştirici log'una gider, kullanıcı metnine değil.
+    """
+    from kivymd.uix.dialog import MDDialog
+
+    dialog = MDDialog(title="Veritabanı bu sürümden yeni", text=message)
+    dialog.open()
+    return dialog
+
+
 def run_startup_recovery(db_path=None, *, config_path=None):
     """Yarım restore varsa geri alır; yoksa hiçbir şey yapmaz.
 

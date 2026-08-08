@@ -1,6 +1,31 @@
 from database.db import get_connection
 from datetime import date
 from database.models import ASSET_PRICE_CACHE_SCHEMA
+from utils.errors import SchemaTooNewError
+
+# `PRAGMA user_version` — şema kuşağının işareti (denetim bulgusu A-5).
+#
+# Bu değere kadar SIFIRDI, yani veritabanı hangi sürüm tarafından yazıldığını
+# HİÇ söylemiyordu. Sonucu şuydu: eski bir yapı, yeni bir yapının yazdığı
+# profili açıp üzerine yazabilirdi — tanımadığı sütunları görmezden gelerek.
+# Kişisel finans verisinde bu sessiz veri kaybı demek.
+#
+# Kural: şema ileri-uyumsuz biçimde değiştiğinde (sütun/tablo eklendiğinde
+# DEĞİL, eski yapının YANLIŞ okuyacağı bir değişiklik olduğunda) artırılır.
+#
+# 1 = v0.0.9 kuşağı. Mevcut bütün profiller 0 taşıyor ve 0 < 1 olduğu için
+# aşağıdaki reddetme yolu var olan hiçbir kurulumda tetiklenemez; ancak
+# birisi ileride daha yeni bir yapı çalıştırıp sonra geri dönerse devreye girer.
+SCHEMA_VERSION = 1
+
+# Kullanıcıya gösterilecek metin. Dosya yolu, sürüm numarası veya exception
+# ayrıntısı İÇERMEZ — `services/startup_recovery.py::USER_MESSAGE` ile aynı
+# gerekçe.
+SCHEMA_TOO_NEW_MESSAGE = (
+    "Bu veritabanı uygulamanın daha yeni bir sürümü tarafından oluşturulmuş. "
+    "Verilerinizi bozmamak için açılış durduruldu; hiçbir dosyaya "
+    "dokunulmadı. Lütfen uygulamanın güncel sürümünü kullanın."
+)
 
 def initialize_database():
     """Şemayı kurar/günceller — bağlantıyı HER ÇIKIŞ YOLUNDA kapatarak.
@@ -24,6 +49,13 @@ def initialize_database():
 
 def _initialize_database(conn):
     cursor = conn.cursor()
+
+    # KUŞAK KONTROLÜ HER ŞEYDEN ÖNCE. Tek bir `CREATE TABLE IF NOT EXISTS`
+    # bile çalışmadan önce olmalı: amaç, tanımadığımız bir şemaya HİÇ
+    # dokunmamak. Fail-closed — `run_startup_recovery` ile aynı gerekçe.
+    found = cursor.execute("PRAGMA user_version").fetchone()[0]
+    if found > SCHEMA_VERSION:
+        raise SchemaTooNewError(found, SCHEMA_VERSION)
 
     # 1. Hesaplar Tablosu
     cursor.execute("""
@@ -658,6 +690,17 @@ def _initialize_database(conn):
     # Varsayılan hesaplar kurulduktan SONRA çalışmalı ki yeni kurulumda da
     # açılış bakiyeleri deftere girsin.
     _backfill_ledger_baseline()
+
+    # İşaret EN SONDA ve KOŞULSUZ konur: buraya ulaşıldıysa şema bu kuşağa
+    # tam olarak getirilmiş demektir. Koşulsuz olması önemli — hem yeni
+    # kurulum hem de göç etmiş eski profil aynı değeri taşımalı, yoksa
+    # `check_schema_consistency.py`'nin "fresh ile upgraded eşit mi"
+    # karşılaştırması ikisini farklı görürdü. Ortada kesilirse işaret
+    # konmaz ve bir sonraki açılış eksiği tamamlar (idempotent).
+    #
+    # `PRAGMA user_version` parametre kabul etmez; değer modül sabiti.
+    cursor.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")  # nosec B608
+    conn.commit()
     # ─────────────────────────────────────────────────────────────────────────
     # Kapatma ARTIK BURADA DEĞİL: sarmalayıcı `initialize_database`'in
     # `finally` bloğu yapıyor, böylece hata yolları da kapsanıyor.

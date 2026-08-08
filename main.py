@@ -191,7 +191,10 @@ except (ImportError, AttributeError) as exc:
 # 4. LOCAL MODULE IMPORTS
 # =========================================================================
 from utils.crypto import decrypt, key_protection_status
-from database.init_db import initialize_database
+from database.init_db import (
+    SCHEMA_TOO_NEW_MESSAGE,
+    initialize_database,
+)
 from database.db import (
     managed_connection,
     COMPLETED_TX,
@@ -217,7 +220,7 @@ from ui.theme import (
 import ui.theme as ftheme
 from ui.i18n import tr as translate, set_language as set_active_language
 from utils.currency import format_try
-from utils.errors import FinancialDataIntegrityError
+from utils.errors import FinancialDataIntegrityError, SchemaTooNewError
 from utils.version import APP_VERSION
 
 # Destek/geri bildirim kanalı. README, PKGBUILD ve release notlarındaki
@@ -438,7 +441,23 @@ class ArchlenceApp(
 
         self._warm_crypto_key_in_background()
         migrate_legacy_database_location()
-        initialize_database()
+        # FAIL-CLOSED, kurtarma ile aynı gerekçe (denetim bulgusu A-5): daha
+        # yeni bir yapının yazdığı veritabanına eski bir yapı DOKUNMAMALI.
+        # Devam etmek, tanınmayan sütunları görmezden gelerek üzerine yazmak
+        # demekti — sessiz veri kaybı.
+        try:
+            initialize_database()
+        except SchemaTooNewError as exc:
+            from services.startup_recovery import present_schema_too_new_failure
+            from utils.logging_config import get_logger
+            # Sürüm numaraları LOG'a girer, kullanıcı metnine değil.
+            get_logger().critical(
+                "Veritabanı şeması bu yapıdan yeni: bulunan=%s desteklenen=%s",
+                exc.found, exc.supported,
+            )
+            self._startup_recovery_failure = SCHEMA_TOO_NEW_MESSAGE
+            present_schema_too_new_failure(self, SCHEMA_TOO_NEW_MESSAGE)
+            raise
         self.store = JsonStore(_resolve_savings_store_path())
         if self.store.exists("goals"):
             self.savings_goals = self.store.get("goals")["data"]
