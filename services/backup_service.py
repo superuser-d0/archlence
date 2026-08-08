@@ -546,8 +546,12 @@ def restore_backup(
             # config'i yazıyor ama rollback yolunda hiç geri almıyordu:
             # başarısız restore'da DB eski, config yeni kalıyordu — karma
             # profil (denetim bulgusu P1-1).
-            had_config = bool(config and config.exists())
-            if had_config:
+            # `config is not None` AYRI yazılıyor: `had_config` bir bool
+            # olduğu için tip daraltması onun üzerinden taşınmıyor ve
+            # `copy2(Path | None, ...)` type-check'te hata veriyordu. Davranış
+            # aynı — config yoksa ya da dosya mevcut değilse kopyalanmaz.
+            had_config = config is not None and config.exists()
+            if config is not None and had_config:
                 shutil.copy2(config, old_config)
             _write_journal(journal_dir, "STAGED", db_path, config, had_config)
 
