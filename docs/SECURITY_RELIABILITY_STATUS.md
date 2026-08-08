@@ -16,7 +16,12 @@ and remain historical baselines.
   complete.
 - **Data protection:** new sensitive values are written only with AEAD. Backup
   validates the database and password-protected recovery key together; restore
-  is rollback-safe.
+  is rollback-safe. The database records which schema generation wrote it, and
+  an older build refuses to open a newer one rather than writing to a schema it
+  does not understand.
+- **Dependency vulnerabilities:** the packaged dependency set is scanned on
+  every pull request and the scan blocks. The published SBOM remains the
+  authoritative component inventory.
 - **External price data:** third-party price results carry source, age, and
   freshness status rather than being presented as guaranteed current values.
 
