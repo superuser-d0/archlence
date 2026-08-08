@@ -164,7 +164,7 @@ jobs:
         # `test` job'ında görülmüyor çünkü orası Kivy'nin girdi sağlayıcı
         # taramasına hiç ulaşmıyor. Geliştirici makinelerinde kütüphane zaten
         # kurulu; bu yüzden yalnızca CI'da ortaya çıktı.
-        run: sudo apt-get update && sudo apt-get install -y libmtdev1 xvfb
+        run: sudo apt-get update && sudo apt-get install -y libmtdev1 xvfb xclip
 
       - name: Install dependencies
         run: |

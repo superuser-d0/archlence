@@ -257,9 +257,27 @@ def _subprocess(worker, code_root, db_path, profile, result):
         **os.environ,
         "KIVY_NO_ARGS": "1",
         "ARCHLENCE_HEADLESS": "1",
-        "SDL_VIDEODRIVER": "dummy",
         "KIVY_WINDOW": "sdl2",
     }
+    # SDL SÜRÜCÜSÜ EKRANIN VARLIĞINA GÖRE SEÇİLİR.
+    #
+    # Worker `import main` yapıyor, yani Kivy GERÇEKTEN bir Window
+    # sağlayıcısı kuruyor. `dummy` sürücüsünde OpenGL yok; sağlayıcı
+    # bulunamayınca Kivy `sys.exit(1)` çağırıyor ve worker kendi hata
+    # mesajını bile üretemeden ölüyor (CI'da stderr'de yalnız Kivy'nin
+    # CRITICAL'i vardı, Python traceback'i yoktu).
+    #
+    # Bunu `dummy` olarak SABİTLEMEK, adımı `xvfb` altında koştursak bile
+    # sanal ekranı işe yaramaz kılıyordu — hata mesajındaki
+    # "current SDL video driver (dummy)" tam olarak bunu söylüyor.
+    #
+    # `main.py` ARCHLENCE_HEADLESS altında `setdefault` ile `dummy` yazıyor;
+    # burada AÇIKÇA set edildiğinde o varsayılan devreye girmiyor.
+    if environment.get("DISPLAY") or environment.get("WAYLAND_DISPLAY"):
+        environment["SDL_VIDEODRIVER"] = "x11"
+    else:
+        environment["SDL_VIDEODRIVER"] = "dummy"
+
     completed = subprocess.run(
         command, text=True, capture_output=True, timeout=120, env=environment
     )
