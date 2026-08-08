@@ -154,6 +154,18 @@ jobs:
           python-version: "3.12"
           cache: pip
 
+      - name: Install system libraries Kivy loads at import time
+        # `kivy.input.providers` KOŞULSUZ olarak `mtdev`'i import ediyor ve o
+        # da `libmtdev.so.1`'i `cdll.LoadLibrary` ile yüklüyor. Runner'da bu
+        # kütüphane yok; migration matrisinin alt süreçleri uygulama kodunu
+        # yüklerken `OSError` ile ölüyordu. Headless ortam değişkenleri bunu
+        # ÇÖZMÜYOR — import koşula bağlı değil, eksik olan sistem kütüphanesi.
+        #
+        # `test` job'ında görülmüyor çünkü orası Kivy'nin girdi sağlayıcı
+        # taramasına hiç ulaşmıyor. Geliştirici makinelerinde kütüphane zaten
+        # kurulu; bu yüzden yalnızca CI'da ortaya çıktı.
+        run: sudo apt-get update && sudo apt-get install -y libmtdev1
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
