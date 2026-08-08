@@ -163,16 +163,23 @@ def inventory():
                     # therefore uses source location semantics, while Counter
                     # cardinality still detects a second broad handler in the
                     # same function.
+                    #
+                    # `as_posix()` ŞART, `str()` DEĞİL: Windows'ta `str()`
+                    # ters bölü üretiyor (`services\\x.py`), yani ORADA HER
+                    # fingerprint Linux'ta üretilmiş baseline'dan farklı
+                    # çıkıyor ve envanter testi bütünüyle kırılıyor. Linux'ta
+                    # ikisi aynı sonucu verdiği için baseline'ı yeniden
+                    # üretmek GEREKMİYOR.
                     identity = "|".join(
                         [
-                            str(path.relative_to(ROOT)),
+                            path.relative_to(ROOT).as_posix(),
                             ".".join(parents) or "<module>",
                             _normalized_expression(node.type),
                         ]
                     )
                     findings.append(
                         {
-                            "path": str(path.relative_to(ROOT)),
+                            "path": path.relative_to(ROOT).as_posix(),
                             "line": node.lineno,
                             "function": ".".join(parents) or "<module>",
                             "kind": _normalized_expression(node.type),
