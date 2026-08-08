@@ -20,7 +20,7 @@ origin/main        d5bd35f
 çalışma ağacı      temiz
 git diff --check   temiz
 HEAD'de tag        yok
-sürüm              0.0.8 / tag v0.0.8  (bump YAPILMADI)
+sürüm              0.0.9 / tag v0.0.9  (bump `acdccd1`; tag ve release YOK)
 push / PR          yok
 ```
 
@@ -188,11 +188,11 @@ Dört mutation da yakalandı, dördü de geri alındı. Kapı boş değil.
 ## 6. Version gate
 
 ```
-scripts/check_version_consistency.py     exit 0 — 0.0.8 / tag v0.0.8
+scripts/check_version_consistency.py     exit 0 — 0.0.9 / tag v0.0.9
 scripts/audit/version_mutation_matrix.py exit 0 — yakalanan=16 kaçan=0 uygulanamayan=0
 ```
 
-Sürüm bump YAPILMADI (kasıtlı).
+Sürüm bump §15'te YAPILDI: Windows turunun önkoşuluydu, kozmetik değil.
 
 ---
 
@@ -456,10 +456,77 @@ istisna kapısı       145 handler yeşil
 migration matrisi    v0.0.1–v0.0.8 · fresh_schema=True · user_version=1
 adversarial+phase2   21 test OK
 property             6 test OK
-sürüm kapısı         0.0.8 / tag v0.0.8  (bump YOK)
+sürüm kapısı         0.0.9 / tag v0.0.9
 compileall           temiz
 git diff --check     temiz
 ```
 
 Karar değişmedi: **PRE-WINDOWS GO**. Açık tek non-Windows madde branch
 protection ayarı (§9.1) ve bilinçli exception borcu (§9.5).
+
+---
+
+## 15. Sürüm bump'ı — Windows turunun önkoşuluydu
+
+Plan "Windows → soak → bump" idi. Bu sırayla Windows turu YAPILAMAZDI:
+`APP_VERSION` 0.0.8 kaldıkça RC installer `ArchlenceSetup-0.0.8.exe` adıyla
+ve 0.0.8 damgasıyla üretilecekti, dolayısıyla Windows kontrol listesindeki
+"doğru RC sürümü gösteriliyor" ve "uninstall entry doğru güncelleniyor"
+maddelerinin doğrulayacağı bir şey olmayacaktı. Daha kötüsü,
+`previous_release.py` tabanı merkezi sürümden türettiği için upgrade smoke
+testi **v0.0.7 → 0.0.8**'i sınayacaktı — yani `ddda5ed`'in var olma
+sebebini ıskalayacaktı. Elle sürüm geçmek de mümkün değil: workflow
+merkezi kaynakla uyuşmayan girdiyi reddediyor.
+
+Bump `acdccd1` ile yapıldı, beş kaynak birden: `utils/version.py`,
+`installer/archlence.iss`, `build-windows.yml` default, `PKGBUILD`,
+`CHANGELOG.md`. Sürüm kapısı git tag'i aramıyor — kaynakta bump ≠ release.
+
+Doğrulama: `previous_release.py --target 0.0.9` artık **`v0.0.8`** dönüyor.
+
+`PKGBUILD` checksum'ları v0.0.8'deki yönteme uyularak kasıtlı geçersiz
+(tamamı sıfır) placeholder'a çevrildi; `SKIP` DEĞİL, çünkü `SKIP`
+doğrulamayı kapatır. Gerçek hash'ler yayın sonrası ayrı commit'le girer
+(v0.0.8'de `bf4e1be` böyle yapmıştı).
+
+### 15.1 Bump'ın ortaya çıkardığı bulgu: matris kendi kendini geçersiz kılıyormuş
+
+Bump commit'lendikten SONRA 16 vakalık sürüm mutation matrisi
+**10 yakalandı / 3 kaçtı / 3 uygulanamadı**'ya düştü.
+
+Sebep: altı vaka aranan dizeyi `0.0.8` olarak SABİT yazmıştı.
+
+- 02, 03, 05 → desen artık yok, "uygulanamadı";
+- 07, 09, 10 → desen CHANGELOG'un **tarihsel** `## [0.0.8]` bölümünde
+  hâlâ var; mutation oraya uygulandı, kapı haklı olarak umursamadı,
+  vaka "KAÇTI" raporladı.
+
+Yani sürüm kapısını sınayan araç her sürüm bump'ında kendini geçersiz
+kılıyordu — ve 0.0.8'de kusursuz görünüyordu. Denetimin tekrar eden
+teması: yeşil raporlayan ama bir şey ölçmeyen kapı.
+
+Düzeltme `329dfc1`: sürüm artık **sınanan ağaçtan** okunuyor (import
+değil, ayrıştırma — worktree'nin sürümü farklı olabilir), yer tutucu
+`@@VERSION@@`. Yer tutucu bilerek `{v}` DEĞİL: iki vaka workflow'un
+gerçek `${v}` kabuk değişkenini arıyor ve `str.format` onları
+`$0.0.9`'a çevirip sessizce uygulanamaz kılardı — aynı hatanın bir kat
+aşağısı.
+
+`tests/test_version_gate_matrix_contract.py` (4 test) sabit sürümün ve
+`{v}` çakışmasının geri gelmesini engelliyor; iki yönlü mutation ile
+doğrulandı. Matris 0.0.9'da tekrar **16/16**.
+
+### 15.2 Bump sonrası doğrulama
+
+```
+normal suite         813 test OK (skip 2)
+sürüm kapısı         0.0.9 / tag v0.0.9
+16 version mutation  16/16 (0.0.9 üzerinde)
+upgrade tabanı       previous_release(0.0.9) = v0.0.8
+release notes        CHANGELOG'dan üretilebiliyor (160 satır, 8 zorunlu başlık)
+migration matrisi    v0.0.1–v0.0.8 · user_version=1
+TAM pyflakes         0 · pip-audit temiz · compileall temiz
+tag / release        YOK
+```
+
+**Windows doğrulamasına gönderilecek commit: bu belgenin commit'i.**

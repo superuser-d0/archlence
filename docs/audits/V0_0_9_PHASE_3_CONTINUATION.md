@@ -43,13 +43,13 @@
 ## Doğrulama
 
 ```
-normal suite         809 test OK (skip 2)   ← Phase 3 kapanışında 781
+normal suite         813 test OK (skip 2)   ← Phase 3 kapanışında 781
 reliability-gates    16/16 version mutation · migration matrisi · 21 adversarial ·
                      property · pip-audit temiz
 bloklayan lint       0
 TAM pyflakes         0   (artık zorunlu)
 istisna kapısı       145 handler yeşil
-sürüm kapısı         0.0.8 / tag v0.0.8
+sürüm kapısı         0.0.9 / tag v0.0.9  (bump YAPILDI, tag YOK)
 migration matrisi    v0.0.1–v0.0.8 · fresh_schema=True · user_version=1
 compileall           temiz
 git diff --check     temiz
@@ -155,4 +155,5 @@ statü atıfları denetlendi. Karar **PRE-WINDOWS GO**.
 **Sırada: gerçek Windows doğrulaması.** Bu olmadan final release GO verilemez.
 Kontrol listesi `V0_0_9_PHASE_3_RELEASE_GATE.md` içinde.
 
-Push/PR/tag/release YOK. Sürüm bump YOK.
+Push/PR/tag/release YOK. Sürüm bump YAPILDI (`acdccd1`) — kaynak
+sürümü 0.0.9; tag ve release hâlâ YOK.
