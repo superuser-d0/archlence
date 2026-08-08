@@ -164,6 +164,19 @@ jobs:
       - name: Financial property tests (hypothesis)
         run: python -m unittest scripts.audit.test_phase2_financial_properties
 
+      - name: Dependency vulnerability scan
+        # PAKETLENEN bağımlılıklar taranıyor (requirements-runtime.txt), lint
+        # araçları değil: kullanıcıya giden .exe'nin içindekiler bunlar.
+        #
+        # BLOKLUYOR. `continue-on-error` bilerek YOK — bu tarama Phase 2'den
+        # v0.0.9'a kadar hiç koşmamıştı ve ilk koşumda 3 pakette 18 benzersiz
+        # bulgu çıktı; bilgilendirici bırakılsaydı aynı sessizlik sürerdi.
+        #
+        # Yeni bir öneri gerçekten düzeltilemiyorsa çözüm `|| true` DEĞİL,
+        # `--ignore-vuln <ID>` ile gerekçesini yazarak tek tek muaf tutmaktır;
+        # böylece muafiyet görünür kalır.
+        run: python -m pip_audit -r requirements-runtime.txt --strict
+
       - name: Upload matrix artifacts
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4

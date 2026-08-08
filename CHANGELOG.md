@@ -48,6 +48,15 @@ this section records what is already fixed on the branch.
   systems.
 - A restore failure shows a fixed message that carries no key, passphrase,
   journal content, file path or traceback.
+- Pillow, cryptography and setuptools are updated to versions without known
+  vulnerabilities (18 advisories across the three). The Pillow ones were
+  reachable: brand icons are fetched from third-party icon services for a
+  user-supplied domain and the response bytes go straight into `Image.open`,
+  so a crafted image from a compromised source or an intercepted connection
+  could reach decoder bugs that corrupt the native heap.
+- Dependencies are now scanned for known vulnerabilities on every pull
+  request, and the scan blocks. Nothing had scanned them before, which is why
+  eighteen advisories had accumulated unnoticed.
 
 ### Testing and packaging
 
