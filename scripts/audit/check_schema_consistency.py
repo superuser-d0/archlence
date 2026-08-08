@@ -241,8 +241,21 @@ def _subprocess(worker, code_root, db_path, profile, result):
         "--profile", str(profile),
         "--result", str(result),
     ]
+    # HEADLESS SÖZLEŞMESİ WORKER'A DA GEÇMELİ. `run_tests.py` bu dört
+    # değişkeni kendisi kuruyor; buradaki alt süreçler kurmuyordu ve CI'da
+    # Kivy'nin girdi sağlayıcı taraması `kivy.input.providers.mtdev`'i import
+    # edip `libmtdev.so.1` yükleyemeyince patlıyordu ("Couldn't connect to X
+    # server" da aynı kökten). Geliştirici makinesinde kütüphane ve X sunucusu
+    # var, o yüzden yalnızca CI'da görüldü.
+    environment = {
+        **os.environ,
+        "KIVY_NO_ARGS": "1",
+        "ARCHLENCE_HEADLESS": "1",
+        "SDL_VIDEODRIVER": "dummy",
+        "KIVY_WINDOW": "sdl2",
+    }
     completed = subprocess.run(
-        command, text=True, capture_output=True, timeout=120
+        command, text=True, capture_output=True, timeout=120, env=environment
     )
     if completed.returncode:
         raise RuntimeError(

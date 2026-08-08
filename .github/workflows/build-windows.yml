@@ -60,10 +60,15 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
           # Upgrade smoke `previous_release.py` ile GERÇEK önceki yayını
-          # seçiyor, o da `git tag` okuyor. Varsayılan checkout etiketleri
-          # çekmiyor; bu adım etiketsiz kaldığında "önceki yayın yok" deyip
-          # smoke'u ATLARDI — sessizce yeşil, hiçbir şey doğrulamadan.
-          fetch-tags: true
+          # seçiyor, o da `git tag` okuyor. Etiket yoksa adım "önceki yayın
+          # yok" deyip kendini ATLAR — sessizce yeşil, hiçbir şey doğrulamadan.
+          #
+          # `fetch-depth: 0`, `fetch-tags: true` DEĞİL: ikincisi tests.yml'de
+          # ölçüldü ve checkout ref'i SHA olarak fetch ederken `--tags`
+          # eklemiyor. Bu job etiketsiz de geçiyordu, ama NEDEN geçtiği
+          # açıklanamadı; açıklanamayan bir davranışa dayanmaktansa diğer
+          # job'larla aynı kesin garantiyi kullanıyor.
+          fetch-depth: 0
 
       - name: Python kur
         # KARAR (kilitli — kasıtlı, 2026-07-29): paketleme için Python 3.12,

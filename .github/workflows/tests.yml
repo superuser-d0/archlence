@@ -29,12 +29,15 @@ jobs:
       - name: Check out code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
-          # `fetch-tags`: test paketi ve upgrade smoke GERÇEK etiket
-          # geçmişini okuyor (`previous_release.py`, `git tag`). Varsayılan
-          # checkout etiket çekmiyor; ilk gerçek koşumda `git tag` boş dönüp
-          # `test_real_repository_history_selects_008_for_009` kırıldı.
+          # Test paketi GERÇEK etiket geçmişini okuyor
+          # (`test_real_repository_history_selects_008_for_009` ->
+          # `previous_release.py` -> `git tag`). Varsayılan checkout etiket
+          # çekmiyor ve `fetch-tags: true` BURADA İŞE YARAMIYOR: checkout ref'i
+          # bir SHA olarak fetch ettiğinde komuta `--tags` eklemiyor, ölçtük.
+          # `fetch-depth: 0` etiketleri kesin getiriyor — `reliability-gates`
+          # zaten bu yüzden onu kullanıyor.
           # Etiketsiz koşup testi atlamak, kapıyı ölçmeden yeşile çevirirdi.
-          fetch-tags: true
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
@@ -86,12 +89,15 @@ jobs:
       - name: Check out code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
-          # `fetch-tags`: test paketi ve upgrade smoke GERÇEK etiket
-          # geçmişini okuyor (`previous_release.py`, `git tag`). Varsayılan
-          # checkout etiket çekmiyor; ilk gerçek koşumda `git tag` boş dönüp
-          # `test_real_repository_history_selects_008_for_009` kırıldı.
+          # Test paketi GERÇEK etiket geçmişini okuyor
+          # (`test_real_repository_history_selects_008_for_009` ->
+          # `previous_release.py` -> `git tag`). Varsayılan checkout etiket
+          # çekmiyor ve `fetch-tags: true` BURADA İŞE YARAMIYOR: checkout ref'i
+          # bir SHA olarak fetch ettiğinde komuta `--tags` eklemiyor, ölçtük.
+          # `fetch-depth: 0` etiketleri kesin getiriyor — `reliability-gates`
+          # zaten bu yüzden onu kullanıyor.
           # Etiketsiz koşup testi atlamak, kapıyı ölçmeden yeşile çevirirdi.
-          fetch-tags: true
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
