@@ -10,11 +10,8 @@ recovery'yi kapatmaz. Bu testler iki şeyi ayrı ayrı kanıtlar:
 """
 
 import json
-import os
-import sqlite3
 import tempfile
 import unittest
-from contextlib import closing
 from pathlib import Path
 from unittest import mock
 

@@ -240,7 +240,6 @@ from mixins.subscription_mixin import SubscriptionMixin
 from mixins.pending_mixin import PendingMixin
 from mixins.calendar_mixin import CalendarMixin
 from security.security_service import LoginThrottle, PasswordPolicy, SecurityService
-from services.backup_service import decrypt_recovery_material
 from services.history_service import write_daily_snapshot
 
 # =========================================================================

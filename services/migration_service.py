@@ -30,7 +30,6 @@ from datetime import datetime
 from database.db import (
     DEFAULT_ACCOUNT_ID,
     SECRET_KEY,
-    get_connection,
     managed_connection,
 )
 from utils.crypto import decrypt

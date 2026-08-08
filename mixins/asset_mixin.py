@@ -1146,7 +1146,6 @@ class AssetMixin:
 
     def _save_new_asset(self):
         """Formu doğrular, DB'e şifreli yazar, listeyi yeniler."""
-        import threading
         from utils.toast import toast
 
         asset_name  = self._asset_name_input.text.strip()

@@ -28,7 +28,6 @@ import os
 import sqlite3
 import tempfile
 import unittest
-from contextlib import closing
 from unittest import mock
 
 _FD_DIR = f"/proc/{os.getpid()}/fd"
