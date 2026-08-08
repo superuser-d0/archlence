@@ -221,9 +221,47 @@ def _current_worker(args):
     first = _db_schema(db_path)
     initialize_database()
     second = _db_schema(db_path)
-    # Import is the headless part of application startup that is meaningful
-    # without opening a GUI window.
-    import main  # noqa: F401
+    # UYGULAMA KATMANI GÖÇ ETMİŞ DB'YE KARŞI YÜKLENEBİLMELİ.
+    #
+    # Burada eskiden `import main` vardı, gerekçesi "GUI penceresi açmadan
+    # anlamlı olan başlangıç parçası" idi. Ampirik olarak DOĞRU DEĞİLDİ:
+    # `main` Kivy'yi import ediyor, Kivy import anında Window kuruyor ve
+    # ekransız bir runner'da sağlayıcı bulamayınca `sys.exit(1)` çağırıyor.
+    # Worker kendi hatasını üretemeden ölüyordu.
+    #
+    # `import main` bu kapıya ayrıca bir şey KATMIYORDU: modül ağacının
+    # import edilebilirliğini `tests/test_startup_import.py` zaten headless
+    # olarak, hem Linux hem Windows CI job'ında doğruluyor. Üstelik `main`
+    # import anında veritabanına dokunmuyor (şema kurulumu `build()` içinde),
+    # yani "göç etmiş DB'ye karşı import" ile düz import arasında fark yoktu.
+    #
+    # Bu kapı için ASIL anlamlı kontrol, veriye dokunan katmanın yüklenip
+    # göç etmiş şemaya karşı çalışabilmesi. O katman Kivy'siz.
+    import importlib
+
+    for module in (
+        "services.account_service",
+        "services.transaction_service",
+        "services.savings_service",
+        "services.asset_service",
+        "services.debt_payment_service",
+        "services.recurring_service",
+        "services.budget_service",
+        "services.insights_service",
+        "services.history_service",
+        "services.migration_service",
+        "services.backup_service",
+    ):
+        importlib.import_module(module)
+
+    # Kivy'nin HİÇ yüklenmediğini de sabitle: ileride servis katmanına bir
+    # GUI bağımlılığı sızarsa bu kapı yine ekran isteyecek duruma düşer ve
+    # aynı tur baştan başlar.
+    if "kivy" in sys.modules:
+        raise SystemExit(
+            "Migration matrisi worker'ı Kivy yükledi; bu kapı GUI'siz "
+            "kalmalı (bkz. yukarıdaki not)."
+        )
 
     result = {
         "schema": second,
@@ -259,24 +297,10 @@ def _subprocess(worker, code_root, db_path, profile, result):
         "ARCHLENCE_HEADLESS": "1",
         "KIVY_WINDOW": "sdl2",
     }
-    # SDL SÜRÜCÜSÜ EKRANIN VARLIĞINA GÖRE SEÇİLİR.
-    #
-    # Worker `import main` yapıyor, yani Kivy GERÇEKTEN bir Window
-    # sağlayıcısı kuruyor. `dummy` sürücüsünde OpenGL yok; sağlayıcı
-    # bulunamayınca Kivy `sys.exit(1)` çağırıyor ve worker kendi hata
-    # mesajını bile üretemeden ölüyor (CI'da stderr'de yalnız Kivy'nin
-    # CRITICAL'i vardı, Python traceback'i yoktu).
-    #
-    # Bunu `dummy` olarak SABİTLEMEK, adımı `xvfb` altında koştursak bile
-    # sanal ekranı işe yaramaz kılıyordu — hata mesajındaki
-    # "current SDL video driver (dummy)" tam olarak bunu söylüyor.
-    #
-    # `main.py` ARCHLENCE_HEADLESS altında `setdefault` ile `dummy` yazıyor;
-    # burada AÇIKÇA set edildiğinde o varsayılan devreye girmiyor.
-    if environment.get("DISPLAY") or environment.get("WAYLAND_DISPLAY"):
-        environment["SDL_VIDEODRIVER"] = "x11"
-    else:
-        environment["SDL_VIDEODRIVER"] = "dummy"
+    # Kivy artık yüklenmiyor (bkz. `_current_worker`), ama uygulama kodunun
+    # herhangi bir yerinde bir GUI import'u kalırsa süreç en azından
+    # deterministik davransın diye headless sözleşmesi korunuyor.
+    environment["SDL_VIDEODRIVER"] = "dummy"
 
     completed = subprocess.run(
         command, text=True, capture_output=True, timeout=120, env=environment
