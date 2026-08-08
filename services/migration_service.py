@@ -158,21 +158,42 @@ def export_all_to_csv(path=None):
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     fd, staged = tempfile.mkstemp(prefix=".archlence-export-", dir=target.parent)
+    fd_handed_off = False
     try:
-        os.fchmod(fd, 0o600)
+        # `os.fchmod` WINDOWS'TA YOK. Korumasız çağrı orada `AttributeError`
+        # fırlatıyordu, yani CSV dışa aktarma Windows'ta HİÇ çalışmıyordu —
+        # bu koruma (`c2ae4c1`) eklendiğinden beri. Linux'ta test edildiği
+        # için görülmedi.
+        #
+        # DÜRÜST SINIR: POSIX mod bitleri Windows'ta karşılığı olmayan bir
+        # kavram. Orada dosya, üst dizinin ACL'sini devralır ve bu çağrı
+        # atlandığında dosya "yalnız sahibine açık" OLMAZ. Windows tarafında
+        # ACL ile daraltma ayrı bir iş; burada sessizce korunuyormuş gibi
+        # davranmıyoruz (bkz. CHANGELOG "on POSIX systems").
+        if hasattr(os, "fchmod"):
+            os.fchmod(fd, 0o600)
         with os.fdopen(fd, "w", newline="", encoding="utf-8-sig") as f:
+            # Bu noktadan sonra fd'nin sahibi `f`; kapatmak ONUN işi.
+            fd_handed_off = True
             writer = csv.writer(f)
             writer.writerow(CSV_HEADER)
             writer.writerows(rows_out)
             f.flush(); os.fsync(f.fileno())
         os.replace(staged, target)
-        os.chmod(target, 0o600)
+        if hasattr(os, "fchmod"):
+            os.chmod(target, 0o600)
     # EXCEPTION-AUDIT: bilinçli geniş — staged dosyanın silinmesi HER hata
     # türünde çalışmalı (şifresi çözülmüş finansal veri diskte kalmasın).
     # Handler yutmuyor, yeniden fırlatıyor.
     except Exception:
+        # fd'yi ÖNCE kapat. Windows açık bir dosyayı sildirmez: `fchmod`
+        # patladığında fd hâlâ açıktı ve temizlik `PermissionError [WinError
+        # 32]` ile ikinci kez kırılıyordu — asıl hatayı da gizleyerek.
+        if not fd_handed_off:
+            try: os.close(fd)
+            except OSError: pass
         try: os.unlink(staged)
-        except FileNotFoundError: pass
+        except (FileNotFoundError, PermissionError): pass
         raise
 
     return path, len(rows_out)
