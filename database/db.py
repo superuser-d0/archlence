@@ -76,8 +76,7 @@ def managed_connection():
     istisnada `close()` hiç çalışmıyordu. Bu teorik bir risk değildi:
     `adjust_account_balance` hesap bulunamadığında BİLEREK ValueError fırlatır
     (aşağıdaki `cursor.rowcount == 0` koruması) ve onu çağıran
-    `insert_asset_transaction` / `process_due_recurring_payment` tam da bu
-    kalıptaydı. Yazma bütünlüğü zaten güvendeydi (commit'e ulaşılmadığı için
+    `process_due_recurring_payment` tam da bu kalıptaydı. Yazma bütünlüğü zaten güvendeydi (commit'e ulaşılmadığı için
     yarım kayıt oluşmaz), sızan şey bağlantı nesnesinin kendisiydi.
 
     Servis katmanı (services/account_service.py, transaction_service.py vb.)
@@ -356,35 +355,6 @@ def get_asset_by_id(asset_id):
         "quantity":       dec_quantity,
         "purchase_date":  r["purchase_date"],
     }
-
-
-def insert_asset_transaction(account_id, amount, tx_type, category, description):
-    """
-    Records an asset buy (type='expense', category='Varlık Alımı') or
-    an asset sale (type='income', category='Varlık Satışı') into the
-    transactions table so the liquid wallet balance is updated correctly.
-    """
-    from datetime import datetime
-    from services.account_service import AccountService
-    allowed, reason = AccountService.check_spending_allowed(
-        account_id, amount, tx_type,
-    )
-    if not allowed:
-        raise ValueError(reason)
-    # adjust_account_balance hesap yoksa ValueError fırlatır — o durumda
-    # commit'e hiç ulaşılmaz (yarım kayıt yok, doğru davranış) ama eskiden
-    # close() de çalışmıyordu. Bağlantı artık her çıkış yolunda kapanıyor.
-    with managed_connection() as conn:
-        cursor = conn.cursor()
-        enc_amount = encrypt(str(amount), SECRET_KEY)
-        enc_desc   = encrypt(str(description), SECRET_KEY)
-        tx_date    = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cursor.execute("""
-            INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (account_id, enc_amount, tx_type, category, enc_desc, tx_date))
-        adjust_account_balance(cursor, account_id, tx_type, amount)
-        conn.commit()
 
 
 def get_asset_transaction_history(limit=50):

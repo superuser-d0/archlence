@@ -255,7 +255,7 @@ class CrossTransactionAtomicityReproduction(_TemporaryProfile):
     """P0-4 / P0-5 kapanış kanıtı: her fault noktasında tam rollback.
 
     ÖNCEKİ HÂLİ BAYATTI. Reproduction `database.db.delete_asset` ve
-    `insert_asset_transaction` fonksiyonlarını patch'leyerek hata enjekte
+    `insert_asset_transaction` (o gün var olan) fonksiyonlarını patch'leyerek hata enjekte
     ediyordu; v0.0.9'un atomiklik düzeltmesi (96049ee, df46a31) bu yolları
     kaldırıp işi `AssetSaleService` / `DebtPaymentService` altında tek
     transaction'a taşıdı. Patch'ler artık HİÇ TETİKLENMİYORDU: satış ve ödeme

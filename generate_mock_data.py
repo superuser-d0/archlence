@@ -8,9 +8,9 @@ Tasarım notları:
   Çalıştırmadan önce finance.db yedeği alınması önerilir (bkz. README/rapor).
 - db.py fonksiyonları tarih parametresi kabul ettiği yerde doğrudan kullanılır
   (insert_asset, insert_recurring_payment, insert_debt, update_debt_*).
-  TransactionService.add_transaction ve insert_asset_transaction tarihi
-  datetime.now() ile sabitlediği için, geriye dönük işlemler aynı INSERT
-  şablonu + encrypt() ile buradan yazılır (şifreleme formatı birebir aynı).
+  TransactionService.add_transaction tarihi datetime.now() ile sabitlediği
+  için, geriye dönük işlemler aynı INSERT şablonu + encrypt() ile buradan
+  yazılır (şifreleme formatı birebir aynı).
 - Rastgelelik sabit tohumludur (seed=2026): betik her çalıştığında aynı
   veri setini üretir — hata ayıklama tekrarlanabilir kalır.
 - Tüm işlemler uygulamanın kullandığı account_id=1 üzerinden yazılır.
