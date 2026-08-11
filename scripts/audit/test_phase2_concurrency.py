@@ -119,13 +119,27 @@ class ConcurrentBoundedOperations(_TemporaryProfile):
         card_id = AccountService.create_account(
             "Race card", "credit_card", credit_limit=100.0
         )
+        # Bu kanca TRANSACTION'IN DIŞINDAKİ karara denk gelir ve bugün bu yol
+        # için BİLEREK ATIL: `467b269` kararı `BEGIN IMMEDIATE`'in içine
+        # taşıdığından `add_transaction` artık `check_spending_allowed`
+        # çağırmıyor. Barrier o günden beri hiç tetiklenmiyordu — testin
+        # koruduğu şey mock değil, aşağıdaki invariant'tır.
+        #
+        # Kanca yine de duruyor: kontrol bir gün yeniden transaction'ın
+        # dışına kayarsa iki worker orada buluşur ve bu test kırmızıya döner.
+        # Barrier'ı `assert_spending_allowed`'a taşımak YANLIŞ olurdu —
+        # orası artık yazma kilidinin içinde ve ikinci worker birinciyi
+        # beklediği için barrier kilitlenirdi.
         original = AccountService.check_spending_allowed
         reached = threading.Barrier(2)
 
         def synchronized_check(*args, **kwargs):
             result = original(*args, **kwargs)
             if result[0]:
-                reached.wait(timeout=5)
+                try:
+                    reached.wait(timeout=2)
+                except threading.BrokenBarrierError:
+                    pass
             return result
 
         with mock.patch.object(
@@ -148,6 +162,90 @@ class ConcurrentBoundedOperations(_TemporaryProfile):
             f"available_limit={card['available_limit']} worker_failures={failures}"
         )
         self.assertLessEqual(card["debt"], 100.0, "iki stale limit kontrolü limiti aştı")
+
+
+class ConcurrentAssetPurchaseReproduction(_TemporaryProfile):
+    """Varlık alımı, kart harcamasıyla AYNI limit garantisine tabidir.
+
+    NEDEN VAR: `467b269` limit kararını `add_transaction` içinde
+    `BEGIN IMMEDIATE`'in arkasına aldı, ama `asset_purchase_service` aynı
+    korumayı almadı — kontrolü kendi bağlantısını açan
+    `check_spending_allowed` ile transaction'ın DIŞINDA yapıyordu. Üretildi:
+    100 TL limitli kartta iki eşzamanlı alım borcu **120 TL** yapıyordu.
+
+    Bugün UI'dan erişilebilir değildi (`asset_mixin`'de `_asset_purchase_inflight`
+    kilidi var ve `_pick_funding_account` kredi kartı seçmiyor), ama invariant
+    UI state'inde yaşıyordu, domain'de değil. Yeni bir çağıran onu baypas
+    ederdi.
+    """
+
+    def test_two_purchases_cannot_use_the_same_limit_snapshot(self):
+        from services.account_service import AccountService
+        from services.asset_purchase_service import AssetPurchaseService
+
+        card_id = AccountService.create_account(
+            "Race card", "credit_card", credit_limit=100.0
+        )
+        # Düzeltme öncesi şekli DETERMİNİSTİK olarak açığa çıkaran kanca:
+        # her iki worker da kontrolü bitirmeden hiçbiri yazamaz. Düzeltmeden
+        # SONRA bu yol `check_spending_allowed` çağırmadığı için barrier hiç
+        # tetiklenmez ve iki worker doğal olarak `BEGIN IMMEDIATE` üzerinde
+        # serileşir. Timeout + BrokenBarrierError yutma tam da bu yüzden var.
+        original = AccountService.check_spending_allowed
+        reached = threading.Barrier(2)
+
+        def synchronized_check(*args, **kwargs):
+            result = original(*args, **kwargs)
+            if result[0]:
+                try:
+                    reached.wait(timeout=2)
+                except threading.BrokenBarrierError:
+                    pass
+            return result
+
+        with mock.patch.object(
+            AccountService, "check_spending_allowed", side_effect=synchronized_check
+        ):
+            failures = _run_two_workers(
+                lambda: AssetPurchaseService.create_purchase(
+                    asset_name="Race", asset_code="RACE", asset_type="hisse",
+                    quantity=1, purchase_price=60.0, account_id=card_id,
+                    deduct_from_balance=True,
+                )
+            )
+        card = AccountService.get_account(card_id)
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            assets = conn.execute(
+                "SELECT COUNT(*) FROM active_assets WHERE asset_code='RACE'"
+            ).fetchone()[0]
+            transactions = conn.execute(
+                "SELECT COUNT(*) FROM transactions WHERE account_id=?", (card_id,)
+            ).fetchone()[0]
+            events = conn.execute(
+                "SELECT COUNT(*) FROM balance_events WHERE source='asset_purchase'"
+            ).fetchone()[0]
+        print(
+            "AUDIT_STATE concurrent_asset_purchase "
+            f"assets={assets} transactions={transactions} events={events} "
+            f"debt={card['debt']} worker_failures={failures}"
+        )
+
+        # 1) ASIL INVARIANT: borç limiti aşamaz.
+        self.assertLessEqual(
+            card["debt"], 100.0,
+            f"iki stale limit kontrolü limiti aştı (borç={card['debt']})",
+        )
+        # 2) Yarışan ikiden en az biri REDDEDİLMİŞ olmalı. 60+60 limite
+        #    sığmıyor; ikisi de geçtiyse invariant tesadüfen sağlanmış olurdu.
+        self.assertEqual(
+            len(failures), 1,
+            f"tam olarak bir alım reddedilmeliydi, sonuç: {failures}",
+        )
+        # 3) Reddedilen alımdan PARÇALI durum kalmamalı: varlık, işlem ve
+        #    bakiye olayı tek transaction'da yazılır ya da hiçbiri yazılmaz.
+        self.assertEqual(assets, 1, "reddedilen alımın varlık satırı kalmış")
+        self.assertEqual(transactions, 1, "reddedilen alımın işlemi kalmış")
+        self.assertEqual(events, 1, "reddedilen alımın bakiye olayı kalmış")
 
 
 if __name__ == "__main__":
