@@ -200,10 +200,20 @@ class SavingsService:
                 (amount, account_id),
             )
 
-            # Çekim hedefi tamamlanmışlıktan geri düşürdüyse durumu düzelt
+            # Çekim hedefi tamamlanmışlıktan geri düşürdüyse durumu düzelt.
+            #
+            # ROUND(...,2): bu satır tek başına HAM değerle karar veriyordu,
+            # oysa kardeşleri (tamamlanma işareti ve çekim yeterliliği) kuruş
+            # hassasiyetinde. Aynı ekonomik soru aynı serviste iki farklı
+            # anlam kazanıyordu. `current_amount` `current_amount + ?` ile
+            # birikiyor ve ikili kayan nokta artığı taşıyor; hedefi TAM olarak
+            # tutan bir hedef 10.399999999999999 kalıp "10,40 / 10,40"
+            # gösterirken "aktif"e düşüyordu. On bir sıradan servis çağrısıyla
+            # üretildi (bkz. tests/test_savings_status_rounding.py).
             cursor.execute(
                 f"UPDATE savings_goals SET status = '{STATUS_ACTIVE}' "
-                f"WHERE id = ? AND current_amount < target_amount",
+                f"WHERE id = ? AND ROUND(current_amount, 2) "
+                f"< ROUND(target_amount, 2)",
                 (goal_id,),
             )
 

@@ -14,6 +14,11 @@
 - A portfolio row whose price or quantity is not a finite number is now
   reported as unpriceable instead of showing `nan` or `inf` as profit,
   breakeven or total value.
+- A savings goal that still holds its target no longer falls back to "active"
+  after money is withdrawn from it. Whether a goal counts as reached is now
+  decided to the kuruş everywhere in the service; one of the three places that
+  asks that question compared the raw stored amount instead, so a goal showing
+  10,40 / 10,40 could be labelled unfinished.
 
 - Buying an asset now decides whether the account can afford it inside the same
   database transaction that writes the purchase. The check previously ran on a
