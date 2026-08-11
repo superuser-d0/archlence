@@ -30,7 +30,7 @@ ve fonksiyon adı yeniden adlandırılmadıkça sabit kalır.
 
 | Kategori | Adet | Karar |
 |---|---|---|
-| 1. domain / business calculation | **20** | migrate |
+| 1. domain / business calculation | **18** | migrate |
 | 2. monetary persistence boundary | 20 | keep (bilinçli) |
 | 3. SQLite REAL compatibility | 11 | keep |
 | 4. UI / rendering | 9 | keep |
@@ -40,7 +40,9 @@ ve fonksiyon adı yeniden adlandırılmadıkça sabit kalır.
 | **toplam** | **101** | |
 
 İlk turda kategori 1'de 31 çağrı vardı. `projection_service`'in 11 çağrısı
-ölçüm sonrasında kategori 6'ya taşındı (aşağıda), geriye **20** kaldı.
+ölçüm sonrasında kategori 6'ya taşındı, portföy toplamının 2 çağrısı ise
+Decimal'e geçirildi — geriye **18** kaldı. İkisi de sayı düşürmek için değil,
+ölçülen sonuca göre.
 
 ---
 
@@ -82,9 +84,8 @@ giriyor.
 
 | Dosya :: fonksiyon :: kalıp | Adet | Değer | Durum |
 |---|---|---|---|
-| `services/asset_service.py :: fetch_active_non_try_total :: total += float(asset["quantity"]) * float(price)` | 2 | portföy piyasa değeri toplamı | **sıradaki dilim** |
-| `services/asset_service.py :: get_active_non_try_assets :: quantity = float(decrypt(row["quantity"], SECRET_KEY))` | 1 | miktar | sıradaki dilim |
-| `services/asset_service.py :: get_active_non_try_assets :: purchase_price = float(decrypt(row["purchase_price"], SECRET_KEY))` | 1 | alış fiyatı — **kapsam doğrulanmalı**, toplam bunu kullanmıyor olabilir | sıradaki dilim |
+| `services/asset_service.py :: get_active_non_try_assets :: quantity = float(decrypt(row["quantity"], SECRET_KEY))` | 1 | miktar — **ölçüldü, kaybı sıfır**; saklanan metin zaten bir float'ın repr'ı. Kategori 3'e taşınmayı hak ediyor, ayrı turda | 
+| `services/asset_service.py :: get_active_non_try_assets :: purchase_price = float(decrypt(row["purchase_price"], SECRET_KEY))` | 1 | alış fiyatı — **kapsam dışı çıktı**: piyasa değeri yolu bunu hiç okumuyor. Ayrıca kullanılmayan çözme, temizlik adayı | 
 | `services/asset_service.py :: invalidate_asset_data_cache :: float(old_summary.get(...))` | 4 | nakit, kart borcu, net servet düzeltmesi | bekliyor |
 | `database/db.py :: get_active_debts :: float(decrypt(r["total_amount"] / r["monthly_payment"], SECRET_KEY))` | 2 | borç toplamı, aylık taksit | bekliyor |
 | `database/db.py :: get_all_assets :: float(decrypt(r["purchase_price"] / r["quantity"], SECRET_KEY))` | 2 | alış fiyatı, miktar | bekliyor |
@@ -157,4 +158,4 @@ kesinlik izlenimi** verir: kaynak veri o hassasiyette değil.
 |---|---|---|
 | `calculate_pnl` | Decimal'a geçti; 0,045×15 gibi yarım kuruş sınırlarında bir kuruş düzeldi | PR #84 |
 | `projection_service` | **Keep float** (ölçüldü) | [`PROJECTION_FLOAT_AUDIT.md`](PROJECTION_FLOAT_AUDIT.md), PR #87 |
-| Portföy toplamı | denetim bekliyor | — |
+| Portföy toplamı | **Decimal'e geçti** — `quantity × price` yuvarlama sınırında bir kuruş kaybediyordu (15 × 0,045 → 0,67 yerine 0,68). Çıktı sınırı `float(fiat(total))`; `float(total)` tek başına hatayı geri getiriyordu | [`PORTFOLIO_TOTAL_AUDIT.md`](PORTFOLIO_TOTAL_AUDIT.md), PR #88 |

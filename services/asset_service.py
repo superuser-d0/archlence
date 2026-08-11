@@ -1149,6 +1149,23 @@ def _fetch_live_try_prices(assets: list[dict]) -> dict[str, float]:
     return prices
 
 
+def _monetary_output(total: Decimal) -> float:
+    """Decimal toplamı, çağıranların beklediği float sözleşmesine çevirir.
+
+    `float(total)` TEK BAŞINA YETMEZ ve bu ölçüldü: tüketici
+    (`account_mixin._apply_active_assets_result`) değeri `f"{value:,.2f}"` ile
+    biçimliyor, yani ikili float üzerinde yuvarlıyor. `Decimal("2.675")`
+    doğrudan float'a çevrilirse o biçimleme **2,67** üretir — Decimal'e
+    geçerek kapattığımız hatanın aynısı, bir adım sonrasında geri gelir.
+
+    Bu yüzden yuvarlama, para politikasının sahibi olan `fiat()` ile BURADA
+    yapılıyor; float'a dönüş ondan sonra geliyor. Hem ara (progress) hem
+    nihai toplam aynı fonksiyondan geçsin diye ayrı bir yardımcı: ikisinin
+    aynı parayı göstermesi sözleşmenin kendisi.
+    """
+    return float(fiat(total))
+
+
 def fetch_active_non_try_total(callback, progress_callback=None) -> None:
     """TL dışı portföy toplamını dinamik TTL cache'iyle arka planda hesaplar.
 
@@ -1195,24 +1212,46 @@ def fetch_active_non_try_total(callback, progress_callback=None) -> None:
         prices = get_cached_prices(symbol for symbol, _kind in requested)
         # Tek çağrı bütün vadesi dolmuş sembolleri bir batch worker'a toplar.
         fetch_prices_async(requested, callback=None)
-        total = 0.0
+        # Toplam Decimal'de birikiyor. Eskiden her pozisyon
+        # `float(quantity) * float(price)` ile çarpılıp float bir akümülatöre
+        # ekleniyordu; çarpım yuvarlama sınırına düştüğünde ikili gösterim
+        # yarım kuruşu yutuyordu — 15 kripto x 0,045 TL tam olarak 0,675 eder
+        # ama ekranda 0,67 görünüyordu. Uydurma bir sınır değil: miktar ve
+        # fiyat, uygulamanın kendi hassasiyet politikası içinde.
+        total = Decimal("0")
         priced_count = 0
         for asset in assets:
             symbol = (asset["asset_code"] or "").strip().upper()
             price = prices.get(symbol)
             if price is None:
                 continue
+            try:
+                value = decimal_from(asset["quantity"]) * decimal_from(price)
+            except (ValueError, TypeError):
+                # Sonlu olmayan miktar/fiyat. Fırlatmak bu döngüyü ve onunla
+                # birlikte ARKA PLAN THREAD'İNİ düşürürdü; callback hiç
+                # çağrılmaz ve arayüz sonsuza kadar bekler. Fiyatlanamayan
+                # varlıkla aynı muamele: sayılmadan atlanıyor.
+                _log().warning(
+                    "[VERİ BÜTÜNLÜĞÜ] %s toplama alınamadı: miktar=%r fiyat=%r",
+                    symbol, asset.get("quantity"), price,
+                )
+                continue
             priced_count += 1
-            total += float(asset["quantity"]) * float(price)
+            # Pozisyon başına ERKEN yuvarlama YOK: `fiat(value)` toplamak,
+            # her varlığın ayrı ayrı kuruşlandığı anlamına gelirdi ve böyle
+            # bir iş kuralı yok. Kesinlik sonda, çıktı sınırında daraltılıyor.
+            total += value
             if progress_callback is not None:
                 progress_callback({
-                    "total": total, "asset_count": len(assets),
+                    "total": _monetary_output(total),
+                    "asset_count": len(assets),
                     "priced_count": priced_count,
                     "cached_count": priced_count, "complete": False,
                     "asset": asset,
                 })
         callback({
-            "total": total, "asset_count": len(assets),
+            "total": _monetary_output(total), "asset_count": len(assets),
             "priced_count": priced_count, "cached_count": priced_count,
             "complete": True,
         })
