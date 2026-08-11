@@ -33,6 +33,8 @@ Bunlar v0.0.9 fazlarının parçası değil; yayın sonrası süren teknik borç
 |---|---|
 | `DECIMAL_MIGRATION_CLASSIFICATION.md` | **Geçişin kaynak listesi** — 101 `float()` çağrısının kategorileri, tamamlanan ve bekleyen dilimler |
 | `PROJECTION_FLOAT_AUDIT.md` | `projection_service` hassasiyet ölçümü — karar **Keep float** |
+| `PORTFOLIO_TOTAL_AUDIT.md` | Portföy piyasa değeri toplamı — karar **Decimal çarpım + akümülatör** |
+| `DECIMAL_PHASE_CLOSEOUT.md` | **Fazın kapanışı** — son 19 adayın karar tablosu, sayım düzeltmesi, faz özeti |
 
 ## Phase 1 — kapılar yalan söylüyor mu
 
