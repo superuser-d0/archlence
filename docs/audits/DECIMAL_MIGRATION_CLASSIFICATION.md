@@ -7,6 +7,20 @@ Bu belge geçişin kaynak listesi. Bir çağrının hangi kategoride olduğu
 değiştiğinde burası güncellenir; kararın gerekçesi ilgili denetim belgesine
 bağlanır.
 
+## Referans biçimi
+
+Aktif kalemlerin kimliği **dosya + fonksiyon + kod kalıbı**:
+
+```
+services/asset_service.py :: fetch_active_non_try_total :: total += float(asset["quantity"]) * float(price)
+```
+
+Satır numarası varsa yalnız parantez içinde, yardımcı bilgidir — kimlik değil.
+Sebebi ölçülerek görüldü: bu belgenin ilk taslağındaki `asset_service.py`
+satır numaraları, `calculate_pnl` geçişi (PR #84) dosyayı uzattığı için
+**tek bir merge sonrasında** kaymıştı. Kod kalıbı ise `grep` ile bulunabilir
+ve fonksiyon adı yeniden adlandırılmadıkça sabit kalır.
+
 > **Sayı notu:** ilk turda "109" olarak raporlanmıştı; o, yorum ve docstring
 > satırlarını da sayan bir grep'ti. AST ile gerçek çağrı sayısı **101**.
 
@@ -35,11 +49,11 @@ bağlanır.
 `services/projection_service.py` — RK4 servet projeksiyonu ve senaryo
 aritmetiği. **Ölçülerek** bu kategoriye alındı; varsayımla değil.
 
-| Satır | Değer |
+| Dosya :: fonksiyon :: kalıp | Adet |
 |---|---|
-| 17-20 | `initial_wealth`, `daily_income`, `daily_expense`, `r` — girdi normalizasyonu |
-| 70-75 | `base_balance`, `base_income`, `base_expense`, `income_pct`, `expense_pct`, `adjustment` |
-| 111 | `r` — senaryo çıktısındaki oran |
+| `services/projection_service.py :: project_wealth_series :: float(initial_wealth / daily_income / daily_expense / r)` | 4 |
+| `services/projection_service.py :: simulate_scenario :: float(base_balance / base_daily_income / base_daily_expense / income_delta_pct / expense_delta_pct / one_time_adjustment)` | 6 |
+| `services/projection_service.py :: simulate_scenario :: "r": float(r)` (çıktı sözlüğü) | 1 |
 
 Karar: **Keep float**. Ölçümün özeti:
 
@@ -66,24 +80,34 @@ bilinçli bir sayısal tercih.
 Kalan gerçek aday listesi. Değer bu noktadan sonra **Python'da aritmetiğe**
 giriyor.
 
-| Yer | Değer | Durum |
-|---|---|---|
-| `asset_service.py:1165` (×2) | `total += float(qty) * float(price)` — portföy toplamı | **sıradaki dilim** |
-| `asset_service.py:979-980` (×2) | miktar, alış fiyatı (decrypt → float) | sıradaki dilim |
-| `asset_service.py:160,161,163,165` (×4) | nakit, kart borcu, net servet düzeltmesi | bekliyor |
-| `db.py:264,265` (×2) | borç toplamı, aylık taksit | bekliyor |
-| `db.py:310,311,344,345` (×4) | alış fiyatı, miktar | bekliyor |
-| `db.py:416,515` (×2) | işlem tutarı | bekliyor |
-| `history_service.py:202` | birikim hedefleri toplamı | bekliyor |
-| `insights_service.py:58` | `_safe_decrypt_float` | bekliyor — fan-out yüksek |
-| `calendar_service.py:58` | tutar | bekliyor |
-| `recurring_service.py:229,397` (×2) | tutar | bekliyor |
+| Dosya :: fonksiyon :: kalıp | Adet | Değer | Durum |
+|---|---|---|---|
+| `services/asset_service.py :: fetch_active_non_try_total :: total += float(asset["quantity"]) * float(price)` | 2 | portföy piyasa değeri toplamı | **sıradaki dilim** |
+| `services/asset_service.py :: get_active_non_try_assets :: quantity = float(decrypt(row["quantity"], SECRET_KEY))` | 1 | miktar | sıradaki dilim |
+| `services/asset_service.py :: get_active_non_try_assets :: purchase_price = float(decrypt(row["purchase_price"], SECRET_KEY))` | 1 | alış fiyatı — **kapsam doğrulanmalı**, toplam bunu kullanmıyor olabilir | sıradaki dilim |
+| `services/asset_service.py :: invalidate_asset_data_cache :: float(old_summary.get(...))` | 4 | nakit, kart borcu, net servet düzeltmesi | bekliyor |
+| `database/db.py :: get_active_debts :: float(decrypt(r["total_amount"] / r["monthly_payment"], SECRET_KEY))` | 2 | borç toplamı, aylık taksit | bekliyor |
+| `database/db.py :: get_all_assets :: float(decrypt(r["purchase_price"] / r["quantity"], SECRET_KEY))` | 2 | alış fiyatı, miktar | bekliyor |
+| `database/db.py :: get_asset_by_id :: float(decrypt(r["purchase_price"] / r["quantity"], SECRET_KEY))` | 2 | alış fiyatı, miktar | bekliyor |
+| `database/db.py :: get_asset_transaction_history :: dec_amount = float(decrypt(str(r["amount"]), SECRET_KEY))` | 1 | işlem tutarı | bekliyor |
+| `database/db.py :: get_active_recurring_payments :: dec_amount = float(decrypt(r["amount"], SECRET_KEY))` | 1 | tutar | bekliyor |
+| `services/history_service.py :: get_balance_at :: sum(float(v) for v in ...savings_goals...)` | 1 | birikim hedefleri toplamı | bekliyor |
+| `services/insights_service.py :: _safe_decrypt_float :: return float(decrypt_decimal(...))` | 1 | tutar | bekliyor — **fan-out yüksek**, `statistics.fmean`/`pstdev` dahil çok sayıda tüketici |
+| `services/calendar_service.py :: get_day_transactions :: amount = float(decrypt(str(row["amount"]), SECRET_KEY))` | 1 | tutar | bekliyor |
+| `services/recurring_service.py :: _plain_amount :: return float(decrypt(str(raw), SECRET_KEY))` | 1 | tutar | bekliyor |
 
-`transaction_service.py:250,317,489,568,609` ve `price_service.py:492,493`
-tamamlanan dilimlerle birlikte çözüldü ya da kategori değiştirdi; ayrıntı
-ilgili PR'larda.
+`transaction_service` ve `price_service`'teki kalemler tamamlanan dilimlerle
+birlikte çözüldü ya da kategori değiştirdi; ayrıntı ilgili PR'larda.
 
 ---
+
+---
+
+> **Aşağıdaki "keep" kategorileri satır numarasıyla listeleniyor ve bunlar
+> anlık görüntüdür.** Bilerek yeniden biçimlendirilmediler: bu kalemlerde
+> karar verilmiş durumda, yani kimse onları kod içinde bulmak zorunda değil.
+> Aktif olan kalemler (kategori 1, 6, 7) yukarıda dosya + fonksiyon + kalıp
+> ile tanımlı. Bir "keep" kalemi yeniden gündeme gelirse aynı biçime çevrilir.
 
 ## Kategori 2 — monetary persistence boundary (20, keep)
 
@@ -118,11 +142,12 @@ kesinlik izlenimi** verir: kaynak veri o hassasiyette değil.
 
 ## Kategori 7 — ambiguous / needs investigation (8)
 
-| Yer | Durum |
-|---|---|
-| `asset_service.py:589,590` | Float eşitlik karşılaştırması — **araştırıldı, reproduction yok**, dokunulmadı. Bkz. `tests/test_portfolio_cache_identity.py` |
-| `asset_service.py:1017,1075,1076,1101,1102` | Fiyat cache haritası: kaynak dış API, tüketici portföy aritmetiği. Sınırın hangi tarafında durduğuna karar verilmeli |
-| `migration_service.py:262` | CSV içe aktarma; `float()` kasıtlı, `math.isfinite` ile inf/nan eleniyor. `Decimal("nan")` sessizce üretileceği için dönüşüm güvenliği AZALTABİLİR |
+| Dosya :: fonksiyon :: kalıp | Adet | Durum |
+|---|---|---|
+| `services/asset_service.py :: _read_cached_portfolio :: float(entry.get("quantity", -1)) != float(asset.get("quantity", 0))` | 4 | Float eşitlik karşılaştırması — **araştırıldı, reproduction yok**, dokunulmadı. JSON/SQLite/decrypt round-trip'lerinin üçü de kayıpsız; gerçek yol iki okumada da HIT. Bkz. `tests/test_portfolio_cache_identity.py` |
+| `services/asset_service.py :: _read_cached_prices :: {row["symbol"]: float(row["price"]) ...}` | 1 | Fiyat cache haritası: kaynak dış API, tüketici portföy aritmetiği. Sınırın hangi tarafında durduğuna karar verilmeli — **portföy toplamı denetiminde ele alınacak** |
+| `services/asset_service.py :: _fetch_live_try_prices :: prices[full_code] = float(value)` / `1.0 / float(rate)` | 4 | Aynı sınır sorusu; dış sağlayıcıdan gelen fiyatlar | 
+| `services/migration_service.py :: parse_transactions_csv :: amount = float(raw_amount)` | 1 | CSV içe aktarma; `float()` kasıtlı, hemen ardından `math.isfinite` ile inf/nan eleniyor. `Decimal("nan")` sessizce üretileceği için dönüşüm güvenliği **azaltabilir** |
 
 ---
 
