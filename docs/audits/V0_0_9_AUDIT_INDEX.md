@@ -24,6 +24,16 @@ maddeler için o tabloları değil, aşağıdaki Phase 3 belgelerini okuyun.
 | `V0_0_9_PHASE_3_RELEASE_GATE.md` | Phase 3 release gate — RC GO, pending Windows |
 | `V0_0_9_PRE_WINDOWS_GATE.md` | **Windows öncesi son kapı — GÜNCEL STATÜ.** P2-7 yeniden değerlendirmesi, FD ölçüm matrisi, açık iş listesi |
 
+### v0.0.9 sonrası — Decimal geçişi
+
+Bunlar v0.0.9 fazlarının parçası değil; yayın sonrası süren teknik borç
+çalışmasının kaydı.
+
+| Dosya | İçerik |
+|---|---|
+| `DECIMAL_MIGRATION_CLASSIFICATION.md` | **Geçişin kaynak listesi** — 101 `float()` çağrısının kategorileri, tamamlanan ve bekleyen dilimler |
+| `PROJECTION_FLOAT_AUDIT.md` | `projection_service` hassasiyet ölçümü — karar **Keep float** |
+
 ## Phase 1 — kapılar yalan söylüyor mu
 
 **Yöntem:** mutation testing. 14 mutation, 13 yakalandı, 1 kaçtı.
