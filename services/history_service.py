@@ -127,17 +127,26 @@ def ledger_start_date(cursor=None):
     hareketi kaydetmiyordu, o dönem için elimizde veri YOK. Sıfır döndürmek
     "hiç paranız yoktu" demek olurdu — bu yanlış olurdu.
     """
-    own = cursor is None
-    conn = get_connection() if own else None
-    try:
-        cur = conn.cursor() if own else cursor
-        cur.execute("SELECT MIN(ts) AS first_ts FROM balance_events")
-        row = cur.fetchone()
-        first = row["first_ts"] if row else None
-        return first[:10] if first else None
-    finally:
-        if own:
+    # SAHİPLİK AÇIK YAZILIYOR. Eskiden `own = cursor is None` bayrağı ve
+    # `conn = get_connection() if own else None` ile kuruluyordu; çalışma
+    # zamanında doğruydu (bayrak ile `conn is not None` birebir korele) ama
+    # ilişkiyi yalnız insan görebiliyordu. İki dalı ayırmak aynı davranışı
+    # veriyor ve bağlantıyı kimin kapattığını okunur kılıyor.
+    if cursor is None:
+        conn = get_connection()
+        try:
+            return _ledger_start_date(conn.cursor())
+        finally:
             conn.close()
+    return _ledger_start_date(cursor)
+
+
+def _ledger_start_date(cursor):
+    """Sorgunun kendisi — bağlantı sahipliğinden bağımsız."""
+    cursor.execute("SELECT MIN(ts) AS first_ts FROM balance_events")
+    row = cursor.fetchone()
+    first = row["first_ts"] if row else None
+    return first[:10] if first else None
 
 
 def _latest_snapshot_on_or_before(cursor, date_str):
@@ -282,7 +291,7 @@ def diff_between(date_a, date_b):
     finally:
         conn.close()
 
-    by_source = {}
+    by_source: dict[str, dict[str, float]] = {}
     for r in rows:
         # Kaynak kırılımı hesap tarafına bakar: "bu dönemde parayı ne hareket
         # ettirdi" sorusunun cevabı hesap deltalarıdır (hedef olayları aynı

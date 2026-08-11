@@ -25,7 +25,11 @@ def fetch_top_100_cryptos(callback):
             return
 
         url = "https://api.coingecko.com/api/v3/coins/markets"
-        params = {
+        # `str | int`: sözlük her ikisini karıştırıyor ve annotation olmadan
+        # `dict[str, object]` çıkarılıyor — `requests` bunu kabul etmiyor.
+        # En dar doğru tip bu; `object`/`Any` ile genişletmek çağrının
+        # gerçekten ne gönderdiğini gizlerdi.
+        params: dict[str, str | int] = {
             "vs_currency": "usd",
             "order": "market_cap_desc",
             "per_page": 100,
