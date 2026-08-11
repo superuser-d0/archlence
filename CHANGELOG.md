@@ -4,6 +4,17 @@
 
 ### Financial correctness and reliability
 
+- Profit/loss, current value and cost for a portfolio asset are computed in
+  `Decimal` and rounded once, at the end, by the shared rounding policy. The
+  four steps previously ran in binary floating point: a unit price of 0,045
+  bought fifteen times cost 0,675 exactly, but was reported as 0,67 rather
+  than 0,68 because the multiplication never produced the half-kuruş the
+  rounding needed to see. Displayed numbers can therefore move by one kuruş —
+  towards the arithmetically correct value.
+- A portfolio row whose price or quantity is not a finite number is now
+  reported as unpriceable instead of showing `nan` or `inf` as profit,
+  breakeven or total value.
+
 - Buying an asset now decides whether the account can afford it inside the same
   database transaction that writes the purchase. The check previously ran on a
   separate connection before the transaction opened, so two purchases starting

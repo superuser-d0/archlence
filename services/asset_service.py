@@ -27,12 +27,14 @@ import sqlite3
 import threading
 import time
 from datetime import date
+from decimal import Decimal
 
 from utils.errors import (
     ArchlenceError,
     DecryptionError,
     KeyUnavailableError,
 )
+from utils.financial_decimal import decimal_from, fiat, percentage
 
 
 def _log():
@@ -517,26 +519,65 @@ def calculate_pnl(current_price: float, purchase_price: float, quantity: float) 
             'pnl_pct':     float,   # Yüzdesel K/Z
             'total_value': float,   # Güncel portföy değeri
             'total_cost':  float,   # Alım maliyeti
-            'signal':      str      # 'profit' | 'loss' | 'breakeven'
+            'signal':      str      # 'profit' | 'loss' | 'breakeven' | 'error'
         }
-    """
-    total_cost  = purchase_price * quantity
-    total_value = current_price  * quantity
-    pnl_amount  = total_value - total_cost
-    pnl_pct     = ((current_price - purchase_price) / purchase_price) * 100 if purchase_price > 0 else 0.0
 
-    if pnl_pct > 0:
+    ARİTMETİK DECIMAL'DE, DIŞ SÖZLEŞME FLOAT. Girdiler `Decimal(str(x))` ile
+    alınır, dört işlem Decimal'de yapılır ve YALNIZCA dönüşte kuruşa/yüzdeye
+    yuvarlanıp float'a düşülür — UI ve cache float'a göre yazılmış durumda.
+
+    Girdiler aritmetikten ÖNCE yuvarlanmaz. Yuvarlansaydı 0,045'lik bir birim
+    fiyat 0,04'e inerdi (kripto miktarı için 1e-8 tamamen sıfırlanırdı);
+    hassasiyet yalnız sonuçta, `FinancialPrecision` politikasına göre
+    kısaltılır.
+
+    Neden değişti: dört işlem ikili kayan noktada yapılıp sonunda `round()`
+    uygulanıyordu. `round()` de politikayla aynı ROUND_HALF_EVEN'i kullanır —
+    fark modda değil GİRDİDEydi: 0,045 x 15 ikili gösterimde
+    0.6749999999999999 olduğu için sonuç 0,67 çıkıyordu, oysa kullanıcının
+    girdiği sayılarla tam sonuç 0,675, yani 0,68. Kuruş, temsil hatası
+    yüzünden kayboluyordu.
+    """
+    try:
+        current = decimal_from(current_price)
+        purchase = decimal_from(purchase_price)
+        units = decimal_from(quantity)
+    except (ValueError, TypeError):
+        # Sonlu olmayan ya da sayı olmayan girdi. Eskiden bu yol sessizce
+        # `nan`/`inf` DÖNDÜRÜYORDU — üstelik `nan` için "başabaş", `inf` için
+        # "kâr" diyerek; ikisi de ekrana ve `total +=` toplamalarına sızıyordu.
+        # Fırlatmak da doğru değil: iki çağıran da bu çağrıyı korumasız bir
+        # döngüde yapıyor, yani tek bozuk satır TÜM portföy yüklemesini
+        # düşürürdü. Çağıranların fiyatlanamayan varlık için zaten ürettiği
+        # ve işlediği biçim döndürülüyor.
+        return {
+            "pnl_amount": None, "pnl_pct": None,
+            "total_value": None, "total_cost": None,
+            "signal": "error",
+        }
+
+    total_cost = purchase * units
+    total_value = current * units
+    pnl_amount = total_value - total_cost
+    pnl_ratio = (
+        ((current - purchase) / purchase) * 100 if purchase > 0 else Decimal("0")
+    )
+
+    # Karar HAM orandan veriliyor, yuvarlanmışından değil: %0,004 kâr eden bir
+    # varlık "başabaş" görünmemeli. `test_signal_comes_from_the_unrounded_ratio`
+    # bunu kilitliyor.
+    if pnl_ratio > 0:
         signal = "profit"
-    elif pnl_pct < 0:
+    elif pnl_ratio < 0:
         signal = "loss"
     else:
         signal = "breakeven"
 
     return {
-        "pnl_amount":  round(pnl_amount,  2),
-        "pnl_pct":     round(pnl_pct,     2),
-        "total_value": round(total_value, 2),
-        "total_cost":  round(total_cost,  2),
+        "pnl_amount":  float(fiat(pnl_amount)),
+        "pnl_pct":     float(percentage(pnl_ratio)),
+        "total_value": float(fiat(total_value)),
+        "total_cost":  float(fiat(total_cost)),
         "signal":      signal,
     }
 
