@@ -3,7 +3,8 @@
 Alım tarafının (`asset_purchase_service.create_purchase`) simetriği.
 
 v0.0.8'de bu testler `AssetMixin._execute_sell` içindeki closure'ı mock'layarak
-`database.db.insert_asset_transaction` çağrısını yakalıyordu. v0.0.9'un
+`database.db.insert_asset_transaction` çağrısını yakalıyordu (o yardımcı
+artık silindi — üretimde çağıranı kalmamıştı). v0.0.9'un
 atomiklik düzeltmesi (`96049ee`) satışı `services/asset_sale_service` altında
 tek bir SQLite transaction'ına taşıdı; eski mock artık hiç tetiklenmiyor ve
 testler `KeyError: 'amount'` ile HATA veriyordu — yani kuruş yuvarlama koruması
