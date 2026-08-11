@@ -25,33 +25,38 @@ source=(
   "LICENSE::https://raw.githubusercontent.com/superuser-d0/archlence/v${pkgver}/LICENSE"
 )
 
-# v0.0.9 HENÜZ YAYINLANMADI — aşağıdaki hash'ler PLACEHOLDER.
+# v0.0.9 yayınlandı (2026-08-11); hash'ler v0.0.4-v0.0.8'deki yöntemle
+# DOĞRULANDI, hiçbiri önceki sürümden kopyalanmadı.
 #
-# `v0.0.9` etiketi yayınlandıktan SONRA, v0.0.4-v0.0.8'de izlenen yöntemle
-# doldurulacak: AppImage'ı indirip sha256'sını DOĞRUDAN hesaplayıp yayınlanan
-# SHA256SUMS.txt ve GitHub asset digest'i ile karşılaştırmak; diğer dördünü hem
-# `git cat-file blob v0.0.9:<yol>` ile hem raw.githubusercontent'ten alıp
-# eşleştirmek. Sonuç `makepkg --verifysource` ile depo dışında doğrulanmalı.
-#
-# BİLEREK geçersiz (tamamı sıfır) placeholder, 'SKIP' DEĞİL: 'SKIP' makepkg'de
-# doğrulamayı tamamen KAPATIR ve indirilen her dosyayı sessizce kabul eder.
-# Geçersiz bir hash ise gerçek değerler yazılana kadar makepkg'i GÜVENLİ
-# şekilde, yüksek sesle başarısız kılar.
+# AppImage — üç bağımsız kaynak, üçü de aynı:
+#   indirilen dosyanın sha256'sı (104.385.016 bayt), yayınlanan
+#   SHA256SUMS.txt satırı, ve GitHub asset digest'i.
+# Diğer dördü — iki bağımsız kaynak, dördünde de aynı:
+#   `git cat-file blob v0.0.9:<yol>` ve raw.githubusercontent'ten indirme.
+# Tamamı `makepkg --verifysource` ile depo dışında, temiz bir dizinde
+# yeniden doğrulandı.
 #
 # SIRA ÖNEMLİ: bu dizi `source` ile POZİSYON POZİSYON eşleşir, isimle değil.
 #
 # DİKKAT — her sürümde tekrar eden tuzak: SON DÖRT hash sürümler arası AYNI
 # kalır (desktop dosyası, iki ikon, LICENSE değişmiyor), yalnızca AppImage'ın
-# hash'i değişir (v0.0.6 e37bcb57..., v0.0.7 ba33aa5b..., v0.0.8 770539c5...).
-# Bu, eski diziyi olduğu gibi taşımayı zararsız gösteriyor — DEĞİL: kopyalanan
-# bir dizi dört dosyayı DOĞRU, asıl gönderilen ikiliyi YANLIŞ doğrular ve
-# makepkg beş satırın hepsini yeşil basar. O yüzden beşi de sıfırlandı.
+# hash'i değişir (v0.0.6 e37bcb57..., v0.0.7 ba33aa5b..., v0.0.8 770539c5...,
+# v0.0.9 f8956d80...). Bu, eski diziyi olduğu gibi taşımayı zararsız
+# gösteriyor — DEĞİL: kopyalanan bir dizi dört dosyayı DOĞRU, asıl gönderilen
+# ikiliyi YANLIŞ doğrular ve makepkg beş satırın hepsini yeşil basar. Son
+# dördünün v0.0.8'le aynı çıkması bu yüzden kopyalamanın gerekçesi değil,
+# bağımsız hesabın teyididir.
+#
+# Bir sonraki sürümde: tag'den ÖNCE beşi de sıfıra çevrilir. 'SKIP' DEĞİL —
+# 'SKIP' makepkg'de doğrulamayı tamamen KAPATIR ve indirilen her dosyayı
+# sessizce kabul eder; geçersiz hash ise gerçek değerler yazılana kadar
+# makepkg'i GÜVENLİ şekilde, yüksek sesle başarısız kılar.
 sha256sums=(
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
-  '0000000000000000000000000000000000000000000000000000000000000000'
+  'f8956d800e9dddc68a9518128bd64676ccb57926c4ec74afb73768823ecb1008'
+  '4cf21f62e33e87cf69cd015fb9148dbe99badaf75c3caf3b87db1b8813089d71'
+  '1df0fe8c33ba3b13cee650cab7e254964e18acbd27c330dce19ac0aaf7110b9f'
+  'e27e0925f3d0d33dcd212391b038c04dbc89020f212d145bfdca6f0600b2e9ec'
+  'ecc8a7af57166c272c3b008712981c02f42898b6f2fad6889b7b51f9bf366c83'
 )
 
 package() {
