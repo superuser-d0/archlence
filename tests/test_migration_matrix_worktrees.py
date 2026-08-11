@@ -16,6 +16,7 @@ kullanmak birinciyi geçirir ama ikinciyi kırar — ayakta duran bir worktree'n
 kaydını da ezerdi.
 """
 
+import shutil
 import subprocess
 import unittest
 from pathlib import Path
@@ -66,7 +67,10 @@ class WorktreeProvisioningTest(unittest.TestCase):
         self.assertTrue(matrix._ensure_worktree(target, "v0.0.1"))
 
         # `/tmp` temizliğini simüle et: dizin gider, kayıt kalır.
-        subprocess.run(["rm", "-rf", str(target)], check=True)
+        # `rm -rf` DEĞİL: bu paket Windows CI'da da koşuyor ve orada `rm`
+        # yok. Aynı sınıftan bir hata bu sürümde zaten bir kez ödendi
+        # (`os.fchmod`, `c57f85b`) — testin kendisi tekrarlamasın.
+        shutil.rmtree(target)
         self.assertIn("archlence-audit-v001", self._registered())
         self.assertFalse(target.exists())
 
