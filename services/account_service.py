@@ -11,6 +11,8 @@ isim AES ile şifreli tutuluyor ama accounts.name zaten uygulama açılışında
 düz metin olarak kullanılıyor; sonradan şifrelemek mevcut satırları okunamaz
 hale getirirdi.
 """
+from contextlib import closing
+
 from database.db import ACCOUNT, get_connection, record_balance_event
 from utils.financial_decimal import fiat
 
@@ -322,6 +324,79 @@ class AccountService:
         )
 
     @staticmethod
+    def assert_spending_allowed(
+            cursor, account_id, amount, transaction_type="expense", *,
+            enforce_limits=True):
+        """`check_spending_allowed` ile AYNI kural — ama kararı ÇAĞIRANIN
+        cursor'ından veriyor ve ihlalde `ValueError` fırlatıyor.
+
+        NEDEN VAR: kararın ve onu izleyen yazmanın AYNI transaction'da
+        olması gerekiyor. Ayrı bir bağlantıdan okuyan bir kontrol, kararla
+        yazma arasında araya giren bir commit'i göremez (TOCTOU): iki
+        eşzamanlı harcama aynı limit anlık görüntüsünü tüketebilir.
+        `transaction_service` bunu `BEGIN IMMEDIATE` + aynı cursor ile
+        çözmüştü (`467b269`), fakat kuralı kendi içine KOPYALAYARAK.
+        `asset_purchase_service` ise kopyalamadı ve kontrolü transaction'ın
+        dışında bıraktı — 100 TL limitli kartta iki eşzamanlı alım borcu
+        120 TL'ye çıkarabiliyordu.
+
+        Kural artık tek yerde. Çağıran `BEGIN IMMEDIATE` ile yazma kilidini
+        ALDIKTAN SONRA bunu çağırmalı; bu fonksiyon kendi başına hiçbir
+        serileştirme yapmaz, yalnızca verilen cursor'ın gördüğü duruma bakar.
+        """
+        row = cursor.execute(
+            "SELECT account_type, type, balance, credit_limit, is_frozen "
+            "FROM accounts WHERE id=?", (account_id,)
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"Hesap bulunamadı (id={account_id}).")
+        if bool(row["is_frozen"]):
+            raise ValueError(
+                "Bu kart dondurulduğu için işlem yapılamaz. "
+                "İşlem yapmak için önce kartın dondurmasını kaldırın."
+            )
+        if transaction_type not in ("expense", "Gider") or not enforce_limits:
+            return
+        try:
+            amount = fiat(amount)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Geçersiz tutar.") from exc
+
+        # `account_type` eski kayıtlarda boş olabiliyor; o zaman legacy `type`
+        # sütunu ('credit') tek göstergedir. Bu geri düşüş
+        # `transaction_service`'ten geldi ve korunuyor — kaldırılırsa eski bir
+        # kartta limit HİÇ uygulanmaz.
+        account_type = row["account_type"] or (
+            "credit_card" if row["type"] == "credit" else CHECKING
+        )
+        if account_type != CREDIT_CARD:
+            # Vadesizde gider kullanılabilir bakiyeyle sınırlı DEĞİL:
+            # kullanıcı bilerek hesabı eksiye düşürebilir.
+            return
+        # Limit 0 = "belirlenmemiş", yasak değil. Migration'dan gelen eski kartlar
+        # credit_limit=0 ile geliyor; bunları limitsiz saymazsak kullanıcının
+        # mevcut kartından yapacağı HER harcama reddedilirdi.
+        limit = fiat(row["credit_limit"] or 0)
+        if limit <= 0:
+            return
+        # Borç ham `balance` sütununun İŞARETLİ değerinden türetiliyor
+        # (bkz. adjust_account_balance); `available_limit` gibi türetilmiş bir
+        # alan get_account'a, yani AYRI bir bağlantıya ihtiyaç duyardı ve
+        # kontrolü tekrar transaction'ın dışına taşırdı.
+        debt = fiat(max(0.0, -float(row["balance"] or 0)))
+        # Karşılaştırma kuruş hassasiyetinde. `amount` üretilmiş bir değer
+        # olabilir (varlık alımında fiyat x miktar gibi) ve bir kuruşun
+        # milyonda biri kadar aşan bir harcama, hata mesajında AYNI iki
+        # tutarı gösterip reddedilirdi: "kullanılabilir limit 1.000,00 ₺,
+        # harcama 1.000,00 ₺". Kullanıcının çözemeyeceği bir ret.
+        if fiat(debt + amount) > limit:
+            raise ValueError(
+                f"Limit yetersiz: kullanılabilir limit "
+                f"{_fmt_try(float(limit - debt))}, harcama "
+                f"{_fmt_try(float(amount))}."
+            )
+
+    @staticmethod
     def check_spending_allowed(
             account_id, amount, transaction_type="expense",
             enforce_limits=True):
@@ -332,48 +407,21 @@ class AccountService:
         artık kullanılabilir bakiyeyle sınırlı DEĞİL — kullanıcı bilerek
         hesabı eksiye düşürebilir; kredi kartında limit hâlâ uygulanır.
         Borç ödeme bu fonksiyondan geçmez ve dondurulmuş karta yapılabilir.
+
+        DİKKAT — bu SORU SORAN biçim, kendi bağlantısını açar ve cevabı
+        döndürdüğü anda o bağlantı kapanır. Yani cevap, çağıran onu
+        kullanana kadar BAYATLAYABİLİR. Bir yazmanın önünde koruma olarak
+        kullanma; onun için `assert_spending_allowed` var. Buranın yeri,
+        kullanıcıya yazmadan önce bilgi veren UI ön-kontrolleridir.
         """
-        acc = AccountService.get_account(account_id)
-        if not acc:
-            return False, "Hesap bulunamadı."
-        if acc["is_frozen"]:
-            return False, (
-                "Bu kart dondurulduğu için işlem yapılamaz. "
-                "İşlem yapmak için önce kartın dondurmasını kaldırın."
-            )
-        if transaction_type not in ("expense", "Gider"):
-            return True, ""
-        if not enforce_limits:
-            return True, ""
-        if acc["account_type"] != CREDIT_CARD:
+        with closing(get_connection()) as conn:
             try:
-                fiat(amount)
-            except (TypeError, ValueError):
-                return False, "Geçersiz tutar."
-            return True, ""
-        # Limit 0 = "belirlenmemiş", yasak değil. Migration'dan gelen eski kartlar
-        # credit_limit=0 ile geliyor; bunları limitsiz saymazsak kullanıcının
-        # mevcut kartından yapacağı HER harcama reddedilirdi.
-        limit = float(acc["credit_limit"])
-        if limit <= 0:
-            return True, ""
-        try:
-            amount = float(fiat(amount))
-        except (TypeError, ValueError):
-            return False, "Geçersiz tutar."
-        
-        avail = float(acc["available_limit"])
-        # Karşılaştırma kuruş hassasiyetinde. `available_limit` zaten
-        # round(...,2) ile üretiliyor ama `amount` üretilmiş bir değer
-        # olabilir (varlık alımında fiyat x miktar gibi) ve bir kuruşun
-        # milyonda biri kadar aşan bir harcama, hata mesajında AYNI iki
-        # tutarı gösterip reddedilirdi: "kullanılabilir limit 1.000,00 ₺,
-        # harcama 1.000,00 ₺". Kullanıcının çözemeyeceği bir ret.
-        if fiat(amount) > fiat(avail):
-            return False, (
-                f"Limit yetersiz: kullanılabilir limit "
-                f"{_fmt_try(avail)}, harcama {_fmt_try(amount)}."
-            )
+                AccountService.assert_spending_allowed(
+                    conn.cursor(), account_id, amount, transaction_type,
+                    enforce_limits=enforce_limits,
+                )
+            except ValueError as exc:
+                return False, str(exc)
         return True, ""
 
     @staticmethod

@@ -96,13 +96,6 @@ class AssetPurchaseService:
             account_id = AssetPurchaseService._pick_funding_account(
                 invested_amount)
 
-        if deduct_from_balance:
-            allowed, reason = AccountService.check_spending_allowed(
-                account_id, invested_amount, "expense"
-            )
-            if not allowed:
-                raise ValueError(reason)
-
         when = purchase_date or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         description = (
             f"{asset_name} ({str(asset_code).upper()}) alındı — "
@@ -110,52 +103,68 @@ class AssetPurchaseService:
         )
         conn = get_connection()
         try:
-            # sqlite3 connection context commits on success and rolls the
-            # complete unit back for every exception type.
-            with conn:
-                cursor = conn.cursor()
+            cursor = conn.cursor()
+            # Harcama kararı ve onu izleyen yazma AYNI transaction'da olmalı.
+            # Kontrol eskiden buranın DIŞINDA, kendi bağlantısını açan
+            # `check_spending_allowed` ile yapılıyordu: iki eşzamanlı alım
+            # aynı limit anlık görüntüsünü görüp ikisi birden geçebiliyordu
+            # (100 TL limitli kartta borç 120 TL). `transaction_service`
+            # aynı yarışı `467b269` ile böyle kapatmıştı; buradaki yol
+            # kapsam dışında kalmıştı.
+            #
+            # BEGIN IMMEDIATE yazma kilidini HEMEN alır, yani ikinci alım
+            # birincinin commit'ini görene kadar bekler ve güncel borcu okur.
+            cursor.execute("BEGIN IMMEDIATE")
+            if deduct_from_balance:
+                AccountService.assert_spending_allowed(
+                    cursor, account_id, invested_amount, "expense"
+                )
+            cursor.execute(
+                """
+                INSERT INTO active_assets
+                    (asset_name, asset_code, asset_type, purchase_price,
+                     quantity, purchase_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    asset_name,
+                    str(asset_code).upper(),
+                    asset_type,
+                    encrypt(str(price), SECRET_KEY),
+                    encrypt(str(qty), SECRET_KEY),
+                    when,
+                ),
+            )
+            asset_id = cursor.lastrowid
+            transaction_id = None
+            if deduct_from_balance:
                 cursor.execute(
                     """
-                    INSERT INTO active_assets
-                        (asset_name, asset_code, asset_type, purchase_price,
-                         quantity, purchase_date)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO transactions
+                        (account_id, amount, type, category, description,
+                         transaction_date)
+                    VALUES (?, ?, 'expense', 'Varlık Alımı', ?, ?)
                     """,
                     (
-                        asset_name,
-                        str(asset_code).upper(),
-                        asset_type,
-                        encrypt(str(price), SECRET_KEY),
-                        encrypt(str(qty), SECRET_KEY),
+                        account_id,
+                        encrypt(str(invested_amount), SECRET_KEY),
+                        encrypt(description, SECRET_KEY),
                         when,
                     ),
                 )
-                asset_id = cursor.lastrowid
-                transaction_id = None
-                if deduct_from_balance:
-                    cursor.execute(
-                        """
-                        INSERT INTO transactions
-                            (account_id, amount, type, category, description,
-                             transaction_date)
-                        VALUES (?, ?, 'expense', 'Varlık Alımı', ?, ?)
-                        """,
-                        (
-                            account_id,
-                            encrypt(str(invested_amount), SECRET_KEY),
-                            encrypt(description, SECRET_KEY),
-                            when,
-                        ),
-                    )
-                    transaction_id = cursor.lastrowid
-                    adjust_account_balance(
-                        cursor,
-                        account_id,
-                        "expense",
-                        invested_amount,
-                        ref_id=transaction_id,
-                        source="asset_purchase",
-                    )
+                transaction_id = cursor.lastrowid
+                adjust_account_balance(
+                    cursor,
+                    account_id,
+                    "expense",
+                    invested_amount,
+                    ref_id=transaction_id,
+                    source="asset_purchase",
+                )
+            # Commit'e ulaşılmayan her yolda açık transaction, `close()` ile
+            # geri alınır — varlık, işlem ve bakiye ya birlikte kalır ya
+            # hiçbiri kalmaz.
+            conn.commit()
             return {
                 "asset_id": asset_id,
                 "transaction_id": transaction_id,

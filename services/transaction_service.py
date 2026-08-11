@@ -108,24 +108,17 @@ class TransactionService:
             # SQLite snapshot. BEGIN IMMEDIATE serializes competing card
             # charges before either can consume the same available limit.
             cursor.execute("BEGIN IMMEDIATE")
-            account = cursor.execute(
-                "SELECT account_type, type, balance, credit_limit, is_frozen "
-                "FROM accounts WHERE id=?", (account_id,)
-            ).fetchone()
-            if account is None:
-                raise ValueError(f"Hesap bulunamadı (id={account_id}); işlem kaydedilemedi.")
-            if bool(account["is_frozen"]):
-                raise ValueError("Bu kart dondurulduğu için işlem yapılamaz.")
-            is_expense = transaction_type in ("expense", "Gider")
-            account_type = account["account_type"] or (
-                "credit_card" if account["type"] == "credit" else "checking"
+            # Kural `AccountService.assert_spending_allowed`'da tek yerde:
+            # hesap var mı, donmuş mu, kredi kartıysa limit yeter mi. Burası
+            # onu KOPYALIYORDU ve kopya, `asset_purchase_service` aynı
+            # korumaya ihtiyaç duyduğunda oraya taşınmadı — o yol da bu yüzden
+            # yarışa açıktı. Tek fark artık ret mesajının ayrıntılı olması
+            # ("kullanılabilir limit X, harcama Y"); hiçbir test veya çağıran
+            # eski kısa metne bağlı değildi.
+            AccountService.assert_spending_allowed(
+                cursor, account_id, amount, transaction_type,
+                enforce_limits=enforce_credit_limit,
             )
-            limit = float(account["credit_limit"] or 0)
-            if (enforce_credit_limit and is_expense and
-                    account_type == "credit_card" and limit > 0):
-                debt = max(0.0, -float(account["balance"] or 0))
-                if fiat(debt + amount) > fiat(limit):
-                    raise ValueError("Limit yetersiz.")
 
             # Yalnızca tutar ve açıklama şifrelenir; type/category düz metin kalır
             # çünkü SQL sorguları (filtreleme ve categories JOIN'i) bu kolonlar

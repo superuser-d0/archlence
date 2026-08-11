@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Financial correctness and reliability
+
+- Buying an asset now decides whether the account can afford it inside the same
+  database transaction that writes the purchase. The check previously ran on a
+  separate connection before the transaction opened, so two purchases starting
+  at the same moment could both read the same credit-card limit and both pass:
+  a card with a 100 TL limit could end up 120 TL in debt. The rule that governs
+  spending — account exists, not frozen, credit limit not exceeded — now lives
+  in one place and is applied by both the transaction and the asset-purchase
+  paths, rather than each carrying its own copy.
+
 ## [0.0.9] — 2026-08-11
 
 This release came out of an audit rather than a feature plan, and most of what
