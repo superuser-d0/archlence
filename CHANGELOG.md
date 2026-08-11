@@ -14,6 +14,15 @@
 - A portfolio row whose price or quantity is not a finite number is now
   reported as unpriceable instead of showing `nan` or `inf` as profit,
   breakeven or total value.
+- The portfolio's current value is added up in `Decimal` and rounded once, at
+  the point it is handed to the screen. Each position was previously multiplied
+  in binary floating point: fifteen units of a coin priced at 0,045 TL is
+  exactly 0,675 TL, but showed as 0,67 rather than 0,68. The quantities and
+  prices involved are ordinary ones — eight decimals for a crypto amount, six
+  for an equity — not extremes.
+- A portfolio price that is not a finite number no longer stops the total from
+  being calculated. That asset is skipped, as an unpriced one already was,
+  instead of leaving the value on screen waiting forever.
 - A savings goal that still holds its target no longer falls back to "active"
   after money is withdrawn from it. Whether a goal counts as reached is now
   decided to the kuruş everywhere in the service; one of the three places that
