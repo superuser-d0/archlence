@@ -347,6 +347,19 @@ def _ensure_worktree(worktree, version):
     Artık eksikse kendisi kuruyor. Etiket yoksa açık hata verir — `git tag`
     boşsa checkout tag çekmemiş demektir, bunu sessizce atlamak adımı
     ölçmeden yeşile çevirirdi.
+
+    `/tmp` TEMİZLİĞİ İÇİN KURULUM ÖNCESİ `prune` ŞART: dizin silinse bile
+    kayıt `.git/worktrees` altında durur ve `git worktree add` "missing but
+    already registered" ile reddeder. Yani yalnız "eksikse kur" yetmiyordu —
+    ilk düzeltme bu vakayı kapattığını sanıyordu, kapatmamıştı. `finally`
+    içindeki `prune` hatadan SONRA koştuğu için tablo şuydu: birinci koşum
+    kırmızı, ikinci koşum yeşil. CI'da temiz clone olduğu için hiç görünmez;
+    bedeli yalnız yerelde ödeniyordu, yani kapıyı elle doğrulamak isteyen
+    kişide.
+
+    `add -f` DEĞİL: o, hâlâ AYAKTA olan bir worktree'nin kaydını da ezerdi.
+    `prune` yalnızca dizini gerçekten yok olanları siler, geliştiricinin elle
+    kurduğu sağlam worktree'ye dokunmaz.
     """
     if (worktree / ".git").exists():
         return False
@@ -360,6 +373,9 @@ def _ensure_worktree(worktree, version):
             "CI'da checkout `fetch-depth: 0` (ya da `fetch-tags`) istiyor."
         )
     worktree.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "worktree", "prune"], cwd=CURRENT_ROOT, capture_output=True,
+    )
     created = subprocess.run(
         ["git", "worktree", "add", "--quiet", "--detach", str(worktree), version],
         cwd=CURRENT_ROOT, text=True, capture_output=True,
