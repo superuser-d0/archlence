@@ -180,12 +180,18 @@ class KeyringKeyProvider(KeyProvider):
         self.service = service
         self.username = username
         if keyring_module is None:
+            # AYRI İSİM: `import keyring as keyring_module` parametrenin
+            # kendisini gölgeliyordu. Aynı ad önce enjekte edilen bağımlılık
+            # (testlerde sahte bir modül), sonra gerçek modül oluyordu —
+            # okurken hangisinin bağlı olduğu belli değil, tip denetleyici de
+            # haklı olarak yeniden tanım diyor.
             try:
-                import keyring as keyring_module
+                import keyring as _keyring
             except ImportError as exc:
                 raise KeyUnavailableError(
                     "Linux güvenli anahtar deposu bağımlılığı bulunamadı."
                 ) from exc
+            keyring_module = _keyring
         self._keyring = keyring_module
 
     def is_available(self):
