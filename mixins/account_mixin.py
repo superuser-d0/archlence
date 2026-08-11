@@ -272,7 +272,7 @@ class AccountMixin:
             try:
                 from services.transaction_service import TransactionService
                 items = TransactionService.get_recent_for_account(account_id, limit=3)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Kart hareketleri okunamadı")
                 return

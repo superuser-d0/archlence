@@ -78,6 +78,15 @@ class TransactionService:
         taksit planı eklenir (aylık tutar = toplam / taksit sayısı). Böylece
         işlem ile plan hiçbir zaman birbirinden kopamaz.
         """
+        # This is the shared service boundary for user/API/import monetary
+        # input.  SQLite must never be allowed to decide what NaN/Infinity
+        # means for a financial operation.
+        amount = fiat(amount)
+        if amount <= 0:
+            raise ValueError("İşlem tutarı 0'dan büyük olmalıdır.")
+        # sqlite3 has no Decimal adapter; all persisted money in this legacy
+        # schema is REAL, so pass the already-quantized finite value only.
+        amount = float(amount)
         if installments is not None:
             installments = int(installments)
             if not 1 <= installments <= 12:
@@ -88,26 +97,35 @@ class TransactionService:
         # Donma kuralı gelir/gider ayrımı yapmadan ve CSV'nin geçmiş-limit
         # istisnasından bağımsız uygulanır. `enforce_credit_limit=False`
         # yalnız eski limit aşımını kabul eder; donmuş hesabı bypass etmez.
-        allowed, reason = AccountService.check_spending_allowed(
-            account_id, amount, transaction_type,
-            enforce_limits=enforce_credit_limit,
-        )
-        if not allowed:
-            raise ValueError(reason)
-
         # Hesabın varlığını burada doğrula: ileri tarihli (pending) kayıtlar
         # adjust_account_balance'ı HİÇ çağırmaz, dolayısıyla oradaki koruma bu
         # yolu kapsamaz. Kontrol olmasa sahipsiz bir pending satırı yazılır ve
         # vadesi geldiğinde settle sırasında sessizce başarısız olurdu.
-        if not AccountService.account_exists(account_id):
-            raise ValueError(
-                f"Hesap bulunamadı (id={account_id}); işlem kaydedilemedi. "
-                "Önce bir hesap oluşturulmalı."
-            )
-
         conn = get_connection()
         try:
             cursor = conn.cursor()
+            # The limit decision and the balance write must observe the same
+            # SQLite snapshot. BEGIN IMMEDIATE serializes competing card
+            # charges before either can consume the same available limit.
+            cursor.execute("BEGIN IMMEDIATE")
+            account = cursor.execute(
+                "SELECT account_type, type, balance, credit_limit, is_frozen "
+                "FROM accounts WHERE id=?", (account_id,)
+            ).fetchone()
+            if account is None:
+                raise ValueError(f"Hesap bulunamadı (id={account_id}); işlem kaydedilemedi.")
+            if bool(account["is_frozen"]):
+                raise ValueError("Bu kart dondurulduğu için işlem yapılamaz.")
+            is_expense = transaction_type in ("expense", "Gider")
+            account_type = account["account_type"] or (
+                "credit_card" if account["type"] == "credit" else "checking"
+            )
+            limit = float(account["credit_limit"] or 0)
+            if (enforce_credit_limit and is_expense and
+                    account_type == "credit_card" and limit > 0):
+                debt = max(0.0, -float(account["balance"] or 0))
+                if fiat(debt + amount) > fiat(limit):
+                    raise ValueError("Limit yetersiz.")
 
             # Yalnızca tutar ve açıklama şifrelenir; type/category düz metin kalır
             # çünkü SQL sorguları (filtreleme ve categories JOIN'i) bu kolonlar
@@ -188,7 +206,7 @@ class TransactionService:
                     transaction_date=date_now,
                     is_credit_card=is_credit_card,
                 )
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Abonelik radarına yazılamadı")
 

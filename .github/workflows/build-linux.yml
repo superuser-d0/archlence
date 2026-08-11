@@ -32,14 +32,14 @@ jobs:
 
     steps:
       - name: Kodu çek
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Python kur
         # KARAR (kilitli, 2026-07-29) — build-windows.yml'deki notla aynı:
         # paketleme her iki platformda da 3.12'ye sabit, yerel geliştirme
         # ortamından (3.14.6) bilerek bağımsız. Tutarlılık için değiştirilecekse
         # ikisi birden güncellenmeli.
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
           cache: pip
@@ -76,7 +76,7 @@ jobs:
         timeout-minutes: 20
 
       - name: Ham dizini artifact olarak yükle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: Archlence-Linux
           path: dist/Archlence/
@@ -96,12 +96,31 @@ jobs:
           cp assets/icon.png AppDir/archlence.png
 
       - name: appimagetool indir
-        # AppImage projesinin resmi "continuous" sürümü — appimagetool'un
-        # kendisi de bir AppImage; --appimage-extract-and-run FUSE'a ihtiyaç
-        # duymadan çalıştırır (ubuntu-latest runner'larında libfuse2 artık
-        # varsayılan kurulu değil).
+        # appimagetool'un kendisi de bir AppImage; --appimage-extract-and-run
+        # FUSE'a ihtiyaç duymadan çalıştırır (ubuntu-latest runner'larında
+        # libfuse2 artık varsayılan kurulu değil).
+        #
+        # SABİT SÜRÜM + CHECKSUM. Eskiden `continuous` etiketinden, hiçbir
+        # doğrulama olmadan indiriliyordu. `continuous` sürekli yeniden
+        # üretilen hareketli bir yayındır: derlemeye giren ikili herhangi bir
+        # gün habersiz değişebilir ve paketlenen AppImage'a karışabilirdi.
+        #
+        # Checksum uyuşmazsa derleme DURUR. Bu, upstream 1.9.1 artifact'ini
+        # yeniden yayımlarsa da tetiklenir; o durumda yeni ikili incelenip
+        # buradaki değer BİLİNÇLİ olarak güncellenmelidir — sessizce kabul
+        # edilmemelidir.
+        env:
+          APPIMAGETOOL_VERSION: "1.9.1"
+          APPIMAGETOOL_SHA256: "ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0"
         run: |
-          wget -q "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
+          set -euo pipefail
+          url="https://github.com/AppImage/appimagetool/releases/download/${{ env.APPIMAGETOOL_VERSION }}/appimagetool-x86_64.AppImage"
+          wget -q "$url" -O appimagetool
+          echo "${{ env.APPIMAGETOOL_SHA256 }}  appimagetool" | sha256sum -c - || {
+            echo "::error::appimagetool checksum uyusmadi. Beklenen: ${{ env.APPIMAGETOOL_SHA256 }}"
+            echo "::error::Gercek: $(sha256sum appimagetool | cut -d' ' -f1)"
+            exit 1
+          }
           chmod +x appimagetool
 
       - name: AppImage oluştur
@@ -155,7 +174,7 @@ jobs:
           echo "Smoke test geçti: 12 saniye ayakta, crash.log boş."
 
       - name: AppImage'ı artifact olarak yükle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: Archlence-AppImage
           path: dist/Archlence-x86_64.AppImage

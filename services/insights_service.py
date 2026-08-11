@@ -531,7 +531,7 @@ def compute_financial_health_score(lookback_days=90, persist=True):
     try:
         from database.db import get_active_debts
         monthly_debt_payment = sum(d.get("monthly_payment", 0.0) for d in get_active_debts())
-    except sqlite3.Error as e:
+    except sqlite3.Error:
         from utils.logging_config import get_logger
         get_logger().exception("[DB] Aylık borç yükü hesaplanamadı")
         monthly_debt_payment = 0.0

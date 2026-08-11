@@ -140,12 +140,12 @@ class ScenarioMixin:
                     self.scenario_adjustment_input.text
                 ),
             )
-        except (TypeError, ValueError) as exc:
+        except (TypeError, ValueError):
             from utils.logging_config import get_logger
             get_logger().exception("What-if girdileri geçersiz")
             toast(_t("Lütfen geçerli sayılar girin!"))
             return
-        except Exception as exc:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("What-if senaryosu hesaplanamadı")
             toast(_t("Senaryo hesaplanamadı."))

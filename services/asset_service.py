@@ -850,7 +850,7 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
             if item_callback is not None:
                 try:
                     item_callback(entry)
-                except Exception as exc:
+                except Exception:
                     from utils.logging_config import get_logger
                     get_logger().exception("Portföy parça callback hatası")
         callback(enriched)
@@ -879,7 +879,7 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                         pass
             try:
                 callback(fallback)
-            except Exception as callback_exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Portföy final callback hatası")
 

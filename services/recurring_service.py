@@ -381,6 +381,15 @@ def refund_current_period_charge(payment_id, today=None):
     conn = get_connection()
     try:
         cursor = conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+        cursor.execute(
+            "INSERT OR IGNORE INTO recurring_operation_markers "
+            "(recurring_payment_id, due_date, operation_type) VALUES (?, ?, 'refund')",
+            (payment_id, str(charge["id"])),
+        )
+        if cursor.rowcount == 0:
+            conn.rollback()
+            return 0.0
         row = _get_payment(cursor, payment_id)
         if row is None:
             return 0.0

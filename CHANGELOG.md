@@ -1,5 +1,173 @@
 # Changelog
 
+## [0.0.9] — 2026-08-11
+
+This release came out of an audit rather than a feature plan, and most of what
+it fixes could lose or corrupt data silently: an infinity typed into an amount
+field that quietly removed an account from the portfolio total, a recurring
+payment charged twice for the same period, an asset sale that credited cash
+while leaving the asset in the portfolio, and a backup whose contents could be
+rewritten without the application noticing. It remains a **pre-release**.
+
+### Highlights
+
+- **An amount field can no longer corrupt your balances.** Entering `Infinity`
+  as an expense drove an account balance to `-inf`, then to `NULL`, at which
+  point the account dropped out of the portfolio total with no error shown — a
+  5.000 TL account made 7.500 TL read as 2.500 TL.
+- **Money can no longer be moved twice by one action.** Recurring charges and
+  refunds are idempotent per period, concurrent card spends can no longer both
+  pass the same limit check, and asset sales and debt instalments now complete
+  or roll back as a whole.
+- **A tampered backup is rejected.** Rewriting the financial data and
+  recomputing the stored SHA-256 previously produced a package the application
+  accepted; packages are now authenticated.
+- **An interrupted restore no longer leaves a mixed profile.** The database,
+  key and config move as one generation, and startup finishes or rolls back the
+  interrupted attempt before anything reads them.
+- **An older build refuses to open a newer database** instead of writing to it
+  and dropping the columns it does not recognise.
+
+### Financial correctness and reliability
+
+- Non-finite amounts (`NaN`, `±Infinity`) are rejected at the service boundary
+  before any write. Previously an infinity expense drove an account balance to
+  `-inf` and then to `NULL`, at which point the account silently dropped out of
+  the portfolio total — a 5.000 TL account made 7.500 TL read as 2.500 TL, with
+  no error raised.
+- A recurring payment can no longer be charged twice for the same due period,
+  and the same charge can no longer be refunded twice.
+- The credit-card limit check and the write that follows it are now serialised,
+  closing a race where two concurrent spends could both pass the same check.
+- Asset sales and automatic debt instalments each run in a single database
+  transaction. A failure part-way through no longer leaves cash credited with
+  the asset still in the portfolio, or an instalment marked paid with no ledger
+  entry.
+- Asset sale entries record quantity, unit price and profit/loss again. Without
+  them a partial sale was indistinguishable from a full one in the ledger.
+
+### Backup, restore and migration
+
+- Backup packages are authenticated. Rewriting the financial data and
+  recomputing the stored SHA-256 no longer produces a package the application
+  accepts.
+- Archive members are validated against an allow-list; unexpected entries and
+  traversal-style paths are rejected before extraction.
+- Restore treats the database, encryption key and config as one profile
+  generation. A failure rolls all three back together — previously the config
+  was left from the backup while the database was rolled back, leaving a mixed
+  profile.
+- An interrupted restore is now recovered at startup, before the key, database
+  or config is used. A crash after the restore committed keeps the new
+  generation and only finishes cleanup; a crash before it rolls back. A journal
+  that cannot be read stops startup rather than guessing.
+- Database migrations are retry-safe. A crash after `ALTER TABLE` but before
+  the backfill no longer leaves the column permanently unpopulated: completion
+  is decided by a postcondition, not by the column's existence.
+- The database now records which schema generation wrote it, and an older
+  build refuses to open a newer one instead of writing to it and dropping the
+  columns it does not recognise. Existing profiles are unaffected: they all
+  carry the pre-marker value, which is older than the current generation, and
+  they pick up the marker on first start.
+
+### Security and privacy
+
+- Plaintext CSV exports are created with owner-only permissions on POSIX
+  systems.
+- A restore failure shows a fixed message that carries no key, passphrase,
+  journal content, file path or traceback.
+- Pillow, cryptography and setuptools are updated to versions without known
+  vulnerabilities (18 advisories across the three). The Pillow ones were
+  reachable: brand icons are fetched from third-party icon services for a
+  user-supplied domain and the response bytes go straight into `Image.open`,
+  so a crafted image from a compromised source or an intercepted connection
+  could reach decoder bugs that corrupt the native heap.
+- Dependencies are now scanned for known vulnerabilities on every pull
+  request, and the scan blocks. Nothing had scanned them before, which is why
+  eighteen advisories had accumulated unnoticed.
+
+### Performance
+
+- No performance-affecting changes. The reliability fixes add a transaction
+  boundary around asset sales and debt instalments and a `BEGIN IMMEDIATE`
+  around the card limit check; both are per-operation and were measured as no
+  change in the startup and rapid-tap tests that already cover those paths.
+
+### UI and accessibility
+
+- A failed restore recovery and a database written by a newer build each stop
+  startup with a plain explanation instead of proceeding. Both messages state
+  that no file was touched, and neither carries a path, key, version number or
+  traceback.
+
+### Testing and packaging
+
+- The exception-handler gate now recognises `except (Exception,)`,
+  `except (Exception, OSError)`, `except builtins.Exception` and aliased forms,
+  all of which were previously invisible. It also fails when the baseline holds
+  more entries than reality, which is how 44 unused slots accumulated in 0.0.6.
+- The Windows installer no longer falls back to a hard-coded `0.0.1` when no
+  version input is supplied; the version comes from the single source and a
+  mismatch fails the build.
+- The upgrade smoke test selects the real previous release by semantic version
+  instead of a fixed `v0.0.1`, and reads the expected checksum from that
+  release's own manifest.
+- The pyflakes scan blocks now that its backlog is empty. It had been
+  informational since the debt made it unenforceable; 15 dead imports and 100
+  unused assignments were cleared, two of which were stale copies of logic that
+  had moved into the service layer.
+- `initialize_database()` now closes its connection on every exit path. A
+  failure part-way through schema setup previously left it open, which on
+  Windows means a lock on the database file — the same lock that would block
+  the restore step this release hardened.
+- The test suite on both platforms, the reliability gates, lint, the four
+  visual-regression combinations and both package builds are now required
+  status checks on `main`, so a red run blocks a merge instead of merely
+  reporting. The AppImage build was the last one outside that list: Linux
+  packaging could break without blocking anything, and it had in fact not been
+  built once against this release until it was verified explicitly. The
+  expected list is pinned in the repository, which is what makes a silently
+  dropped check visible.
+- Database connection ownership is pinned by regression tests that count
+  connection opens against closes rather than file descriptors, so the
+  guarantee also holds on Windows. The earlier descriptor-based measurement
+  that reported a leak turned out to be the audit probe's own: it used
+  sqlite3's context manager, which commits but does not close. The probe is
+  fixed; no production path ever used that pattern.
+
+### Additional issues found and fixed
+
+- A reported connection leak turned out to be the audit probe's own. The probe
+  used sqlite3's context manager, which commits but does not close, so it
+  leaked one connection per iteration; the same measurement is identical on the
+  commit before the reliability work and on the one after, and production never
+  used that pattern. The probe is fixed and the finding is recorded rather than
+  deleted.
+- Two copies of logic that had already moved into the service layer were still
+  being computed and discarded in the UI mixins — a sale description and a debt
+  is-active flag. Both are removed; keeping second copies is how they drift.
+- The mock data generator and the ledger baseline query were the last two
+  places not covered by the connection-ownership and identifier rules the rest
+  of the codebase follows.
+
+### Known limitations
+
+- Real Windows validation has not been performed: DPAPI, SmartScreen,
+  installer upgrade/uninstall and DPI scaling are unverified.
+- The visual presentation of a restore-recovery failure is verified only at the
+  orchestration level; actual widget rendering was not exercised.
+- `accounts.balance` and `savings_goals.current_amount` remain `REAL` columns.
+- Broad exception-handler debt is still open, though the gate holds it flat.
+- Packaged keystore and recovery behaviour still needs validation on real
+  machines rather than in CI.
+
+### Installation and checksum verification
+
+- Windows: `ArchlenceSetup-0.0.9.exe`
+- Linux: `Archlence-0.0.9-x86_64.AppImage`
+- Download `SHA256SUMS.txt` from the same release and verify the matching
+  asset. The SBOM is published as `Archlence-0.0.9-sbom.cdx.json`.
+
 ## [0.0.8] — 2026-08-06
 
 Every defect in this release comes from the same place: money handled as binary

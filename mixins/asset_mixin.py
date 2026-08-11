@@ -436,7 +436,7 @@ class AssetMixin:
                 def _refresh(dt):
                     try:
                         _build_list(search_field.text)
-                    except Exception as e:
+                    except Exception:
                         from utils.logging_config import get_logger
                         get_logger().exception("BIST liste yenileme hatası")
 
@@ -678,7 +678,7 @@ class AssetMixin:
             def _refresh(dt):
                 try:
                     _build_list(search_field.text)
-                except Exception as e:
+                except Exception:
                     from utils.logging_config import get_logger
                     get_logger().exception("Kripto liste yenileme hatası")
             Clock.schedule_once(_refresh, 0)
@@ -1146,7 +1146,6 @@ class AssetMixin:
 
     def _save_new_asset(self):
         """Formu doğrular, DB'e şifreli yazar, listeyi yeniler."""
-        import threading
         from utils.toast import toast
 
         asset_name  = self._asset_name_input.text.strip()
@@ -1405,7 +1404,7 @@ class AssetMixin:
         def _fetch_and_enrich():
             try:
                 assets = get_all_assets()
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Asset load error")
                 _apply([], None, final=True)
@@ -1542,7 +1541,7 @@ class AssetMixin:
         """
         try:
             container = self.root.ids.active_assets_container
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("render_active_assets: container bulunamadı")
             return
@@ -1859,7 +1858,8 @@ class AssetMixin:
     def _execute_sell(self, asset, sell_price_per_unit):
         """Satış işlemini background thread'de gerçekleştirir."""
         import threading
-        from database.db import delete_asset, insert_asset_transaction, DEFAULT_ACCOUNT_ID
+        from database.db import DEFAULT_ACCOUNT_ID
+        from services.asset_sale_service import AssetSaleService
         from utils.toast import toast
 
         def _do_sell():
@@ -1884,24 +1884,14 @@ class AssetMixin:
                 pnl            = total_proceeds - cost_basis
                 sign           = "+" if pnl >= 0 else "-"
 
-                desc = (
-                    f"{asset['asset_name']} ({asset['asset_code']}) satıldı — "
-                    f"{asset['quantity']:g} adet, birim fiyat {format_price_tl(sell_price_per_unit)} "
-                    f"(K/Z: {sign}{format_price_tl(abs(pnl))})"
+                # Açıklama ARTIK BURADA KURULMUYOR: `8b1744e`'den beri
+                # `AssetSaleService.sell` miktar/birim fiyat/K-Z taşıyan
+                # açıklamayı kendisi yazıyor. Buradaki kopya hiçbir yere
+                # gitmiyordu; iki yerde kurmak da ikisinin ayrışması demekti.
+                AssetSaleService.sell(
+                    asset["id"], sell_price_per_unit, DEFAULT_ACCOUNT_ID,
+                    quantity=asset["quantity"],
                 )
-
-                # Cüzdana ekle: income + 'Varlık Satışı'
-                insert_asset_transaction(
-                    account_id=DEFAULT_ACCOUNT_ID,
-                    # sqlite3 Decimal parametresini REDDEDER
-                    # (ProgrammingError), bu yüzden sınırda float'a çevriliyor.
-                    amount=float(total_proceeds),
-                    tx_type="income",
-                    category="Varlık Satışı",
-                    description=desc,
-                )
-                # Portföyden çıkar
-                delete_asset(asset["id"])
 
                 Clock.schedule_once(
                     lambda dt: toast(
@@ -1911,7 +1901,7 @@ class AssetMixin:
                 Clock.schedule_once(lambda dt: self.load_asset_history(), 0)
                 Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                 Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Asset sell error")
                 Clock.schedule_once(
@@ -1932,7 +1922,7 @@ class AssetMixin:
                 history = get_asset_transaction_history()
                 Clock.schedule_once(
                     lambda dt: self.render_asset_history(history), 0)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Asset history load error")
 
@@ -2027,7 +2017,7 @@ class AssetMixin:
                 try:
                     if fetch_and_cache_logo(code):
                         any_success = True
-                except Exception as e:
+                except Exception:
                     from utils.logging_config import get_logger
                     get_logger().exception(f"Logo indirme hatası: {code}")
             if any_success:

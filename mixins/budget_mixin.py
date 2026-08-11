@@ -295,7 +295,7 @@ class BudgetMixin:
         def worker():
             try:
                 count = apply_plan_to_year_end(month, year)
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Plan uygulanamadı")
                 count = None
@@ -316,7 +316,7 @@ class BudgetMixin:
         try:
             self.load_budget_list()
             self.generate_next_month_projection()
-        except Exception as exc:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Liste tazelenemedi")
 
@@ -1017,14 +1017,14 @@ class BudgetMixin:
         def rebuild_list(_dt):
             try:
                 self.load_budget_list()
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Bütçe listesi tazelenemedi")
 
         def rebuild_projection(_dt):
             try:
                 self.generate_next_month_projection()
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Bütçe projeksiyonu tazelenemedi")
 

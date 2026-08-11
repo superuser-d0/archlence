@@ -1,10 +1,61 @@
 from database.db import get_connection
 from datetime import date
 from database.models import ASSET_PRICE_CACHE_SCHEMA
+from utils.errors import SchemaTooNewError
+
+# `PRAGMA user_version` — şema kuşağının işareti (denetim bulgusu A-5).
+#
+# Bu değere kadar SIFIRDI, yani veritabanı hangi sürüm tarafından yazıldığını
+# HİÇ söylemiyordu. Sonucu şuydu: eski bir yapı, yeni bir yapının yazdığı
+# profili açıp üzerine yazabilirdi — tanımadığı sütunları görmezden gelerek.
+# Kişisel finans verisinde bu sessiz veri kaybı demek.
+#
+# Kural: şema ileri-uyumsuz biçimde değiştiğinde (sütun/tablo eklendiğinde
+# DEĞİL, eski yapının YANLIŞ okuyacağı bir değişiklik olduğunda) artırılır.
+#
+# 1 = v0.0.9 kuşağı. Mevcut bütün profiller 0 taşıyor ve 0 < 1 olduğu için
+# aşağıdaki reddetme yolu var olan hiçbir kurulumda tetiklenemez; ancak
+# birisi ileride daha yeni bir yapı çalıştırıp sonra geri dönerse devreye girer.
+SCHEMA_VERSION = 1
+
+# Kullanıcıya gösterilecek metin. Dosya yolu, sürüm numarası veya exception
+# ayrıntısı İÇERMEZ — `services/startup_recovery.py::USER_MESSAGE` ile aynı
+# gerekçe.
+SCHEMA_TOO_NEW_MESSAGE = (
+    "Bu veritabanı uygulamanın daha yeni bir sürümü tarafından oluşturulmuş. "
+    "Verilerinizi bozmamak için açılış durduruldu; hiçbir dosyaya "
+    "dokunulmadı. Lütfen uygulamanın güncel sürümünü kullanın."
+)
 
 def initialize_database():
+    """Şemayı kurar/günceller — bağlantıyı HER ÇIKIŞ YOLUNDA kapatarak.
+
+    Gövde ayrı bir fonksiyona alındı ki `try/finally` tek yerde dursun ve
+    600 satır yeniden girintilenmesin. Sarmalayıcı olmadan kurulum ortasında
+    fırlayan herhangi bir istisna bağlantıyı AÇIK bırakıyordu; bu teorik
+    değil: `_maybe_backfill_account_type` gibi migration adımları bilerek
+    fırlatabiliyor (bkz. tests/test_migration_retry_safety.py, kesinti
+    enjeksiyonu) ve `initialize_database` aynı süreçte İKİ kez çağrılıyor
+    (main.py açılış + sıfırlama akışı). Linux'ta sızan handle yalnız bir
+    descriptor; Windows'ta ise finance.db üzerinde duran bir kilit, yani
+    sonraki restore/rename/silme adımını bloklardı.
+    """
     conn = get_connection()
+    try:
+        _initialize_database(conn)
+    finally:
+        conn.close()
+
+
+def _initialize_database(conn):
     cursor = conn.cursor()
+
+    # KUŞAK KONTROLÜ HER ŞEYDEN ÖNCE. Tek bir `CREATE TABLE IF NOT EXISTS`
+    # bile çalışmadan önce olmalı: amaç, tanımadığımız bir şemaya HİÇ
+    # dokunmamak. Fail-closed — `run_startup_recovery` ile aynı gerekçe.
+    found = cursor.execute("PRAGMA user_version").fetchone()[0]
+    if found > SCHEMA_VERSION:
+        raise SchemaTooNewError(found, SCHEMA_VERSION)
 
     # 1. Hesaplar Tablosu
     cursor.execute("""
@@ -27,15 +78,33 @@ def initialize_database():
     # 'checking'). Böylece hiçbir mevcut hesap türsüz kalmaz.
     cursor.execute("PRAGMA table_info(accounts)")
     existing_account_cols = {row[1] for row in cursor.fetchall()}
+    # ŞEMA ADIMI ile VERİ ADIMI AYRI. Eskiden backfill `if column not in
+    # cols` bloğunun İÇİNDEYDİ ve bu, kesintiye karşı savunmasızdı:
+    # `ALTER TABLE` kalıcı olur, backfill patlarsa sonraki açılış sütunu
+    # MEVCUT görüp bloğa hiç girmez ve `account_type` kalıcı olarak NULL
+    # kalırdı (denetim bulgusu P1-2, kanıt: account_type_after_retry=None).
+    #
+    # Artık sütunun varlığı TAMAMLANMA KANITI SAYILMIYOR. Backfill kendi
+    # postcondition'ına bakıyor: "geriye doldurulmamış satır var mı?"
+    # Bu, adımı idempotent ve retry-safe yapıyor — kaç kez kesilirse
+    # kesilsin, bir sonraki açılış eksiği tamamlar.
     if "account_type" not in existing_account_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN account_type TEXT")
+    cursor.execute(
+        "SELECT COUNT(*) FROM accounts "
+        "WHERE account_type IS NULL OR TRIM(account_type) = ''"
+    )
+    if cursor.fetchone()[0]:
         cursor.execute("""
             UPDATE accounts
             SET account_type = CASE WHEN type = 'credit' THEN 'credit_card' ELSE 'checking' END
+            WHERE account_type IS NULL OR TRIM(account_type) = ''
         """)
+
     if "credit_limit" not in existing_account_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN credit_limit REAL DEFAULT 0")
-        cursor.execute("UPDATE accounts SET credit_limit = 0 WHERE credit_limit IS NULL")
+    # Aynı gerekçe: backfill kendi eksikliğine bakar.
+    cursor.execute("UPDATE accounts SET credit_limit = 0 WHERE credit_limit IS NULL")
     if "statement_date" not in existing_account_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN statement_date INTEGER")
         
@@ -97,7 +166,7 @@ def initialize_database():
                 network_logo = AccountService.check_card_network(dec_num)
                 last4 = dec_num[-4:] if len(dec_num) >= 4 else dec_num
                 masked_number = f"**** **** **** {last4}"
-            except (ValueError, TypeError) as e:
+            except (ValueError, TypeError):
                 # decrypt() hiçbir zaman raise etmez, string işlemleri de
                 # (slicing/len) raise etmez — bu except pratikte tetiklenemez.
                 # Yine de daraltılmış hâliyle bırakıldı: bu, tek seferlik bir
@@ -137,6 +206,18 @@ def initialize_database():
         cursor.execute("ALTER TABLE transactions ADD COLUMN status TEXT DEFAULT 'completed'")
     if "execution_date" not in existing_trans_cols:
         cursor.execute("ALTER TABLE transactions ADD COLUMN execution_date TEXT")
+
+    # Durable financial-operation identities.  UI state is not an idempotency
+    # boundary: retries and two processes must be rejected by SQLite itself.
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS recurring_operation_markers (
+            recurring_payment_id INTEGER NOT NULL,
+            due_date TEXT NOT NULL,
+            operation_type TEXT NOT NULL,
+            transaction_id INTEGER,
+            PRIMARY KEY (recurring_payment_id, due_date, operation_type)
+        )
+    """)
 
 
     # 3. Kategoriler Tablosu
@@ -495,9 +576,28 @@ def initialize_database():
         """
         from database.db import ACCOUNT, SAVINGS_GOAL, record_balance_event
 
+        # Tablo ve kolon ADLARI SQL'de parametrelenemez (kimlik alanı, değer
+        # değil), dolayısıyla aşağıdaki f-string zorunlu. Güvenliği sağlayan
+        # şey, ikisinin de bu sabit eşlemeden gelmesi — dışarıdan bir değerin
+        # oraya ulaşma yolu yok. Eşleme açıkça yazıldı ki ileride değişken
+        # bir tablo adı geçirilmeye çalışılırsa sessizce çalışmasın.
+        allowed_columns = {
+            "accounts": "balance",
+            "savings_goals": "current_amount",
+        }
+
         def _baseline(entity_type, table, value_column, marker_source):
+            if allowed_columns.get(table) != value_column:
+                raise ValueError(
+                    f"Defter baseline'ı yalnızca {sorted(allowed_columns)} "
+                    f"tablolarında çalışır; verilen: {table}.{value_column}"
+                )
+            # `nosec B608`: bandit her f-string SQL'i işaretler, tanımlayıcının
+            # nereden geldiğini göremez. Buradaki iki değer de yukarıdaki
+            # `allowed_columns` eşlemesinden geçmek ZORUNDA — muafiyetin
+            # dayanağı o kontrol, "zaten güvenlidir" varsayımı değil.
             cursor.execute(
-                f"SELECT id, {value_column} AS value FROM {table}"
+                f"SELECT id, {value_column} AS value FROM {table}"  # nosec B608
             )
             rows = [(r["id"], r["value"] or 0.0) for r in cursor.fetchall()]
             for entity_id, current_value in rows:
@@ -590,6 +690,17 @@ def initialize_database():
     # Varsayılan hesaplar kurulduktan SONRA çalışmalı ki yeni kurulumda da
     # açılış bakiyeleri deftere girsin.
     _backfill_ledger_baseline()
-    # ─────────────────────────────────────────────────────────────────────────
 
-    conn.close()
+    # İşaret EN SONDA ve KOŞULSUZ konur: buraya ulaşıldıysa şema bu kuşağa
+    # tam olarak getirilmiş demektir. Koşulsuz olması önemli — hem yeni
+    # kurulum hem de göç etmiş eski profil aynı değeri taşımalı, yoksa
+    # `check_schema_consistency.py`'nin "fresh ile upgraded eşit mi"
+    # karşılaştırması ikisini farklı görürdü. Ortada kesilirse işaret
+    # konmaz ve bir sonraki açılış eksiği tamamlar (idempotent).
+    #
+    # `PRAGMA user_version` parametre kabul etmez; değer modül sabiti.
+    cursor.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")  # nosec B608
+    conn.commit()
+    # ─────────────────────────────────────────────────────────────────────────
+    # Kapatma ARTIK BURADA DEĞİL: sarmalayıcı `initialize_database`'in
+    # `finally` bloğu yapıyor, böylece hata yolları da kapsanıyor.

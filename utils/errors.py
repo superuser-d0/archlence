@@ -30,6 +30,21 @@ class DataMigrationError(ArchlenceError):
     """A data migration failed and its database transaction was rolled back."""
 
 
+class SchemaTooNewError(DataMigrationError):
+    """The database was written by a newer build than the one opening it.
+
+    Derives from DataMigrationError so existing boundaries already catch it,
+    while staying separately catchable at startup.
+    """
+
+    def __init__(self, found, supported):
+        super().__init__(
+            f"database schema version {found} is newer than the supported {supported}"
+        )
+        self.found = found
+        self.supported = supported
+
+
 class FinancialDataIntegrityError(ArchlenceError):
     """A financial result is invalid because a contributing record is unreadable."""
 

@@ -95,7 +95,7 @@ class HistoryMixin:
                 today = datetime.now().strftime("%Y-%m-%d")
                 past = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
                 result = diff_between(past, today)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Bakiye geçmişi okunamadı")
                 Clock.schedule_once(
@@ -180,7 +180,7 @@ class HistoryMixin:
             try:
                 from services.history_service import diff_between
                 result = diff_between(from_date, to_date)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Özel tarih aralığı okunamadı")
                 Clock.schedule_once(
@@ -215,7 +215,7 @@ class HistoryMixin:
             try:
                 from services.history_service import get_balance_at
                 result = get_balance_at(selected_date)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Tarihteki bakiye okunamadı")
                 Clock.schedule_once(
@@ -264,7 +264,7 @@ class HistoryMixin:
             )
             details.bind(size=details.setter("text_size"))
             container.add_widget(details)
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Tarihteki bakiye çizilemedi")
 
@@ -376,6 +376,6 @@ class HistoryMixin:
                         style, "green" if info["delta"] >= 0 else "red"),
                 ))
                 container.add_widget(row)
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Bakiye geçmişi çizilemedi")

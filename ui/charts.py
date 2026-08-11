@@ -726,7 +726,7 @@ class DashboardChartManager(MDBoxLayout):
         def _load():
             try:
                 raw_data = TransactionService.get_transactions_by_period(period)
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Dashboard grafik verisi okunamadı")
                 raw_data = []
@@ -738,7 +738,7 @@ class DashboardChartManager(MDBoxLayout):
                 # ayrı bir seri olarak çizilir; tasarruf oranı/sağlık skoru gibi
                 # diğer hesaplara katılmaz.
                 opening_events = TransactionService.get_opening_events_by_period(period)
-            except Exception as exc:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Açılış bakiyesi okunamadı")
                 opening_events = []
@@ -787,7 +787,7 @@ class DashboardChartManager(MDBoxLayout):
             self._apply_data(raw_data, period, opening_events)
             if requested_cache_key is not None:
                 self._rendered_cache_key = requested_cache_key
-        except Exception as exc:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Dashboard grafikleri çizilemedi")
             # Canvas/veri biçimi hatası dahi spinner ve opacity'yi kilitlemez.
@@ -832,7 +832,7 @@ class DashboardChartManager(MDBoxLayout):
             buckets = self._build_time_buckets(
                 raw_data or [], period, opening_events
             )
-        except Exception as exc:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Dashboard zaman grafiği hazırlanamadı")
             buckets = []

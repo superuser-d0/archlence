@@ -1,4 +1,3 @@
-import math
 from kivy.metrics import dp
 from utils.financial_decimal import fiat
 from utils.toast import toast

@@ -23,12 +23,13 @@ hem de jenerik "Tarih,Tür,Kategori,Tutar,Açıklama" başlıklı CSV'leri tanı
 import csv
 import math
 import os
+import tempfile
+from pathlib import Path
 from datetime import datetime
 
 from database.db import (
     DEFAULT_ACCOUNT_ID,
     SECRET_KEY,
-    get_connection,
     managed_connection,
 )
 from utils.crypto import decrypt
@@ -151,11 +152,49 @@ def export_all_to_csv(path=None):
             ])
 
 
-    # utf-8-sig: Excel'in Türkçe karakterleri doğru açması BOM'a bağlı
-    with open(path, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.writer(f)
-        writer.writerow(CSV_HEADER)
-        writer.writerows(rows_out)
+    # Plaintext finance exports are private files, irrespective of umask.
+    # Stage beside the target so replace is atomic and never follows an
+    # existing symlink target.
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, staged = tempfile.mkstemp(prefix=".archlence-export-", dir=target.parent)
+    fd_handed_off = False
+    try:
+        # `os.fchmod` WINDOWS'TA YOK. Korumasız çağrı orada `AttributeError`
+        # fırlatıyordu, yani CSV dışa aktarma Windows'ta HİÇ çalışmıyordu —
+        # bu koruma (`c2ae4c1`) eklendiğinden beri. Linux'ta test edildiği
+        # için görülmedi.
+        #
+        # DÜRÜST SINIR: POSIX mod bitleri Windows'ta karşılığı olmayan bir
+        # kavram. Orada dosya, üst dizinin ACL'sini devralır ve bu çağrı
+        # atlandığında dosya "yalnız sahibine açık" OLMAZ. Windows tarafında
+        # ACL ile daraltma ayrı bir iş; burada sessizce korunuyormuş gibi
+        # davranmıyoruz (bkz. CHANGELOG "on POSIX systems").
+        if hasattr(os, "fchmod"):
+            os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", newline="", encoding="utf-8-sig") as f:
+            # Bu noktadan sonra fd'nin sahibi `f`; kapatmak ONUN işi.
+            fd_handed_off = True
+            writer = csv.writer(f)
+            writer.writerow(CSV_HEADER)
+            writer.writerows(rows_out)
+            f.flush(); os.fsync(f.fileno())
+        os.replace(staged, target)
+        if hasattr(os, "fchmod"):
+            os.chmod(target, 0o600)
+    # EXCEPTION-AUDIT: bilinçli geniş — staged dosyanın silinmesi HER hata
+    # türünde çalışmalı (şifresi çözülmüş finansal veri diskte kalmasın).
+    # Handler yutmuyor, yeniden fırlatıyor.
+    except Exception:
+        # fd'yi ÖNCE kapat. Windows açık bir dosyayı sildirmez: `fchmod`
+        # patladığında fd hâlâ açıktı ve temizlik `PermissionError [WinError
+        # 32]` ile ikinci kez kırılıyordu — asıl hatayı da gizleyerek.
+        if not fd_handed_off:
+            try: os.close(fd)
+            except OSError: pass
+        try: os.unlink(staged)
+        except (FileNotFoundError, PermissionError): pass
+        raise
 
     return path, len(rows_out)
 

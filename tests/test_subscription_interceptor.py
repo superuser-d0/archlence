@@ -192,7 +192,6 @@ class InterceptorWiringTest(AccountFixtureMixin, unittest.TestCase):
 
     def test_radar_failure_does_not_lose_the_transaction(self):
         """Radar kaydı patlasa bile gerçek harcama kaydedilmiş kalmalı."""
-        from services import transaction_service
         with mock.patch(
             "services.recurring_service.register_subscription_from_transaction",
             side_effect=RuntimeError("radar bozuk"),

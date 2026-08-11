@@ -35,8 +35,8 @@ class SavingsService:
     @staticmethod
     def create_goal(goal_name, target_amount, target_date=None, current_amount=0.0):
         """Yeni birikim hedefi açar; hedefin id'sini döndürür."""
-        target_amount = float(target_amount)
-        current_amount = float(current_amount)
+        target_amount = float(fiat(target_amount))
+        current_amount = float(fiat(current_amount))
         if target_amount <= 0:
             raise ValueError("Hedef tutar 0'dan büyük olmalıdır")
         if current_amount < 0:
@@ -108,7 +108,7 @@ class SavingsService:
         Yetersiz bakiye koruması iptal edildi: hesap eksiye düşebilir.
         Güncel hedef durumunu (dict) döndürür.
         """
-        amount = float(amount)
+        amount = float(fiat(amount))
         if amount <= 0:
             raise ValueError("Aktarılacak tutar 0'dan büyük olmalıdır")
 
@@ -172,7 +172,7 @@ class SavingsService:
     @staticmethod
     def withdraw_from_goal(goal_id, amount, account_id=DEFAULT_ACCOUNT_ID):
         """Hedeften ana hesaba para iade eder (deposit'in tersi, aynı atomik desen)."""
-        amount = float(amount)
+        amount = float(fiat(amount))
         if amount <= 0:
             raise ValueError("Çekilecek tutar 0'dan büyük olmalıdır")
 

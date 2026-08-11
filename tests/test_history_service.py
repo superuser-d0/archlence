@@ -23,7 +23,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-from tests.fixtures import AccountFixtureMixin, LEGACY_SEED_TOTAL
+from tests.fixtures import AccountFixtureMixin
 
 
 class _LedgerTestBase(AccountFixtureMixin, unittest.TestCase):

@@ -21,6 +21,7 @@ import random
 import shutil
 import sys
 from collections import defaultdict
+from contextlib import closing
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
@@ -162,7 +163,7 @@ def main():
     # to the beginning of the synthetic year so balance replay is meaningful.
     opening_ts = dt_on(start, 8).strftime("%Y-%m-%d %H:%M:%S")
     goal_cards = []
-    with get_connection() as conn:
+    with closing(get_connection()) as conn, conn:
         conn.execute(
             "UPDATE balance_events SET ts = ? WHERE source = 'account_opened'",
             (opening_ts,),
@@ -352,7 +353,7 @@ def main():
             (ts, ACCOUNT, account_id, delta, result, source, ref_id),
         )
 
-    with get_connection() as conn:
+    with closing(get_connection()) as conn, conn:
         cursor = conn.cursor()
         balances = {
             row["id"]: float(row["balance"] or 0)
@@ -587,7 +588,7 @@ def main():
         encoding="utf-8",
     )
 
-    with get_connection() as conn:
+    with closing(get_connection()) as conn, conn:
         counts = {
             table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             for table in (

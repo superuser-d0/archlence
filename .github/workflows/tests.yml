@@ -27,10 +27,20 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          # Test paketi GERÇEK etiket geçmişini okuyor
+          # (`test_real_repository_history_selects_008_for_009` ->
+          # `previous_release.py` -> `git tag`). Varsayılan checkout etiket
+          # çekmiyor ve `fetch-tags: true` BURADA İŞE YARAMIYOR: checkout ref'i
+          # bir SHA olarak fetch ettiğinde komuta `--tags` eklemiyor, ölçtük.
+          # `fetch-depth: 0` etiketleri kesin getiriyor — `reliability-gates`
+          # zaten bu yüzden onu kullanıyor.
+          # Etiketsiz koşup testi atlamak, kapıyı ölçmeden yeşile çevirirdi.
+          fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
           cache: pip
@@ -77,10 +87,20 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          # Test paketi GERÇEK etiket geçmişini okuyor
+          # (`test_real_repository_history_selects_008_for_009` ->
+          # `previous_release.py` -> `git tag`). Varsayılan checkout etiket
+          # çekmiyor ve `fetch-tags: true` BURADA İŞE YARAMIYOR: checkout ref'i
+          # bir SHA olarak fetch ettiğinde komuta `--tags` eklemiyor, ölçtük.
+          # `fetch-depth: 0` etiketleri kesin getiriyor — `reliability-gates`
+          # zaten bu yüzden onu kullanıyor.
+          # Etiketsiz koşup testi atlamak, kapıyı ölçmeden yeşile çevirirdi.
+          fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           # Paketlemeyle AYNI sürüm (bkz. build-windows.yml). Testin,
           # kullanıcıya giden .exe'nin çalıştırdığı yorumlayıcıyı temsil
@@ -109,15 +129,122 @@ jobs:
           KIVY_WINDOW: "sdl2"
         run: python run_tests.py
 
+  reliability-gates:
+    # AĞIR GÜVENİLİRLİK KAPILARI — normal unit suite'e uygun değiller ama
+    # ZORUNLU. Her biri gerçekten koşuyor; "script dosyası var" diye yeşil
+    # olmuyorlar.
+    #
+    # Neden ayrı job: mutation matrisleri her vaka için ayrı bir git worktree
+    # kurup kapıyı yeniden çalıştırıyor, migration matrisi sekiz sürümün
+    # veritabanını üretip göç ettiriyor. Bunları her PR unit koşumuna eklemek
+    # süreyi katlar; ayrı job olarak koşup yine de merge'ü bloklarlar.
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          # Mutation matrisi `git worktree` kullanıyor ve migration matrisi
+          # eski sürüm etiketlerine ihtiyaç duyuyor.
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install the system library Kivy loads at import time
+        # `kivy.input.providers` KOŞULSUZ olarak `mtdev`'i import ediyor ve o
+        # da `libmtdev.so.1`'i `cdll.LoadLibrary` ile yüklüyor. Runner'da bu
+        # kütüphane yok; migration matrisinin alt süreçleri uygulama kodunu
+        # yüklerken `OSError` ile ölüyordu. Headless ortam değişkenleri bunu
+        # ÇÖZMÜYOR — import koşula bağlı değil, eksik olan sistem kütüphanesi.
+        #
+        # `test` job'ında görülmüyor çünkü orası Kivy'nin girdi sağlayıcı
+        # taramasına hiç ulaşmıyor. Geliştirici makinelerinde kütüphane zaten
+        # kurulu; bu yüzden yalnızca CI'da ortaya çıktı.
+        run: sudo apt-get update && sudo apt-get install -y libmtdev1
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Version consistency mutation matrix (16 cases)
+        # Sürüm kaynaklarının her birini tek tek bozup kapının yakaladığını
+        # doğrular. Kaçan vaka varsa çıkış kodu 1.
+        run: python scripts/audit/version_mutation_matrix.py
+
+      - name: Schema and migration matrix (v0.0.1 - v0.0.8)
+        # EKRAN GEREKMİYOR — ve bu bilinçli bir tasarım, eksiklik değil.
+        # Worker eskiden `import main` yapıyordu; main Kivy'yi import edince
+        # import ANINDA pencere sağlayıcısı aranıyor, ekransız runner'da
+        # bulunamayınca `sys.exit(1)`. Ortamı yeterli kılmak için beş deneme
+        # harcandı (headless değişkenler, libmtdev, sanal ekran, SDL sürücü
+        # seçimi) ve her biri bir sonraki katmanı açtı.
+        #
+        # `1ffc6f6` yönü çevirdi: o import zaten yerini hak etmiyordu.
+        # `tests/test_startup_import.py` main'in headless import edildiğini
+        # HEM Linux HEM Windows'ta zaten doğruluyor, üstelik main import
+        # sırasında veritabanına dokunmuyor (şema işi `build()` içinde) —
+        # yani "migrate edilmiş veritabanına karşı import" düz bir import'la
+        # aynı şeydi. Bu kapının ölçmesi gereken katman veriye DOKUNAN
+        # katman: services/database/utils, ve onlar hiç Kivy import etmiyor.
+        #
+        # Worker artık o on bir modülü import ediyor ve `sys.modules` içinde
+        # kivy belirirse yüksek sesle patlıyor; bir GUI bağımlılığı geri
+        # sızarsa ekran ihtiyacı sessizce geri gelmesin diye.
+        run: |
+          python scripts/audit/check_schema_consistency.py \
+            --output migration-matrix.json
+
+      - name: Adversarial financial reproductions
+        # Bu testler v0.0.9 düzeltmelerinden SONRA yeşil olmalı. Kırmızıya
+        # dönmeleri bir düzeltmenin geri gittiği anlamına gelir.
+        run: |
+          python -m unittest \
+            scripts.audit.test_adversarial_reproductions \
+            scripts.audit.test_phase2_additional_reproductions \
+            scripts.audit.test_migration_fault_injection \
+            scripts.audit.test_phase2_backup_archive \
+            scripts.audit.test_phase2_concurrency \
+            scripts.audit.test_phase2_nonfinite_matrix \
+            scripts.audit.test_ci_required_checks_contract
+
+      - name: Financial property tests (hypothesis)
+        run: python -m unittest scripts.audit.test_phase2_financial_properties
+
+      - name: Dependency vulnerability scan
+        # PAKETLENEN bağımlılıklar taranıyor (requirements-runtime.txt), lint
+        # araçları değil: kullanıcıya giden .exe'nin içindekiler bunlar.
+        #
+        # BLOKLUYOR. `continue-on-error` bilerek YOK — bu tarama Phase 2'den
+        # v0.0.9'a kadar hiç koşmamıştı ve ilk koşumda 3 pakette 18 benzersiz
+        # bulgu çıktı; bilgilendirici bırakılsaydı aynı sessizlik sürerdi.
+        #
+        # Yeni bir öneri gerçekten düzeltilemiyorsa çözüm `|| true` DEĞİL,
+        # `--ignore-vuln <ID>` ile gerekçesini yazarak tek tek muaf tutmaktır;
+        # böylece muafiyet görünür kalır.
+        run: python -m pip_audit -r requirements-runtime.txt --strict
+
+      - name: Upload matrix artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: reliability-matrices
+          path: migration-matrix.json
+          if-no-files-found: warn
+
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
           cache: pip
@@ -136,38 +263,26 @@ jobs:
           --exclude=.venv,venv,build,dist,.git,AppDir
           --count
 
-      # Bilgilendirici, BLOKLAMAYAN pyflakes taraması (docs/ROADMAP.md Faz 0).
-      # Neden bloklamıyor: hâlâ 122 mevcut ihlal var (2026-08-04'te ölçüldü;
-      # 2026-07-27'de 117'ydi). Şimdi zorunlu yapmak, değişiklikle ilgisi
-      # olmayan sebeplerle her PR'ı kırardı. Amacı sayıyı GÖRÜNÜR kılmak:
-      # çıktı iş özetine yazılır, kimsenin log kazması gerekmez.
-      # Borç eritildikçe `continue-on-error` kaldırılıp zorunlu yapılmalıdır.
-      - name: Report pyflakes backlog (informational)
-        continue-on-error: true
-        run: |
-          set +e
-          python -m flake8 . --select=F \
-            --exclude=.venv,venv,build,dist,.git,AppDir > pyflakes.txt
-          total=$(wc -l < pyflakes.txt)
-          {
-            echo "### Pyflakes backlog: ${total} finding(s)"
-            echo ""
-            echo "Informational only — this step never fails the build."
-            echo ""
-            echo '```'
-            grep -oE 'F[0-9]+' pyflakes.txt | sort | uniq -c | sort -rn
-            echo '```'
-            echo ""
-            echo "<details><summary>Full list</summary>"
-            echo ""
-            echo '```'
-            cat pyflakes.txt
-            echo '```'
-            echo ""
-            echo "</details>"
-          } >> "$GITHUB_STEP_SUMMARY"
-          cat pyflakes.txt
-          exit 0
+      # ARTIK BLOKLUYOR (docs/ROADMAP.md Faz 0 kapandı).
+      #
+      # Bu adım uzun süre `continue-on-error: true` ile bilgilendiriciydi,
+      # çünkü 122 mevcut ihlal vardı ve zorunlu yapmak her PR'ı ilgisiz
+      # sebeplerle kırardı. v0.0.9'da borç sıfırlandı: 15 F401 ölü import
+      # kaldırıldı, 98 F841 kullanılmayan `except ... as e` bağı temizlendi,
+      # kalan 2 F841 ise servis katmanına taşınmış işin ölü kalıntısıydı
+      # (`AssetSaleService.sell` açıklaması, `DebtPaymentService.pay_auto`
+      # is_active hesabı) — ikisi de silindi.
+      #
+      # Sayı 0 olduğu için kapı artık bedava: yeni bir ihlal ancak o PR'ın
+      # kendi getirdiği ihlaldir. Tekrar `continue-on-error` eklemek yerine
+      # ihlali düzeltin; backlog'un nasıl biriktiğini bu dosyanın geçmişi
+      # zaten gösteriyor.
+      - name: Block the full pyflakes set
+        run: >-
+          python -m flake8 .
+          --select=F
+          --exclude=.venv,venv,build,dist,.git,AppDir
+          --count
 
       - name: Prevent new broad or silent exception handlers
         run: >-
@@ -201,8 +316,8 @@ jobs:
         dpi: ["96", "192"]
         language: ["tr", "en"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
           cache: pip
@@ -231,7 +346,7 @@ jobs:
         run: >-
           xvfb-run -a python scripts/dev/verify_asset_dialog_layout.py
           --output visual/assets-${{ matrix.language }}-${{ matrix.dpi }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()
         with:
           name: visual-${{ matrix.language }}-${{ matrix.dpi }}

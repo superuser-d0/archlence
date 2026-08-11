@@ -42,7 +42,7 @@ class RecurringMixin:
                 Clock.schedule_once(
                     lambda dt, value=payments: apply_result(value), 0,
                 )
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Error fetching recurring payments")
 
@@ -126,7 +126,7 @@ class RecurringMixin:
                 card.add_widget(status_lbl)
                 card.add_widget(btn_layout)
                 container.add_widget(card)
-        except Exception as e:
+        except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Error rendering upcoming payments")
 
@@ -148,7 +148,7 @@ class RecurringMixin:
                 Clock.schedule_once(lambda dt: self.load_upcoming_recurring(), 0)
                 Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                 Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Error paying recurring payment")
                 Clock.schedule_once(lambda dt: toast(_t("İşlem sırasında hata oluştu!")), 0)
@@ -165,7 +165,7 @@ class RecurringMixin:
                 Clock.schedule_once(lambda dt: self.load_upcoming_recurring(), 0)
                 if hasattr(self, "refresh_insights"):
                     Clock.schedule_once(lambda dt: self.refresh_insights(), 0)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Error deactivating recurring payment")
 
@@ -174,10 +174,11 @@ class RecurringMixin:
     def process_due_auto_deductions(self):
         from database.db import (
             get_active_recurring_payments, process_due_recurring_payment,
-            get_active_debts, update_debt_progress, update_debt_last_auto_pay,
+            get_active_debts,
             DEFAULT_ACCOUNT_ID,
         )
         from services.transaction_service import TransactionService
+        from services.debt_payment_service import DebtPaymentService
 
         def process():
             try:
@@ -197,7 +198,7 @@ class RecurringMixin:
                 try:
                     if TransactionService.settle_due_transactions():
                         ui_needs_refresh = True
-                except Exception as exc:
+                except Exception:
                     from utils.logging_config import get_logger
                     get_logger().exception("Bekleyen işlemler işlenemedi")
 
@@ -221,7 +222,7 @@ class RecurringMixin:
                     try:
                         process_due_recurring_payment(p)
                         ui_needs_refresh = True
-                    except Exception as exc:
+                    except Exception:
                         from utils.logging_config import get_logger
                         get_logger().exception(
                             f"Tekrarlanan ödeme işlenemedi (id={p.get('id')}), "
@@ -267,32 +268,21 @@ class RecurringMixin:
                     months_missed = max(1, months_missed)
 
                     installments_to_pay = min(months_missed, remaining)
-                    new_paid_total = debt['paid_installments'] + installments_to_pay
-                    is_active = 0 if new_paid_total >= debt['total_installments'] else 1
+                    # `is_active` ARTIK BURADA HESAPLANMIYOR: borcun kapanıp
+                    # kapanmadığına `DebtPaymentService.pay_auto` aynı
+                    # transaction içinde karar veriyor. Buradaki kopya
+                    # kullanılmıyordu ve servisinkinden sapabilirdi.
 
                     # Yukarıdaki tekrarlanan ödeme döngüsüyle AYNI gerekçe:
                     # tek bir bozuk borç kaydı, kendisinden sonraki borçların
                     # otomatik taksitlerini sessizce iptal etmemeli.
                     try:
-                        update_debt_progress(debt['id'], installments_to_pay, is_active=is_active)
-                        update_debt_last_auto_pay(debt['id'], current_month_str)
-
-                        desc = f"{debt['debt_name']} (Otomatik Taksit Ödemesi)"
-                        if installments_to_pay > 1:
-                            desc = f"{debt['debt_name']} (Otomatik Taksit Ödemesi — {installments_to_pay} ay telafi)"
-
-                        # Atlanan her ay için ayrı gider kaydı oluştur ki toplam bakiye
-                        # ve işlem geçmişi gerçek taksit sayısını yansıtsın.
-                        for _ in range(installments_to_pay):
-                            TransactionService.add_transaction(
-                                account_id=DEFAULT_ACCOUNT_ID,
-                                amount=debt['monthly_payment'],
-                                transaction_type="expense",
-                                category="Kredi Taksiti",
-                                description=desc
-                            )
+                        DebtPaymentService.pay_auto(
+                            debt['id'], DEFAULT_ACCOUNT_ID,
+                            installments_to_pay, current_month_str,
+                        )
                         ui_needs_refresh = True
-                    except Exception as exc:
+                    except Exception:
                         from utils.logging_config import get_logger
                         get_logger().exception(
                             f"Otomatik borç taksiti işlenemedi (id={debt.get('id')}), "
@@ -315,7 +305,7 @@ class RecurringMixin:
                 if hasattr(self, "load_pending_transactions"):
                     Clock.schedule_once(
                         lambda dt: self.load_pending_transactions(), 0)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Error processing auto deductions")
 

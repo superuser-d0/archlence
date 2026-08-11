@@ -7,6 +7,21 @@
 # Çalışan uygulama bunlara hiç ihtiyaç duymaz (bkz. archlence.spec'in
 # excludes listesi, aynı dört paketi bu gerekçeyle paketlenmiş .exe'den de
 # çıkarıyor).
+# Property-based testler (scripts/audit/test_phase2_financial_properties.py)
+# yalnızca DENETİM tarafında kullanılıyor. Runtime bağımlılığı DEĞİL —
+# archlence.spec'in excludes listesindeki gerekçenin aynısı geçerli.
+# Bağımlılık güvenlik taraması. Phase 2'den beri "Not started" duruyordu;
+# ilk koşumda 3 pakette 18 benzersiz bulgu çıktı (pillow'unkiler
+# `services/brand_icon_service.py` üzerinden ağdan gelen görüntülerle
+# ERİŞİLEBİLİRDİ, bkz. CHANGELOG). Artık `reliability-gates` içinde koşuyor,
+# yani sonraki bulgu sessizce birikmiyor.
+# Workflow/CI sözleşme testleri YAML ayrıştırıyor
+# (scripts/audit/test_ci_required_checks_contract.py). Yerel ortamlara
+# geçişli olarak geliyordu ve HİÇBİR YERDE tanımlı değildi; ilk CI
+# koşumunda `ModuleNotFoundError` verdi.
+PyYAML==6.0.3
+pip-audit==2.10.1
+hypothesis==6.165.2
 flake8==7.3.0
 ast-serialize==0.6.0
 librt==0.13.0

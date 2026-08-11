@@ -62,10 +62,10 @@ class AccountService:
             raise ValueError(f"Bilinmeyen hesap türü: {account_type}")
 
         try:
-            initial_balance = float(initial_balance or 0)
-            credit_limit = float(credit_limit or 0)
-        except (TypeError, ValueError):
-            raise ValueError("Tutar ve limit sayısal olmalıdır.")
+            initial_balance = float(fiat(0 if initial_balance is None else initial_balance))
+            credit_limit = float(fiat(0 if credit_limit is None else credit_limit))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Tutar ve limit sonlu sayısal olmalıdır.") from exc
 
         if statement_date not in (None, ""):
             try:
@@ -347,7 +347,7 @@ class AccountService:
             return True, ""
         if acc["account_type"] != CREDIT_CARD:
             try:
-                amount_f = float(amount)
+                fiat(amount)
             except (TypeError, ValueError):
                 return False, "Geçersiz tutar."
             return True, ""
@@ -358,7 +358,7 @@ class AccountService:
         if limit <= 0:
             return True, ""
         try:
-            amount = float(amount)
+            amount = float(fiat(amount))
         except (TypeError, ValueError):
             return False, "Geçersiz tutar."
         

@@ -58,7 +58,7 @@ class CaptureApp(ArchlenceApp):
             print(f"Switching to {tab_name}...")
             try:
                 nav.switch_tab(tab_name)
-            except Exception as e:
+            except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception(f"Failed to switch to {tab_name}")
 

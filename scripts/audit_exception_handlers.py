@@ -45,6 +45,65 @@ def _logs(handler):
     return False
 
 
+_BROAD_NAMES = {"Exception", "BaseException"}
+
+
+def _broad_aliases(tree):
+    """Modül içinde `Exception`/`BaseException`e verilmiş takma adları toplar.
+
+    Kapı eskiden yalnızca `ast.Name` tanıyordu, dolayısıyla
+    `Ex = Exception; except Ex:` gibi bir yeniden adlandırma tamamen
+    görünmezdi (denetim bulgusu A-1).
+    """
+    aliases = set()
+    for node in ast.walk(tree):
+        # X = Exception
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Name):
+            if node.value.id in _BROAD_NAMES | aliases:
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        aliases.add(target.id)
+        # from builtins import Exception as X
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name in _BROAD_NAMES and alias.asname:
+                    aliases.add(alias.asname)
+    return aliases
+
+
+def _is_broad(expr, aliases):
+    """`except <expr>:` her şeyi yakalıyor mu.
+
+    Tanınan biçimler: bare except, Name, Attribute (`builtins.Exception`),
+    Tuple (`(Exception,)` ve `(Exception, OSError)` gibi karışık demetler —
+    içinde geniş bir tip varsa demetin tamamı geniştir) ve takma adlar.
+    """
+    if expr is None:                       # bare except:
+        return True
+    if isinstance(expr, ast.Name):
+        return expr.id in _BROAD_NAMES or expr.id in aliases
+    if isinstance(expr, ast.Attribute):    # builtins.Exception
+        return expr.attr in _BROAD_NAMES
+    if isinstance(expr, ast.Tuple):
+        return any(_is_broad(el, aliases) for el in expr.elts)
+    return False
+
+
+def _normalized_expression(expr):
+    """Parmak izi için kararlı metin gösterimi."""
+    if expr is None:
+        return "bare"
+    if isinstance(expr, ast.Name):
+        return expr.id
+    if isinstance(expr, ast.Attribute):
+        return f"{_normalized_expression(expr.value)}.{expr.attr}"
+    if isinstance(expr, ast.Tuple):
+        return "(" + ", ".join(
+            _normalized_expression(el) for el in expr.elts
+        ) + ")"
+    return ast.dump(expr)
+
+
 def classify(handler, source_lines=()):
     dumped = ast.dump(ast.Module(body=handler.body, type_ignores=[]))
     start = max(handler.lineno - 6, 1)
@@ -84,6 +143,7 @@ def inventory():
         except (OSError, UnicodeError, SyntaxError):
             continue
         source_lines = source.splitlines()
+        broad_aliases = _broad_aliases(tree)
         parents = []
 
         class Visitor(ast.NodeVisitor):
@@ -95,10 +155,7 @@ def inventory():
             visit_AsyncFunctionDef = visit_FunctionDef
 
             def visit_ExceptHandler(self, node):
-                broad = node.type is None or (
-                    isinstance(node.type, ast.Name)
-                    and node.type.id in {"Exception", "BaseException"}
-                )
+                broad = _is_broad(node.type, broad_aliases)
                 if broad:
                     # AST dumps are not a stable interchange format across
                     # Python minors (local 3.14 vs production CI 3.12 yielded
@@ -106,23 +163,26 @@ def inventory():
                     # therefore uses source location semantics, while Counter
                     # cardinality still detects a second broad handler in the
                     # same function.
+                    #
+                    # `as_posix()` ŞART, `str()` DEĞİL: Windows'ta `str()`
+                    # ters bölü üretiyor (`services\\x.py`), yani ORADA HER
+                    # fingerprint Linux'ta üretilmiş baseline'dan farklı
+                    # çıkıyor ve envanter testi bütünüyle kırılıyor. Linux'ta
+                    # ikisi aynı sonucu verdiği için baseline'ı yeniden
+                    # üretmek GEREKMİYOR.
                     identity = "|".join(
                         [
-                            str(path.relative_to(ROOT)),
+                            path.relative_to(ROOT).as_posix(),
                             ".".join(parents) or "<module>",
-                            "bare" if node.type is None else node.type.id,
+                            _normalized_expression(node.type),
                         ]
                     )
                     findings.append(
                         {
-                            "path": str(path.relative_to(ROOT)),
+                            "path": path.relative_to(ROOT).as_posix(),
                             "line": node.lineno,
                             "function": ".".join(parents) or "<module>",
-                            "kind": (
-                                "bare"
-                                if node.type is None
-                                else node.type.id
-                            ),
+                            "kind": _normalized_expression(node.type),
                             "classification": classify(node, source_lines),
                             "fingerprint": hashlib.sha256(
                                 identity.encode("utf-8")
@@ -187,13 +247,32 @@ def main():
         current = collections.Counter(
             item["fingerprint"] for item in findings
         )
+        # TAM EŞİTLİK. Eskiden yalnızca `current - baseline` (fazlalık)
+        # kontrol ediliyordu, yani baseline'ın gerçekten FAZLA kayıt taşıması
+        # hiçbir zaman hata üretmiyordu. Bu, v0.0.6'da bulunan 44 boş slotun
+        # mekanizmasıydı ve kendiliğinden tekrar oluşabiliyordu: bir handler
+        # DARALTILDIĞINDA (iyi bir değişiklik) baseline sessizce slack açıyor,
+        # sonra aynı fonksiyona eklenen yeni bir geniş handler o boşluğa
+        # sessizce yerleşiyordu (denetim bulgusu A-2).
+        #
+        # Artık azalma da hata. Handler daraltmak hâlâ doğru bir değişiklik;
+        # yalnızca baseline'ın BİLİNÇLİ olarak yeniden üretilmesini istiyoruz.
         additions = current - baseline
+        removals = baseline - current
         bare = [item for item in findings if item["kind"] == "bare"]
-        if additions or bare:
+        if additions or removals or bare:
             print(
                 f"Yeni geniş handler={sum(additions.values())}, "
+                f"kaybolan (baseline slack)={sum(removals.values())}, "
                 f"bare except={len(bare)}"
             )
+            if removals:
+                print(
+                    "Baseline gerçekle uyuşmuyor. Handler daraltıldıysa veya "
+                    "silindiyse baseline'ı bilinçli olarak yeniden üretin:\n"
+                    "  python scripts/audit_exception_handlers.py "
+                    "--write-baseline .github/exception-baseline.json"
+                )
             raise SystemExit(1)
         print(f"Exception baseline korundu: {len(findings)} handler")
 

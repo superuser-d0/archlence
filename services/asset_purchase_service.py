@@ -13,7 +13,7 @@ from database.db import (
     adjust_account_balance,
     get_connection,
 )
-from services.account_service import AccountService, _fmt_try
+from services.account_service import AccountService
 from utils.crypto import encrypt
 from utils.financial_decimal import decimal_from, fiat
 

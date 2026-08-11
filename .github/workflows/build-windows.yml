@@ -37,7 +37,7 @@ on:
         description: "Kurulum paketine gömülecek sürüm (etiketten türetilir)."
         required: false
         type: string
-        default: "0.0.8"
+        default: "0.0.9"
 
 # Arka arkaya push'ta eski derleme iptal edilsin; iki Windows runner'ını aynı
 # anda meşgul etmenin anlamı yok. PR'larda github.ref `refs/pull/<no>/merge`
@@ -57,7 +57,18 @@ jobs:
 
     steps:
       - name: Kodu çek
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          # Upgrade smoke `previous_release.py` ile GERÇEK önceki yayını
+          # seçiyor, o da `git tag` okuyor. Etiket yoksa adım "önceki yayın
+          # yok" deyip kendini ATLAR — sessizce yeşil, hiçbir şey doğrulamadan.
+          #
+          # `fetch-depth: 0`, `fetch-tags: true` DEĞİL: ikincisi tests.yml'de
+          # ölçüldü ve checkout ref'i SHA olarak fetch ederken `--tags`
+          # eklemiyor. Bu job etiketsiz de geçiyordu, ama NEDEN geçtiği
+          # açıklanamadı; açıklanamayan bir davranışa dayanmaktansa diğer
+          # job'larla aynı kesin garantiyi kullanıyor.
+          fetch-depth: 0
 
       - name: Python kur
         # KARAR (kilitli — kasıtlı, 2026-07-29): paketleme için Python 3.12,
@@ -67,7 +78,7 @@ jobs:
         # burada ikili uyumluluk/DLL riskini test etmeden almak demektir.
         # Değiştirilecekse bilinçli, ayrı bir karar olmalı — sürüm burada
         # ve build-linux.yml/tests.yml'de TUTARLI tutulmalı.
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
           cache: pip   # bağımlılıkları her koşuda baştan indirmesin
@@ -154,7 +165,7 @@ jobs:
         run: python scripts/inspect_package_contents.py dist/Archlence
 
       - name: Ham .exe klasörünü artifact olarak yükle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: Archlence-Windows
           path: dist/Archlence/
@@ -172,13 +183,32 @@ jobs:
         # klasör bütünlüğünü kendi koruma zorunda kalmasın diye installer/
         # archlence.iss bunu TEK bir ArchlenceSetup.exe'ye sarmalıyor.
         #
-        # /DMyAppVersion: sürüm etiketten gelir (bkz. installer/archlence.iss'in
-        # #ifndef bloğu). workflow_call DIŞINDA tetiklendiğinde `inputs` boştur,
-        # o yüzden güncel kararlı sürüme düşülür — normal main/PR derlemeleri etkilenmez.
+        # /DMyAppVersion: `workflow_call` ile gelen sürüm; yoksa MERKEZİ
+        # KAYNAKTAN (`utils/version.py`) okunur.
+        #
+        # Eskiden burada `${{ inputs.version || '0.0.1' }}` vardı. `inputs`
+        # yalnızca `workflow_call` ile doludur, yani her normal push/PR
+        # derlemesi installer'ı **0.0.1** olarak damgalıyordu — uygulamanın
+        # gerçek sürümüyle alakasız, sabit ve sessizce yanlış bir değer.
+        # Sabit fallback kaldırıldı; artık tek bir sürüm kaynağı var.
         run: |
+          $version = "${{ inputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = (python -c "from utils.version import APP_VERSION; print(APP_VERSION)").Trim()
+            Write-Host "inputs.version bos; merkezi kaynaktan alindi: $version"
+          }
+          $central = (python -c "from utils.version import APP_VERSION; print(APP_VERSION)").Trim()
+          if ($version -ne $central) {
+            Write-Host "::error::Verilen surum ($version) uygulama surumuyle ($central) uyusmuyor."
+            exit 1
+          }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            Write-Host "::error::Gecersiz surum bicimi: $version"
+            exit 1
+          }
           choco install innosetup -y --no-progress
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-            "/DMyAppVersion=${{ inputs.version || '0.0.1' }}" `
+            "/DMyAppVersion=$version" `
             installer\archlence.iss
 
       - name: "Upgrade smoke: önceki sürüm profilini yeni sürümle aç"
@@ -206,18 +236,62 @@ jobs:
           # SHA256SUMS.txt'i). Bu, "v0.0.1 -> v0.0.2 yükseltme kullanıcı
           # verisini koruyor mu" kapısının GERÇEKTEN çalıştığı ilk sürümdür.
           #
-          # SONRAKİ sürümü keserken: buraya YENİ sürümü YAZMAYIN — bu hâlâ
-          # v0.0.1'i taban almalı (bir önceki KULLANICIYA ULAŞMIŞ sürüm), ta ki
-          # v0.0.2'nin kendisi bir taban olarak anlamlı hale gelene kadar.
-          UPGRADE_BASELINE_TAG: "v0.0.1"
-          UPGRADE_BASELINE_ASSET: "ArchlenceSetup-0.0.1.exe"
-          UPGRADE_BASELINE_SHA256: "32ec1aa3d02d863f9ccc7b5d3b979fdcc8bba9ed6a089c322616f9b84588a950"
+          # ARTIK SABİT DEĞİL. Taban, `scripts/previous_release.py` ile
+          # HEDEF SÜRÜMDEN türetiliyor: 0.0.9 için v0.0.8, 0.0.8 için v0.0.7.
+          #
+          # Sabit `v0.0.1` "önceki sürümden yükseltme" iddiasını
+          # DOĞRULAMIYORDU: kullanıcıların gerçekte izlediği v0.0.8 -> v0.0.9
+          # yolu hiç sınanmıyor, bunun yerine sekiz sürüm eskisi test
+          # ediliyordu. Beklenen SHA-256 de artık sabit değil; tabanın KENDİ
+          # yayınındaki SHA256SUMS.txt'ten okunuyor, böylece her sürümde elle
+          # güncelleme gerekmiyor.
+          UPGRADE_BASELINE_TAG: ""
+          UPGRADE_BASELINE_ASSET: ""
+          UPGRADE_BASELINE_SHA256: ""
         run: |
           $ErrorActionPreference = "Stop"
-          if ([string]::IsNullOrWhiteSpace($env:UPGRADE_BASELINE_TAG)) {
-            Write-Host "::warning::Yükseltme smoke testi ATLANDI: tanımlı bir taban sürüm yok (UPGRADE_BASELINE_TAG boş). Yeni kurulum smoke testi ayrı adımda yine koşuyor."
+
+          # Tabanı hedef sürümden türet. Aday yoksa helper AÇIK hata verir —
+          # sessizce bir sürüme düşmez.
+          $target = (python -c "from utils.version import APP_VERSION; print(APP_VERSION)").Trim()
+          git fetch --tags --quiet
+          $baseline = (python scripts/previous_release.py --target $target).Trim()
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($baseline)) {
+            Write-Host "::warning::Yükseltme smoke testi ATLANDI: $target için önceki yayın bulunamadı."
             exit 0
           }
+          $baselineVersion = $baseline.TrimStart("v")
+          $env:UPGRADE_BASELINE_TAG = $baseline
+          $env:UPGRADE_BASELINE_ASSET = "ArchlenceSetup-$baselineVersion.exe"
+          Write-Host "Yükseltme tabanı: $baseline -> $target"
+
+          # Beklenen hash tabanın KENDİ yayınından; sabit sabit değil.
+          $sumsUrl = "https://github.com/${{ github.repository }}/releases/download/$baseline/SHA256SUMS.txt"
+          try {
+            # `.Content` METİN OLMAK ZORUNDA. GitHub yayın varlıklarını
+            # `application/octet-stream` ile sunuyor (302 sonrası
+            # objects.githubusercontent.com) ve PowerShell 7 metin olmayan
+            # content-type'ta `.Content`'i `byte[]` döndürüyor. O hâlde
+            # aşağıdaki `-split` bayt SAYILARINI diziyor, hiçbiri dosya adına
+            # uymuyor ve adım "manifestte bulunamadı" diyerek yanlış sebeple
+            # kırılıyor — manifest doğruyken. İlk gerçek koşumda tam olarak
+            # bu oldu.
+            $response = Invoke-WebRequest $sumsUrl -TimeoutSec 180
+            $sums = if ($response.Content -is [byte[]]) {
+              [System.Text.Encoding]::UTF8.GetString($response.Content)
+            } else {
+              [string]$response.Content
+            }
+          } catch {
+            Write-Host "::error::Taban yayının SHA256SUMS.txt dosyası indirilemedi: $sumsUrl"
+            exit 1
+          }
+          $line = ($sums -split "`n") | Where-Object { $_ -match [regex]::Escape($env:UPGRADE_BASELINE_ASSET) } | Select-Object -First 1
+          if (-not $line) {
+            Write-Host "::error::$($env:UPGRADE_BASELINE_ASSET) taban manifestinde bulunamadı."
+            exit 1
+          }
+          $env:UPGRADE_BASELINE_SHA256 = ($line -split "\s+")[0]
 
           # Inno Setup kurulum/kaldırma çağrıları SÜRESİZ bekliyordu
           # (`Start-Process -Wait`). Kurulum askıda kalırsa adım, job'ın
@@ -406,7 +480,7 @@ jobs:
           Write-Host "Installer smoke testi geçti."
 
       - name: Kurulum paketini artifact olarak yükle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: Archlence-Setup
           path: installer_output/ArchlenceSetup.exe
