@@ -75,8 +75,8 @@ class _AssetDataCache(TypedDict):
     `recent.get(acc["id"])` ile okuyor, ama silme yolu bir süre
     `recent.pop(str(account_id))` yapıyordu — string anahtar hiçbir zaman
     eşleşmediği için silinen hesabın işlemleri snapshot'ta kalıyordu.
-    Anahtar tipini burada yazmak, aynı uyuşmazlığın sessizce geri gelmesini
-    engelliyor.
+    Üretici, tüketici ve silme aynı anahtar tipini kullanmak zorunda; tipi
+    burada yazmak aynı uyuşmazlığın sessizce geri gelmesini engelliyor.
     """
     summary: dict[str, float]
     accounts: list[dict[str, Any]]
@@ -201,11 +201,13 @@ def invalidate_asset_data_cache(deleted_account_id=None, deleted_card_debt=0.0):
             # ANAHTAR TİPİ: `str(account_id)` DEĞİL. Üretici
             # `recent[account["id"]]` ile yazıyor ve `id` sqlite3'ten int
             # geliyor; string anahtar hiçbir zaman eşleşmiyordu, yani silinen
-            # hesabın işlemleri snapshot'ta kalıyordu. Bugün çizilmiyorlar
-            # (hesap `accounts` listesinden de çıkıyor), ama bayat veri
-            # taşımanın kendisi yanlış — ve SQLite id'leri silmeden sonra
-            # yeniden kullanabildiği için bir sonraki hesap aynı id'yi alırsa
-            # ESKİ işlemler görünürdü.
+            # hesabın işlemleri snapshot'ta kalıyordu.
+            #
+            # Bugün ekrana yanlış bir şey çizilmiyor: hesap aynı işlemde
+            # `accounts` listesinden de çıkıyor ve arayüz yalnız o listeyi
+            # dolaşıyor. Sorun, snapshot'ın profili artık tarif etmeyen bir
+            # durum taşıması — ve `recent` bir gün `accounts`'tan bağımsız
+            # okunursa bunun sessiz kalmaması.
             recent.pop(account_id, None)
             _asset_data_cache = {
                 "summary": summary,

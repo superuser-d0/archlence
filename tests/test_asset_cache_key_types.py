@@ -8,9 +8,14 @@ eşleşmediği için silinen hesabın işlemleri snapshot'ta KALIYORDU.
 
 Kullanıcıya bugün yansımıyor, çünkü aynı işlemde hesap `accounts` listesinden
 de çıkarılıyor ve UI yalnız o listeyi dolaşıyor — yani bayat girdi çizilmiyor.
-Yine de cache yanlış durum taşıyor, ve SQLite `INTEGER PRIMARY KEY` değerlerini
-silmeden sonra yeniden kullanabildiği için bir sonraki hesap aynı id'yi alırsa
-ESKİ hesabın işlemleri görünür hâle gelirdi.
+Yine de snapshot, profili artık tarif etmeyen bir durum taşıyor; `recent` bir
+gün `accounts` listesinden bağımsız tüketilirse bu sessiz bir stale-state
+sorununa dönüşür.
+
+DÜZELTME NOTU: bu bulgu ilk raporlanırken "silinen id yeniden kullanılırsa yeni
+hesap eski işlemleri görür" gerekçesi de yazılmıştı. YANLIŞTI ve kaldırıldı:
+`accounts` tablosu `id INTEGER PRIMARY KEY AUTOINCREMENT` kullanıyor, yani
+SQLite silinen id'leri yeniden vermiyor. Şema okunmadan yazılmış bir iddiaydı.
 
 Tip tarafı da bu testle birlikte kapatıldı: `_AssetDataCache` TypedDict'i
 `recent` anahtarını `int` olarak yazıyor, yani aynı uyuşmazlık artık tip

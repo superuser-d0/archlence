@@ -7,8 +7,9 @@
 - Deleting an account no longer leaves its recent transactions behind in the
   cached snapshot. The entry was removed under a text key while it had been
   stored under a numeric one, so it never matched. Nothing was displayed
-  wrongly, because the account itself leaves the list at the same moment — but
-  the snapshot carried stale rows that a reused account id could have surfaced.
+  wrongly — the account leaves the list in the same operation and the screen
+  only walks that list — but the snapshot held state that no longer described
+  the profile.
 - Profit/loss, current value and cost for a portfolio asset are computed in
   `Decimal` and rounded once, at the end, by the shared rounding policy. The
   four steps previously ran in binary floating point: a unit price of 0,045
