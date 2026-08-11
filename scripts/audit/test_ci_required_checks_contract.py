@@ -40,16 +40,21 @@ WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 # `main` üzerinde ZORUNLU olan status check'ler -> tanımlandıkları workflow.
 # Bu liste uzaktaki branch protection ayarıyla BİREBİR aynı olmalı.
 #
-# `build-linux` BİLEREK DEĞİL — ve bu bir boşluk, kasıtlı bir tasarım değil.
-# Windows paketi zorunlu, AppImage değil: Linux paketlemesini bozan bir PR
-# merge edilebilir. Boşluğun bedeli v0.0.9'da ölçüldü — `build-linux` bu
-# sürümün 64 commit'inin hiçbirinde koşmadı (son koşum bump ÖNCESİ `main`
-# üzerinde), yani pillow/cryptography/setuptools yükseltmesi AppImage'a
-# doğrulanmadan girecekti. Kapatmak `gh api ... /protection` ile uzaktaki
-# ayarı da güncellemeyi gerektiriyor; burada listeye eklemek TEK BAŞINA
-# hiçbir şeyi zorunlu kılmaz, yalnızca bu testi kırar.
+# `build-linux` NEDEN LİSTEDE: uzun süre değildi ve bunun bedeli v0.0.9'da
+# ölçüldü. Windows paketi zorunluyken AppImage değildi, yani Linux
+# paketlemesini bozan bir PR merge edilebiliyordu — ve `build-linux` bu
+# sürümün 64 commit'inin hiçbirinde koşmamıştı (son koşum bump ÖNCESİ `main`
+# üzerinde). pillow/cryptography/setuptools yükseltmesi AppImage'a
+# doğrulanmadan girecekti; boşluk 11 Ağustos'ta hem elle koşturularak hem de
+# uzaktaki ayara eklenerek kapatıldı.
+#
+# BU LİSTE TEK BAŞINA HİÇBİR ŞEYİ ZORUNLU KILMAZ. Buraya bir isim eklemek
+# yalnızca bu testi hizalar; asıl kapı uzakta:
+#   gh api repos/superuser-d0/archlence/branches/main/protection \
+#     --jq '.required_status_checks.contexts'
 REQUIRED_CHECKS = {
     "build-windows": "build-windows.yml",
+    "build-linux": "build-linux.yml",
     "test": "tests.yml",
     "test-windows": "tests.yml",
     "reliability-gates": "tests.yml",

@@ -589,9 +589,9 @@ PyInstaller derlemesi, AppDir, appimagetool, paket içeriği + secret taraması
 ve **gerçek SDL penceresinde smoke test** dahil on iki adımın tamamı yeşil.
 Yükseltilmiş bağımlılıklar Linux paketlemesini bozmuyor.
 
-Kalan iş kod değil ayar: `build-linux`'ın branch protection'a eklenmesi.
-`REQUIRED_CHECKS` içine yalnızca yazmak hiçbir şeyi zorunlu kılmaz, o
-yüzden orada bir yorumla kayıt altına alındı.
+Boşluğun kendisi de kapatıldı: `build-linux` uzaktaki required status check
+listesine eklendi (§17.5). `REQUIRED_CHECKS` içine yalnızca yazmak hiçbir
+şeyi zorunlu kılmaz — sözleşme testi bu ayrımı yorumda taşıyor.
 
 ### 17.2 CHANGELOG "zorunlu değil" diyordu; artık zorunlular
 
@@ -629,16 +629,45 @@ worktree'nin kaydını da ezerdi. `tests/test_migration_matrix_worktrees.py`
 üç testle sabitliyor ve iki yönlü mutation ile doğrulandı — `prune`'u geri
 almak birinci testi, `add -f`'e kaymak ikinciyi kırıyor.
 
-### 17.5 Bu turun commit'leri ve durum
+### 17.5 `build-linux` zorunlu listeye eklendi
 
-Tur yalnız belge/araç seviyesinde; üretim kodu değişmedi, sürüm bump'ı yok.
+§8'den beri açık duran ayar boşluğu kapatıldı. Ekleme, tüm koruma nesnesini
+değiştiren `PUT .../protection` ile DEĞİL, yalnız context listesine yazan
+uçla yapıldı — böylece `strict`, `enforce_admins` ve geri kalan alanlara
+dokunulmadı:
+
+```
+gh api --method POST \
+  repos/superuser-d0/archlence/branches/main/protection/required_status_checks/contexts \
+  -f 'contexts[]=build-linux'
+```
+
+Öncesi/sonrası tam koruma nesnesi karşılaştırıldı:
+
+| Alan | Önce | Sonra |
+|---|---|---|
+| context sayısı | 9 | **10** |
+| eklenen | — | `build-linux` |
+| kaybolan | — | yok |
+| `strict` | true | true |
+| `enforce_admins` | true | true |
+| force push / deletion | kapalı | kapalı |
+
+Sözleşme testi de hizalandı (`REQUIRED_CHECKS`'e `build-linux`), ve testin
+kendisi `build-linux.yml`'nin PR'da koştuğunu, `if:`/`continue-on-error`
+taşımadığını doğruluyor — yani zorunlu kılınan kontrol gerçekten ölçüyor.
+
+### 17.6 Bu turun commit'leri ve durum
+
+Tur yalnız belge/araç/ayar seviyesinde; üretim kodu değişmedi, sürüm bump'ı
+yok.
 
 ```
 tam suite            821 test OK (skip 2)   ← +3 worktree regresyonu
 AppImage             run 31452588810 yeşil (12/12 adım, SDL smoke dahil)
-branch protection    9 zorunlu context · enforce_admins açık
+branch protection    10 zorunlu context · enforce_admins açık
 push / PR            dal push'lu · PR YOK
 tag / release        YOK · PKGBUILD checksum'ları placeholder (yayın sonrası)
 ```
 
-Açık kalan tek ayar işi: `build-linux`'ın zorunlu check listesine eklenmesi.
+v0.0.9 için kalan iş: PR → merge → tag, ve tag sonrası PKGBUILD hash'leri.
