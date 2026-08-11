@@ -28,6 +28,7 @@ import threading
 import time
 from datetime import date
 from decimal import Decimal
+from typing import Any, TypedDict
 
 from utils.errors import (
     ArchlenceError,
@@ -62,7 +63,29 @@ GRAMS_PER_TROY_OUNCE = 31.1034768
 # -------------------------------------------------------------------------
 # GLOBAL PRE-CACHE (WARM-UP)
 # -------------------------------------------------------------------------
-_asset_data_cache = {
+class _AssetDataCache(TypedDict):
+    """Warm-up snapshot'ının üst düzey sözleşmesi.
+
+    Yalnız TOP-LEVEL alanlar tipleniyor; iç içe yapılar `dict[str, Any]`
+    olarak bırakıldı. Amaç cache'i eksiksiz modellemek değil — tip
+    denetleyicinin, alanların birbirine karışmasını yakalayabilmesi.
+
+    `recent` anahtarının `int` olması özellikle yazılı: üretici
+    `recent[account["id"]]` ile yazıyor (sqlite3 `id` sütunu int), tüketici
+    `recent.get(acc["id"])` ile okuyor, ama silme yolu bir süre
+    `recent.pop(str(account_id))` yapıyordu — string anahtar hiçbir zaman
+    eşleşmediği için silinen hesabın işlemleri snapshot'ta kalıyordu.
+    Üretici, tüketici ve silme aynı anahtar tipini kullanmak zorunda; tipi
+    burada yazmak aynı uyuşmazlığın sessizce geri gelmesini engelliyor.
+    """
+    summary: dict[str, float]
+    accounts: list[dict[str, Any]]
+    recent: dict[int, list[Any]]
+    active_assets_result: dict[str, Any] | None
+    ready: bool
+
+
+_asset_data_cache: _AssetDataCache = {
     "summary": {"cash": 0, "card_debt": 0, "net": 0},
     "accounts": [],
     "recent": {},
@@ -175,7 +198,17 @@ def invalidate_asset_data_cache(deleted_account_id=None, deleted_card_debt=0.0):
             recent_raw = previous.get("recent")
             recent_dict = recent_raw if isinstance(recent_raw, dict) else {}
             recent = dict(recent_dict)
-            recent.pop(str(account_id), None)
+            # ANAHTAR TİPİ: `str(account_id)` DEĞİL. Üretici
+            # `recent[account["id"]]` ile yazıyor ve `id` sqlite3'ten int
+            # geliyor; string anahtar hiçbir zaman eşleşmiyordu, yani silinen
+            # hesabın işlemleri snapshot'ta kalıyordu.
+            #
+            # Bugün ekrana yanlış bir şey çizilmiyor: hesap aynı işlemde
+            # `accounts` listesinden de çıkıyor ve arayüz yalnız o listeyi
+            # dolaşıyor. Sorun, snapshot'ın profili artık tarif etmeyen bir
+            # durum taşıması — ve `recent` bir gün `accounts`'tan bağımsız
+            # okunursa bunun sessiz kalmaması.
+            recent.pop(account_id, None)
             _asset_data_cache = {
                 "summary": summary,
                 "accounts": accounts,
@@ -288,7 +321,25 @@ def refresh_account_cache_snapshot():
 
 # USD/TRY kuru için modül seviyesinde, kısa ömürlü önbellek — Altın/Kripto
 # fiyatlarını her seferinde ayrı bir yfinance isteğiyle çevirmemek için.
-_usdtry_cache = {"rate": None, "time": 0.0}
+class _RateCache(TypedDict):
+    """Kur/fiyat önbelleği — `None` olabilen DEĞER ile her zaman sayı olan
+    ZAMAN damgasını ayrı tutar.
+
+    Tek bir `dict[str, Any]` yazmak ikisini aynı tipe düşürürdü; o zaman
+    `now - cache["time"]` çıkarması tip denetiminden geçerdi ama
+    `cache["rate"]` üzerinde yapılan aritmetik de geçerdi. Ayrı alanlar,
+    `rate`in `None` olabileceğini çağırana hatırlatıyor.
+    """
+    rate: float | None
+    time: float
+
+
+class _PriceCache(TypedDict):
+    price: float | None
+    time: float
+
+
+_usdtry_cache: _RateCache = {"rate": None, "time": 0.0}
 _USDTRY_CACHE_TTL = 300  # 5 dakika — uygulamadaki diğer fiyat önbellekleriyle tutarlı
 
 # Fiziksel altın türleri için gerçek bir yfinance sembolü yok; bu dahili
@@ -301,8 +352,7 @@ GOLD_TYPE_MULTIPLIERS = {
     "GOLD-TAM": 7.0,
 }
 
-from typing import Any
-_gold_gram_cache: dict[str, Any] = {"price": None, "time": 0.0}
+_gold_gram_cache: _PriceCache = {"price": None, "time": 0.0}
 _GOLD_GRAM_CACHE_TTL = 300
 
 
@@ -774,7 +824,7 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
         # belirle (get_ticker_candidates'ın ilk/en olası adayı). GOLD-* dahili
         # sembollerin gerçek bir ticker'ı yok — id -> None ile işaretlenir,
         # bunun yerine GC=F'nin (varsa) toplu isteğe dahil edilmesi sağlanır.
-        ticker_by_id = {}
+        ticker_by_id: dict[int, str | None] = {}
         needs_gold_gram = False
         for asset in assets:
             code = (asset["asset_code"] or "").strip().upper()
@@ -867,8 +917,15 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                 if gram_gold_try is not None:
                     current_price = gram_gold_try * GOLD_TYPE_MULTIPLIERS[code]
             else:
-                sym = ticker_by_id.get(asset["id"])
-                raw = raw_prices.get(sym) if sym else None
+                # AYRI İSİM: yukarıdaki `sym` toplu indirmede kullanılan
+                # ticker dizesi ve asla None olmuyor; buradaki arama ise
+                # None dönebiliyor (GOLD-* dahili sembollerin gerçek bir
+                # ticker'ı yok, `ticker_by_id` onları None ile işaretliyor).
+                # Aynı adı iki farklı sözleşme için kullanmak, tip
+                # denetleyicinin de gösterdiği gibi, ikisini karıştırmayı
+                # kolaylaştırıyordu.
+                asset_ticker = ticker_by_id.get(asset["id"])
+                raw = raw_prices.get(asset_ticker) if asset_ticker else None
                 if raw is not None:
                     if a_type in ("Altın", "Kripto", "Crypto"):
                         current_price = _normalize_to_try(raw, "Altın" if a_type == "Altın" else "Kripto")

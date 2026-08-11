@@ -595,10 +595,14 @@ def process_due_recurring_payment(payment):
     # kayıt transaction/bakiye yazıp sonra vade hesabında yarım kalmamalı.
     from services.recurring_service import next_due_for_recurrence
     from utils.financial_decimal import fiat
-    amount = fiat(payment["amount"])
-    if amount <= 0:
+    # Karar Decimal'de veriliyor, yazma float'ta: `sqlite3`'ün Decimal adaptörü
+    # yok ve bu şemadaki para REAL. İki aşama AYRI İSİMLE duruyor — aynı adı
+    # önce Decimal sonra float'a bağlamak geçişi görünmez kılıyor ve tip
+    # denetleyicinin de haklı olarak itiraz ettiği şey buydu.
+    amount_decimal = fiat(payment["amount"])
+    if amount_decimal <= 0:
         raise ValueError("Tekrarlanan işlem tutarı 0'dan büyük olmalıdır.")
-    amount = float(amount)
+    amount = float(amount_decimal)
     new_due = next_due_for_recurrence(
         payment["next_due_date"],
         payment["frequency"],

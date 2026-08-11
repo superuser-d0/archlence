@@ -20,6 +20,7 @@ taşımanın mekaniğini sağlar.
 import os
 import shutil
 import sys
+from typing import cast
 
 from platformdirs import PlatformDirs
 
@@ -54,7 +55,13 @@ def resource_dir() -> str:
     YANLIŞ olurdu — ikisi de paketlenmiş bir yapıda güvenilir değil.
     """
     if getattr(sys, "frozen", False):
-        return sys._MEIPASS
+        # `_MEIPASS`'i PyInstaller ÇALIŞMA ZAMANINDA `sys`'e ekler; standart
+        # `sys` tipinde böyle bir alan yok ve tip denetleyicinin bunu
+        # bilmemesi normal. `getattr` + `cast` yalnızca "frozen yolunda burada
+        # bir `str` bekliyoruz" demenin yolu; varsayılan değer VERİLMİYOR,
+        # çünkü frozen bir yapıda alanın olmaması gerçek bir arıza olurdu ve
+        # sessizce yanlış bir köke düşmek paketlenmiş uygulamayı bozardı.
+        return cast(str, getattr(sys, "_MEIPASS"))
     # utils/app_paths.py -> utils/ -> repo kökü.
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
