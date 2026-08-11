@@ -74,6 +74,30 @@ defaults before test discovery and preserves a failing exit status. CI runs it
 on Linux and Windows. The workflow also runs critical lint checks, an exception
 baseline, selected type checks, version consistency, and visual regressions.
 
+### Type checking
+
+`services/` and `database/` are type-checked in CI, with imports followed, so
+their dependencies are checked too.
+
+Reproduce a CI type-check result in a **clean Python 3.12** environment with
+**both** requirement sets installed:
+
+```bash
+python3.12 -m venv /tmp/archlence-typecheck
+/tmp/archlence-typecheck/bin/python -m pip install -r requirements-runtime.txt -r requirements-dev.txt
+/tmp/archlence-typecheck/bin/python -m mypy --no-incremental services database
+```
+
+Three details matter, each of them learned from a diagnostic that appeared in
+CI and not locally:
+
+- **CI runs Python 3.12.** A newer local interpreter is not an acceptance
+  criterion; a 3.14 environment has reported clean while CI failed.
+- **Runtime dependencies must be installed.** Without them Pillow, requests and
+  keyring resolve to `Any` and real boundary errors disappear.
+- **Use `--no-incremental` when reproducing.** A stale `.mypy_cache` can hide a
+  diagnostic that a fresh run reports.
+
 ### Financial integrity
 
 Changes to transactions, balances, accounts, credit cards, subscriptions,

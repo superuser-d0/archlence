@@ -249,12 +249,25 @@ jobs:
           python-version: "3.12"
           cache: pip
 
-      - name: Install flake8
+      - name: Install lint and type-check dependencies
         # requirements-dev.txt is the single source for the pinned version,
         # so the finding count can't silently drift from what was verified
         # locally (2026-07-27: 117 F-code findings) just because this step's
         # own inline pin fell out of sync with it.
-        run: python -m pip install -r requirements-dev.txt
+        #
+        # RUNTIME BAĞIMLILIKLARI DA KURULUYOR — mypy içindir, flake8 için
+        # değil. Yalnız dev bağımlılıklarıyla, üretimde var olan paketler
+        # (Pillow, requests, keyring...) tip denetleyici için YOK sayılıyor ve
+        # `ignore_missing_imports` onları `Any`'ye düşürüyor; o modüllerle
+        # olan sınırımızdaki hatalar sessizce görünmez oluyordu.
+        #
+        # Ölçüldü: aynı ağaçta `mypy services database` dev-only ortamda 8,
+        # runtime+dev ortamında 11 hata veriyordu. Aradaki üçü Pillow sınırı.
+        # Yani "CI'da mypy 0" iddiası, ancak üretim bağımlılık grafiği tip
+        # denetleyici tarafından görülebiliyorsa bir şey ifade ediyor.
+        run: |
+          python -m pip install -r requirements-runtime.txt
+          python -m pip install -r requirements-dev.txt
 
       - name: Block critical pyflakes and bare except errors
         run: >-
@@ -289,20 +302,19 @@ jobs:
           python scripts/audit_exception_handlers.py
           --check .github/exception-baseline.json
 
-      - name: Type-check UI-independent domain modules
-        run: >-
-          python -m mypy
-          database/models.py
-          utils/errors.py
-          utils/financial_decimal.py
-          utils/logging_config.py
-          services/financial_summary_service.py
-          services/financial_metrics_service.py
-          services/background_task_manager.py
-          services/backup_service.py
-          services/crypto_migration_service.py
-          services/budget_service.py
-          services/price_service.py
+      - name: Type-check the production core
+        # ARTIK DOSYA LİSTESİ DEĞİL, İKİ PAKET. Elle sayılan on bir dosya
+        # kapsamı, yeni bir servis eklendiğinde onu sessizce dışarıda
+        # bırakıyordu; `services` ve `database` demek, çekirdeğin tamamını
+        # kapsam içinde tutuyor.
+        #
+        # `mypy.ini`'deki `follow_imports = normal` ile birlikte, bu iki
+        # paketin import ettiği `utils` modülleri de denetleniyor. `utils`
+        # AĞACININ TAMAMI kapsamda değil: `services`/`database` tarafından
+        # hiç import edilmeyen UI yardımcıları (toast, single_instance,
+        # calculator) bilerek dışarıda — onlar Kivy tarafıyla birlikte ayrı
+        # bir turda ele alınacak.
+        run: python -m mypy services database
 
       - name: Sürüm metadata tutarlılığı
         run: python scripts/check_version_consistency.py

@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import threading
+from typing import Any
 
 # Proje kökünü sys.path'e ekle: bu modül `-m services.asset_price_worker` ile
 # ayrı bir süreç olarak çalışıyor ve `from services...` importları proje
@@ -23,7 +24,7 @@ def main():
     assets = json.loads(sys.stdin.read() or "[]")
     os.environ["ARCHLENCE_ASSET_PRICE_CHILD"] = "1"
 
-    result = []
+    result: list[dict[str, Any]] = []
     done = threading.Event()
 
     def complete(enriched):

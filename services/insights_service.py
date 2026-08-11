@@ -20,6 +20,7 @@ döndürür. Arayüze bağlanması mixins/insights_mixin.py'nin işidir.
 
 import json
 import sqlite3
+from typing import Any
 import statistics
 from datetime import datetime, timedelta
 
@@ -266,7 +267,7 @@ def detect_recurring_candidates(lookback_days=180):
     records = _load_transactions(lookback_days, _EXPENSE_TYPES)
 
     # Kategori + normalize edilmiş ad ile grupla.
-    groups = {}
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for rec in records:
         if rec["amount"] <= 0:
             continue
@@ -398,7 +399,7 @@ def detect_anomalies(lookback_days=90, z_threshold=2.0):
     records = _load_transactions(lookback_days, _EXPENSE_TYPES)
     dismissed_ids = _dismissed_anomaly_ids()
 
-    by_category = {}
+    by_category: dict[str, list[dict[str, Any]]] = {}
     for rec in records:
         if rec["amount"] > 0:
             by_category.setdefault(rec["category"], []).append(rec)
@@ -437,7 +438,7 @@ def detect_anomalies(lookback_days=90, z_threshold=2.0):
 
 def _monthly_expense_series(records):
     """Gider kayıtlarını "YYYY-MM" -> toplam sözlüğüne indirger."""
-    buckets = {}
+    buckets: dict[str, float] = {}
     for rec in records:
         key = rec["date"].strftime("%Y-%m")
         buckets[key] = buckets.get(key, 0.0) + rec["amount"]

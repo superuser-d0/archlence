@@ -333,8 +333,12 @@ def _decode_largest_frame(payload: bytes):
     image = Image.open(BytesIO(payload))
     if getattr(image, "format", None) == "ICO":
         try:
-            largest = max(image.ico.sizes())
-            image = image.ico.getimage(largest)
+            # `.ico`, ICO açıldığında `IcoImageFile` ÖRNEĞİNDE bulunuyor;
+            # `Image.open()` tip olarak `ImageFile`'a daraldığı için stub bunu
+            # bilmiyor. Runtime'da doğrulandı (Pillow 12.3.0) ve zaten
+            # aşağıdaki `AttributeError` yakalaması ile korumalı.
+            largest = max(image.ico.sizes())  # type: ignore[attr-defined]
+            image = image.ico.getimage(largest)  # type: ignore[attr-defined]
         except (AttributeError, KeyError, ValueError, OSError):
             # Pillow'un ICO iç yapısı sürümden sürüme değişebilir; en büyük
             # kare alınamazsa Image.open'ın seçtiği kareyle devam edilir.
@@ -393,8 +397,12 @@ def fetch_and_cache_brand_icon(text: str) -> bool:
         try:
             from PIL import Image
 
+            # `Image.Resampling.LANCZOS`, `Image.LANCZOS` ile AYNI değer (1)
+            # ve Pillow 9.1'den beri kanonik ad. Tip stub'ları yalnız bunu
+            # biliyor; ikisi runtime'da eşdeğer olduğu için burada `ignore`
+            # yerine desteklenen adı kullanmak daha doğru.
             best = best.resize(
-                (TARGET_ICON_PX, TARGET_ICON_PX), Image.LANCZOS)
+                (TARGET_ICON_PX, TARGET_ICON_PX), Image.Resampling.LANCZOS)
         except (OSError, ValueError, AttributeError):
             pass  # büyütülemezse özgün boyutuyla yazılır, ikon yine görünür
 
