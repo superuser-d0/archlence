@@ -177,16 +177,24 @@ jobs:
         run: python scripts/audit/version_mutation_matrix.py
 
       - name: Schema and migration matrix (v0.0.1 - v0.0.8)
-        # `xvfb-run`: bu adımın worker'ları `import main` yapıyor, yani Kivy
-        # gerçekten bir Window sağlayıcısı arıyor. Runner'da hiç ekran yok ve
-        # SDL'in `dummy` sürücüsünde OpenGL bulunmadığı için sağlayıcı
-        # seçimi CRITICAL ile ölüyordu.
+        # EKRAN GEREKMİYOR — ve bu bilinçli bir tasarım, eksiklik değil.
+        # Worker eskiden `import main` yapıyordu; main Kivy'yi import edince
+        # import ANINDA pencere sağlayıcısı aranıyor, ekransız runner'da
+        # bulunamayınca `sys.exit(1)`. Ortamı yeterli kılmak için beş deneme
+        # harcandı (headless değişkenler, libmtdev, sanal ekran, SDL sürücü
+        # seçimi) ve her biri bir sonraki katmanı açtı.
         #
-        # `KIVY_WINDOW=mock` ÇÖZÜM DEĞİL: Kivy 2.3.1'de mock gerçek bir
-        # sağlayıcı değil ve bu depoda daha önce tam olarak bu yüzden bir
-        # hata yaşandı (bkz. tests/test_startup_import.py'nin docstring'i) —
-        # gerçek pencere denemesi hiç yapılmadan sessizce atlanıyordu.
-        # Sanal ekran, kontrolü zayıflatmak yerine ortamı yeterli kılıyor.
+        # `1ffc6f6` yönü çevirdi: o import zaten yerini hak etmiyordu.
+        # `tests/test_startup_import.py` main'in headless import edildiğini
+        # HEM Linux HEM Windows'ta zaten doğruluyor, üstelik main import
+        # sırasında veritabanına dokunmuyor (şema işi `build()` içinde) —
+        # yani "migrate edilmiş veritabanına karşı import" düz bir import'la
+        # aynı şeydi. Bu kapının ölçmesi gereken katman veriye DOKUNAN
+        # katman: services/database/utils, ve onlar hiç Kivy import etmiyor.
+        #
+        # Worker artık o on bir modülü import ediyor ve `sys.modules` içinde
+        # kivy belirirse yüksek sesle patlıyor; bir GUI bağımlılığı geri
+        # sızarsa ekran ihtiyacı sessizce geri gelmesin diye.
         run: |
           python scripts/audit/check_schema_consistency.py \
             --output migration-matrix.json
