@@ -530,3 +530,115 @@ tag / release        YOK
 ```
 
 **Windows doğrulamasına gönderilecek commit: bu belgenin commit'i.**
+
+---
+
+## 16. İlk gerçek CI koşumu — `3bb7f4e..3236884`
+
+§15 "gönderilecek commit" diyerek kapanmıştı, ama dal ilk kez PUSH edilip
+workflow'lar gerçekten koşturulduğunda 14 commit daha girdi. Bu turun tek
+cümlelik özeti: **kapılar yazılmıştı, hiç koşmamıştı.** `reliability-gates`
+job'ı `ad6296f` ile eklenmişti; CI yalnız `main` ve PR'da tetiklendiği,
+dal da hiç push edilmediği için o güne kadar tek bir kez bile çalışmamıştı.
+
+Üç GERÇEK ürün/araç hatası bu yüzden bugüne kadar görünmemişti:
+
+| Commit | Tür | Ne kadar süredir kırıktı |
+|---|---|---|
+| `24892c9` | mypy / üretim kodu | P1-1 restore işinden (`05da34a`/`efadc1c`) beri kırmızı; `shutil.copy2(config, ...)` daraltılmamış `Path \| None` |
+| `c57f85b` | üretim hatası | `c2ae4c1` izin sertleştirmesinden beri **CSV dışa aktarma Windows'ta HİÇ çalışmıyordu** (`os.fchmod` orada yok). Temizlik yolu da ikinci kez kırılıp asıl hatayı gizliyor ve şifresi çözülmüş veriyi diskte bırakıyordu |
+| `f35e68b` | denetim aracı | Fingerprint `str(relative_to)` hash'liyordu → Windows'ta ters bölü; envanter testi orada **hiç geçmemişti** |
+
+Kalan 11 commit CI ortamının hiç karşılanmamış varsayımlarını kapatıyor:
+
+| Commit | İçerik |
+|---|---|
+| `5235f2d` | Matris worktree'leri HAZIR bulmayı bekliyordu; artık kendisi kuruyor |
+| `59c3cbc` | Checkout etiket çekmiyordu (`git tag` boş → upgrade smoke'u kendini atlardı); PowerShell 7 `octet-stream`'i `byte[]` verdiği için checksum manifesti yanlış okunuyordu |
+| `431167e`, `2289ce4`, `0a1d662`, `42b8499`, `1ffc6f6` | Kivy'nin import anındaki pencere/`libmtdev` ihtiyacı. Beş deneme ortamı yeterli kılmaya çalıştı; `1ffc6f6` yönü çevirip ihtiyacın kendisini kaldırdı (worker artık `main` yerine Kivy'siz on bir modülü import ediyor, kivy sızarsa patlıyor) |
+| `b7961d9` | Matris `ARCHLENCE_HOME` set ediyordu; v0.0.1–v0.0.8 o değişkeni bilmiyor, iki kuşak anahtarı farklı yerde arıyordu. "MAC check failed" matrisin kendi ürettiği anahtar uyuşmazlığıydı, migration kusuru değil |
+| `e8f329f` | Kasıtlı sızdırılan bağlantılar Windows'ta dosya silinmesini bloke ediyordu |
+| `c885910` | Zorunlu status check listesi ile workflow şekli arasındaki ayrışmayı sabitleyen sözleşme testi |
+| `3236884` | O test YAML ayrıştırıyor; `test` job'ı bilerek yalnız runtime kuruyor → `scripts/audit/`'e taşındı, PyYAML `requirements-dev.txt`'e pinlendi |
+
+---
+
+## 17. 11 Ağustos kontrolü — kalan bayat izler ve AppImage boşluğu
+
+§16 turu kendi belgesini bırakmamıştı; bu bölüm onu da kapatıyor. Tam kapı
+seti yeniden koşturuldu (818 test OK, mypy temiz, pyflakes 0, exception
+baseline 145, sürüm kapısı 0.0.9, 16/16 mutation, migration matrisi 8/8,
+adversarial + hypothesis + pip-audit temiz) ve HEAD'de sekiz CI job'ının
+tamamı yeşil. Dört bulgu çıktı; hiçbiri finansal davranışa dokunmuyor.
+
+### 17.1 AppImage v0.0.9 kodunda hiç derlenmemişti
+
+`Build Linux AppImage` en son **6 Ağustos'ta `main`** üzerinde koşmuştu —
+yani bu dalın 64 commit'inin hiçbiri olmadan. Aradaki `23985a7` pillow'u
+12.3.0'a, cryptography'yi 50.0.0'a, setuptools'u 83.0.0'a taşıdı ve üçü de
+AppImage'a paketleniyor. Windows paketi HEAD'de yeniden doğrulanmıştı,
+Linux paketi doğrulanmamıştı; ilk gerçek koşum tag atıldığı andaki release
+akışı olacaktı.
+
+Sebep §8'in kaydettiği boşluğun devamı: `build-windows` zorunlu status
+check, `build-linux` DEĞİL. Kırmızıya dönse merge'ü bloklamaz, PR'da da
+kimsenin bakmadığı bir sekmede kalır.
+
+Dal üzerinde elle koşturuldu — [run 31452588810](https://github.com/superuser-d0/archlence/actions/runs/31452588810):
+PyInstaller derlemesi, AppDir, appimagetool, paket içeriği + secret taraması
+ve **gerçek SDL penceresinde smoke test** dahil on iki adımın tamamı yeşil.
+Yükseltilmiş bağımlılıklar Linux paketlemesini bozmuyor.
+
+Kalan iş kod değil ayar: `build-linux`'ın branch protection'a eklenmesi.
+`REQUIRED_CHECKS` içine yalnızca yazmak hiçbir şeyi zorunlu kılmaz, o
+yüzden orada bir yorumla kayıt altına alındı.
+
+### 17.2 CHANGELOG "zorunlu değil" diyordu; artık zorunlular
+
+Bilinen sınırlamalar `reliability-gates` ve `test-windows`'un zorunlu
+listede olmadığını yazıyordu. `gh api .../branches/main/protection`:
+dokuz context zorunlu (`build-windows`, `test`, `test-windows`,
+`reliability-gates`, `lint`, dört `visual-regression`), `enforce_admins`
+açık. Satır yayına gitseydi kullanıcıya olduğundan zayıf bir kapı tablosu
+anlatacaktı. Yanlış sınırlama silindi, yerine gerçek olan — AppImage
+derlemesinin zorunlu olmaması — yazıldı ve zorunlu kapılar
+"Testing and packaging" altında kaydedildi.
+
+### 17.3 `tests.yml`'de ölü gerekçe
+
+Migration matrisi adımının başında `xvfb-run`'ın neden zorunlu olduğunu ve
+`KIVY_WINDOW=mock`'un neden çözüm olmadığını anlatan on satır duruyordu —
+oysa `1ffc6f6` komuttan `xvfb-run`'ı kaldırmıştı. Yorum var olmayan bir
+kısıtı savunuyordu; tam olarak bu belgenin tekrar tekrar not ettiği kalıp.
+Yorum, ihtiyacın neden ORTADAN KALKTIĞINI anlatacak şekilde yeniden yazıldı.
+
+### 17.4 Matris worktree'leri `/tmp` temizliğinden sonra hâlâ kurulamıyordu
+
+`_ensure_worktree`'nin docstring'i bu vakayı (`/tmp` silinince adım
+bozuluyordu) kapattığını söylüyordu. Kapatmamış: dizin gidince kayıt
+`.git/worktrees` altında kalıyor ve `git worktree add` "missing but already
+registered" ile reddediyor. `prune` yalnızca `finally`'de, yani hatadan
+SONRA koşuyordu — gözlenen davranış "birinci koşum kırmızı, ikinci koşum
+yeşil". Yerelde bire bir üretildi (`exit=1`, ardından `exit=0`).
+
+CI'da temiz clone olduğu için hiç görünmez; bedeli yalnız kapıyı elle
+doğrulamak isteyen kişi ödüyordu — yani düzeltmenin hedeflediği kişi.
+
+Kurulum öncesi `prune` eklendi. `add -f` DEĞİL: o, ayakta duran bir
+worktree'nin kaydını da ezerdi. `tests/test_migration_matrix_worktrees.py`
+üç testle sabitliyor ve iki yönlü mutation ile doğrulandı — `prune`'u geri
+almak birinci testi, `add -f`'e kaymak ikinciyi kırıyor.
+
+### 17.5 Bu turun commit'leri ve durum
+
+Tur yalnız belge/araç seviyesinde; üretim kodu değişmedi, sürüm bump'ı yok.
+
+```
+tam suite            821 test OK (skip 2)   ← +3 worktree regresyonu
+AppImage             run 31452588810 yeşil (12/12 adım, SDL smoke dahil)
+branch protection    9 zorunlu context · enforce_admins açık
+push / PR            dal push'lu · PR YOK
+tag / release        YOK · PKGBUILD checksum'ları placeholder (yayın sonrası)
+```
+
+Açık kalan tek ayar işi: `build-linux`'ın zorunlu check listesine eklenmesi.

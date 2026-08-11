@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.0.9] — 2026-08-08
+## [0.0.9] — 2026-08-11
 
 This release came out of an audit rather than a feature plan, and most of what
 it fixes could lose or corrupt data silently: an infinity typed into an amount
@@ -120,6 +120,10 @@ rewritten without the application noticing. It remains a **pre-release**.
   failure part-way through schema setup previously left it open, which on
   Windows means a lock on the database file — the same lock that would block
   the restore step this release hardened.
+- The test suite, the reliability gates, lint and the four visual-regression
+  combinations are now required status checks on `main`, so a red run blocks a
+  merge instead of merely reporting. The expected list is pinned in the
+  repository, which is what makes a silently dropped check visible.
 - Database connection ownership is pinned by regression tests that count
   connection opens against closes rather than file descriptors, so the
   guarantee also holds on Windows. The earlier descriptor-based measurement
@@ -150,9 +154,9 @@ rewritten without the application noticing. It remains a **pre-release**.
   orchestration level; actual widget rendering was not exercised.
 - `accounts.balance` and `savings_goals.current_amount` remain `REAL` columns.
 - Broad exception-handler debt is still open, though the gate holds it flat.
-- The `reliability-gates` and `test-windows` CI jobs run on every pull request
-  but are not in the branch's required status checks, so a red run does not
-  block a merge. This is a repository setting, not a code change.
+- The AppImage build is not among the required status checks, so a pull request
+  that breaks Linux packaging can still be merged. The Windows package build is
+  required; this asymmetry is a repository setting, not a code change.
 
 ### Installation and checksum verification
 

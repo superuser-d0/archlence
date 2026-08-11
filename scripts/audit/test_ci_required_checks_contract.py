@@ -39,6 +39,15 @@ WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 
 # `main` üzerinde ZORUNLU olan status check'ler -> tanımlandıkları workflow.
 # Bu liste uzaktaki branch protection ayarıyla BİREBİR aynı olmalı.
+#
+# `build-linux` BİLEREK DEĞİL — ve bu bir boşluk, kasıtlı bir tasarım değil.
+# Windows paketi zorunlu, AppImage değil: Linux paketlemesini bozan bir PR
+# merge edilebilir. Boşluğun bedeli v0.0.9'da ölçüldü — `build-linux` bu
+# sürümün 64 commit'inin hiçbirinde koşmadı (son koşum bump ÖNCESİ `main`
+# üzerinde), yani pillow/cryptography/setuptools yükseltmesi AppImage'a
+# doğrulanmadan girecekti. Kapatmak `gh api ... /protection` ile uzaktaki
+# ayarı da güncellemeyi gerektiriyor; burada listeye eklemek TEK BAŞINA
+# hiçbir şeyi zorunlu kılmaz, yalnızca bu testi kırar.
 REQUIRED_CHECKS = {
     "build-windows": "build-windows.yml",
     "test": "tests.yml",
