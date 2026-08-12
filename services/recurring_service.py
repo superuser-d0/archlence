@@ -14,7 +14,12 @@ from database.db import (
     SECRET_KEY, _advance_due_date, adjust_account_balance, get_connection,
 )
 from utils.crypto import decrypt, encrypt
-from utils.errors import DecryptionError, KeyUnavailableError
+from utils.errors import (
+    DecryptionError,
+    FinancialDataIntegrityError,
+    KeyUnavailableError,
+)
+from utils.financial_decimal import fiat
 
 
 SUBSCRIPTION_CATEGORY = "Dijital Abonelik"
@@ -242,7 +247,15 @@ def update_subscription_amount(payment_id, new_amount):
     silme+yeniden kurma vade geçmişini ve `next_due_date` hizasını da
     sıfırlardı. Yalnız tutar güncellenir, vade dokunulmaz.
     """
-    amount = float(new_amount)
+    # `float(new_amount)` + `amount <= 0` NaN'i GEÇİRİYORDU: `nan <= 0`
+    # False'tur, `inf <= 0` da öyle. İkisi de şifrelenip kalıcı olarak
+    # yazılıyordu (ölçüldü: `nan` ve `inf` kabul, `-inf`/0/negatif ret).
+    # `fiat` projenin ortak para sınırı — sonlu olmayanı reddeder ve kuruşa
+    # yuvarlar, `insert_recurring_payment` ile aynı sözleşme.
+    try:
+        amount = fiat(new_amount)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Abonelik ücreti geçerli bir sayı olmalıdır.") from exc
     if amount <= 0:
         raise ValueError("Abonelik ücreti 0'dan büyük olmalıdır.")
 
@@ -372,11 +385,42 @@ def refund_current_period_charge(payment_id, today=None):
     gelir işlemi yazılır (çift kayıt mantığı) — geçmişi yeniden yazmak yerine
     tersine çeviriyoruz, böylece defter ile bakiye tutarlı kalır.
 
-    İade edilen tutarı döndürür; bu ay tahsilat yoksa 0.0.
+    İade edilen tutarı döndürür; bu ay tahsilat yoksa 0.0. İade edilecek
+    tahsilatın SAKLANMIŞ tutarı okunamıyor ya da geçerli bir para değeri
+    değilse `FinancialDataIntegrityError` fırlatır — "bu ay tahsilat yok" ile
+    "tahsilat var ama tutarı bozuk" aynı sonuca indirgenmez.
     """
     charge = find_current_period_charge(payment_id, today=today)
-    if not charge or charge["amount"] <= 0:
+    if not charge:
         return 0.0
+    # PARA SINIRI. Buraya gelen tutar KULLANICI GİRDİSİ DEĞİL, diskte duran
+    # bir kayıttan çözülmüş değer — ve `_plain_amount` onu düz `float()` ile
+    # okuyor, yani `nan`/`inf` istisna üretmeden geçiyor. `inf` ölçülen
+    # sonuç: iade COMMIT ediliyor ve hesap bakiyesi kalıcı olarak `inf`
+    # oluyordu (transaction + defter satırı + marker dahil). `nan` ise
+    # `balance_events.delta` NOT NULL kısıtına takılıp ham bir
+    # `sqlite3.IntegrityError` olarak dışarı çıkıyordu.
+    #
+    # `add_transaction` bu şekilde bir satır YAZAMAZ (`fiat` + `> 0`), yani
+    # bu yalnızca eski bir sürümün ya da dışarıdan düzenlemenin bıraktığı
+    # duruma karşı bir savunma — bu yüzden kullanıcı hatası değil, VERİ
+    # BÜTÜNLÜĞÜ hatası olarak sınıflanıyor (aynı ayrım: budget_service).
+    #
+    # POZİTİFLİK: `transactions.amount` işaretsiz bir büyüklüktür, yön
+    # `type` sütununda taşınır ('expense'/'income'/'payment' —
+    # bkz. adjust_account_balance). Negatif bir tahsilat "ters yönlü
+    # işlem" değil, geçersiz kayıttır; sessizce 0,00 sayılıp "bu ay
+    # tahsilat yok" denmesi, gerçek tahsilatı kullanıcıdan gizlerdi.
+    try:
+        amount_decimal = fiat(charge["amount"])
+    except (TypeError, ValueError) as exc:
+        raise FinancialDataIntegrityError(
+            "transactions", charge["id"], "amount"
+        ) from exc
+    if amount_decimal <= 0:
+        raise FinancialDataIntegrityError(
+            "transactions", charge["id"], "amount"
+        )
 
     conn = get_connection()
     try:
@@ -394,7 +438,7 @@ def refund_current_period_charge(payment_id, today=None):
         if row is None:
             return 0.0
         name = _plain_name(row["name"])
-        amount = float(charge["amount"])
+        amount = float(amount_decimal)
 
         cursor.execute(
             "INSERT INTO transactions"
@@ -410,10 +454,16 @@ def refund_current_period_charge(payment_id, today=None):
                 datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             ),
         )
+        # İade işleminin id'si hemen alınıyor — `lastrowid` cursor'a ait ve
+        # `adjust_account_balance` içindeki defter INSERT'ü onu ezer. Bugün
+        # doğru okunuyor (argüman çağrıdan önce değerlendiriliyor) ama araya
+        # tek bir satır eklemek yeter; tahsilat tarafında bozulan tam olarak
+        # bu kalıptı.
+        transaction_id = cursor.lastrowid
         # Bakiye ve defter aynı commit içinde (adjust_account_balance sözleşmesi).
         adjust_account_balance(
             cursor, row["account_id"], "income", amount,
-            ref_id=cursor.lastrowid, source="subscription_refund",
+            ref_id=transaction_id, source="subscription_refund",
         )
         conn.commit()
     finally:

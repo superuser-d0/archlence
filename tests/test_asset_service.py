@@ -109,12 +109,28 @@ class NonTryFilterAndCacheTests(unittest.TestCase):
         os.unlink(self.db_path)
 
     def test_get_active_non_try_assets_excludes_try_and_nonpositive(self):
-        from database.db import insert_asset
+        from database.db import SECRET_KEY, get_connection, insert_asset
         from services.asset_service import get_active_non_try_assets
+        from utils.crypto import encrypt
         insert_asset("Bitcoin", "BTC-USD", "Kripto", 1.0, 0.5)
         insert_asset("Türk Lirası", "TRY", "Döviz", 1.0, 1000.0)     # elenir (TRY)
         insert_asset("Nakit TL", "TL", "Döviz", 1.0, 500.0)          # elenir (TL)
-        insert_asset("Bos", "ETH-USD", "Kripto", 1.0, 0.0)           # elenir (qty=0)
+        # SIFIR MİKTARLI SATIR DOĞRUDAN SQL İLE yazılıyor: `insert_asset`
+        # artık sıfır/negatif miktarı reddediyor (üretim yolu
+        # `create_purchase` da öyle) ve satış tamamen boşalan varlığı
+        # SİLİYOR. Yani böyle bir satır ancak ESKİ bir yapının ya da
+        # dışarıdan düzenlemenin mirasıdır — ve okuma tarafının onu elemesi
+        # tam olarak bu yüzden hâlâ ölçülmesi gereken bir davranış.
+        conn = get_connection()
+        conn.execute(
+            "INSERT INTO active_assets (asset_name, asset_code, asset_type,"
+            " purchase_price, quantity, purchase_date)"
+            " VALUES (?,?,?,?,?,?)",
+            ("Bos", "ETH-USD", "Kripto", encrypt("1.0", SECRET_KEY),
+             encrypt("0.0", SECRET_KEY), "2026-01-01 00:00:00"),
+        )
+        conn.commit()
+        conn.close()
         codes = [a["asset_code"] for a in get_active_non_try_assets()]
         self.assertIn("BTC-USD", codes)
         self.assertNotIn("TRY", codes)

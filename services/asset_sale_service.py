@@ -5,6 +5,7 @@ from datetime import datetime
 
 from database.db import SECRET_KEY, adjust_account_balance, get_connection
 from utils.crypto import decrypt, encrypt
+from utils.errors import DecryptionError, FinancialDataIntegrityError
 from utils.financial_decimal import decimal_from, fiat
 
 
@@ -22,7 +23,22 @@ class AssetSaleService:
                 row = cursor.execute("SELECT * FROM active_assets WHERE id=?", (asset_id,)).fetchone()
                 if row is None:
                     raise ValueError("Varlık bulunamadı.")
-                owned = decimal_from(decrypt(row["quantity"], SECRET_KEY))
+                # SAKLANMIŞ değer ile KULLANICI GİRDİSİ ayrı sınıflanır.
+                # `owned`/`cost_basis` diskteki bir satırdan geliyor: orada
+                # bir arıza kullanıcı hatası değil VERİ BÜTÜNLÜĞÜ arızasıdır
+                # ve `get_all_assets` aynı tablo için zaten o tipi
+                # kullanıyordu — aynı bozuk satır iki okuyucuda iki farklı
+                # hata tipi üretiyordu (ölçüldü: get_all_assets ->
+                # FinancialDataIntegrityError, sell -> ValueError).
+                # `sold`/`price` ise çağıranın verdiği değer; onlar ValueError
+                # olarak kalır. KeyUnavailableError hiçbir durumda
+                # yutulmuyor: tuple'da yok, kendiliğinden yükseliyor.
+                try:
+                    owned = decimal_from(decrypt(row["quantity"], SECRET_KEY))
+                except (DecryptionError, TypeError, ValueError) as exc:
+                    raise FinancialDataIntegrityError(
+                        "active_assets", asset_id, "quantity", reason=exc
+                    ) from exc
                 sold = owned if quantity is None else decimal_from(quantity)
                 if sold <= 0 or sold > owned:
                     raise ValueError("Satılacak miktar geçersiz.")
@@ -43,10 +59,14 @@ class AssetSaleService:
                 # içinde tutarsız kalıyordu; daha önemlisi KISMİ satışta ne
                 # kadar satıldığı yazmadığından defterden kısmi/tam satış
                 # AYIRT EDİLEMİYORDU.
-                cost_basis = fiat(
-                    decimal_from(decrypt(row["purchase_price"], SECRET_KEY))
-                    * sold
-                )
+                try:
+                    unit_cost = decimal_from(
+                        decrypt(row["purchase_price"], SECRET_KEY))
+                except (DecryptionError, TypeError, ValueError) as exc:
+                    raise FinancialDataIntegrityError(
+                        "active_assets", asset_id, "purchase_price", reason=exc
+                    ) from exc
+                cost_basis = fiat(unit_cost * sold)
                 pnl = proceeds - cost_basis
                 sign = "+" if pnl >= 0 else "-"
                 desc = (
@@ -56,8 +76,14 @@ class AssetSaleService:
                 )
                 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 cursor.execute("INSERT INTO transactions (account_id,amount,type,category,description,transaction_date) VALUES (?,?,'income','Varlık Satışı',?,?)", (account_id, encrypt(str(proceeds), SECRET_KEY), encrypt(desc, SECRET_KEY), now))
+                # `lastrowid` cursor'a ait ve sonraki HER INSERT onu ezer —
+                # araya `_fault_hook` da giriyor. Satış işleminin id'si bu
+                # yüzden hemen adlandırılmış bir değişkene alınıyor
+                # (aynı kalıp bir kez sessizce bozulmuştu: bkz.
+                # process_due_recurring_payment marker'ı).
+                transaction_id = cursor.lastrowid
                 if _fault_hook: _fault_hook("after_transaction_write")
-                adjust_account_balance(cursor, account_id, "income", float(proceeds), ref_id=cursor.lastrowid, source="asset_sale")
+                adjust_account_balance(cursor, account_id, "income", float(proceeds), ref_id=transaction_id, source="asset_sale")
                 if _fault_hook: _fault_hook("before_commit")
             return float(proceeds)
         finally:

@@ -158,6 +158,7 @@ def _initialize_database(conn):
         from utils.crypto import decrypt
         from database.db import SECRET_KEY
         from services.account_service import AccountService
+        from utils.errors import DecryptionError, KeyUnavailableError
 
         for row in rows_to_migrate:
             account_id, enc_number = row[0], row[1]
@@ -166,15 +167,37 @@ def _initialize_database(conn):
                 network_logo = AccountService.check_card_network(dec_num)
                 last4 = dec_num[-4:] if len(dec_num) >= 4 else dec_num
                 masked_number = f"**** **** **** {last4}"
-            except (ValueError, TypeError):
-                # decrypt() hiçbir zaman raise etmez, string işlemleri de
-                # (slicing/len) raise etmez — bu except pratikte tetiklenemez.
-                # Yine de daraltılmış hâliyle bırakıldı: bu, tek seferlik bir
-                # migration, sessizce yanlış davranmaması önemli.
+            except KeyUnavailableError:
+                # ANAHTAR YOKSA DURDUR — ve ham veriyi SİLME. Bu, verinin
+                # bozuk olduğu anlamına GELMEZ: anahtar geri geldiğinde aynı
+                # ciphertext sorunsuz çözülür. Şimdi temizlersek her kartın
+                # maskesi ve ağ logosu kalıcı olarak kaybolur, üstelik hiçbir
+                # şey bozulmamışken. Migration bir sonraki açılışta yeniden
+                # denenir; aşağıdaki NULL'lama adımına hiç ulaşılmaz çünkü
+                # bu istisna dışarı çıkar ve `initialize_database` commit
+                # etmeden kapanır (yarım göç kalmaz). Anahtarsız açılışın
+                # kendisi zaten uygulama genelinde durdurucu bir hata
+                # (`utils/crypto`'nun fail-closed sözleşmesi).
+                raise
+            except (DecryptionError, ValueError, TypeError):
+                # BOZUK/DOĞRULANAMAYAN CIPHERTEXT — devam et. `DecryptionError`
+                # `IntegrityVerificationError`ı da kapsar. Bu satır artık
+                # okunamaz; anahtar yerinde olduğu hâlde açılamıyorsa bir
+                # sonraki açılışta da açılmayacak. Migration'ın VARLIK SEBEBİ
+                # ham PAN'ı diskten kaldırmak; çözülemeyen bir kayıt uğruna
+                # onu diskte bırakmak, kaybedilen tek şey görüntüleme bilgisi
+                # olduğu hâlde asıl riski sürdürürdü.
+                #
+                # Eskiden burada yalnızca (ValueError, TypeError) vardı ve
+                # "decrypt() hiçbir zaman raise etmez" yazıyordu. O not
+                # BAYATLAMIŞTI: `decrypt()` PR #22'den beri tipli istisna
+                # fırlatıyor ve hiçbiri ValueError/TypeError türevi değil —
+                # yani bozuk tek bir kart satırı, temizliği yapmak yerine
+                # AÇILIŞI çökertiyordu (ölçüldü: DecryptionError ve
+                # IntegrityVerificationError `initialize_database`'ten dışarı
+                # çıkıyor, ham PAN da diskte kalıyordu).
                 from utils.logging_config import get_logger
                 get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] accounts id={account_id} kart no migration'ı başarısız")
-                # Çözülemeyen/bozuk bir kayıt bile ham veriyi diskte
-                # bırakmamalı; yalnızca görüntüleme bilgisi kaybolur.
                 masked_number, network_logo = None, None
             cursor.execute(
                 "UPDATE accounts SET masked_number = ?, network_logo = ? WHERE id = ?",
@@ -618,14 +641,21 @@ def _initialize_database(conn):
                 recorded = agg["total"] or 0.0
                 opening = current_value - recorded
 
-                record_balance_event(cursor, entity_type, entity_id, opening,
-                                     opening, marker_source)
+                # Yazılan satırın id'si ÇAĞRIDAN alınıyor, çağrıdan sonra
+                # `cursor.lastrowid` okunarak DEĞİL: ikincisi
+                # `record_balance_event`'in içinde tam olarak bir INSERT
+                # olduğu varsayımına dayanıyordu ve o varsayım bu dosyada
+                # görünmüyordu. Yanlış satırı güncellemek, açılış çizgisini
+                # başka bir olayın üstüne yazmak demekti.
+                baseline_event_id = record_balance_event(
+                    cursor, entity_type, entity_id, opening,
+                    opening, marker_source)
                 # Baseline kronolojik olarak mevcut olayların ÖNÜNE geçmeli,
                 # yoksa "o tarihteki bakiye" sorgusu açılışı sonradan görür.
                 if agg["first_ts"]:
                     cursor.execute(
                         "UPDATE balance_events SET ts = ? WHERE id = ?",
-                        (f"{agg['first_ts'][:10]} 00:00:00", cursor.lastrowid),
+                        (f"{agg['first_ts'][:10]} 00:00:00", baseline_event_id),
                     )
 
         _baseline(ACCOUNT, "accounts", "balance", "account_opened")

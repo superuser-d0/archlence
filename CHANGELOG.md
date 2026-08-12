@@ -44,6 +44,96 @@
   in one place and is applied by both the transaction and the asset-purchase
   paths, rather than each carrying its own copy.
 
+- A recurring charge now records the identifier of the transaction it actually
+  wrote. The marker read the cursor's last inserted row after the ledger entry
+  had already been written through that same cursor, so it stored the ledger
+  row's identifier instead — a charge whose transaction was row 1 was filed
+  against row 2. Nothing on screen was wrong, because that column is not read
+  anywhere yet; what was wrong was the record of where the money came from.
+
+- The recurring charge asks whether the account may spend from inside the
+  transaction that writes the charge, using the same cursor, instead of opening
+  a second connection while holding the write lock. This is the same rule the
+  transaction and asset-purchase paths already follow, and the function it used
+  before says in its own documentation that it must not guard a write.
+
+- A recurring payment can no longer be created or repriced with an amount that
+  is not a finite, positive number. `nan` and `inf` passed every check, because
+  no comparison against them is ever true, and were encrypted and stored. The
+  charge itself always refused them, so no money moved; what broke was the
+  monthly budget, which read such a row back as valid and then could not add it
+  up. Amounts are also stored rounded to the kuruş now, so a subscription shows
+  the figure it will actually charge. A row left behind by an older build is
+  reported as unreadable rather than silently valid.
+
+- Paying a credit-card debt rejects a non-finite amount at the service boundary.
+  `nan` previously reached the first balance update — it was rolled back when
+  the following conditional update did not match, so nothing was persisted, but
+  the decision belonged before the first write, not after it.
+
+- The one-off cleanup that removes raw card numbers left over from older builds
+  now distinguishes a corrupt record from an unavailable encryption key. It
+  caught only `ValueError`/`TypeError` under a note claiming decryption never
+  raises; decryption has raised typed errors since the AEAD migration, so a
+  single unreadable card row aborted startup *and* left the raw number on disk —
+  the opposite of both of the migration's goals. An unreadable record now loses
+  only its mask and card network while the raw number is still removed; a
+  missing key stops the migration untouched, because the same data will decrypt
+  perfectly once the key is back.
+
+- Refunding a subscription charge whose stored amount is not a usable number no
+  longer moves money. An infinite amount left by an older build was refunded in
+  full: the refund committed and the account balance became infinity, together
+  with a transaction row and a ledger entry. A `nan` amount reached the ledger's
+  NOT NULL constraint and surfaced as a raw database error. Both are now
+  reported as a data-integrity failure before anything is written, and so is a
+  zero or negative charge — which was previously read as "nothing was charged
+  this month" and hid a real charge from the user.
+
+- A recurring payment left behind with a zero or negative amount is reported as
+  unreadable instead of being added up. The read path already refused amounts
+  that were not finite, but a `-10,00` row entered the monthly budget as a
+  `-10,00` reservation and showed ten lira more as spendable than there was. The
+  amount column is a magnitude — direction is carried by the income/expense type
+  — so a negative value is an invalid record, not a payment in the other
+  direction. The stored row is left exactly as it is; nothing is silently
+  corrected.
+
+- Selling an asset whose stored price or quantity cannot be read now reports a
+  data-integrity failure rather than a generic value error, matching what
+  reading the portfolio already did for the same row. Values supplied by the
+  caller keep failing as ordinary invalid input; the two cases are no longer the
+  same error.
+
+- `insert_asset` rejects an amount that is not finite and positive. It was the
+  only monetary write in the service and database layers that accepted `nan` and
+  `inf`; the portfolio's real entry point already refused them.
+
+- Budget plan items are saved through the service layer, which validates the
+  amount the same way every other monetary write does. This was the only write
+  into a money-bearing table whose SQL lived in the interface layer, so the
+  amount was checked only by the form. The form cannot produce a `nan` or an
+  infinity, so nothing was reachable through the app; what was missing was a
+  rule that a second caller would have to pass. Copying an item to other months
+  now happens in the same transaction as the item itself, rather than as
+  separate writes that could stop halfway.
+
+- On Windows, a process that loses the race to create the encryption key now
+  continues with the key that was actually stored, instead of its own. The file
+  provider already worked this way — it orders the write so the loser reads the
+  winner's key — but the DPAPI subclass discarded that answer and returned the
+  key it had generated, which was never written anywhere. Anything encrypted
+  with it would have become unreadable once the process ended. The race is not
+  hypothetical: the crypto warm-up and the first data read can both trigger key
+  creation during startup, and DPAPI is the provider on that path. Verified with
+  an injected protector, so the fix is covered on every platform.
+
+- Identifiers of freshly inserted rows are captured immediately in the asset
+  sale, instalment payment and subscription refund paths, and the ledger helper
+  now returns the row it wrote instead of leaving callers to read the cursor
+  afterwards. All of these were correct, but each depended on no other insert
+  landing in between — the assumption that had already failed once.
+
 ## [0.0.9] — 2026-08-11
 
 This release came out of an audit rather than a feature plan, and most of what

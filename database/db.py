@@ -9,7 +9,7 @@ from utils.errors import (
     KeyUnavailableError,
 )
 from utils.app_paths import LEGACY_CBC_PASSWORD, data_dir, migrate_legacy_path
-from utils.financial_decimal import fiat
+from utils.financial_decimal import decimal_from, fiat
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # docs/ROADMAP.md Faz 1 madde 4. Paketlenmiş bir Windows kurulumunda
@@ -141,9 +141,17 @@ def record_balance_event(cursor, entity_type, entity_id, delta,
     # olur, bu da yalnızca bir kez fazladan (ve doğru sonucu veren) okuma demek.
     # İçeriden import: database katmanı servis katmanını modül düzeyinde import
     # edemez (döngü olurdu).
+    event_id = cursor.lastrowid
     if entity_type == ACCOUNT:
         from services.asset_service import mark_account_cache_stale
         mark_account_cache_stale()
+    # Yazılan defter satırının id'si DÖNDÜRÜLÜYOR. Çağıranın onu çağrıdan
+    # SONRA `cursor.lastrowid` ile okuması, bu fonksiyonun içinde kaç INSERT
+    # olduğuna bağlı görünmez bir bağ kurar — `database/init_db.py`'deki
+    # açılış çizgisi tam olarak öyle okuyordu. Değer burada, tek INSERT'ün
+    # hemen ardından alınıyor; mevcut çağıranlar dönüşü yok saydığı için
+    # davranış değişmiyor.
+    return event_id
 
 
 def current_account_balance(cursor, account_id):
@@ -289,6 +297,19 @@ def get_active_debts():
 # ─── Aktif Varlıklar ─────────────────────────────────────────────────────────
 
 def insert_asset(asset_name, asset_code, asset_type, purchase_price, quantity, purchase_date=None):
+    # ÜRETİM YOLU BURASI DEĞİL — portföye varlık ekleyen tek üretim çağrısı
+    # `AssetPurchaseService.create_purchase` (o, alımı işlem + bakiye + defter
+    # ile aynı transaction'da yazar). Burası mock veri üreteci ve şema
+    # denetimi tarafından kullanılıyor. Yine de doğrulanıyor: sonlu olmayan
+    # tutar kabul eden TEK yazma sınırı buydu (ölçüldü — 18 sınırın 17'si
+    # `nan`/`inf`/`-inf` üçünü de reddederken bu üçünü de yazıyordu) ve
+    # ileride buraya bağlanacak bir çağıran açığı sessizce geri getirirdi.
+    #
+    # KURUŞA YUVARLAMA YOK, bilerek: `create_purchase` fiyat ve miktarı
+    # yuvarlamadan saklıyor (nakit tutar ayrı yuvarlanıyor) ve bu fonksiyon
+    # aynı iki sütuna yazıyor. `decimal_from` yalnız sonluluğu doğrular.
+    if decimal_from(purchase_price) <= 0 or decimal_from(quantity) <= 0:
+        raise ValueError("Fiyat ve miktar sıfırdan büyük olmalıdır.")
     from datetime import datetime
     with managed_connection() as conn:
         cursor = conn.cursor()
@@ -430,10 +451,30 @@ def insert_recurring_payment(
     transaction_type = str(transaction_type or "expense").strip().lower()
     if transaction_type not in ("income", "expense"):
         raise ValueError("Tekrarlanan işlem türü income veya expense olmalıdır.")
+    # TUTAR BURADA DOĞRULANIYOR — paranın veriye dönüştüğü nokta burası.
+    # Eskiden hiç doğrulanmıyordu: `str(amount)` ne verilirse şifreleyip
+    # yazıyordu, yani `nan`, `inf`, `-inf`, negatif ve sıfır tutarlar
+    # KALICI olarak diske giriyordu (ölçüldü: sekiz değerin sekizi de kabul
+    # edildi). Arayüz bunları üretemiyordu (`parse_amount` yalnız rakam ve
+    # ayraç kabul eder) ama servis sınırı açıktı; ve bir kez yazıldıktan
+    # sonra tahsilat yolu değil, AYLIK BÜTÇE kırılıyordu — `nan` okuma
+    # yolunda "geçerli" sayılıp bütçe rezervini hesaplanamaz hâle
+    # getiriyordu.
+    #
+    # `fiat` projenin ortak para primitifi: sonlu olmayanı ve sayı olmayanı
+    # reddeder, kuruşa yuvarlar. Yuvarlama BİLİNÇLİ — tahsilat yolu zaten
+    # `fiat(payment["amount"])` ile kesiyor, yani saklanan tutar artık
+    # gerçekten kesilecek tutarla aynı (aynı gerekçe: `insert_debt`).
+    try:
+        amount_decimal = fiat(amount)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Tekrarlanan işlem tutarı geçerli bir sayı olmalıdır.") from exc
+    if amount_decimal <= 0:
+        raise ValueError("Tekrarlanan işlem tutarı 0'dan büyük olmalıdır.")
     with managed_connection() as conn:
         cursor = conn.cursor()
         enc_name = encrypt(str(name), SECRET_KEY)
-        enc_amount = encrypt(str(amount), SECRET_KEY)
+        enc_amount = encrypt(str(amount_decimal), SECRET_KEY)
         cursor.execute("""
             INSERT INTO recurring_payments
                 (name, amount, category, frequency, next_due_date, recurrence_day,
@@ -488,12 +529,38 @@ def get_active_recurring_payments():
     for r in rows:
         try:
             dec_name = decrypt(r["name"], SECRET_KEY)
-            dec_amount = float(decrypt(r["amount"], SECRET_KEY))
+            # ÇÖZÜLEBİLMEK YETMEZ, SAYI DA OLMALI. `float("nan")` ve
+            # `float("inf")` istisna ÜRETMEZ; doğrulama yalnız decrypt'e
+            # bakarsa `nan` buradan "geçerli tutar" olarak çıkar ve
+            # `amount_is_valid` bayrağı — tam da toplam alan tarafı korumak
+            # için var olan bayrak — yalan söyler. `decimal_from` projenin
+            # ortak sınırı ve sonlu olmayanı reddediyor; yazma yolları artık
+            # kapalı olduğu için buraya ancak eski bir yapının ya da dışarıdan
+            # düzenlemenin bıraktığı satır düşebilir.
+            amount_decimal = decimal_from(decrypt(r["amount"], SECRET_KEY))
+            # POZİTİFLİK DE SONLULUK KADAR SÖZLEŞMENİN PARÇASI. Buradaki
+            # tutar bir BÜYÜKLÜK; yön `transaction_type` (income/expense)
+            # ile taşınır (bkz. process_due_recurring_payment ->
+            # adjust_account_balance). Dolayısıyla sıfır ya da negatif bir
+            # tutar "ters yönlü ödeme" değil, GEÇERSİZ kayıttır — üç yazma
+            # yolunun üçü de (insert/update/charge) onu reddediyor.
+            #
+            # Sonlu olmama gürültülü kırılıyordu, negatif ise SESSİZ: eski
+            # bir yapının bıraktığı -10,00'lık satır bütçe rezervine
+            # -10,00 olarak giriyor ve "harcanabilir" tutarı 10 TL FAZLA
+            # gösteriyordu (ölçüldü). Sessiz yanlış toplam, gürültülü
+            # hatadan kötüdür.
+            #
+            # Veri DÜZELTİLMİYOR: `abs()` alınmıyor, satır güncellenmiyor.
+            # Yalnızca "bu tutara güvenilemez" deniyor.
+            if amount_decimal <= 0:
+                raise ValueError("recurring amount must be positive")
+            dec_amount = float(amount_decimal)
         except KeyUnavailableError:
             raise
         except (DecryptionError, ValueError, TypeError):
             from utils.logging_config import get_logger
-            get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] recurring_payments id={r['id']} çözülemedi")
+            get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] recurring_payments id={r['id']} okunamadı")
             dec_name = "Bilinmeyen Ödeme"
             dec_amount = 0.0
             amount_is_valid = False
@@ -603,14 +670,26 @@ def process_due_recurring_payment(payment):
         if transaction_type not in ("income", "expense"):
             raise ValueError("Geçersiz tekrarlanan işlem türü.")
         from services.account_service import AccountService
-        allowed, reason = AccountService.check_spending_allowed(
-            payment["account_id"], amount, transaction_type,
+        # AYNI CURSOR. `check_spending_allowed` kendi bağlantısını açar ve
+        # kendi sözleşmesi "bir yazmanın önünde koruma olarak kullanma" diyor
+        # (bkz. o fonksiyonun docstring'i). `transaction_service` ve
+        # `asset_purchase_service` kararı zaten `BEGIN IMMEDIATE`'in arkasına,
+        # çağıranın cursor'ına taşımıştı; bu yol dışarıda kalmıştı. Karar
+        # burada da yazma kilidinin İÇİNDEN veriliyor: fazladan bağlantı
+        # açılmıyor ve kontrol, yazmanın gördüğü durumu görüyor.
+        AccountService.assert_spending_allowed(
+            cursor, payment["account_id"], amount, transaction_type,
         )
-        if not allowed:
-            raise ValueError(reason)
         enc_amount = encrypt(str(amount), SECRET_KEY)
         enc_desc = encrypt(f"{payment['name']} (Otomatik)", SECRET_KEY)
         tx_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # `lastrowid` CURSOR'A AİT, deyime değil: aynı cursor'la yapılan her
+        # INSERT onu ezer. İşlem satırının id'si bu yüzden HEMEN buraya
+        # alınıyor. Alınmazsa `adjust_account_balance` içindeki
+        # `record_balance_event` INSERT'ü değeri balance_events id'siyle
+        # değiştirir ve araya giren UPDATE'ler onu geri getirmez — marker
+        # aşağıda işlemi değil defter satırını göstermeye başlardı (ölçüldü:
+        # transactions.id=1 iken marker.transaction_id=2).
         cursor.execute("""
             INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
             VALUES (?, ?, ?, ?, ?, ?)
@@ -618,9 +697,10 @@ def process_due_recurring_payment(payment):
             payment["account_id"], enc_amount, transaction_type,
             payment["category"], enc_desc, tx_date,
         ))
+        transaction_id = cursor.lastrowid
         adjust_account_balance(
             cursor, payment["account_id"], transaction_type,
-            amount, ref_id=cursor.lastrowid,
+            amount, ref_id=transaction_id,
             source="recurring_payment",
         )
 
@@ -628,7 +708,7 @@ def process_due_recurring_payment(payment):
         cursor.execute(
             "UPDATE recurring_operation_markers SET transaction_id=? "
             "WHERE recurring_payment_id=? AND due_date=? AND operation_type='charge'",
-            (cursor.lastrowid, payment["id"], payment["next_due_date"]),
+            (transaction_id, payment["id"], payment["next_due_date"]),
         )
         conn.commit()
     return True

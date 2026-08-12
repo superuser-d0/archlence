@@ -174,6 +174,124 @@ def calculate_monthly_budget(target_month, target_year=None):
     }
 
 
+#: `monthly_budget_plan.type` sütununda kabul edilen değerler. İki eski
+#: Türkçe değer de listede: düzenleme akışı mevcut satırın türünü OLDUĞU GİBİ
+#: geri yazıyor (bkz. mixins/budget_mixin.py, `bp_selected_type = row["type"]`),
+#: yani eski bir kaydı açıp kaydetmek onları yeniden gönderiyor.
+PLAN_ITEM_TYPES = ("income", "expense", "Gelir", "Gider")
+
+
+def save_plan_item(
+    *,
+    item_type,
+    name,
+    amount,
+    month,
+    year,
+    category=None,
+    rollover_enabled=False,
+    is_template=False,
+    alert_threshold_pct=80,
+    item_id=None,
+    editing_a_template=False,
+    propagate_to_months=(),
+):
+    """Bütçe planı kalemini oluşturur ya da günceller — tek transaction'da.
+
+    NEDEN SERVİS KATMANINDA: bu yazma, para tutan tabloların İÇİNDE servis
+    sınırından geçmeyen TEK yoldu. SQL doğrudan `mixins/budget_mixin.py`
+    içinde duruyordu, yani `monthly_budget_plan.amount` için doğrulama
+    yalnızca arayüzün kendi kontrolüydü (`read_amount` + `amount <= 0`).
+    Arayüz bugün `nan`/`inf` üretemiyor (`parse_amount` yalnız rakam ve ayraç
+    kabul eder), dolayısıyla bilinen bir açık DEĞİLDİ; ama kural arayüzde
+    yaşadığı sürece ikinci bir çağıran (içe aktarma, betik, test) onu hiç
+    görmeden atlardı. Diğer bütün parasal yazmalar `fiat()` sınırından
+    geçiyor; bu da artık geçiyor.
+
+    Tutar kuruşa yuvarlanarak saklanıyor — projedeki diğer para
+    sınırlarıyla aynı politika (`insert_debt`, `insert_recurring_payment`).
+
+    `propagate_to_months` verilirse aynı kalem o aylara da KOPYALANIR ve
+    kopyalar hiçbir zaman şablon değildir. Kopyalama, asıl yazımla AYNI
+    commit içinde: yarıda kalan bir kopyalama, kullanıcının göremediği
+    eksik bir plan bırakırdı.
+    """
+    item_type = str(item_type or "").strip()
+    if item_type not in PLAN_ITEM_TYPES:
+        raise ValueError(f"Bilinmeyen bütçe kalemi türü: {item_type!r}")
+
+    name = str(name or "").strip()
+    if not name:
+        raise ValueError("Bütçe kalemi adı boş olamaz.")
+
+    try:
+        amount_decimal = fiat(amount)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Bütçe kalemi tutarı geçerli bir sayı olmalıdır.") from exc
+    if amount_decimal <= 0:
+        raise ValueError("Bütçe kalemi tutarı 0'dan büyük olmalıdır.")
+
+    month = int(month)
+    if not 1 <= month <= 12:
+        raise ValueError("Ay 1 ile 12 arasında olmalıdır.")
+    year = int(year)
+
+    alert_threshold_pct = int(alert_threshold_pct)
+    if not 1 <= alert_threshold_pct <= 100:
+        raise ValueError("Uyarı eşiği 1 ile 100 arasında olmalıdır.")
+
+    targets = sorted({int(target) for target in propagate_to_months})
+    for target in targets:
+        if not 1 <= target <= 12:
+            raise ValueError("Kopyalanacak ay 1 ile 12 arasında olmalıdır.")
+
+    stored_amount = float(amount_decimal)
+    rollover = int(bool(rollover_enabled))
+    template = int(bool(is_template))
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("BEGIN IMMEDIATE")
+        if item_id is not None and not editing_a_template:
+            cursor.execute(
+                "UPDATE monthly_budget_plan SET"
+                " type=?, name=?, amount=?, target_month=?, target_year=?,"
+                " category_name=?, rollover_enabled=?, is_template=?,"
+                " alert_threshold_pct=?"
+                " WHERE id=? AND target_month=? AND target_year=?",
+                (item_type, name, stored_amount, month, year, category,
+                 rollover, template, alert_threshold_pct,
+                 int(item_id), month, year),
+            )
+        else:
+            # Bir ŞABLONU düzenlemek yeni bir aylık kalem üretir; şablonun
+            # kendisi yerinde kalır. Kopya bu yüzden şablon DEĞİLDİR.
+            cursor.execute(
+                "INSERT INTO monthly_budget_plan"
+                " (type,name,amount,target_month,target_year,category_name,"
+                "  rollover_enabled,is_template,alert_threshold_pct)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                (item_type, name, stored_amount, month, year, category,
+                 rollover, 0 if item_id is not None else template,
+                 alert_threshold_pct),
+            )
+        for target in targets:
+            if target == month:
+                continue
+            cursor.execute(
+                "INSERT INTO monthly_budget_plan"
+                " (type,name,amount,target_month,target_year,category_name,"
+                "  rollover_enabled,is_template,alert_threshold_pct)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                (item_type, name, stored_amount, target, year, category,
+                 rollover, 0, alert_threshold_pct),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def apply_plan_to_year_end(source_month, source_year):
     """Bulunduğumuz ayın plan kalemlerini yıl sonuna (Aralık) kadar kopyalar.
 

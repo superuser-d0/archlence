@@ -56,11 +56,36 @@ class NonFiniteServiceMatrix(_TemporaryProfile):
         self.assertIsNotNone(caught)
         self.assertEqual(self._counts(), before)
 
+    def test_recurring_creation_rejects_infinite_amount(self):
+        """Sonsuz tutar artık KAYIT sırasında reddediliyor — okuma/işleme değil.
+
+        Eskiden `insert_recurring_payment` hiçbir doğrulama yapmıyordu:
+        `nan`/`inf`/negatif/sıfır şifrelenip KALICI olarak yazılıyordu ve
+        yalnızca tahsilat yolu duruyordu. Yazma sınırı kapatıldı; bu test
+        onu ölçüyor, aşağıdaki test ise tahsilat yolunun kendi savunmasını
+        (ikinci savunma hattı) ölçmeye devam ediyor.
+        """
+        from database.db import insert_recurring_payment
+        account_id = self.create_account()
+        before = self._counts()
+        caught = None
+        try:
+            insert_recurring_payment("Inf recurring", float("inf"), "Inf", "monthly", date.today().isoformat(), False, account_id=account_id, recurrence_day=date.today().day)
+        except (ValueError, TypeError, ArithmeticError, sqlite3.Error, OSError, ArchlenceError) as exc:
+            caught = exc
+        print(f"AUDIT_STATE nonfinite_recurring_insert caught={type(caught).__name__ if caught else 'NONE'} before={before} after={self._counts()}")
+        self.assertIsNotNone(caught)
+        self.assertEqual(self._counts(), before)
+
     def test_recurring_processing_rejects_infinite_amount_before_any_effect(self):
         from database.db import get_active_recurring_payments, insert_recurring_payment, process_due_recurring_payment
         account_id = self.create_account()
-        insert_recurring_payment("Inf recurring", float("inf"), "Inf", "monthly", date.today().isoformat(), False, account_id=account_id, recurrence_day=date.today().day)
-        payment = get_active_recurring_payments()[0]
+        insert_recurring_payment("Inf recurring", 10.0, "Inf", "monthly", date.today().isoformat(), False, account_id=account_id, recurrence_day=date.today().day)
+        # Tahsilat yolu artık geçerli bir satırdan sonsuz tutar OKUYAMAZ;
+        # sınandığı şey, sonsuz tutar taşıyan bir ödeme nesnesi (eski bir
+        # yapının bıraktığı satır ya da yeni bir çağıran) elinde olduğunda
+        # HİÇBİR etki üretmeden durması.
+        payment = dict(get_active_recurring_payments()[0], amount=float("inf"))
         before = self._counts()
         caught = None
         try:

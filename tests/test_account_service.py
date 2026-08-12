@@ -247,6 +247,54 @@ class AccountServiceTestCase(AccountFixtureMixin, unittest.TestCase):
         self.assertEqual(AccountService.get_account(source_id)["balance"], 5000.0)
         self.assertEqual(AccountService.get_account(card_id)["balance"], 0.0)
 
+    def test_debt_payment_rejects_non_finite_amounts_before_any_write(self):
+        """NaN/∞ SQL'e ULAŞMADAN reddedilmeli.
+
+        `float(amount)` + `amount <= 0` + `amount > debt` üçlüsü NaN'i
+        geçiriyordu (`nan` ile yapılan HER karşılaştırma False'tur). NaN ilk
+        UPDATE'e kadar gidip kaynak hesabın bakiyesini transaction içinde
+        NULL'a çeviriyor, sonra ikinci UPDATE'in koşulu tutmadığı için
+        işlem geri alınıyordu — kalıcı bozulma yok, ama karar sınırın
+        dışında veriliyordu. Bu test sınırın kendisini ölçer: bakiyeler,
+        borç ve defter DOKUNULMAMIŞ kalmalı.
+        """
+        import sqlite3 as _sqlite3
+
+        from services.account_service import AccountService
+
+        source_id = AccountService.create_account("Maaş", "checking", initial_balance=5000)
+        card_id = AccountService.create_account(
+            "Kart", "credit_card", initial_balance=1000, credit_limit=3000
+        )
+
+        def snapshot():
+            conn = _sqlite3.connect(self.db_path)
+            try:
+                return (
+                    conn.execute(
+                        "SELECT id, balance, typeof(balance) FROM accounts"
+                        " ORDER BY id").fetchall(),
+                    conn.execute("SELECT COUNT(*) FROM transactions").fetchone(),
+                    conn.execute("SELECT COUNT(*) FROM balance_events").fetchone(),
+                )
+            finally:
+                conn.close()
+
+        before = snapshot()
+        for amount in (float("nan"), float("inf"), float("-inf"), "nan"):
+            with self.subTest(amount=amount):
+                # Mesaj bilerek kontrol ediliyor: reddin GEREKÇESİ "bu bir
+                # sayı değil" olmalı. Eskiden NaN "borcu aşamaz", ∞ ise
+                # "mevcut borcu aşamaz" diyordu — yani karar tutar sınırında
+                # değil, borç karşılaştırmasında (ve NaN için ilk SQL
+                # yazımından SONRA) veriliyordu.
+                with self.assertRaisesRegex(ValueError, "geçerli bir sayı"):
+                    AccountService.pay_credit_card_debt(card_id, source_id, amount)
+                self.assertEqual(snapshot(), before,
+                                 "sonlu olmayan tutar kalıcı durumu değiştirdi")
+        self.assertEqual(AccountService.get_account(source_id)["balance"], 5000.0)
+        self.assertEqual(AccountService.get_account(card_id)["debt"], 1000.0)
+
     def test_delete_credit_card_removes_only_its_data(self):
         from database.db import get_connection
         from services.account_service import AccountService
