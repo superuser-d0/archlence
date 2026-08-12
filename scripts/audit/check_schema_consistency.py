@@ -71,7 +71,12 @@ def _value(row, name, default=None):
     return row[name] if name in row.keys() else default
 
 
-def _semantic_snapshot(db_path, decrypt):
+def _semantic_snapshot(db_path, decrypt, legacy_password):
+    """`legacy_password` ÇAĞIRANDAN geliyor: her kuşak kendi `SECRET_KEY`iyle
+    çözmeli. Bu script hem güncel hem v0.0.1-v0.0.8 ağaçlarında koşuyor ve
+    sabiti buraya yazmak, eski ağaçlarda var olmayan bir isme bağlanmak
+    olurdu.
+    """
     encrypted = {
         "transactions": ("amount", "description"),
         "active_assets": ("purchase_price", "quantity"),
@@ -127,7 +132,7 @@ def _semantic_snapshot(db_path, decrypt):
                         continue
                     value = row[column]
                     if column in encrypted.get(table, ()) and value is not None:
-                        value = decrypt(str(value), "finora_secure_2026")
+                        value = decrypt(str(value), legacy_password)
                     item[column] = value
                 rows.append(item)
             snapshot[table] = rows
@@ -218,7 +223,7 @@ def _old_worker(args):
 
     before = {
         "schema": _db_schema(db_path),
-        "financial": _semantic_snapshot(db_path, db_module.decrypt),
+        "financial": _semantic_snapshot(db_path, db_module.decrypt, db_module.SECRET_KEY),
     }
     Path(args.result).write_text(
         json.dumps(before, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -280,7 +285,7 @@ def _current_worker(args):
     result = {
         "schema": second,
         "idempotent_schema": first == second,
-        "financial": _semantic_snapshot(db_path, db_module.decrypt),
+        "financial": _semantic_snapshot(db_path, db_module.decrypt, db_module.SECRET_KEY),
         "application_import": "ok",
     }
     Path(args.result).write_text(

@@ -8,7 +8,7 @@ from utils.errors import (
     FinancialDataIntegrityError,
     KeyUnavailableError,
 )
-from utils.app_paths import data_dir, migrate_legacy_path
+from utils.app_paths import LEGACY_CBC_PASSWORD, data_dir, migrate_legacy_path
 from utils.financial_decimal import fiat
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -19,7 +19,13 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # BİRLİKTE GELEN varlıklar için hâlâ doğru yer, o değişmedi.
 _LEGACY_DB_PATH = os.path.join(BASE_DIR, "finance.db")
 DB_NAME = os.path.join(data_dir(), "finance.db")
-SECRET_KEY = "fi" + "nora_secure_2026"
+# Eski AES-256-CBC kayıtlarının çözme parolası. Adı `SECRET_KEY` çünkü
+# yüzlerce çağrı yeri bu adı kullanıyor, ama artık HİÇBİR ŞEY bu parolayla
+# ŞİFRELENMİYOR: `utils.crypto.encrypt` kurulum başına rastgele bir AEAD
+# anahtarı kullanıyor ve `password` parametresini yok sayıyor. Değer yalnız
+# `decrypt()`'in eski kayıtları okuyabilmesi için duruyor.
+# Tanımı ve neden değiştirilemeyeceği: `utils/app_paths.py`.
+SECRET_KEY = LEGACY_CBC_PASSWORD
 
 
 def migrate_legacy_database_location() -> bool:

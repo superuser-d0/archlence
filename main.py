@@ -22,7 +22,13 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError, OSError):
         pass
 
-from utils.app_paths import data_dir, log_dir, migrate_legacy_path, resource_dir
+from utils.app_paths import (
+    LEGACY_CONFIG_FILENAME,
+    data_dir,
+    log_dir,
+    migrate_legacy_path,
+    resource_dir,
+)
 
 _APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -257,10 +263,10 @@ def _resolve_config_path():
 
     target_path = os.path.join(data_dir(), "archlence_config.json")
     legacy_path = os.path.join(_APP_DIR, "archlence_config.json")
-    legacy_finora_path = os.path.join(_APP_DIR, "fi" + "nora_config.json")
+    legacy_pre_rename_path = os.path.join(_APP_DIR, LEGACY_CONFIG_FILENAME)
 
     if not migrate_legacy_path(legacy_path, target_path):
-        migrate_legacy_path(legacy_finora_path, target_path)
+        migrate_legacy_path(legacy_pre_rename_path, target_path)
     return target_path
 
 def _resolve_savings_store_path():

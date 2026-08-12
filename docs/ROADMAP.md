@@ -158,7 +158,7 @@ guarantees established earlier.
      new module-level helpers (`_resolve_config_path()`/
      `_resolve_savings_store_path()`, deliberately `self`-free so they're
      directly testable without a real window) that chain the *existing*
-     legacy "finora" rename (an even older app-name migration already in
+     legacy pre-rename migration (an even older app-name change already in
      the code) with the new `BASE_DIR` → `data_dir()` move.
    - `services/brand_icon_service.py::BRAND_ICON_CACHE_DIR` now under
      `cache_dir()` — no migration needed, it's a re-fetchable cache, not
@@ -172,7 +172,7 @@ guarantees established earlier.
      `migrate_legacy_path` never overwrites a destination that already has
      current data) and `tests/test_app_paths_wiring.py` (the `main.py`
      helpers call the mechanics with the right source/destination pairs,
-     including the finora → archlence → `data_dir()` three-location
+     including the pre-rename → archlence → `data_dir()` three-location
      chain). Confirmed import-time side-effect-free: running the full test
      suite creates no real `~/.local/share/Archlence` or
      `~/.local/cache/Archlence` directory on the dev machine (checked
@@ -195,7 +195,7 @@ guarantees established earlier.
      and then deletes the source on a best-effort basis (an undeletable
      source leaves a harmless orphan that the `os.path.exists(new_path)`
      guard stops from ever being re-read). Separately,
-     `_resolve_config_path()` was writing the old "finora" config into
+     `_resolve_config_path()` was writing the pre-rename config into
      `_APP_DIR` as an intermediate step before migrating it out — also a
      write into the possibly-read-only install dir; both legacy names now
      migrate straight to the target. Locked in by three new tests that
