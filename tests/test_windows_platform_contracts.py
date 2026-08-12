@@ -27,6 +27,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from unittest import mock
 
@@ -233,7 +234,12 @@ class BackupSurvivesAnOpenDatabase(unittest.TestCase):
         # yazılmaya çalışılsaydı buraya hiç gelinemezdi.
         self.assertAlmostEqual(
             AccountService.get_account(account_id)["balance"], 4900.0, places=2)
-        with sqlite3.connect(self.db_path) as conn:
+        # `with sqlite3.connect(...)` bağlantıyı KAPATMAZ — yalnız
+        # transaction'ı commit/rollback eder. Windows'ta açık kalan handle
+        # dosyanın silinmesini engelliyor; bu test ilk koşusunda tam olarak
+        # ona takıldı (`WinError 32`, geçici dizin temizlenirken). Testin
+        # ölçmek istediği şeyin ta kendisi, bu yüzden burada `closing` şart.
+        with closing(sqlite3.connect(self.db_path)) as conn:
             count = conn.execute(
                 "SELECT COUNT(*) FROM transactions").fetchone()[0]
         self.assertEqual(count, 1)
@@ -292,7 +298,7 @@ class RealWindowsDpapi(unittest.TestCase):
         from utils.key_provider import create_platform_key_provider
 
         provider = create_platform_key_provider(self.temp.name)
-        self.assertEqual(provider.status.name, "Windows DPAPI")
+        self.assertEqual(provider.status.method, "Windows DPAPI")
         self.assertTrue(provider.status.secure_store)
         self.assertIsNone(provider.status.warning)
         # Gerçek DPAPI ile uçtan uca: fabrika üzerinden anahtar üret ve
