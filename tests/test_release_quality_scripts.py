@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 
+from scripts.check_frozen_lazy_imports import missing_lazy_imports
 from scripts.check_version_consistency import main as check_version
 from scripts.inspect_package_contents import inspect_files
 
@@ -47,6 +48,31 @@ class ReleaseQualityScriptsTest(unittest.TestCase):
         """
         spec = Path("archlence.spec").read_text(encoding="utf-8")
         self.assertIn('"win32timezone"', spec)
+
+    def test_frozen_bundle_scan_flags_a_missing_lazy_companion(self):
+        self.assertEqual(
+            missing_lazy_imports(b"...win32file...", (("win32file", "win32timezone"),)),
+            ["win32file -> win32timezone"],
+        )
+
+    def test_frozen_bundle_scan_accepts_a_complete_bundle(self):
+        self.assertEqual(
+            missing_lazy_imports(b"...win32file...win32timezone...",
+                                 (("win32file", "win32timezone"),)),
+            [],
+        )
+
+    def test_frozen_bundle_scan_stays_quiet_when_the_parent_is_absent(self):
+        """pywin32 hiç paketlenmediyse eksiklik YOK — Kivy zarifçe geri düşüyor.
+
+        Koşul bilerek koşullu: aksi hâlde pywin32'siz bir derleme ortamı
+        yanlış yere kırmızıya dönerdi.
+        """
+        self.assertEqual(
+            missing_lazy_imports(b"...sadece-kivy...",
+                                 (("win32file", "win32timezone"),)),
+            [],
+        )
 
 
 if __name__ == "__main__":

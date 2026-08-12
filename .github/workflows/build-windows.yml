@@ -162,36 +162,17 @@ jobs:
           Write-Host "Smoke test geçti: Archlence.exe 10 saniye sonra hâlâ çalışıyordu, crash.log'a yeni yazı yok."
 
       - name: "Paketleme bütünlüğü: pywin32'nin tembel importu da pakette mi"
-        shell: pwsh
         # NEDEN VAR: Kivy'nin dosya seçicisi `win32file`'ı kullanıyor, pywin32
         # ise zaman dönüşümünü ÇAĞRI ANINDA `win32timezone`'u import ederek
         # yapıyor. PyInstaller ilkini görüp ikincisini göremiyor ve sonuç,
         # dosya seçici açılır açılmaz uygulamanın tamamen çökmesi oluyordu
         # (gerçek Windows 11 makinesinde ölçüldü, v0.0.9 RC).
         #
-        # KOŞULLU BİR DEĞİŞMEZ ölçüyor: "win32file paketlendiyse
-        # win32timezone de paketlenmiş olmalı". Runner imajında pywin32 hiç
-        # yoksa ikisi de bulunmaz ve bu doğru şekilde geçer — çünkü o durumda
-        # Kivy zaten gizli-dosya kontrolünü atlayan zarif yola düşüyor.
-        #
-        # NE KANITLAMAZ: dosya seçicinin gerçekten açıldığını. Modül adlarının
-        # PYZ içinde bulunduğunu kanıtlar; asıl doğrulama gerçek makinede.
-        run: |
-          python - <<'PY'
-          import pathlib, sys
-          exe = pathlib.Path("dist/Archlence/Archlence.exe")
-          data = exe.read_bytes()
-          has_win32file = b"win32file" in data
-          has_timezone = b"win32timezone" in data
-          print(f"win32file paketlendi   : {has_win32file}")
-          print(f"win32timezone paketlendi: {has_timezone}")
-          if has_win32file and not has_timezone:
-              print("::error::win32file paketlenmiş ama tembel bağımlılığı "
-                    "win32timezone eksik — dosya seçici açılışta çökecek. "
-                    "archlence.spec içindeki hiddenimports listesine bakın.")
-              sys.exit(1)
-          print("Paketleme bütünlüğü kontrolü geçti.")
-          PY
+        # Kontrolün kendisi `scripts/check_frozen_lazy_imports.py` içinde:
+        # kabuktan bağımsız, Linux'ta birim testi var (bu adımın ilk hâli
+        # `shell: pwsh` altında bash heredoc kullanıyordu ve PowerShell'de
+        # ayrıştırma hatası veriyordu).
+        run: python scripts/check_frozen_lazy_imports.py dist/Archlence/Archlence.exe
 
       - name: Paket içeriği ve secret taraması
         run: python scripts/inspect_package_contents.py dist/Archlence
