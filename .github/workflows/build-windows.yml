@@ -172,7 +172,7 @@ jobs:
         # kabuktan bağımsız, Linux'ta birim testi var (bu adımın ilk hâli
         # `shell: pwsh` altında bash heredoc kullanıyordu ve PowerShell'de
         # ayrıştırma hatası veriyordu).
-        run: python scripts/check_frozen_lazy_imports.py dist/Archlence/Archlence.exe
+        run: python scripts/check_frozen_lazy_imports.py dist/Archlence
 
       - name: Paket içeriği ve secret taraması
         run: python scripts/inspect_package_contents.py dist/Archlence
