@@ -109,6 +109,24 @@
   only monetary write in the service and database layers that accepted `nan` and
   `inf`; the portfolio's real entry point already refused them.
 
+- Opening the restore file picker no longer terminates the application on
+  Windows. Kivy asks pywin32 whether each file is hidden, and pywin32 imports a
+  timezone helper at the moment of that call rather than at import time, so the
+  packager never saw it and left it out. The picker therefore crashed the whole
+  process the first time it listed a folder. Backups themselves were never
+  affected, and no data was damaged. The packaged build now fails loudly if that
+  helper is ever missing again while its parent module is present.
+
+- The My Cards tab scrolls again. The horizontal strip of cards sits inside the
+  vertical page, and it is taller than the visible area, so it covered
+  practically the whole screen; Kivy offers a touch to the inner scroller first,
+  and that one claimed every gesture without checking whether it had anything to
+  scroll sideways. Dragging and the mouse wheel both did nothing, which left the
+  accounts list below permanently out of reach. The strip now takes only its own
+  scrollbar, so vertical gestures reach the page. Dragging directly on a card
+  still does not scroll — cards absorb touches everywhere in the app — but the
+  wheel works over them.
+
 - Budget plan items are saved through the service layer, which validates the
   amount the same way every other monetary write does. This was the only write
   into a money-bearing table whose SQL lived in the interface layer, so the

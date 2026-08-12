@@ -29,6 +29,25 @@ class ReleaseQualityScriptsTest(unittest.TestCase):
         spec = Path("archlence.spec").read_text(encoding="utf-8")
         self.assertIn('startswith("kivy_install/modules/")', spec)
 
+    def test_spec_declares_the_lazy_pywin32_import_the_file_chooser_needs(self):
+        """`win32timezone` gizli import olarak DURMALI.
+
+        Kivy'nin dosya seçicisi gizli-dosya bayrağını okumak için
+        `win32file.GetFileAttributesExW` çağırıyor; pywin32 o çağrının
+        içinde `win32timezone`'u TEMBEL import ediyor ve PyInstaller'ın
+        statik analizi onu göremiyor. Gerçek Windows 11 makinesinde
+        ölçüldü: Ayarlar -> Geri Yükle dosya seçicisini açmak uygulamanın
+        tamamını düşürüyordu ("No module named 'win32timezone'").
+
+        Bu satır silinirse hata sessizce geri gelir — Linux'ta hiçbir şey
+        kırılmaz, Windows paketi de sorunsuz derlenir; yalnız kullanıcı
+        çöker. Bu yüzden kapı burada, her platformda koşan bir testte.
+        Paketin içeriğine bakan tamamlayıcı kapı `build-windows.yml`
+        içindeki "Paketleme bütünlüğü" adımında.
+        """
+        spec = Path("archlence.spec").read_text(encoding="utf-8")
+        self.assertIn('"win32timezone"', spec)
+
 
 if __name__ == "__main__":
     unittest.main()

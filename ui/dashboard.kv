@@ -1843,7 +1843,41 @@ MDScreen:
                                             height: "620dp"
                                             do_scroll_y: False
                                             do_scroll_x: True
-                                            bar_width: 0
+                                            # SAYFA KAYDIRMASINI YUTMASIN.
+                                            # Bu yatay şerit, sayfanın DİKEY
+                                            # ScrollView'ının içinde duruyor ve
+                                            # 620dp yüksekliğiyle görünür alanın
+                                            # TAMAMINDAN büyük. Kivy iç içe
+                                            # ScrollView'larda dokunuşu ÖNCE
+                                            # çocuğa soruyor (scrollview.py:697,
+                                            # `dispatch_children('on_scroll_start')`)
+                                            # ve sürükleme dalında çocuk, kendi
+                                            # ekseninde kayacak içerik olup
+                                            # olmadığına BAKMADAN sahipleniyor
+                                            # (aynı dosya: `self._touch = touch`
+                                            # ... `return True`). Sonuç ölçüldü:
+                                            # şeridin üzerinde sayfa hiç
+                                            # kaymıyordu — yani "Hesaplarım"
+                                            # bölümüne ulaşmak imkânsızdı;
+                                            # yalnızca en üstteki dar özet
+                                            # bandından kaydırılabiliyordu.
+                                            #
+                                            # `scroll_type: ["bars"]` bu davranışı
+                                            # kaynağın kendi kapısından çeviriyor
+                                            # (scrollview.py:798): dokunuş çubuğun
+                                            # üzerinde DEĞİLSE ScrollView onu
+                                            # sahiplenmiyor, `simulate_touch_down`
+                                            # ile geçiriyor. Kartlar yatayda
+                                            # çubuktan kaydırılır; dikey hareket
+                                            # sayfaya ulaşır.
+                                            #
+                                            # `bar_width` bu yüzden 0 OLAMAZ:
+                                            # 0 genişlikte çubuk hiçbir dokunuşu
+                                            # yakalayamaz ve şerit tamamen
+                                            # kaydırılamaz hâle gelirdi.
+                                            scroll_type: ["bars"]
+                                            bar_width: "6dp"
+                                            bar_margin: "2dp"
                                             MDBoxLayout:
                                                 id: cards_container
                                                 orientation: "horizontal"
