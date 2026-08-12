@@ -1,0 +1,140 @@
+# Devir Notu — PR #95 Windows RC doğrulaması
+
+**Tarih:** 2026-08-13 · **Dal:** `fix/monetary-boundaries-and-record-integrity`
+· **HEAD:** `3c1cd7c` · **PR:** [#95](https://github.com/superuser-d0/archlence/pull/95) (DRAFT)
+
+Bu dosya, işi iki farklı makineden sürdürebilmek içindir. Doğrulama turu
+bitip PR merge edildiğinde silinebilir.
+
+---
+
+## 0. EN ÖNEMLİ MADDE — BU PR'I MERGE ETME
+
+PR bilerek **draft**. Bütün CI kontrolleri yeşil ve `mergeStateStatus` `CLEAN`
+görünüyor; buna bakıp merge etmek YANLIŞ olur. Nedeni CI'da görünmüyor:
+
+> İçindeki iki düzeltme, **fiziksel bir Windows makinesinde bildirilen**
+> hatalara ait ve **o makinede henüz yeniden test edilmediler.**
+
+Merge kararı, aşağıdaki §2 listesi gerçek donanımda koşulduktan sonra
+**depo sahibinindir**. Testler geçerse PR `gh pr ready 95` ile draft'tan
+çıkarılır.
+
+---
+
+## 1. Bu dalda ne var
+
+İki turluk finansal denetim + gerçek makineden gelen iki hata düzeltmesi.
+Ayrıntı CHANGELOG'un `[Unreleased]` bölümünde ve commit mesajlarında; burada
+yalnızca **kodda görünmeyen** kararlar var.
+
+### Gerçek makineden gelen düzeltmeler (bu turun konusu)
+
+| Bulgu | Kök neden | Düzeltme |
+|---|---|---|
+| Restore dosya seçicisi uygulamanın tamamını çökertiyordu | Kivy `win32file.GetFileAttributesExW` çağırıyor; pywin32 o çağrının İÇİNDE `win32timezone`'u import ediyor, PyInstaller statik analizi göremiyor | `archlence.spec` → `hiddenimports` |
+| "Kartlarım" sekmesi hiç kaydırılamıyordu | Sayfanın dikey ScrollView'ı içindeki yatay kart şeridi (620dp, görünür alandan büyük) her dokunuşu sahipleniyor; Kivy iç içe ScrollView'da dokunuşu ÖNCE çocuğa soruyor | `ui/dashboard.kv` → şeride `scroll_type: ["bars"]` |
+
+### Ölçülen öncesi/sonrası (Kartlarım, sayfa tepedeyken)
+
+```
+                 ÖNCESİ            SONRASI
+sürükleme        1.000 -> 1.000    1.000 -> 0.028
+tekerlek         1.000 -> 1.000    1.000 -> 0.018
+```
+
+### BİLİNEN SINIR — hata değil, davranış
+
+Doğrudan bir **kartın üzerinden** sürüklemek sayfayı kaydırmaz: KivyMD'nin
+`MDCard`'ı `on_touch_down`'ı sahiplenip `True` dönüyor (ölçüldü:
+`PremiumCreditCardWidget`). Bu, uygulama genelinde geçerli çerçeve davranışı ve
+bu düzeltmenin getirdiği bir şey DEĞİL. Kartların üzerinde **tekerlek çalışıyor**.
+Yeni bir hata raporu bunu tekrar bildirirse "zaten biliniyor" diye kapatmayın;
+düzeltmek KivyMD kart davranışına dokunmayı gerektirir, ayrı bir iştir.
+
+---
+
+## 2. AÇIK — yalnızca gerçek Windows makinesi doğrulayabilir
+
+Hiçbiri CI'da ölçülmedi. **"Windows integration verified" DEMEYİN.**
+
+Öncelik sırasıyla:
+
+1. **Restore'u aç** (Ayarlar → Geri Yükle → dosya seçici). Çökmemeli.
+   Bu turun asıl testi.
+2. **Kartlarım'ı kaydır** — tekerlek ve sürükleme (yukarıdaki bilinen sınırı
+   akılda tutarak).
+3. **Reboot sonrası DPAPI** — şifreli veri yeniden açılıyor mu. Bir önceki
+   turdan devrediyor, hâlâ yapılmadı.
+4. SmartScreen / Microsoft Defender davranışı (installer imzasız).
+5. Standart (yönetici olmayan) kullanıcıyla kurulum.
+6. Upgrade → uninstall → reinstall zinciri, kullanıcı verisinin korunması.
+7. Türkçe klavye, %125 / %150 DPI, çoklu monitör.
+
+Sorun çıkarsa ilk bakılacak yer: `%LOCALAPPDATA%\Archlence\log\crash.log`
+
+---
+
+## 3. Test edilecek yapı
+
+```
+Source commit : 3c1cd7c4f9f102ceb8b72274f8b98dc29dd648b7
+Workflow run  : 31644153401  (Build Windows EXE, head_sha eşleşiyor)
+Artifact      : Archlence-Setup -> ArchlenceSetup.exe
+Boyut         : 55.169.289 bayt
+SHA-256       : 094ead55152418910310867b2c204e2642820e66a2f60f8465d9541344874a56
+```
+
+İndirme (release YOK, yayın yapılmadı — artifact 2026-11-10'a kadar duruyor):
+
+```bash
+gh run download 31644153401 --repo superuser-d0/archlence \
+  --name Archlence-Setup --dir rc-audit-pr95
+```
+
+**ESKİ RC'Yİ KULLANMAYIN:** `151506a3e58638eff25836fed8bf11d691e30064bb583d6051434c2b19a24d53`
+— Restore çökmesi o yapıda var. Diskte kaldıysa silin.
+
+---
+
+## 4. Bu turda öğrenilen ders — tekrarlamayın
+
+Bu turda CI/doğrulama kodu **üç kez** hatalı çıktı. Üçü de uygulama kodunu
+değil doğrulama katmanını etkiledi, ama örüntü aynı: **Linux'tan Windows
+paketleme/çalışma davranışı hakkında varsayım yapmak.**
+
+1. Kaydırma regresyon kapısının ilk hâli ara bir kaydırma konumundan ölçüyordu
+   ve **düzeltme geri alındığında da yeşil kalıyordu** — yani hatayı hiç
+   yakalamıyordu. Arıza sayfanın TEPESİNDEydi.
+2. Paketleme kontrolü `shell: pwsh` altında bash heredoc kullanıyordu;
+   PowerShell ayrıştırma hatası verdi.
+3. Paketleme kontrolü yalnızca `.exe`'yi bayt bazında tarıyordu. `win32file`
+   bir `.pyd`, yani **diskte ayrı bir dosya** — exe'nin içinde değil. Kontrol
+   ebeveyni hiç göremediği için koşulu tetiklenmiyor, **gerçekte çöken yapıyı
+   sessizce geçiriyordu.**
+
+**Kural:** bir kapı yazdıysanız, onu **bilinen-bozuk bir yapıya karşı**
+çalıştırıp kırmızıya döndüğünü görün. Üçüncü madde tam olarak böyle bulundu:
+çöken RC'nin artifact'ı indirilip kontrol ona karşı koşuldu (`EXIT=1`).
+
+---
+
+## 5. Kapılar nerede
+
+| Kapı | Yer | Ne ölçüyor |
+|---|---|---|
+| Sekme kaydırma | `scripts/dev/verify_tab_scrolling.py` (visual-regression job, 4 DPI/dil) | Gerçek olay döngüsünden dokunuş gönderip `scroll_y` değişiyor mu |
+| Paketleme bütünlüğü | `scripts/check_frozen_lazy_imports.py` (build-windows job) | Paketlenmiş modül, çağrı anında import ettiği eşlikçiyi de getirmiş mi |
+| Para sınırları | `tests/test_monetary_boundary_invariants.py` | 20 para sınırı `nan`/`inf`/`-inf` reddediyor + hiçbir tabloya yazmıyor |
+| Windows sözleşmeleri | `tests/test_windows_platform_contracts.py` | Gerçek DPAPI (yalnız Windows), ASCII dışı/uzun yol, anahtar yarışı |
+
+---
+
+## 6. İki makineyle çalışma kuralları
+
+- Bu dala **force-push yapılmadı ve yapılmamalı** — geçmiş sabit, iki taraf da
+  güvenle `pull --rebase` alabilir.
+- İşlem yapmadan önce `git fetch origin` — karşı taraf commit atmış olabilir.
+- Depo dışındaki `rc-audit-pr95/` klasörü **senkronize DEĞİL** (53 MB ikili,
+  `.gitignore` zaten `dist/`, `*.exe` koruyor). §3'teki komutla her makinede
+  yeniden üretin, kopyalamayın.
