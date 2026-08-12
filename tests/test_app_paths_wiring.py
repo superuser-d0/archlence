@@ -1,12 +1,14 @@
 """docs/ROADMAP.md Faz 1 madde 4. `main.py::_resolve_config_path` /
 `_resolve_savings_store_path` — gerçek dosya taşıma mekaniği zaten
 tests/test_app_paths.py'de doğrulandı; burada doğrulanan, main.py'nin bu
-mekaniği DOĞRU parametrelerle çağırdığı (eski konum, yeni konum, "finora"
+mekaniği DOĞRU parametrelerle çağırdığı (eski konum, yeni konum, yeniden
 adı geçmişi zinciri). Her ikisi de `self`'e ihtiyacı olmayan saf
 fonksiyonlar — gerçek bir Kivy penceresi kurmadan doğrudan çağrılabilir."""
 import os
 import tempfile
 import unittest
+
+from utils.app_paths import LEGACY_CONFIG_FILENAME
 from unittest import mock
 
 os.environ.setdefault("KIVY_NO_ARGS", "1")
@@ -54,35 +56,35 @@ class ResolveConfigPathTest(unittest.TestCase):
         with open(result, encoding="utf-8") as f:
             self.assertEqual(f.read(), "gercek kullanici ayarlari")
 
-    def test_migrates_the_oldest_finora_named_config_straight_to_data_dir(self):
-        """En eski isim (finora) DOĞRUDAN kullanıcı-veri dizinine taşınır.
-        Önceki hâli araya bir adım koyuyordu — finora'yı önce _APP_DIR
+    def test_migrates_the_oldest_named_config_straight_to_data_dir(self):
+        """EN ESKİ isimli config DOĞRUDAN kullanıcı-veri dizinine taşınır.
+        Önceki hâli araya bir adım koyuyordu — en eskisini önce _APP_DIR
         içinde yeni ada kopyalayıp sonra oradan taşıyordu — yani
         paketlenmiş bir Windows kurulumunda SALT-OKUNUR olan kurulum
         dizinine YAZMAYA çalışıyordu; tam da madde 4'ün ortadan kaldırmak
         için var olduğu şey."""
-        finora_path = os.path.join(self.app_dir, "fi" + "nora_config.json")
-        with open(finora_path, "w", encoding="utf-8") as f:
-            f.write("cok eski finora verisi")
+        pre_rename_path = os.path.join(self.app_dir, LEGACY_CONFIG_FILENAME)
+        with open(pre_rename_path, "w", encoding="utf-8") as f:
+            f.write("cok eski surumden kalan veri")
         p1, p2 = self._patched()
         with p1, p2:
             os.environ.pop("ARCHLENCE_CONFIG_PATH", None)
             result = self.main._resolve_config_path()
         self.assertEqual(result, os.path.join(self.data_dir_path, "archlence_config.json"))
         with open(result, encoding="utf-8") as f:
-            self.assertEqual(f.read(), "cok eski finora verisi")
+            self.assertEqual(f.read(), "cok eski surumden kalan veri")
         # _APP_DIR'a ara dosya YAZILMAMALI.
         self.assertFalse(
             os.path.exists(os.path.join(self.app_dir, "archlence_config.json"))
         )
 
     def test_newer_legacy_name_wins_when_both_old_names_exist(self):
-        """İki eski ad da varsa yeni olanı (archlence) kazanmalı; finora
+        """İki eski ad da varsa yeni olanı (archlence) kazanmalı; daha eskisi
         dosyası kullanıcının güncel ayarlarının üzerine yazmamalı."""
         with open(os.path.join(self.app_dir, "archlence_config.json"), "w", encoding="utf-8") as f:
             f.write("daha yeni ayarlar")
-        with open(os.path.join(self.app_dir, "fi" + "nora_config.json"), "w", encoding="utf-8") as f:
-            f.write("cok eski finora verisi")
+        with open(os.path.join(self.app_dir, LEGACY_CONFIG_FILENAME), "w", encoding="utf-8") as f:
+            f.write("cok eski surumden kalan veri")
         p1, p2 = self._patched()
         with p1, p2:
             os.environ.pop("ARCHLENCE_CONFIG_PATH", None)

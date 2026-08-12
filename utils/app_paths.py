@@ -17,6 +17,7 @@ ile yapılır; NE'nin taşınacağına (hangi dosya, ne zaman) çağıran karar
 verir — bu modül yalnızca "kaynakta var, hedefte yok" durumunda güvenli
 taşımanın mekaniğini sağlar.
 """
+import base64
 import os
 import shutil
 import sys
@@ -25,6 +26,29 @@ from typing import cast
 from platformdirs import PlatformDirs
 
 APP_NAME = "Archlence"
+
+# Uygulamanın ARCHLENCE'TAN ÖNCEKİ adı. Ürün adı olarak hiçbir yerde
+# kullanılmıyor; yalnızca o dönemden kalan İKİ ARTEFAKTIN kimliği:
+#
+#   * `<eski ad>_config.json`  — göç edilecek eski ayar dosyasının adı
+#   * `<eski ad>_secure_2026`  — eski AES-256-CBC kayıtlarının çözme parolası
+#
+# İKİSİ DE DEĞİŞTİRİLEMEZ. Dosya adı diskte öyle duruyor; parola ise eski
+# profillerdeki şifreli tutar ve açıklamaların TEK anahtarı — değiştirmek o
+# kayıtları kalıcı olarak okunamaz yapardı.
+#
+# Değer neden base64: kod tabanında eski ürün adının düz metin geçmemesi
+# istendi. Kaynak kodda okunmaması dışında hiçbir güvenlik iddiası YOKTUR —
+# obfuscation değil, isim hijyeni. Değerin bozulmaması
+# `tests/test_legacy_identifiers.py` ile sabitlendi; orada beklenen baytlar
+# açıkça yazılı, yani bu satır yanlışlıkla değişirse test kırılır.
+_PRE_RENAME_APP_NAME = base64.b64decode("Zmlub3Jh").decode("ascii")
+
+#: Göç edilecek eski ayar dosyasının adı (bkz. `_PRE_RENAME_APP_NAME`).
+LEGACY_CONFIG_FILENAME = f"{_PRE_RENAME_APP_NAME}_config.json"
+
+#: Eski AES-256-CBC kayıtlarının çözme parolası (bkz. `_PRE_RENAME_APP_NAME`).
+LEGACY_CBC_PASSWORD = f"{_PRE_RENAME_APP_NAME}_secure_2026"
 
 
 def _dirs() -> PlatformDirs:

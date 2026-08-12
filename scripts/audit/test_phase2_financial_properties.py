@@ -16,6 +16,7 @@ from decimal import Decimal
 from hypothesis import given, settings, strategies as st
 
 from scripts.audit.test_adversarial_reproductions import _TemporaryProfile
+from utils.app_paths import LEGACY_CBC_PASSWORD
 from utils.financial_decimal import fiat
 
 
@@ -236,10 +237,10 @@ class FinancialPropertyAudit(_TemporaryProfile):
         from utils.crypto import decrypt, encrypt
 
         value = Decimal(cents) / Decimal(100)
-        encoded = encrypt(str(value), "finora_secure_2026")
-        decoded = decrypt(encoded, "finora_secure_2026")
-        encoded_again = encrypt(decoded, "finora_secure_2026")
-        decoded_again = decrypt(encoded_again, "finora_secure_2026")
+        encoded = encrypt(str(value), LEGACY_CBC_PASSWORD)
+        decoded = decrypt(encoded, LEGACY_CBC_PASSWORD)
+        encoded_again = encrypt(decoded, LEGACY_CBC_PASSWORD)
+        decoded_again = decrypt(encoded_again, LEGACY_CBC_PASSWORD)
         self.assertEqual(fiat(decoded), value)
         self.assertEqual(fiat(decoded_again), value)
 
