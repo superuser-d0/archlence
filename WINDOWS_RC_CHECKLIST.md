@@ -153,8 +153,19 @@ kutusu ve `SystemExit(2)`'dir (`utils/single_instance.py::notify_already_running
 O kutunun paketlenmiş yapıda gerçekten göründüğü hiç doğrulanmadı — kod yolu
 Kivy başlamadan çalıştığı için paketlemeye duyarlı.
 
-- [ ] Uygulama açıkken ikinci bir örnek başlat: uyarı kutusu **görünüyor mu**,
-      metni ne, kapatınca ilk örnek etkilenmeden devam ediyor mu?
+- [x] **Ölçüldü — 2026-08-14, RC-5.** Kaynaktan çalışan bir örnek kilidi
+      tutarken paketlenmiş uygulama başlatıldı: yerel uyarı kutusu **çıktı** —
+      "Archlence bu kullanıcı profili için zaten çalışıyor." OK'a basınca ikinci
+      örnek çıktı (süreç listesinden düştü), ilk örnek etkilenmeden ayakta
+      kaldı. Yani tek-örnek koruması paketlenmiş yapıda çalışıyor.
+      **Yan bulgu:** kutu görünmeden önce ekranda boş bir **siyah uygulama
+      penceresi** açılıyor ve kutu kapatılana kadar duruyor. Koddaki not
+      ("Kivy/SQLite başlangıcından ÖNCE") paketlenmiş yapıda tam olarak
+      geçerli değil: pencere kilit kontrolünden önce oluşuyor. Kozmetik ama
+      kullanıcı "açıldı sanıp" siyah pencereye bakıyor.
+- [ ] Yan bulgu düzeltilecek mi: kilit kontrolü Kivy penceresi oluşmadan önce
+      koşturulabilir mi (`main.py`'da import sırası), yoksa pencere bilerek mi
+      erken açılıyor?
 - [ ] Bir örnek zorla sonlandırıldıktan sonra (Görev Yöneticisi) yeni örnek
       açılabiliyor mu — yoksa kilit bayat kalıp uygulamayı kilitliyor mu?
 - [ ] Geliştirme oturumu (kaynaktan çalışan örnek) ile paketlenmiş örnek aynı
