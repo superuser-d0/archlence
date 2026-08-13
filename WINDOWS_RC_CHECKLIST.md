@@ -13,8 +13,15 @@ değişiklikleri o yapının içinde yok. Doğrulanacak aday, #95 + #97'nin
 birleşimi — yani `fix/dashboard-scroll-and-empty-cards` dalının ucu (`0888ccb`).
 
 Aday derleme, o dalda elle tetiklenen `workflow_dispatch` koşusudur —
-`31677899610` (Build Windows EXE). Bu koşu **yeşil değilse** aşağıdaki hiçbir
-madde ölçülmez.
+`31677899610` (Build Windows EXE), **yeşil**. Artifact indirilip ölçüldü:
+
+```
+Source commit : 0888ccb9eae92e8af4656ada92fa0b0c69e1dccf   (RC-4)
+Workflow run  : 31677899610  (Build Windows EXE, head_sha eşleşiyor)
+Artifact      : Archlence-Setup -> ArchlenceSetup.exe
+Boyut         : 55.176.430 bayt
+SHA-256       : 02b334b39745838123730ff8610100a12a281605c34f57fa8aab46fc024cc9c1
+```
 
 ```bash
 gh run download 31677899610 --repo superuser-d0/archlence \
@@ -22,18 +29,16 @@ gh run download 31677899610 --repo superuser-d0/archlence \
 certutil -hashfile rc4\ArchlenceSetup.exe SHA256
 ```
 
-- [ ] Koşu yeşil mi — `gh run view 31677899610 --json conclusion`
-- [ ] `head_sha` gerçekten `0888ccb` mü — `gh run view 31677899610 --json headSha`
+- [ ] İndirdiğiniz dosyanın SHA-256'sı yukarıdaki değerle **birebir** aynı
+      (farklıysa yapı sizin ölçtüğünüz kod değildir — durun)
 
-> **Daha eski koşuyu kullanmayın.** `31675937556` (`d5c9b04`) bu listenin ilk
-> hâlinde adres gösteriliyordu; içinde "Kartlarım" şeridinin sabit yüksekliğe
-> döndürüldüğü düzeltme (`0888ccb`) YOK, yani o yapıyla §2.2'yi ölçmek yanlış
-> sonuç verir.
-- [ ] İndirilen dosyanın SHA-256'sı not edildi: `________________________`
-- [ ] Eski RC'ler (`151506a3…`, `094ead55…`, `3a64aafd…`) diskten silindi
+- [ ] Eski RC'ler diskten silindi — `151506a3…`, `094ead55…`, `3a64aafd…`
+      (RC-3) ve `31675937556` koşusundan inen yapı
 
-> Yapı yeşil değilse durun. Kırmızı bir yapıyı fiziksel makinede test etmek,
-> ölçtüğünüz şeyin ne olduğunu bilmemek demektir.
+> **`31675937556` / `d5c9b04` KULLANILMAZ.** Bu listenin ilk hâli onu adres
+> gösteriyordu; içinde "Kartlarım" şeridinin sabit yüksekliğe döndürüldüğü
+> düzeltme yok, yani o yapıyla §2.2'yi ölçmek düzeltilmiş hâli değil, gerilemiş
+> hâli ölçer.
 
 ---
 
