@@ -1,4 +1,4 @@
-# Windows donanım doğrulama — kontrol listesi (RC-4 adayı)
+# Windows donanım doğrulama — kontrol listesi (RC-5 adayı)
 
 Kaynak: `HANDOFF_RC_WINDOWS.md` §2 + PR #97 ile gelen arayüz değişiklikleri.
 Amaç, "Windows integration verified" cümlesini kurabilmek için gereken
@@ -139,6 +139,27 @@ farkında olmadan "ayarlar açılmıyor" diye yaşayabileceği bir durum.
       kapsamıyor?
 
 ---
+
+### 2.4 Tek örnek kilidi — ölçülmesi gereken açık madde
+
+2026-08-14 gecesi paketlenmiş uygulama açıldı, giriş yapıldı (profil dosyaları
+00:07-00:08'de yazıldı), sonra süreç listesinde kalmadı. Aynı anda
+`archlence.instance.lock` **başka bir süreç tarafından tutuluyordu** — makinede
+VS Code'un debugpy oturumları depo `.venv`'i ile çalışıyordu. `crash.log` boş.
+
+Bu bir hata raporu DEĞİL, ölçülmemiş bir durum: kilit tutulduğunda uygulamanın
+tasarlanmış davranışı sessiz çıkış değil, Kivy'den önce yerel bir Windows uyarı
+kutusu ve `SystemExit(2)`'dir (`utils/single_instance.py::notify_already_running`).
+O kutunun paketlenmiş yapıda gerçekten göründüğü hiç doğrulanmadı — kod yolu
+Kivy başlamadan çalıştığı için paketlemeye duyarlı.
+
+- [ ] Uygulama açıkken ikinci bir örnek başlat: uyarı kutusu **görünüyor mu**,
+      metni ne, kapatınca ilk örnek etkilenmeden devam ediyor mu?
+- [ ] Bir örnek zorla sonlandırıldıktan sonra (Görev Yöneticisi) yeni örnek
+      açılabiliyor mu — yoksa kilit bayat kalıp uygulamayı kilitliyor mu?
+- [ ] Geliştirme oturumu (kaynaktan çalışan örnek) ile paketlenmiş örnek aynı
+      profili paylaşıyor: bu beklenen mi, yoksa geliştirme ayrı profile mi
+      yönlendirilmeli?
 
 ## 3. DPAPI — veri kaybı riski en yüksek madde
 
