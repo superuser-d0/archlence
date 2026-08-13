@@ -73,24 +73,39 @@ ikon 44dp, metinle arasında 15dp boşluk.
 
 ### 2.1 Restore dosya seçicisi — uygulamayı çökertiyordu
 
-- [ ] Ayarlar → Geri Yükle → dosya seçiciyi aç. **Uygulama kapanmamalı.**
-- [ ] Seçici bir klasörün içeriğini listeleyebiliyor (çökme ilk listelemede
-      oluyordu).
+**Ölçüldü — 2026-08-13, RC-5, boş profil.** Ayarlar → Veriler ve Gizlilik →
+"Backup Geri Yükle" tıklandı; "Backup Dosyası Seç" penceresi açıldı, dizinleri
+listeledi, İPTAL ile kapandı. Uygulama ayakta kaldı, `crash.log` boş (0 bayt).
+
+- [x] Ayarlar → Geri Yükle → dosya seçici açılıyor, **uygulama kapanmıyor**.
+- [x] Seçici bir klasörün içeriğini listeleyebiliyor.
 - [ ] Kendi yedeğinize seçiciden ulaşabiliyor musunuz — `data_dir()/backups`
-      altındaki dosyalar görünüyor mu? (Gizli `AppData` içindeler; seçici artık
-      oraya açılmalı.)
+      altındaki dosyalar görünüyor mu? **Henüz ölçülemedi:** bu profilde hiç
+      yedek yok, seçici `AppData\Local` içinde açıldı. Önce "Güvenli Backup
+      Oluştur" ile bir yedek alıp tekrar bakın.
 - [ ] Bir yedeği gerçekten geri yükleyin ve verinin döndüğünü doğrulayın.
+      (Bilerek yapılmadı: geri yükleme mevcut verinin üzerine yazar.)
 
 ### 2.2 "Kartlarım" sekmesi kaydırma
 
 Sayfa **tepedeyken** ölçün; ara konumdan ölçmek bu hatayı gizliyor (§4, ders 1).
 
-- [ ] **Tekerlek**, kart şeridinin üzerindeyken sayfa aşağı iniyor
-      ("Hesaplarım" bölümüne ulaşılabiliyor).
-- [ ] **Tekerlek**, kartların altındaki boş alanda da çalışıyor.
+**Ölçüldü — 2026-08-13, RC-5, boş profil (hiç kart yok).**
+
+- [x] **Tekerlek**, şeridin üzerindeyken sayfayı indiriyor; "Hesaplarım"
+      bölümüne ulaşıldı.
+- [x] **Tekerlek**, şerit dışındaki alanda da aynı şekilde çalışıyor (özet
+      kutucuklarının üzerinde ölçüldü, hareket miktarı aynı).
+- [x] **Sürükleme**, şeridin boş alanından dikey olarak sayfayı kaydırıyor.
 - [ ] **Sürükleme**, şeridin kaydırma çubuğundan yatay olarak kartları
-      kaydırıyor.
-- [ ] **Sürükleme**, şeridin boş alanından dikey olarak sayfayı kaydırıyor.
+      kaydırıyor — **kart olmadığı için ölçülemedi.** En az bir kart ekleyip
+      tekrar bakın; kapının dolu profildeki kırmızısı da ancak o zaman
+      açıklanabilir.
+
+> Kart yokken şerit 620dp'lik boş bir alan olarak duruyor ve "Hesaplarım"a
+> inmek için o alanı kaydırıp geçmek gerekiyor. Bilinen ve kabul edilen bedel:
+> şeridi içeriğe göre kısaltmak sekmenin sürüklemesini öldürüyordu (bkz.
+> `HANDOFF_PR97.md` §1).
 
 > **Bilinen sınır — hata olarak raporlamayın:** doğrudan bir KARTIN üzerinden
 > sürüklemek sayfayı kaydırmaz; `MDCard` dokunuşu sahipleniyor, uygulama
@@ -106,6 +121,22 @@ Sayfa **tepedeyken** ölçün; ara konumdan ölçmek bu hatayı gizliyor (§4, d
 > düzeltilmelidir (§4'teki kural: kapı bilinen-bozuk yapıya karşı kırmızıya
 > dönmeli). Elle de çalışmıyorsa bu, kartların üzerinden sürüklemenin gerçek
 > sınırı olarak kayda geçmeli.
+
+---
+
+### 2.3 Bu turda çıkan yeni bulgu — "Ayarlar" sekmesinin ikonu tıklamayı almıyor
+
+Alt gezinme çubuğunda **Ayarlar**, ikonun bulunduğu yükseklikten tıklandığında
+sekme değişmiyor; dört deneme de sonuçsuz kaldı. Aynı yükseklikten "Ana Sayfa",
+"Kartlarım" ve "Araçlar" sorunsuz açılıyor. Ayarlar yalnız **etiket satırına**
+(ikonun ~15px altı) tıklanınca açılıyor.
+
+`crash.log` boş, yani sessizce yutulan bir dokunuş — istisna değil. Muhtemelen
+KivyMD alt gezinmesinin son öğesindeki dokunma alanı kayması. Kullanıcı
+farkında olmadan "ayarlar açılmıyor" diye yaşayabileceği bir durum.
+
+- [ ] Kod tarafında araştırılacak: son sekmenin dokunma alanı neden ikonu
+      kapsamıyor?
 
 ---
 
