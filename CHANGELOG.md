@@ -174,11 +174,16 @@
   take their content's height up to a limit, and the limit is a whole number
   of rows, so a populated card no longer cuts the last row in half either. The
   asset history card and the recent transactions list keep their previous
-  height when they have rows and close up when they have none. The card strip
-  on the "Kartlarım" tab, 620dp whether or not a card existed, closes the same
-  way. Empty states keep their message: the labels that carry it are laid out
-  with an explicit height, without which a content-driven card would collapse
-  to nothing and hide them.
+  height when they have rows and close up when they have none. Empty states
+  keep their message: the labels that carry it are laid out with an explicit
+  height, without which a content-driven card would collapse to nothing and
+  hide them.
+- The 620dp card strip on the "Kartlarım" tab keeps its fixed height. Closing
+  it up when no card exists was tried and reverted against a measurement: with
+  the strip shortened, the account cards move under the point a drag starts
+  from, and a card absorbs the touch — so the tab stopped scrolling by drag,
+  which is the defect that tab was just fixed for. Reclaiming that blank space
+  is not worth the tab.
 - A note on why the two lists are sized by a switch rather than by their
   contents: a `RecycleView` lays its rows out from its own height, so binding
   that height back to the row count (or to the row layout's `minimum_height`)

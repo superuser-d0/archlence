@@ -1909,22 +1909,32 @@ MDScreen:
 
                                         PassthroughScrollView:
                                             size_hint_y: None
-                                            # Üst sınır ölçüldü: 3 hareket satırlı
-                                            # kredi kartı 567dp'ye çıkıyor ("Kart
-                                            # Kullanım Özeti" + Son Hareketler
+                                            # Kart yüksekliği ölçüldü: 3 hareket
+                                            # satırlı kredi kartı 567dp'ye çıkıyor
+                                            # ("Kart Kullanım Özeti" + Son Hareketler
                                             # eklendikten sonra). 500dp'de kartın
-                                            # alt kısmı kırpılıyordu. Hiç kart
-                                            # yokken şerit tamamen kapanır; sabit
-                                            # yükseklik boş bir blok bırakıyordu.
-                                            height: min(cards_container.minimum_height, dp(620))
+                                            # alt kısmı kırpılıyordu.
+                                            #
+                                            # SABİT KALIYOR. Yüksekliği içeriğe
+                                            # bağlamak (kart yokken şerit kapansın
+                                            # diye) denendi ve ÖLÇÜLEREK geri alındı:
+                                            # scripts/dev/verify_tab_scrolling.py
+                                            # bu sekmede sürüklemeyi ölü buldu
+                                            # (#95'in koşusunda içerik 1056dp,
+                                            # sürükleme ✓; bu bağlamayla 1031dp,
+                                            # sürükleme ✗). Şerit kısalınca altındaki
+                                            # kartlar sürükleme noktasına geliyor ve
+                                            # MDCard dokunuşu yutuyor — yani boş
+                                            # kartın yerini kazanmak, bu sekmenin
+                                            # kaydırılabilmesine mal oluyordu.
+                                            height: "620dp"
                                             do_scroll_y: False
                                             do_scroll_x: True
                                             # SAYFA KAYDIRMASINI YUTMASIN.
                                             # Bu yatay şerit, sayfanın DİKEY
                                             # ScrollView'ının içinde duruyor ve
-                                            # kart varken 620dp'ye kadar çıkarak
-                                            # görünür alanın TAMAMINI kaplıyor.
-                                            # Kivy iç içe
+                                            # 620dp yüksekliğiyle görünür alanın
+                                            # TAMAMINDAN büyük. Kivy iç içe
                                             # ScrollView'larda dokunuşu ÖNCE
                                             # çocuğa soruyor (scrollview.py:697,
                                             # `dispatch_children('on_scroll_start')`)

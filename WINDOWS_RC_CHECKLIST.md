@@ -72,14 +72,16 @@ Sayfa **tepedeyken** ölçün; ara konumdan ölçmek bu hatayı gizliyor (§4, d
 > sürüklemek sayfayı kaydırmaz; `MDCard` dokunuşu sahipleniyor, uygulama
 > genelinde geçerli çerçeve davranışı. Kartların üzerinde **tekerlek çalışır**.
 >
-> **Ölçüm notu:** `scripts/dev/verify_tab_scrolling.py` bu makinede
-> `accounts_tab` için `sürükleme=False` veriyor — hem #95'in kendi ucunda hem
-> #97'de, hem dolu hem boş profille. Yani kapı ya yukarıdaki bilinen sınıra
-> takılıyor (sürükleme noktası kartın üzerine denk geliyor) ya da sürükleme
-> düzeltmesi gerçekten tutmuyor. **Fiziksel sonuç hangisiyse kapı ona
-> uydurulmalı:** elle sürükleme çalışıyorsa kapı yanlış yerden ölçüyordur ve
+> **Ölçüm notu:** `scripts/dev/verify_tab_scrolling.py` **boş profille** yeşil
+> (sürükleme ✓, tekerlek ✓) — CI de bu profille koşuyor. **Dolu profille**
+> aynı kapı `sürükleme=False` veriyor; bu, #95'in ucunda da böyle. Sebebi
+> büyük olasılıkla yukarıdaki bilinen sınır: kart sayısı arttıkça sürükleme
+> noktası bir kartın üzerine denk geliyor ve `MDCard` dokunuşu yutuyor.
+> Fiziksel makinede **dolu bir profille** sürükleyip hangi durumda olduğunuzu
+> ölçün: elle çalışıyorsa kapı yanlış noktadan ölçüyor demektir ve
 > düzeltilmelidir (§4'teki kural: kapı bilinen-bozuk yapıya karşı kırmızıya
-> dönmeli).
+> dönmeli). Elle de çalışmıyorsa bu, kartların üzerinden sürüklemenin gerçek
+> sınırı olarak kayda geçmeli.
 
 ---
 
