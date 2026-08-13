@@ -60,11 +60,12 @@ certutil -hashfile rc5\ArchlenceSetup.exe SHA256
 **Bulunan hata (RC-4'te vardı, RC-5'te düzeltildi):** "Algoritmik Öngörü"
 kartının robot ikonu metnin üstüne biniyordu — kart başlıklarında düzeltilen
 kusurun aynısı, genişliği verilmemiş bir `MDIcon`. Düzeltme sonrası ölçüm:
-ikon 44dp, metinle arasında 15dp boşluk. Fiziksel doğrulaması RC-5 ile
-yapılacak (§4'ün son maddesi).
+ikon 44dp, metinle arasında 15dp boşluk.
 
-- [ ] Kurulum RC-5 ile tekrarlandığında "Algoritmik Öngörü" kartında ikon
-      metne binmiyor
+- [x] **RC-5 ile fiziksel makinede doğrulandı (2026-08-13):** "Algoritmik
+      Öngörü" kartında ikon metne binmiyor. Aynı kurulum RC-4'ün üzerine
+      yapıldı, yani yükseltme yolu da bu turda yürüdü — verinin korunduğu
+      §5'te ayrıca teyit edilmeli.
 
 ---
 
