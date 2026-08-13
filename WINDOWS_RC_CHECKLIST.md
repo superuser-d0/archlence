@@ -44,14 +44,26 @@ certutil -hashfile rc4\ArchlenceSetup.exe SHA256
 
 ## 1. Kurulum ve ilk açılış
 
-- [ ] **SmartScreen / Defender.** Kurulum imzasız; uyarı çıkıyor mu, hangi
-      metinle, "yine de çalıştır" ile geçiliyor mu? Ekran görüntüsü alın —
-      README'deki "SmartScreen may warn" ifadesinin gerçekten karşılığı bu mu?
-- [ ] **Yönetici olmayan kullanıcı.** Standart bir hesapla kurun. Kurulum
-      kullanıcı başına; yönetici istemi ÇIKMAMALI.
-- [ ] **İlk açılış.** Uygulama açılıyor, PIN/parola kurulumu tamamlanıyor.
-- [ ] Profil dizini gerçekten `%LOCALAPPDATA%\Archlence` altında oluştu
-      (kurulum dizininde veri YOK — ROADMAP Faz 1 madde 4).
+**Ölçüldü — 2026-08-13, RC-4 (`0888ccb`), Windows 11 Pro 26200, temiz profil**
+(önceki profil silinerek kuruldu):
+
+- [x] **SmartScreen / Defender.** Uyarı **çıkmadı**. README'deki "SmartScreen
+      may warn" ifadesi bu makinede karşılık bulmadı; imzasız paket için
+      garanti değil, farklı makinede tekrar bakılmalı.
+- [x] **Yönetici olmayan kullanıcı.** Yönetici istemi **çıkmadı**; kurulum
+      kullanıcı başına çalışıyor.
+- [x] **İlk açılış.** Uygulama açıldı.
+- [x] Profil `%LOCALAPPDATA%\Archlence` altında oluştu: `finance.db`,
+      `archlence_config.json`, `Logs\`, `archlence.instance.lock`.
+- [x] **Anahtar korumasının kanıtı:** dizinde yalnız `encryption.key.dpapi`
+      var, düz `encryption.key` **yok** — yani anahtar doğrudan DPAPI'ye
+      yazıldı. §3'ün reboot testi bu sayede gerçek koşulu ölçecek.
+
+**Bulunan hata (düzeltildi, bu yapıda YOK):** "Algoritmik Öngörü" kartının
+robot ikonu metnin üstüne biniyordu — kart başlıklarında düzeltilen kusurun
+aynısı, genişliği verilmemiş bir `MDIcon`. Düzeltme sonrası ölçüm: ikon 44dp,
+metinle arasında 15dp boşluk. Yeniden görmek için RC-4'ten SONRAKİ bir yapı
+gerekir.
 
 ---
 

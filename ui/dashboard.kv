@@ -822,6 +822,13 @@ MDScreen:
                                         theme_text_color: "Custom"
                                         text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
                                         font_size: "36sp"
+                                        # Genişlik AÇIKÇA veriliyor: genişliksiz
+                                        # bırakılan MDIcon'un glifi yanındaki
+                                        # metnin üstüne taşıyor (kart başlıklarında
+                                        # düzeltilen kusurun aynısı). 36sp'lik glif
+                                        # için 44dp ölçüldü.
+                                        size_hint_x: None
+                                        width: "44dp"
                                         size_hint_y: None
                                         height: self.texture_size[1]
                                         pos_hint: {"top": 1}

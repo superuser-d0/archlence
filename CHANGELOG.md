@@ -191,6 +191,11 @@
   over the card beneath it. Measured on the assets tab and reverted.
 - The recent transactions list says "Bu dönemde işlem bulunmuyor." when the
   selected period has none, in place of what used to be an empty 400dp block.
+- The robot icon on the "Algoritmik Öngörü" card no longer overlaps its text.
+  Reported from a real Windows install; same defect as the heading icons
+  below — the icon was laid out without a width, so its glyph spilled into the
+  paragraph beside it. Measured after the fix: 44dp icon, 15dp of space before
+  the text.
 - The heading icons on the "Aktif Borçlarım", "Yaklaşan Ödemeler", "Bekleyen
   İşlemler" and "Varlık Geçmişi" cards no longer overlap the heading text.
   They were laid out without an explicit width, unlike the icons on the
