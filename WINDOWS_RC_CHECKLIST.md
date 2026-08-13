@@ -124,19 +124,38 @@ Sayfa **tepedeyken** ölçün; ara konumdan ölçmek bu hatayı gizliyor (§4, d
 
 ---
 
-### 2.3 Bu turda çıkan yeni bulgu — "Ayarlar" sekmesinin ikonu tıklamayı almıyor
+### 2.3 KAPANDI — "Ayarlar ikonu tıklamayı almıyor" sanılan şey, Archlence hatası DEĞİL
 
-Alt gezinme çubuğunda **Ayarlar**, ikonun bulunduğu yükseklikten tıklandığında
-sekme değişmiyor; dört deneme de sonuçsuz kaldı. Aynı yükseklikten "Ana Sayfa",
-"Kartlarım" ve "Araçlar" sorunsuz açılıyor. Ayarlar yalnız **etiket satırına**
-(ikonun ~15px altı) tıklanınca açılıyor.
+İlk gözlem doğruydu (Ayarlar'ın ikon satırı dört denemede de sonuçsuz kaldı)
+ama teşhis **yanlıştı** — "muhtemelen KivyMD'nin dokunma alanı kayması" diye
+yazılmıştı, geri çekiliyor. Sebep koda hiç dokunmadan, ölçülerek bulundu:
 
-`crash.log` boş, yani sessizce yutulan bir dokunuş — istisna değil. Muhtemelen
-KivyMD alt gezinmesinin son öğesindeki dokunma alanı kayması. Kullanıcı
-farkında olmadan "ayarlar açılmıyor" diye yaşayabileceği bir durum.
+Ekranı kontrol etmek için kullanılan **Claude uygulamasının kendi penceresi**
+o anda gerçek masaüstünde `(989,20)-(1523,747)` dikdörtgeninde duruyordu ve
+Archlence penceresinin önündeydi (z-sırasında üstte). Alt gezinme beş eşit
+sütuna bölünüyor; "Ayarlar" sütunu `[1012,1175]` tamamen bu pencerenin x
+aralığının içinde kalıyor, "Araçlar" sütununun da yalnız en sağ ~13px'i
+kesişiyor. Dört noktalı A/B/A ölçümü kesin sonuç verdi:
 
-- [ ] Kod tarafında araştırılacak: son sekmenin dokunma alanı neden ikonu
-      kapsamıyor?
+| Nokta | Konum | Sonuç |
+|---|---|---|
+| Araçlar'ın en sağ dilimi, Claude'un altında | x=905, y=640/656 | ✗ başarısız |
+| Aynı x=905, Claude penceresinin dışında | x=905, y=690 | ✓ başarılı |
+| Araçlar'ın kendi güvenli bölgesi | x=860, y=640 | ✓ başarılı |
+| Pencere başka bir ekran konumuna taşındığında | — | dead zone tamamen kayboldu |
+| Pencere eski konumuna geri taşındığında | — | dead zone aynen geri geldi |
+
+Yani dokunuş Archlence'a hiç ulaşmıyordu; üstteki pencere yutuyordu. `crash.log`
+boş olması da bununla tutarlı — istisna yok, çünkü olay uygulamaya hiç
+gelmedi. Realtek Audio Console de aynı bölgede görünür bir pencereydi ve önce
+o şüphelenildi; kapatılıp aynı test tekrarlandığında dead zone **değişmedi**,
+yani o suçlu değildi.
+
+**Sonuç:** kod tarafında yapılacak bir şey yok. Bu bulgu, kullanıcının ilk kez
+manuel testte rastladığı "Ayarlar açılmıyor" durumuyla aynı kalıpta olabilir —
+eğer o sırada ekranda Archlence'ın üzerine binen başka bir pencere (bir sohbet/
+asistan penceresi dahil) varsa. Gerçek bir kullanıcı hatası bildirirse, önce
+ekranda üst üste binen başka pencere olup olmadığı sorulmalı.
 
 ---
 
