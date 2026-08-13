@@ -126,8 +126,10 @@
   scrollbar, so dragging reaches the page, and it declines vertical wheel events
   outright — restricting it to the scrollbar was not enough on its own, because
   the wheel is handled earlier than that and was swallowed even though nothing
-  moved. Dragging directly on a card still does not scroll; cards absorb touches
-  everywhere in the app.
+  moved. That wheel rule is no longer specific to this strip; it is the shared
+  behaviour of every list that sits inside the page, described under UI and
+  accessibility below. Dragging directly on a card still does not scroll; cards
+  absorb touches everywhere in the app.
 
 - Budget plan items are saved through the service layer, which validates the
   amount the same way every other monetary write does. This was the only write
@@ -153,6 +155,43 @@
   now returns the row it wrote instead of leaving callers to read the cursor
   afterwards. All of these were correct, but each depended on no other insert
   landing in between — the assumption that had already failed once.
+### UI and accessibility
+
+- The page can be scrolled with the wheel while the pointer rests over a list
+  inside a card. Kivy's scroll view claims a wheel event even when its content
+  fits entirely in view, so the event never reached the page behind it: over
+  the asset history list — anywhere below that card's heading — the wheel did
+  nothing at all. The same applied to the subscription, income, debt, upcoming
+  payment, recent transaction, active asset and account movement lists. Those
+  lists now hand the wheel back to the page whenever they cannot move in that
+  direction, including at the top and bottom of their own content. The card
+  strip on the "Kartlarım" tab is covered by the same rule, which replaces the
+  strip-specific one that fixed it first.
+- Cards no longer reserve space for content they do not have. The active
+  debts, upcoming payments, asset history and recent transactions areas had
+  fixed heights — 220, 190, 320 and 400dp — so an empty profile scrolled
+  through screens of blank card. The debts and upcoming payments cards now
+  take their content's height up to a limit, and the limit is a whole number
+  of rows, so a populated card no longer cuts the last row in half either. The
+  asset history card and the recent transactions list keep their previous
+  height when they have rows and close up when they have none. The card strip
+  on the "Kartlarım" tab, 620dp whether or not a card existed, closes the same
+  way. Empty states keep their message: the labels that carry it are laid out
+  with an explicit height, without which a content-driven card would collapse
+  to nothing and hide them.
+- A note on why the two lists are sized by a switch rather than by their
+  contents: a `RecycleView` lays its rows out from its own height, so binding
+  that height back to the row count (or to the row layout's `minimum_height`)
+  closes a loop. It resolves to a size that renders rows outside the card,
+  over the card beneath it. Measured on the assets tab and reverted.
+- The recent transactions list says "Bu dönemde işlem bulunmuyor." when the
+  selected period has none, in place of what used to be an empty 400dp block.
+- The heading icons on the "Aktif Borçlarım", "Yaklaşan Ödemeler", "Bekleyen
+  İşlemler" and "Varlık Geçmişi" cards no longer overlap the heading text.
+  They were laid out without an explicit width, unlike the icons on the
+  neighbouring cards, and the glyph spilled into the label beside it. The
+  monthly change indicator and the negative-balance warning carried the same
+  defect.
 
 ## [0.0.9] — 2026-08-11
 

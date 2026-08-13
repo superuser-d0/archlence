@@ -1,4 +1,5 @@
 from kivy.clock import Clock
+from kivy.metrics import dp
 from utils.toast import toast
 from kivymd.uix.button import MDIconButton
 from kivymd.uix.dialog import MDDialog
@@ -67,7 +68,15 @@ class DebtMixin:
             container.clear_widgets()
 
             if not debts:
-                lbl = MDLabel(text=_t("Henüz aktif bir borcunuz bulunmuyor."), theme_text_color="Secondary", font_style="Body2", halign="center")
+                # size_hint_y=None + sabit yükseklik: kart artık içeriğe uyuyor
+                # (ui/dashboard.kv, active_debts_card). Varsayılan size_hint_y=1
+                # kapsayıcının minimum_height'ına 0 katkı verir, yani bu metin
+                # sıfır yükseklikli bir alana çizilip görünmez olurdu.
+                lbl = MDLabel(
+                    text=_t("Henüz aktif bir borcunuz bulunmuyor."),
+                    theme_text_color="Secondary", font_style="Body2",
+                    halign="center", size_hint_y=None, height=dp(40),
+                )
                 container.add_widget(lbl)
                 return
 

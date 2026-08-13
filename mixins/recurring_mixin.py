@@ -3,6 +3,7 @@ import datetime
 import threading
 
 from kivy.clock import Clock
+from kivy.metrics import dp
 from utils.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDFlatButton
@@ -61,11 +62,16 @@ class RecurringMixin:
             ]
 
             if not visible:
+                # Yükseklik açıkça veriliyor: kart içeriğe uyduğu için
+                # (ui/dashboard.kv, upcoming_payments_card) size_hint_y=1 olan
+                # bir etiket kapsayıcıya sıfır yükseklik katkısı yapardı.
                 lbl = MDLabel(
                     text=_t("Yaklaşan ödeme bulunmuyor."),
                     theme_text_color="Secondary",
                     font_style="Body2",
                     halign="center",
+                    size_hint_y=None,
+                    height=dp(40),
                 )
                 lbl.bind(size=lbl.setter('text_size'))
                 container.add_widget(lbl)

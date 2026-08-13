@@ -9,6 +9,7 @@ from kivy.properties import (
 )
 from kivy.metrics import dp
 from kivy.clock import Clock
+from kivy.uix.recycleview import RecycleView
 from kivy.uix.recycleview.views import RecycleDataViewBehavior
 from kivy.uix.scrollview import ScrollView
 from kivymd.app import MDApp
@@ -17,6 +18,78 @@ from kivymd.uix.label import MDLabel
 import unicodedata
 from ui.i18n import tr as _t
 from ui import theme as ftheme
+
+
+class _WheelPassthroughMixin:
+    """Kaydıramadığı tekerlek olayını ebeveyn ScrollView'a bırakır.
+
+    Kivy'nin ScrollView'i içerik kutuya sığsa bile tekerlek olayını yutup
+    True dönüyor (kivy/uix/scrollview.py, on_scroll_start sonundaki
+    ``return True``). Kart içindeki kısa listelerin üzerindeyken sayfanın
+    kaydırılamaması bundan kaynaklanıyordu: imleç örneğin "Varlık Geçmişi"
+    listesinin üstündeyken olay orada kalıp dış ScrollView'a ulaşmıyordu.
+    Ayrıca ``always_overscroll`` varsayılan olarak açık olduğundan sığan
+    içerik de esneme animasyonu tetikleyip titremeye yol açıyor.
+
+    Aynı kapı "Kartlarım" sekmesindeki YATAY kart şeridini de kapsıyor (o iş
+    daha önce ayrı bir `HorizontalStripScrollView` sınıfıyla yapılıyordu;
+    davranış birebir korunarak buraya taşındı). Orada tekerlek dalının
+    asimetrisi ölçülmüştü — fiziksel Windows 11 ve xvfb, aynı sonuç: sayfa
+    tepedeyken çalışan sekmelerde ``scrollup`` -0,0495 hareket ederken şeridin
+    üzerinde 0,0000 kalıyordu. Sebep, Kivy'nin yalnız "zaten uçtayım" erken
+    çıkışına sahip olması: yatay bir şeritte ``scroll_y`` hep 1.0 olduğu için
+    ``scrolldown`` o çıkışa takılıp sayfaya geçiyor, ama kullanıcının içeriği
+    görmek için çevirdiği yön olan ``scrollup`` takılmıyor ve sessizce
+    yutuluyor. Burada ``do_scroll_y`` kapalıysa dikey tekerlek her iki yönde de
+    ebeveyne bırakılır.
+
+    Tekerlek ile SÜRÜKLEME ayrı yollar: sürüklemeyi Kivy'nin kendi ``bars``
+    kapısı kapatıyor (``scroll_type: ["bars"]``, bkz. ui/dashboard.kv'deki
+    şerit). Tekerlek dalı o kapıdan önce çalıştığı için ``scroll_type`` onu
+    etkilemiyor — bu sınıf tam olarak o boşluğu dolduruyor.
+    """
+
+    def on_scroll_start(self, touch, check_children=True):
+        # Önce çocuklar denensin; iç içe kaydırma sırası bozulmasın.
+        if check_children:
+            touch.push()
+            touch.apply_transform_2d(self.to_local)
+            handled = self.dispatch_children("on_scroll_start", touch)
+            touch.pop()
+            if handled:
+                return True
+        if not self._wheel_can_scroll(touch):
+            return False
+        return super().on_scroll_start(touch, check_children=False)
+
+    def _wheel_can_scroll(self, touch):
+        if "button" not in touch.profile:
+            return True
+        button = touch.button
+        if button not in ("scrollup", "scrolldown"):
+            return True
+        # Çarpışma dışındaki durumları taban sınıf kendi defterine yazsın.
+        if not self.collide_point(*touch.pos):
+            return True
+        viewport = self._viewport
+        if viewport is None or not self.do_scroll_y:
+            return False
+        if viewport.height <= self.height:
+            return False
+        # Sınırda kalan yön de ebeveyne devredilir.
+        if button == "scrolldown" and self.scroll_y >= 1:
+            return False
+        if button == "scrollup" and self.scroll_y <= 0:
+            return False
+        return True
+
+
+class PassthroughScrollView(_WheelPassthroughMixin, ScrollView):
+    """Kart içi ScrollView; kaydıracak yeri yoksa sayfayı kaydırtır."""
+
+
+class PassthroughRecycleView(_WheelPassthroughMixin, RecycleView):
+    """Kart içi RecycleView; kaydıracak yeri yoksa sayfayı kaydırtır."""
 
 
 class SearchBar(MDBoxLayout):
@@ -1323,43 +1396,9 @@ class ActiveAssetsBentoWidget(MDCard):
     status_text = StringProperty("Canlı portföy değeri yükleniyor")
 
 
-class HorizontalStripScrollView(ScrollView):
-    """Dikey bir sayfanın içinde yaşayan yatay şerit.
-
-    NEDEN VAR: Kivy'nin `ScrollView`'ı iç içe kullanıldığında dokunuşu ÖNCE
-    çocuğa soruyor (`scrollview.py`, `on_scroll_start` -> `dispatch_children`).
-    Yatay şerit bunu iki ayrı yoldan sahipleniyor ve ikisi de ayrı ayrı
-    kapatılmak zorunda:
-
-      * SÜRÜKLEME — fonksiyonun sonunda, kendi ekseninde kayacak içerik olup
-        olmadığına BAKMADAN `self._touch = touch` ... `return True`.
-        Kapatan: `scroll_type: ["bars"]` (aynı dosyadaki `bars` kapısı,
-        dokunuş çubuğun üzerinde değilse sahiplenmiyor).
-
-      * TEKERLEK — bu sınıfın var olma sebebi. Tekerlek dalı `bars` kapısından
-        ÖNCE çalışıyor, yani `scroll_type` onu hiç etkilemiyor. Dal, kendi
-        erken çıkışına ("zaten uçtayım") takılmazsa `e` boş kalsa bile
-        KOŞULSUZ `return True` diyor. Yatay bir şeritte `scroll_y` hep 1.0
-        olduğu için `scrolldown` erken çıkışa takılıp sayfaya geçiyor, ama
-        `scrollup` — yani kullanıcının içeriği görmek için çevirdiği yön —
-        takılmıyor ve sessizce yutuluyor.
-
-    Ölçüldü (fiziksel Windows 11 ve xvfb, aynı sonuç): sayfa tepedeyken
-    çalışan sekmelerde `scrollup` -0,0495 hareket ederken bu şeridin üzerinde
-    0,0000 kalıyordu; yani "Hesaplarım" bölümüne tekerlekle hiç inilemiyordu.
-
-    Çözüm dar tutuldu: yalnızca DİKEY tekerlek olayları ve yalnızca bu
-    ScrollView dikey kaydırma yapmıyorsa reddediliyor. `False` dönmek
-    ebeveynin `dispatch_children` kontrolünü düşürüyor ve olay sayfaya
-    kalıyor. Yatay tekerlek (shift+tekerlek) ile sürükleme/çubuk davranışı
-    değişmiyor.
-    """
-
-    _VERTICAL_WHEEL = ("scrollup", "scrolldown")
-
-    def on_scroll_start(self, touch, check_children=True):
-        if (not self.do_scroll_y
-                and "button" in touch.profile
-                and touch.button in self._VERTICAL_WHEEL):
-            return False
-        return super().on_scroll_start(touch, check_children=check_children)
+# NOT: Buradaki `HorizontalStripScrollView` kaldırıldı; işini dosyanın
+# başındaki `PassthroughScrollView` devraldı (aynı kapı, daha geniş kapsam —
+# yalnız "Kartlarım" şeridi değil, kart içindeki bütün listeler). Yatay şerit
+# için davranış birebir aynı: dikey kaydırma yapmayan bir ScrollView dikey
+# tekerleği sahiplenmez, `False` döner ve olay sayfaya kalır. Sürükleme yolu
+# hâlâ `scroll_type: ["bars"]` ile kapatılıyor (bkz. ui/dashboard.kv).

@@ -1557,6 +1557,13 @@ class ArchlenceApp(
                 )
 
             recent_list.data = data
+            # Liste yüksekliği artık içeriğe bağlı (ui/dashboard.kv): işlem
+            # yokken alan tamamen kapanır, o yüzden boş durum metni bu etikete
+            # düşer — varlık geçmişindeki kalıbın aynısı.
+            empty_label = self.root.ids.get("recent_tx_empty_label")
+            if empty_label is not None:
+                empty_label.height = 0 if data else dp(40)
+                empty_label.opacity = 0 if data else 1
             if brand_names_to_prefetch:
                 self._prefetch_recent_brand_icons(brand_names_to_prefetch, transactions)
         except Exception:
