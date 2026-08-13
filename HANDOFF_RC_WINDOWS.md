@@ -33,15 +33,23 @@ yalnızca **kodda görünmeyen** kararlar var.
 | Bulgu | Kök neden | Düzeltme |
 |---|---|---|
 | Restore dosya seçicisi uygulamanın tamamını çökertiyordu | Kivy `win32file.GetFileAttributesExW` çağırıyor; pywin32 o çağrının İÇİNDE `win32timezone`'u import ediyor, PyInstaller statik analizi göremiyor | `archlence.spec` → `hiddenimports` |
-| "Kartlarım" sekmesi hiç kaydırılamıyordu | Sayfanın dikey ScrollView'ı içindeki yatay kart şeridi (620dp, görünür alandan büyük) her dokunuşu sahipleniyor; Kivy iç içe ScrollView'da dokunuşu ÖNCE çocuğa soruyor | `ui/dashboard.kv` → şeride `scroll_type: ["bars"]` |
+| "Kartlarım" sekmesi hiç kaydırılamıyordu | Sayfanın dikey ScrollView'ı içindeki yatay kart şeridi (620dp, görünür alandan büyük) her dokunuşu sahipleniyor; Kivy iç içe ScrollView'da dokunuşu ÖNCE çocuğa soruyor | `ui/dashboard.kv` → şeride `scroll_type: ["bars"]` (sürükleme) **+** `ui/components.py` → `HorizontalStripScrollView` (tekerlek) |
+| Kullanıcı kendi yedeğine geri yükleme seçicisinden ulaşamıyordu | Yedekler `data_dir()/backups` altında, Windows'ta gizli `AppData`nın içinde; seçici ev dizininde açılıyor ve Kivy gizli girdileri listelemiyor | `mixins/migration_mixin.py` → `restore_chooser_path()` |
 
 ### Ölçülen öncesi/sonrası (Kartlarım, sayfa tepedeyken)
 
 ```
-                 ÖNCESİ            SONRASI
-sürükleme        1.000 -> 1.000    1.000 -> 0.028
-tekerlek         1.000 -> 1.000    1.000 -> 0.018
+                          ÖNCESİ    1. DÜZELTME   2. DÜZELTME
+sürükleme (aşağı)         ölü       çalışıyor     çalışıyor
+tekerlek (scrollup)       ölü       ÖLÜ           çalışıyor
 ```
+
+`scroll_type: ["bars"]` yalnız sürüklemeyi kurtardı; tekerlek ikinci turda
+fiziksel makinede hâlâ ölü bulundu ve `HorizontalStripScrollView` ile
+kapatıldı. Ölçüm kapısı da düzeltildi: `scrolldown` yerine `scrollup`
+kullanıyor (ilki sayfa tepedeyken Kivy tarafından zaten reddediliyor, yani
+sağlam ve bozuk sekmeyi ayırt etmiyordu) ve tekerleği sürüklemeden ÖNCE
+ölçüyor (sürüklemenin bıraktığı efekt artığı sahte yeşil üretiyordu).
 
 ### BİLİNEN SINIR — hata değil, davranış
 
@@ -51,6 +59,15 @@ Doğrudan bir **kartın üzerinden** sürüklemek sayfayı kaydırmaz: KivyMD'ni
 bu düzeltmenin getirdiği bir şey DEĞİL. Kartların üzerinde **tekerlek çalışıyor**.
 Yeni bir hata raporu bunu tekrar bildirirse "zaten biliniyor" diye kapatmayın;
 düzeltmek KivyMD kart davranışına dokunmayı gerektirir, ayrı bir iştir.
+
+> **DÜZELTME (2026-08-13, ikinci fiziksel tur).** Bu bölümün ilk hâli
+> davranışı TERS anlatıyordu: "sürükleme çalışmaz, tekerlek çalışır" deniyordu.
+> Fiziksel testte tam tersi ölçüldü — sürükleme çalışıyordu, **tekerlek
+> ölüydü**. Sebep, ilk düzeltmenin (`scroll_type: ["bars"]`) yalnızca sürükleme
+> yolunu kapatması; Kivy'nin tekerlek dalı `bars` kapısından ÖNCE çalışıyor ve
+> hiçbir şey kaydıramasa bile olayı yutuyor. Tekerlek yolu ayrıca
+> `HorizontalStripScrollView` ile kapatıldı (bkz. `ui/components.py`).
+> Yukarıdaki paragrafın kart/sürükleme kısmı geçerliliğini koruyor.
 
 ---
 
@@ -99,7 +116,7 @@ gh run download 31644153401 --repo superuser-d0/archlence \
 
 ## 4. Bu turda öğrenilen ders — tekrarlamayın
 
-Bu turda CI/doğrulama kodu **üç kez** hatalı çıktı. Üçü de uygulama kodunu
+Bu turda CI/doğrulama kodu **dört kez** hatalı çıktı. Üçü de uygulama kodunu
 değil doğrulama katmanını etkiledi, ama örüntü aynı: **Linux'tan Windows
 paketleme/çalışma davranışı hakkında varsayım yapmak.**
 
@@ -113,9 +130,18 @@ paketleme/çalışma davranışı hakkında varsayım yapmak.**
    ebeveyni hiç göremediği için koşulu tetiklenmiyor, **gerçekte çöken yapıyı
    sessizce geçiriyordu.**
 
+4. Kaydırma kapısı tekerleği `scrolldown` ile deniyordu — sayfa tepedeyken
+   Kivy'nin HER ScrollView'da reddettiği yön, yani sağlam ve bozuk sekmede
+   aynı sonucu veren, ayırt etmeyen bir ölçüm. Üstelik ölçüm sürüklemeden
+   sonra koşuyordu ve sürüklemenin bıraktığı efekt artığı `scroll_y`'yi
+   1.000'den azıcık kaydırıp o reddi devre dışı bırakıyordu: kapı, gerçekte
+   ölü olan tekerleği **çalışıyor sanıyordu**. Fiziksel makine yakaladı.
+
 **Kural:** bir kapı yazdıysanız, onu **bilinen-bozuk bir yapıya karşı**
-çalıştırıp kırmızıya döndüğünü görün. Üçüncü madde tam olarak böyle bulundu:
-çöken RC'nin artifact'ı indirilip kontrol ona karşı koşuldu (`EXIT=1`).
+çalıştırıp kırmızıya döndüğünü görün — ve düzeltmeyi geri alıp gerçekten
+kızardığını teyit edin. Üçüncü madde çöken RC'nin artifact'ı indirilip kontrol
+ona karşı koşularak bulundu (`EXIT=1`); dördüncüsü ancak fiziksel makinede
+görüldü, çünkü kapı kendi ölçüm yöntemiyle kendini kandırıyordu.
 
 ---
 

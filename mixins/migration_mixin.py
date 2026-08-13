@@ -8,6 +8,26 @@ from utils.toast import toast
 from ui.i18n import tr as _t
 
 
+def restore_chooser_path():
+    """Geri yükleme seçicisinin AÇILACAĞI dizin.
+
+    Yedekler `data_dir()/backups` altında; Windows'ta bu `AppData`nın içinde
+    ve `AppData` gizli bir klasör. Kivy'nin dosya seçicisi gizli girdileri
+    listelemediği için ev dizininden oraya gezinmek İMKÂNSIZ — kullanıcı
+    kendi yedeğine ulaşamıyor. Seçici bu yüzden doğrudan yedek klasöründe
+    açılıyor.
+
+    Yedek klasörü yoksa (henüz hiç yedek alınmamış) ev dizinine düşülür;
+    var olmayan bir yol seçiciyi boş bırakırdı.
+    """
+    from utils.app_paths import data_dir
+
+    backups_dir = Path(data_dir()) / "backups"
+    if backups_dir.is_dir():
+        return str(backups_dir)
+    return os.path.expanduser("~")
+
+
 class MigrationMixin:
     """Ayarlar > Veri Yönetimi akışı: CSV dışa aktarma ve dosya seçicili içe
     aktarma. Ağır işler (şifre çözme/şifreleme + DB) diğer mixin'lerdeki
@@ -467,8 +487,29 @@ class MigrationMixin:
         from kivy.uix.filechooser import FileChooserListView
         from kivy.metrics import dp
 
+        # SEÇİCİ YEDEKLERİN DURDUĞU YERDE AÇILIYOR, EV DİZİNİNDE DEĞİL.
+        #
+        # `_create_verified_backup` yedeği `data_dir()/backups` altına yazıyor;
+        # Windows'ta bu `%LOCALAPPDATA%\Archlence\backups`, yani `AppData`nın
+        # İÇİNDE. `AppData` klasörünün Hidden özniteliği var ve Kivy'nin dosya
+        # seçicisi gizli girdileri varsayılan olarak listelemiyor
+        # (`show_hidden` bu kod tabanında hiçbir yerde set edilmiyor).
+        #
+        # Sonuç gerçek bir Windows 11 makinesinde ölçüldü: seçici ev dizininde
+        # açılıyor, `AppData` listede hiç görünmüyor ve kullanıcı KENDİ
+        # yedeğine uygulamanın içinden ULAŞAMIYOR. Finans uygulamasında geri
+        # yükleme yolunun kapalı olması ciddi bir kusur.
+        #
+        # Bu, `win32timezone` düzeltmesinin YARATTIĞI bir sorun DEĞİL: o
+        # düzeltmeden önce seçici hiç listeleme yapamadan uygulamayı
+        # çökertiyordu (`is_hidden` içinde ModuleNotFoundError), yani gizli
+        # dizin filtresi zaten hiç görülemiyordu. Çökme kalkınca altındaki
+        # erişim sorunu görünür oldu.
+        #
+        # Ev dizinine geri düşülüyor: yedek klasörü henüz oluşmamışsa (hiç
+        # yedek alınmamışsa) var olmayan bir yola açmak seçiciyi boş bırakır.
         chooser = FileChooserListView(
-            path=os.path.expanduser("~"),
+            path=restore_chooser_path(),
             filters=["*.backup", "*.archlence-backup", "*.zip"],
         )
         content = MDBoxLayout(

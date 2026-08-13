@@ -146,16 +146,25 @@ class ScrollVerifier(ArchlenceApp):
         overflows = content_height > page.height
 
         results = {}
-        for label in ("drag", "wheel"):
+        for label in ("wheel", "drag"):
             # SAYFANIN TEPESİNDEN ÖLÇÜLÜYOR — kullanıcının sekmeyi açtığında
             # bulduğu hâl. Ara bir konumdan ölçmek hatayı KAÇIRIYORDU: bu
             # kapının ilk hâli `scroll_y = 0.5`'ten ölçüyordu ve düzeltme
-            # geri alındığında bile yeşil kalıyordu (ölçüldü). Arızanın
-            # kendisi tepedeydi: kart şeridi dokunuşu sahiplendiği için
-            # sürükleme de tekerlek de HİÇBİR ŞEY yapmıyordu.
+            # geri alındığında bile yeşil kalıyordu (ölçüldü).
+            #
+            # HER ÖLÇÜM TAZE BAŞLIYOR. Tekerlek ölçümü eskiden sürüklemenin
+            # HEMEN ARDINDAN koşuyordu; sürüklemenin bıraktığı efekt hâlâ
+            # sönerken `scroll_y` 1.000'den azıcık sapıyor ve Kivy'nin
+            # "zaten uçtayım" erken çıkışı tetiklenmiyordu. Sonuç sahte
+            # yeşildi: kapı, gerçekte ölü olan tekerleği çalışıyor sanıyordu.
+            # Sıra da bu yüzden TEKERLEK ÖNCE: sürükleme her hâlükârda
+            # efekti hareket hâlinde bırakıyor ve sonrasında yapılan hiçbir
+            # `settle` onu tam olarak 1.000'e oturtmuyor (ölçüldü — kapı
+            # sürüklemeden sonra ölçtüğü sürece bozuk şeridi de yeşil
+            # geçiriyordu). Tekerlek, sayfaya hiç dokunulmamış hâlde ölçülür.
             start = 1.0
             page.scroll_y = start
-            _settle(8)
+            _settle(45)
             x, y = Window.width / 2, Window.height / 2
             if label == "drag":
                 # AŞAĞI doğru sürükleme: içeriğin alt kısmını açan yön.
@@ -167,7 +176,13 @@ class ScrollVerifier(ArchlenceApp):
                     Clock.tick()
                 touch.release()
             else:
-                touch = _Touch(x, y, button="scrolldown")
+                # `scrollup` — İÇERİĞE DOĞRU olan yön. `scrolldown` YANLIŞ
+                # seçimdi: sayfa tepedeyken Kivy onu her ScrollView'da
+                # reddediyor (`scroll_y >= 1` erken çıkışı), yani hem sağlam
+                # hem bozuk sekmelerde aynı sonucu veriyor — ayırt etmiyor.
+                # Ölçüldü: çalışan sekmelerde `scrollup` -0,0495 hareket
+                # ederken bozuk sekmede 0,0000 kalıyor.
+                touch = _Touch(x, y, button="scrollup")
                 touch.press()
                 touch.release()
             _settle(40)

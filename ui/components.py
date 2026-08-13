@@ -10,6 +10,7 @@ from kivy.properties import (
 from kivy.metrics import dp
 from kivy.clock import Clock
 from kivy.uix.recycleview.views import RecycleDataViewBehavior
+from kivy.uix.scrollview import ScrollView
 from kivymd.app import MDApp
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
@@ -1320,3 +1321,45 @@ class BentoAccountWidget(MDCard):
 class ActiveAssetsBentoWidget(MDCard):
     balance = StringProperty("Hesaplanıyor…")
     status_text = StringProperty("Canlı portföy değeri yükleniyor")
+
+
+class HorizontalStripScrollView(ScrollView):
+    """Dikey bir sayfanın içinde yaşayan yatay şerit.
+
+    NEDEN VAR: Kivy'nin `ScrollView`'ı iç içe kullanıldığında dokunuşu ÖNCE
+    çocuğa soruyor (`scrollview.py`, `on_scroll_start` -> `dispatch_children`).
+    Yatay şerit bunu iki ayrı yoldan sahipleniyor ve ikisi de ayrı ayrı
+    kapatılmak zorunda:
+
+      * SÜRÜKLEME — fonksiyonun sonunda, kendi ekseninde kayacak içerik olup
+        olmadığına BAKMADAN `self._touch = touch` ... `return True`.
+        Kapatan: `scroll_type: ["bars"]` (aynı dosyadaki `bars` kapısı,
+        dokunuş çubuğun üzerinde değilse sahiplenmiyor).
+
+      * TEKERLEK — bu sınıfın var olma sebebi. Tekerlek dalı `bars` kapısından
+        ÖNCE çalışıyor, yani `scroll_type` onu hiç etkilemiyor. Dal, kendi
+        erken çıkışına ("zaten uçtayım") takılmazsa `e` boş kalsa bile
+        KOŞULSUZ `return True` diyor. Yatay bir şeritte `scroll_y` hep 1.0
+        olduğu için `scrolldown` erken çıkışa takılıp sayfaya geçiyor, ama
+        `scrollup` — yani kullanıcının içeriği görmek için çevirdiği yön —
+        takılmıyor ve sessizce yutuluyor.
+
+    Ölçüldü (fiziksel Windows 11 ve xvfb, aynı sonuç): sayfa tepedeyken
+    çalışan sekmelerde `scrollup` -0,0495 hareket ederken bu şeridin üzerinde
+    0,0000 kalıyordu; yani "Hesaplarım" bölümüne tekerlekle hiç inilemiyordu.
+
+    Çözüm dar tutuldu: yalnızca DİKEY tekerlek olayları ve yalnızca bu
+    ScrollView dikey kaydırma yapmıyorsa reddediliyor. `False` dönmek
+    ebeveynin `dispatch_children` kontrolünü düşürüyor ve olay sayfaya
+    kalıyor. Yatay tekerlek (shift+tekerlek) ile sürükleme/çubuk davranışı
+    değişmiyor.
+    """
+
+    _VERTICAL_WHEEL = ("scrollup", "scrolldown")
+
+    def on_scroll_start(self, touch, check_children=True):
+        if (not self.do_scroll_y
+                and "button" in touch.profile
+                and touch.button in self._VERTICAL_WHEEL):
+            return False
+        return super().on_scroll_start(touch, check_children=check_children)

@@ -6,6 +6,7 @@
 #:import ftheme ui.theme
 #:import TextInput kivy.uix.textinput.TextInput
 #:import SearchBar ui.components.SearchBar
+#:import HorizontalStripScrollView ui.components.HorizontalStripScrollView
 
 # --- 0. GLOBAL WIDGET KURALLARI ---
 # Tüm giriş alanları: karanlık temada hint/helper metinleri KivyMD varsayılanıyla
@@ -1833,7 +1834,7 @@ MDScreen:
                                                 elevation: 0
                                                 on_release: app.open_add_account_dialog()
 
-                                        ScrollView:
+                                        HorizontalStripScrollView:
                                             size_hint_y: None
                                             # Kart yüksekliği ölçüldü: 3 hareket
                                             # satırlı kredi kartı 567dp'ye çıkıyor

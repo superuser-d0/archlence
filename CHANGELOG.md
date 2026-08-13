@@ -123,9 +123,11 @@
   and that one claimed every gesture without checking whether it had anything to
   scroll sideways. Dragging and the mouse wheel both did nothing, which left the
   accounts list below permanently out of reach. The strip now takes only its own
-  scrollbar, so vertical gestures reach the page. Dragging directly on a card
-  still does not scroll — cards absorb touches everywhere in the app — but the
-  wheel works over them.
+  scrollbar, so dragging reaches the page, and it declines vertical wheel events
+  outright — restricting it to the scrollbar was not enough on its own, because
+  the wheel is handled earlier than that and was swallowed even though nothing
+  moved. Dragging directly on a card still does not scroll; cards absorb touches
+  everywhere in the app.
 
 - Budget plan items are saved through the service layer, which validates the
   amount the same way every other monetary write does. This was the only write
