@@ -8,37 +8,35 @@ Amaç, "Windows integration verified" cümlesini kurabilmek için gereken
 
 ## 0. Hangi yapı test edilecek
 
-RC-3 (`02d27d2`, SHA-256 `3a64aafd…35a8`) **yetmez**: PR #97'nin arayüz
-değişiklikleri o yapının içinde yok. Doğrulanacak aday, #95 + #97'nin
-birleşimi — yani `fix/dashboard-scroll-and-empty-cards` dalının ucu (`0888ccb`).
-
-Aday derleme, o dalda elle tetiklenen `workflow_dispatch` koşusudur —
-`31677899610` (Build Windows EXE), **yeşil**. Artifact indirilip ölçüldü:
+Doğrulanacak aday, #95 + #97'nin birleşimi — yani
+`fix/dashboard-scroll-and-empty-cards` dalının ucu (`5671859`). Aday derleme, o
+dalda elle tetiklenen `workflow_dispatch` koşusudur — `31679532152`
+(Build Windows EXE), **yeşil**. Artifact indirilip ölçüldü:
 
 ```
-Source commit : 0888ccb9eae92e8af4656ada92fa0b0c69e1dccf   (RC-4)
-Workflow run  : 31677899610  (Build Windows EXE, head_sha eşleşiyor)
+Source commit : 5671859b576f0b2e8caf1e6c5030f008381d58d3   (RC-5)
+Workflow run  : 31679532152  (Build Windows EXE, head_sha eşleşiyor)
 Artifact      : Archlence-Setup -> ArchlenceSetup.exe
-Boyut         : 55.176.430 bayt
-SHA-256       : 02b334b39745838123730ff8610100a12a281605c34f57fa8aab46fc024cc9c1
+Boyut         : 55.174.507 bayt
+SHA-256       : 1c976b33d72dc119e24a824ce09079d29dcc529ecbff0387e540292bf29ee722
 ```
 
 ```bash
-gh run download 31677899610 --repo superuser-d0/archlence \
-  --name Archlence-Setup --dir rc4
-certutil -hashfile rc4\ArchlenceSetup.exe SHA256
+gh run download 31679532152 --repo superuser-d0/archlence \
+  --name Archlence-Setup --dir rc5
+certutil -hashfile rc5\ArchlenceSetup.exe SHA256
 ```
 
 - [ ] İndirdiğiniz dosyanın SHA-256'sı yukarıdaki değerle **birebir** aynı
       (farklıysa yapı sizin ölçtüğünüz kod değildir — durun)
 
 - [ ] Eski RC'ler diskten silindi — `151506a3…`, `094ead55…`, `3a64aafd…`
-      (RC-3) ve `31675937556` koşusundan inen yapı
+      (RC-3), `02b334b3…` (RC-4) ve `31675937556` koşusundan inen yapı
 
-> **`31675937556` / `d5c9b04` KULLANILMAZ.** Bu listenin ilk hâli onu adres
-> gösteriyordu; içinde "Kartlarım" şeridinin sabit yüksekliğe döndürüldüğü
-> düzeltme yok, yani o yapıyla §2.2'yi ölçmek düzeltilmiş hâli değil, gerilemiş
-> hâli ölçer.
+> **Neden her tur yeni yapı:** `31675937556`/`d5c9b04` içinde "Kartlarım"
+> şeridinin sabit yüksekliğe döndürüldüğü düzeltme yok; `31677899610`/`0888ccb`
+> (RC-4) içinde de "Algoritmik Öngörü" ikon düzeltmesi yok. Eski bir yapıyla
+> §2.2 ya da §4 ölçmek, düzeltilmiş hâli değil gerilemiş hâli ölçer.
 
 ---
 
@@ -59,11 +57,14 @@ certutil -hashfile rc4\ArchlenceSetup.exe SHA256
       var, düz `encryption.key` **yok** — yani anahtar doğrudan DPAPI'ye
       yazıldı. §3'ün reboot testi bu sayede gerçek koşulu ölçecek.
 
-**Bulunan hata (düzeltildi, bu yapıda YOK):** "Algoritmik Öngörü" kartının
-robot ikonu metnin üstüne biniyordu — kart başlıklarında düzeltilen kusurun
-aynısı, genişliği verilmemiş bir `MDIcon`. Düzeltme sonrası ölçüm: ikon 44dp,
-metinle arasında 15dp boşluk. Yeniden görmek için RC-4'ten SONRAKİ bir yapı
-gerekir.
+**Bulunan hata (RC-4'te vardı, RC-5'te düzeltildi):** "Algoritmik Öngörü"
+kartının robot ikonu metnin üstüne biniyordu — kart başlıklarında düzeltilen
+kusurun aynısı, genişliği verilmemiş bir `MDIcon`. Düzeltme sonrası ölçüm:
+ikon 44dp, metinle arasında 15dp boşluk. Fiziksel doğrulaması RC-5 ile
+yapılacak (§4'ün son maddesi).
+
+- [ ] Kurulum RC-5 ile tekrarlandığında "Algoritmik Öngörü" kartında ikon
+      metne binmiyor
 
 ---
 
