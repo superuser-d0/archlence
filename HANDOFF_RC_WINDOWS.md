@@ -95,22 +95,28 @@ Sorun çıkarsa ilk bakılacak yer: `%LOCALAPPDATA%\Archlence\log\crash.log`
 ## 3. Test edilecek yapı
 
 ```
-Source commit : 3c1cd7c4f9f102ceb8b72274f8b98dc29dd648b7
-Workflow run  : 31644153401  (Build Windows EXE, head_sha eşleşiyor)
+Source commit : 02d27d2b805d4f61ce112e266d0dfa7ded7d29a2   (RC-3)
+Workflow run  : 31657595641  (Build Windows EXE, head_sha eşleşiyor)
 Artifact      : Archlence-Setup -> ArchlenceSetup.exe
-Boyut         : 55.169.289 bayt
-SHA-256       : 094ead55152418910310867b2c204e2642820e66a2f60f8465d9541344874a56
+Boyut         : 55.176.805 bayt
+SHA-256       : 3a64aafd44ffc426e8bd51ed72c3f6a35d0aaced1f7c7a8ca349e9bc226135a8
 ```
 
-İndirme (release YOK, yayın yapılmadı — artifact 2026-11-10'a kadar duruyor):
+İndirme (release YOK, yayın yapılmadı — artifact 2026-11-11'e kadar duruyor):
 
 ```bash
-gh run download 31644153401 --repo superuser-d0/archlence \
+gh run download 31657595641 --repo superuser-d0/archlence \
   --name Archlence-Setup --dir rc-audit-pr95
 ```
 
-**ESKİ RC'Yİ KULLANMAYIN:** `151506a3e58638eff25836fed8bf11d691e30064bb583d6051434c2b19a24d53`
-— Restore çökmesi o yapıda var. Diskte kaldıysa silin.
+**ESKİ RC'LERİ KULLANMAYIN — ikisi de aşıldı:**
+
+| Hash | Neden geçersiz |
+|---|---|
+| `151506a3…24d53` | Restore dosya seçicisi uygulamayı çökertiyor |
+| `094ead55…4a56` | Kartlarım tekerleği ölü + yedekler seçiciden görünmüyor |
+
+Diskte kalmışlarsa silin.
 
 ---
 
