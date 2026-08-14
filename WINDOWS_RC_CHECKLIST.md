@@ -182,9 +182,17 @@ Kivy başlamadan çalıştığı için paketlemeye duyarlı.
       ("Kivy/SQLite başlangıcından ÖNCE") paketlenmiş yapıda tam olarak
       geçerli değil: pencere kilit kontrolünden önce oluşuyor. Kozmetik ama
       kullanıcı "açıldı sanıp" siyah pencereye bakıyor.
-- [ ] Yan bulgu düzeltilecek mi: kilit kontrolü Kivy penceresi oluşmadan önce
-      koşturulabilir mi (`main.py`'da import sırası), yoksa pencere bilerek mi
-      erken açılıyor?
+- [x] **DÜZELTİLDİ — siyah pencere.** Kilit kontrolü `main.py`'ın sonundaki
+      `__main__` bloğundan alınıp Kivy import'larından ÖNCEye (bölüm 2.5)
+      taşındı; bırakma işini `atexit` üstleniyor, böylece aradaki erken
+      `SystemExit` yolları da kapsanıyor. Kaynaktan ölçüldü: ikinci örneğin
+      çıktısı artık **tamamen boş** — tek satır Kivy başlangıç logu bile yok,
+      yani pencere hiç açılmıyor. Öncesinde ikinci örnek tüm Kivy başlangıcını
+      koşturup pencereyi açıyordu. `tests/test_single_instance_startup_order.py`
+      sırayı sabitliyor ve düzeltme öncesi `main.py`'a karşı 4 testin 3'ü
+      kırmızıya dönerek kapının gerçekten ölçtüğü doğrulandı.
+      **Fiziksel doğrulama RC-5'te YAPILAMAZ** — düzeltme o yapıdan sonra
+      geldi; RC-6 ile tekrar bakılmalı.
 - [ ] Bir örnek zorla sonlandırıldıktan sonra (Görev Yöneticisi) yeni örnek
       açılabiliyor mu — yoksa kilit bayat kalıp uygulamayı kilitliyor mu?
 - [ ] Geliştirme oturumu (kaynaktan çalışan örnek) ile paketlenmiş örnek aynı

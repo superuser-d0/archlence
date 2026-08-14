@@ -191,6 +191,15 @@
   over the card beneath it. Measured on the assets tab and reverted.
 - The recent transactions list says "Bu dönemde işlem bulunmuyor." when the
   selected period has none, in place of what used to be an empty 400dp block.
+- Starting a second copy of the application no longer opens an empty black
+  window before saying why it will not run. The single-instance check sat at
+  the end of `main.py`, so Python had already executed every import above it —
+  including `kivy.core.window`, which creates the window as it is imported. The
+  notice then arrived on top of a window the user had no use for and could not
+  close. The check now runs before any Kivy import and releases through
+  `atexit`, so the early exits between the two are covered as well. Measured
+  from source: the second instance now produces no Kivy startup output at all,
+  where it previously ran the whole of it.
 - The robot icon on the "Algoritmik Öngörü" card no longer overlaps its text.
   Reported from a real Windows install; same defect as the heading icons
   below — the icon was laid out without a width, so its glyph spilled into the
