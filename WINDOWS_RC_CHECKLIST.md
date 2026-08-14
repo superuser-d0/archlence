@@ -254,7 +254,7 @@ doğrulanıyor.
 
 ## 5. Yükseltme ve kaldırma
 
-- [ ] Önceki sürümü kurup veri girin → RC-4'e **yükseltin** → veri duruyor mu?
+- [ ] Önceki sürümü kurup veri girin → RC-6'ya **yükseltin** → veri duruyor mu?
 - [ ] **Kaldırın** → kullanıcı verisi korunuyor mu (profil dizini silinmemeli),
       program dosyaları temizleniyor mu?
 - [ ] **Yeniden kurun** → eski veri geri geliyor mu, anahtar hâlâ çözebiliyor mu?
