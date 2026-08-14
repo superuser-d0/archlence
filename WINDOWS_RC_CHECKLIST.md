@@ -201,7 +201,16 @@ Kivy başlamadan çalıştığı için paketlemeye duyarlı.
       sırayı sabitliyor ve düzeltme öncesi `main.py`'a karşı 4 testin 3'ü
       kırmızıya dönerek kapının gerçekten ölçtüğü doğrulandı.
       **Fiziksel doğrulama RC-5'te YAPILAMAZ** — düzeltme o yapıdan sonra
-      geldi; RC-6 ile tekrar bakılmalı.
+      geldi; RC-6 ile bakıldı, aşağıya bakın.
+- [x] **RC-6 ile fiziksel makinede DOĞRULANDI — 2026-08-14.** Kurulu RC-6
+      çalışırken (kilidi tutan örnek) ikinci örnek başlatıldı ve ikinci
+      sürecin görünür pencereleri 200ms aralıklarla, başlatmadan çıkışa kadar
+      tek bir ölçümde toplandı. **Yaşamı boyunca görülen tek pencere sınıfı
+      `#32770`** (Windows diyalog kutusu) — Kivy/SDL penceresi (`SDL_app`)
+      hiç oluşmadı. Kutu kapatılınca süreç çıktı, ilk örnek etkilenmedi.
+      Ölçüm ekran görüntüsüyle değil pencere sınıfı numaralandırmasıyla
+      yapıldı; "siyah pencere görülmedi" öznel gözlemine değil, SDL
+      penceresinin hiç yaratılmadığına dayanıyor.
 - [x] **Ölçüldü — 2026-08-14, kaynaktan, izole profil. Bayat kilit sorunu YOK.**
       Çalışan örnek `Stop-Process -Force` ile öldürüldü (Görev Yöneticisi ile
       aynı yol); kilit dosyası diskte kaldı ama işletim sistemi kilidi bıraktı
