@@ -88,12 +88,19 @@ listeledi, İPTAL ile kapandı. Uygulama ayakta kaldı, `crash.log` boş (0 bayt
 
 - [x] Ayarlar → Geri Yükle → dosya seçici açılıyor, **uygulama kapanmıyor**.
 - [x] Seçici bir klasörün içeriğini listeleyebiliyor.
-- [ ] Kendi yedeğinize seçiciden ulaşabiliyor musunuz — `data_dir()/backups`
-      altındaki dosyalar görünüyor mu? **Henüz ölçülemedi:** bu profilde hiç
-      yedek yok, seçici `AppData\Local` içinde açıldı. Önce "Güvenli Backup
-      Oluştur" ile bir yedek alıp tekrar bakın.
-- [ ] Bir yedeği gerçekten geri yükleyin ve verinin döndüğünü doğrulayın.
-      (Bilerek yapılmadı: geri yükleme mevcut verinin üzerine yazar.)
+- [x] **Ölçüldü — 2026-08-14, kaynaktan, izole profil.** Seçicinin açılacağı
+      yol (`restore_chooser_path`) UI'nin yedek yazdığı yolla birlikte, uçtan
+      uca koşturuldu: yedek yokken ev dizinine düşüyor; "Güvenli Backup" alınca
+      `create_backup` `backups` dizinini kendisi oluşturuyor ve seçici artık
+      **o dizinde** açılıyor, yedek de orada listeleniyor. Yani gizli
+      `AppData` sorunu kapanmış durumda.
+- [x] **Geri yükleme ölçüldü — aynı turda, GERÇEK profile dokunmadan.**
+      1 hesap + 1 işlem yazıldı, yedek alındı, sonra ikinci bir hesap eklendi;
+      `restore_backup` sonrası hesap sayısı yedek anına döndü, sonradan eklenen
+      hesap gitti, hesap adı ve işlem sayısı korundu ve Türkçe karakterli
+      açıklama şifre çözümünden **birebir** geri geldi.
+      Kullanıcının kendi verisiyle bu adım hâlâ yapılmadı ve bilerek
+      yapılmıyor — geri yükleme mevcut verinin üzerine yazar.
 
 ### 2.2 "Kartlarım" sekmesi kaydırma
 
@@ -299,6 +306,16 @@ doğrulanıyor.
 
 - [ ] Türkçe klavye: tutar alanlarına `1.234,56` yazımı, ı/İ/ğ/ş içeren
       açıklamalar kaydedilip geri okunuyor.
+      **Kısmen kapatıldı (2026-08-14, kaynaktan):** yazımın uygulama
+      tarafındaki yolu zaten birim testlerinde kapsanıyor —
+      `tests/test_formatters.py` Kivy'nin gerçek `insert_text` sırasını taklit
+      eden bir alanla tuş tuş yazıyor (`type_at`) ve bir zamanlar sayıyı
+      bozan imleç hatasını da pinliyor (`1234567` -> `1.235.674`). 47 test
+      yeşil. Türkçe karakterli açıklamanın şifreleme + DB + yedek/geri yükleme
+      turundan **birebir** geçtiği de ayrıca ölçüldü (§2.1 zincir testi).
+      **Geriye kalan yalnızca fiziksel klavye düzeni:** Türkçe Q düzeninde
+      basılan tuşların doğru karakterleri üretmesi işletim sistemi tarafıdır
+      ve elle denenmelidir.
 - [ ] %125 ve %150 DPI: metin kırpılmıyor, ikon/başlık hizaları bozulmuyor
       (bu turda düzeltilen kusur tam olarak buydu).
 - [ ] Çoklu monitör: pencere ikinci ekrana taşındığında ölçek bozulmuyor.
