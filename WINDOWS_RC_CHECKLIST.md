@@ -37,8 +37,11 @@ pencere açılmıyor (§2.4).
       `C:\Users\ckrgz\Downloads\ArchlenceSetup-RC6.exe`
       (farklı bir hash görürseniz yapı ölçtüğünüz kod değildir — durun)
 
-- [ ] Eski RC'ler diskten silindi — `151506a3…`, `094ead55…`, `3a64aafd…`
-      (RC-3), `02b334b3…` (RC-4), `1c976b33…` (RC-5) ve `31675937556` koşusundan inen yapı
+- [x] **Eski RC temizliği — 2026-08-14.** `Downloads` altında kalan iki
+      eski aday hash'iyle tanımlandı ve silindi: `ArchlenceSetup.exe`
+      (`02b334b3…`, RC-4) ve `ArchlenceSetup-RC5.exe` (`1c976b33…`, RC-5).
+      Diğer eski hash'lerle eşleşen bir Archlence installer bulunmadı;
+      `ArchlenceSetup-RC6.exe` yerinde bırakıldı.
 
 > **Neden her tur yeni yapı:** `31675937556`/`d5c9b04` içinde "Kartlarım"
 > şeridinin sabit yüksekliğe döndürüldüğü düzeltme yok; `31677899610`/`0888ccb`
@@ -249,7 +252,8 @@ Kivy başlamadan çalıştığı için paketlemeye duyarlı.
       uygulama kilitlenmiyor.
 - [ ] Geliştirme oturumu (kaynaktan çalışan örnek) ile paketlenmiş örnek aynı
       profili paylaşıyor: bu beklenen mi, yoksa geliştirme ayrı profile mi
-      yönlendirilmeli?
+      yönlendirilmeli? **Karar bu RC turunun dışında ayrı bir iş olarak
+      izleniyor; mevcut davranış bu turda değiştirilmedi.**
 
 ## 3. DPAPI — veri kaybı riski en yüksek madde
 
@@ -271,6 +275,10 @@ Windows kullanıcısıyla kullanıcılar arası yalıtım kontrolü açık kald�
       **Windows DPAPI** gösterdi.
 - [ ] Aynı kontrolü **ikinci bir Windows kullanıcı hesabıyla** tekrarlayın —
       DPAPI kullanıcı başına; başka kullanıcı sizin verinizi açamamalı.
+      **Ölçülemedi — 2026-08-14:** makinedeki tek etkin normal hesap
+      `ckrgz`; Administrator, Guest ve diğer yerleşik hesaplar devre dışı.
+      Yeni bir Windows oturumu ve kimlik bilgisi olmadan kullanıcılar arası
+      DPAPI davranışı fiziksel olarak koşturulamadı.
 
 ---
 
@@ -336,10 +344,22 @@ turu yüzünden yinelenmiş durumda — test verisi, uygulama hatası değil).
 
 ## 5. Yükseltme ve kaldırma
 
-- [ ] Önceki sürümü kurup veri girin → RC-6'ya **yükseltin** → veri duruyor mu?
-- [ ] **Kaldırın** → kullanıcı verisi korunuyor mu (profil dizini silinmemeli),
-      program dosyaları temizleniyor mu?
-- [ ] **Yeniden kurun** → eski veri geri geliyor mu, anahtar hâlâ çözebiliyor mu?
+- [x] **RC-5 → RC-6 yükseltme — 2026-08-14, fiziksel Windows kurulumu.**
+      RC-5 sessiz kuruldu; profil 9 hesap / 1 işlem / 2 aktif borç / 11
+      aktif varlıkla yerinde kaldı ve işlemin iki şifreli alanı DPAPI ile
+      çözüldü. RC-6 bunun üzerine kuruldu (`exit 0`); satır sayıları,
+      DB hash'i (`39f22647…`) ve DPAPI anahtar hash'i (`913adc03…`)
+      değişmedi, şifreli işlem yeniden çözüldü.
+- [x] **Kaldırma — aynı tur.** Resmî `unins000.exe` `exit 0` verdi;
+      `%LOCALAPPDATA%\Programs\Archlence` ve `Archlence.exe` kalktı.
+      `%LOCALAPPDATA%\Archlence`, `finance.db` ve `encryption.key.dpapi`
+      yerinde kaldı.
+- [x] **Yeniden kurma — aynı tur.** Hash'i doğrulanmış RC-6 yeniden
+      kuruldu (`exit 0`), program dosyası geri geldi. Profil yine 9/1/2/11
+      satır verdi; DB ve anahtar hash'leri taban çizgisiyle aynı kaldı ve
+      eski şifreli işlem alanları (`2.0`, `Aidat`) başarıyla çözüldü.
+      Paketlenmiş `Archlence.exe` yeniden başlatıldı; ana pencere
+      “Archlence” başlığıyla canlı kaldı ve `crash.log` 0 bayttı.
 
 ---
 
@@ -356,7 +376,9 @@ turu yüzünden yinelenmiş durumda — test verisi, uygulama hatası değil).
       turundan **birebir** geçtiği de ayrıca ölçüldü (§2.1 zincir testi).
       **Geriye kalan yalnızca fiziksel klavye düzeni:** Türkçe Q düzeninde
       basılan tuşların doğru karakterleri üretmesi işletim sistemi tarafıdır
-      ve elle denenmelidir.
+      ve elle denenmelidir. **Ortam envanteri — 2026-08-14:** etkin giriş
+      yöntemleri arasında Türkçe Q (`0000041F`) var; ancak otomatik tuş
+      gönderimi fiziksel klavyeyi ölçmeyeceği için madde işaretlenmedi.
 - [ ] %125 ve %150 DPI: metin kırpılmıyor, ikon/başlık hizaları bozulmuyor
       (bu turda düzeltilen kusur tam olarak buydu).
       **Kısmen kapatıldı (2026-08-14, kaynaktan, `KIVY_METRICS_DENSITY` ile
@@ -370,10 +392,14 @@ turu yüzünden yinelenmiş durumda — test verisi, uygulama hatası değil).
       ayarının pencere yöneticisi/DPI-farkındalık katmanında yarattığı
       farklar (bulanıklaşma, yanlış izleyici seçimi, pencere yeniden boyutlanma
       olayları) simüle edilemez, gerçek makinede denenmeli.
+      **Ortam envanteri — 2026-08-14:** Win32 `GetDpiForSystem` 96 DPI / %100
+      verdi. %125 ve %150, oturumun gerçek Windows ölçeği değiştirilmeden
+      doğrulanmış sayılmadı.
 - [ ] Çoklu monitör: pencere ikinci ekrana taşındığında ölçek bozulmuyor.
       **Ölçülemedi — 2026-08-14:** doğrulama makinesinde ikinci monitör
-      bulunmuyor. Bu bir başarısızlık değil; donanım eksikliği nedeniyle
-      madde açık bırakıldı.
+      bulunmuyor; WinForms ekran sayımı yalnız `DISPLAY1` verdi
+      (1536×960, birincil). Bu bir başarısızlık değil; donanım eksikliği
+      nedeniyle madde açık bırakıldı.
 
 ---
 
