@@ -214,18 +214,22 @@ Kivy başlamadan çalıştığı için paketlemeye duyarlı.
 
 ## 3. DPAPI — veri kaybı riski en yüksek madde
 
-İki turdur devrediyor, hâlâ ölçülmedi. Şifreli veriye erişimi kaybettirebilecek
-tek senaryo bu.
+Ana Windows kullanıcısındaki reboot yolu RC-6 ile ölçüldü. Farklı bir
+Windows kullanıcısıyla kullanıcılar arası yalıtım kontrolü açık kaldı.
 
-- [ ] Birkaç işlem/hesap girin, uygulamayı kapatın.
-- [ ] `%LOCALAPPDATA%\Archlence` altında anahtarın nerede olduğunu not edin:
-      `encryption.key` dosyası var mı, `encryption.key.dpapi` var mı?
-- [ ] **Makineyi yeniden başlatın.**
-- [ ] Uygulamayı açın: tutarlar, açıklamalar, hesap adları **doğru geliyor mu**?
+- [x] **RC-6, 2026-08-14:** Reboot öncesi 3 test hesabı ve 1 test işlemi
+      kaydedildi; uygulama normal kapatıldı.
+- [x] `%LOCALAPPDATA%\Archlence` altında `encryption.key.dpapi` mevcut
+      (288 bayt); düz `encryption.key` **yok**. `crash.log` 0 bayttı.
+- [x] **Makine yeniden başlatıldı — 2026-08-14.**
+- [x] Reboot sonrası RC-6 açıldı; kullanıcı hesap adlarının,
+      tutarların ve işlem açıklamasının olduğu gibi durduğunu
+      doğruladı. Salt-okunur DB sayımı da 3 hesap / 1 işlem verdi;
+      `encryption.key.dpapi` yerinde, düz anahtar yok ve `crash.log` boş.
       "Kayıtlar okunamadı" uyarısı çıkarsa anahtar kaybedilmiş demektir — bu
       bir bloklayıcıdır.
-- [ ] Ayarlar → anahtarın hangi mekanizmayla korunduğunu gösteren metin ne
-      diyor (DPAPI mi, izinli dosya mı)?
+- [x] Ayarlar → “Şifreleme Anahtarı” satırı reboot öncesinde
+      **Windows DPAPI** gösterdi.
 - [ ] Aynı kontrolü **ikinci bir Windows kullanıcı hesabıyla** tekrarlayın —
       DPAPI kullanıcı başına; başka kullanıcı sizin verinizi açamamalı.
 
