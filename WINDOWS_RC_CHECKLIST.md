@@ -193,8 +193,12 @@ Kivy başlamadan çalıştığı için paketlemeye duyarlı.
       kırmızıya dönerek kapının gerçekten ölçtüğü doğrulandı.
       **Fiziksel doğrulama RC-5'te YAPILAMAZ** — düzeltme o yapıdan sonra
       geldi; RC-6 ile tekrar bakılmalı.
-- [ ] Bir örnek zorla sonlandırıldıktan sonra (Görev Yöneticisi) yeni örnek
-      açılabiliyor mu — yoksa kilit bayat kalıp uygulamayı kilitliyor mu?
+- [x] **Ölçüldü — 2026-08-14, kaynaktan, izole profil. Bayat kilit sorunu YOK.**
+      Çalışan örnek `Stop-Process -Force` ile öldürüldü (Görev Yöneticisi ile
+      aynı yol); kilit dosyası diskte kaldı ama işletim sistemi kilidi bıraktı
+      (`msvcrt.locking` handle kapanınca serbest kalıyor). Hemen ardından
+      başlatılan yeni örnek **tam açıldı**. Yani çökme/zorla kapatma sonrası
+      uygulama kilitlenmiyor.
 - [ ] Geliştirme oturumu (kaynaktan çalışan örnek) ile paketlenmiş örnek aynı
       profili paylaşıyor: bu beklenen mi, yoksa geliştirme ayrı profile mi
       yönlendirilmeli?
