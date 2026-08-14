@@ -32,8 +32,10 @@ certutil -hashfile rc6\ArchlenceSetup.exe SHA256
 import'larından önce kontrol ediliyor — ikinci örnek başlatıldığında boş siyah
 pencere açılmıyor (§2.4).
 
-- [ ] İndirdiğiniz dosyanın SHA-256'sı yukarıdaki değerle **birebir** aynı
-      (farklıysa yapı sizin ölçtüğünüz kod değildir — durun)
+- [x] **Doğrulandı — 2026-08-14.** Artifact indirildi ve diskteki dosyanın
+      SHA-256'sı yukarıdaki değerle birebir eşleşti. Dosya:
+      `C:\Users\ckrgz\Downloads\ArchlenceSetup-RC6.exe`
+      (farklı bir hash görürseniz yapı ölçtüğünüz kod değildir — durun)
 
 - [ ] Eski RC'ler diskten silindi — `151506a3…`, `094ead55…`, `3a64aafd…`
       (RC-3), `02b334b3…` (RC-4), `1c976b33…` (RC-5) ve `31675937556` koşusundan inen yapı
