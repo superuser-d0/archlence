@@ -113,10 +113,14 @@ Sayfa **tepedeyken** ölçün; ara konumdan ölçmek bu hatayı gizliyor (§4, d
 - [x] **Tekerlek**, şerit dışındaki alanda da aynı şekilde çalışıyor (özet
       kutucuklarının üzerinde ölçüldü, hareket miktarı aynı).
 - [x] **Sürükleme**, şeridin boş alanından dikey olarak sayfayı kaydırıyor.
-- [ ] **Sürükleme**, şeridin kaydırma çubuğundan yatay olarak kartları
-      kaydırıyor — **kart olmadığı için ölçülemedi.** En az bir kart ekleyip
-      tekrar bakın; kapının dolu profildeki kırmızısı da ancak o zaman
-      açıklanabilir.
+- [x] **Sürükleme**, şeridin kaydırma çubuğundan yatay olarak kartları
+      kaydırıyor — **ölçüldü, 2026-08-14, RC-6, 6 test kartıyla.** Şerit
+      taşana kadar kart eklendi (2 kart yan yana sığıyor, taşma için 6 gerekti);
+      çubuk şeridin alt kenarında bulundu (y≈742) ve basılı tutup sağa
+      sürüklenince şerit 1-3. kartlardan 3-5. kartlara kaydı, çubuk da ortaya
+      geldi. Tek seferlik `left_click_drag` işe yaramıyor, basma → ara
+      hareketler → bırakma gerekiyor (Kivy çubuğu ani sıçramayı tıklama
+      sayıyor).
 
 > Kart yokken şerit 620dp'lik boş bir alan olarak duruyor ve "Hesaplarım"a
 > inmek için o alanı kaydırıp geçmek gerekiyor. Bilinen ve kabul edilen bedel:
@@ -275,21 +279,42 @@ Windows kullanıcısıyla kullanıcılar arası yalıtım kontrolü açık kald�
 Hepsi Linux/geliştirme makinesinde ölçüldü; burada yalnız gerçek makinede
 doğrulanıyor.
 
-- [ ] **Tekerlek, kart içi listelerin üzerinde sayfayı kaydırıyor.** Test
-      noktaları: Varlık Geçmişi listesi (başlığın hemen altı — eski ölü bölge),
-      Aktif Abonelikler, Aktif Gelirler, Aktif Borçlar, Yaklaşan Ödemeler,
-      Son İşlemler, Aktif Varlıklar, hesap hareketleri.
-- [ ] **Liste kendi içinde kaydırılabiliyor** (uzun listede tekerlek önce
-      listeyi kaydırmalı, dibe gelince sayfayı).
-- [ ] **Boş profil**: Aktif Borçlarım / Yaklaşan Ödemeler / Varlık Geçmişi
-      kartları mesajları kadar yer kaplıyor, ekran dolusu boşluk yok.
-- [ ] **Boş dönem**: Son İşlemler altında "Bu dönemde işlem bulunmuyor." yazıyor.
-- [ ] **Dolu profil**: borç kartında iki satır tam görünüyor, son satır
-      ortadan kesilmiyor.
-- [ ] **Varlık sekmesi**: "Aktif Varlıklarım" ve "Varlık Geçmişi" kartları
-      birbirinin üstüne binmiyor (satırlar kart sınırının dışına taşmıyor).
-- [ ] **Başlık ikonları** yazıya binmiyor: Aktif Borçlarım, Yaklaşan Ödemeler,
-      Bekleyen İşlemler, Varlık Geçmişi.
+**Ölçüm turu — 2026-08-14, RC-6, gerçek profil + test verisi** (6 kredi kartı,
+2 borç, 11 varlık kaydı script ile eklendi; varlıklardan bazıları iki ekleme
+turu yüzünden yinelenmiş durumda — test verisi, uygulama hatası değil).
+
+- [x] **Tekerlek, kart içi listelerin üzerinde sayfayı kaydırıyor.** Ana
+      sayfada Aktif Abonelikler / Aktif Gelirler / Olağandışı Harcamalar /
+      Aktif Borçlar / Yaklaşan Ödemeler kartlarının üzerinden ve Varlıklarım
+      sekmesinde "Aktif Varlıklarım" listesinin ÜZERİNDEN tekerlekle sayfa
+      kaydırıldı; Kartlarım'da doğrudan bir kredi kartı widget'ının üzerinden
+      de çalıştı. Eski ölü bölge yok.
+- [ ] **Liste kendi içinde kaydırılabiliyor** — **bu turda gösterilemedi.**
+      Test verisiyle hiçbir liste taşmadı: "Aktif Varlıklarım" kartı varlık
+      sayısıyla büyüyor (11 kayıtta bile hepsi kart içinde), abonelik/gelir/
+      borç listeleri de sığdı. Taşan bir liste kurup tekrar bakılmalı.
+- [x] **Boş kartlar mesajları kadar yer kaplıyor.** Ana sayfada Aktif
+      Aboneliklerim / Aktif Gelirlerim / Olağandışı Harcamalar ve Varlıklarım
+      sekmesinde Varlık Geçmişi kartları, tek satırlık mesajlarıyla derli
+      toplu duruyor; eski ekran dolusu boşluk yok.
+- [ ] **Boş dönem**: Son İşlemler altında "Bu dönemde işlem bulunmuyor."
+      yazıyor — **bu profilde işlem olduğu için ölçülemedi.** Kaynakta izole
+      boş profille doğrulanmıştı.
+- [ ] **Dolu profil**: borç kartında iki satır tam görünüyor — **ölçülemedi.**
+      Borçlar script ile eklendi ama ana sayfanın borç listesi yalnız
+      UYGULAMA AÇILIŞINDA yükleniyor; sekme değiştirmek onu tazelemiyor.
+      Uygulama yeniden başlatılıp bakılmalı. (Kaynakta ölçülmüştü: kart 362dp,
+      iki 140dp'lik satır tam sığıyor.)
+- [x] **Varlık sekmesi**: "Aktif Varlıklarım" ve "Varlık Geçmişi" kartları
+      **birbirinin üstüne binmiyor** — 11 varlık kaydıyla, kartın alt sınırı
+      ile "Varlık Geçmişi" başlığı arasındaki sınır yakınlaştırılarak
+      doğrulandı. Bu turun düzeltilen asıl hatasıydı (satırlar alttaki kartın
+      üstüne taşıyordu).
+- [x] **Başlık ikonları yazıya binmiyor.** Fiziksel olarak görülenler:
+      Algoritmik Öngörü (robot), Finansal Sağlık Skoru, Aktif Aboneliklerim,
+      Aktif Gelirlerim, Olağandışı Harcamalar, Aktif Borçlarım, Yaklaşan
+      Ödemeler, Aktif Varlıklarım, Varlık Geçmişi. "Bekleyen İşlemler" kartı
+      bu profilde görünmüyor (bekleyen işlem yok), ölçülemedi.
 
 ---
 
