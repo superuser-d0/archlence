@@ -318,6 +318,17 @@ doğrulanıyor.
       ve elle denenmelidir.
 - [ ] %125 ve %150 DPI: metin kırpılmıyor, ikon/başlık hizaları bozulmuyor
       (bu turda düzeltilen kusur tam olarak buydu).
+      **Kısmen kapatıldı (2026-08-14, kaynaktan, `KIVY_METRICS_DENSITY` ile
+      simüle edilerek).** `scripts/dev/verify_icon_label_layout.py` beş
+      sekmenin tamamını 1.0/1.25/1.5 yoğunluklarında taradı: 22 ikon+etiket
+      çifti, 131 etiket, üçünde de sıfır çakışma/kırpılma. Kapı bilinen-bozuk
+      duruma karşı doğrulandı (genişliksiz bırakılan ikon kırmızı veriyor) ve
+      artık CI'ın visual-regression matrisine bağlı — her PR'da otomatik koşar.
+      **Geriye kalan yalnızca gerçek Windows ölçek değişimi:** `KIVY_METRICS_DENSITY`
+      uygulamanın kendi ölçeğini taklit ediyor; işletim sisteminin %125/%150
+      ayarının pencere yöneticisi/DPI-farkındalık katmanında yarattığı
+      farklar (bulanıklaşma, yanlış izleyici seçimi, pencere yeniden boyutlanma
+      olayları) simüle edilemez, gerçek makinede denenmeli.
 - [ ] Çoklu monitör: pencere ikinci ekrana taşındığında ölçek bozulmuyor.
 
 ---
