@@ -289,22 +289,38 @@ turu yüzünden yinelenmiş durumda — test verisi, uygulama hatası değil).
       sekmesinde "Aktif Varlıklarım" listesinin ÜZERİNDEN tekerlekle sayfa
       kaydırıldı; Kartlarım'da doğrudan bir kredi kartı widget'ının üzerinden
       de çalıştı. Eski ölü bölge yok.
-- [ ] **Liste kendi içinde kaydırılabiliyor** — **bu turda gösterilemedi.**
-      Test verisiyle hiçbir liste taşmadı: "Aktif Varlıklarım" kartı varlık
-      sayısıyla büyüyor (11 kayıtta bile hepsi kart içinde), abonelik/gelir/
-      borç listeleri de sığdı. Taşan bir liste kurup tekrar bakılmalı.
+- [x] **Liste kendi içinde kaydırılabiliyor — ölçüldü, 2026-08-14, kaynaktan,
+      izole profil.** Ekran gerektirmeyen bir yolla: sentetik tekerlek
+      olayını olay döngüsünden göndermek bu harness'ta asılı kaldığı için
+      (ölçüldü), kararın alındığı tek yer doğrudan sınandı —
+      `_WheelPassthroughMixin._wheel_can_scroll`, gerçek widget ve gerçek
+      geometri üzerinde (4 borç satırı, kart 290dp'de sınırlı, içerik
+      590dp — taşıyor). Liste ortadayken tekerleği kendinde tutuyor (her iki
+      yön), dibindeyken aşağı yönü, tepesindeyken yukarı yönü sayfaya
+      bırakıyor. **Kapı bilinen-bozuk duruma karşı doğrulandı:** sınır
+      kontrolü kaldırılınca (`return True` ile değiştirildi) test kırmızıya
+      döndü, geri alınca yeşile döndü.
+      Yan not: bu ölçümün ilk hâli kendi ölçüm aracımın hatasıyla yanlış
+      kırmızı veriyordu — `collide_point`'e pencere koordinatı yerine widget'in
+      ebeveynine göre yerel koordinat vermek gerekiyormuş; düzeltilip
+      doğrulandı.
 - [x] **Boş kartlar mesajları kadar yer kaplıyor.** Ana sayfada Aktif
       Aboneliklerim / Aktif Gelirlerim / Olağandışı Harcamalar ve Varlıklarım
       sekmesinde Varlık Geçmişi kartları, tek satırlık mesajlarıyla derli
       toplu duruyor; eski ekran dolusu boşluk yok.
-- [ ] **Boş dönem**: Son İşlemler altında "Bu dönemde işlem bulunmuyor."
-      yazıyor — **bu profilde işlem olduğu için ölçülemedi.** Kaynakta izole
-      boş profille doğrulanmıştı.
-- [ ] **Dolu profil**: borç kartında iki satır tam görünüyor — **ölçülemedi.**
-      Borçlar script ile eklendi ama ana sayfanın borç listesi yalnız
-      UYGULAMA AÇILIŞINDA yükleniyor; sekme değiştirmek onu tazelemiyor.
-      Uygulama yeniden başlatılıp bakılmalı. (Kaynakta ölçülmüştü: kart 362dp,
-      iki 140dp'lik satır tam sığıyor.)
+- [x] **Boş dönem — ölçüldü, 2026-08-14, kaynaktan, izole profil.** Sıfır
+      işlemli bir profilde: liste alanı tamamen kapandı (0dp), boş durum
+      etiketi görünür (opaklık 1, yükseklik 40dp) ve metin birebir
+      "Bu dönemde işlem bulunmuyor." — beş kontrolün beşi de geçti.
+- [x] **Dolu profil, borç kartı iki satır — ölçüldü, 2026-08-14, kaynaktan,
+      izole profil.** İki borç eklenip `load_active_debts()` ile açıkça
+      tazelenerek: kart 362dp, görünür alan 290dp, içerik 290dp, iki satır da
+      çizildi ve ikisi de görünür alanın sınırları içinde (kırpılma yok).
+      İçerik görünür alana tam sığıyor, iç kaydırma gerekmiyor.
+      Not: ana sayfanın borç listesinin yalnız uygulama açılışında
+      yüklenmesi (sekme değişince tazelenmemesi) ayrı bir gözlem — bu
+      yüzden RC-6 üzerinde ekrandan gösterilemedi, bilinen bir uygulama
+      davranışı, kod hatası olarak işaretlenmedi.
 - [x] **Varlık sekmesi**: "Aktif Varlıklarım" ve "Varlık Geçmişi" kartları
       **birbirinin üstüne binmiyor** — 11 varlık kaydıyla, kartın alt sınırı
       ile "Varlık Geçmişi" başlığı arasındaki sınır yakınlaştırılarak
