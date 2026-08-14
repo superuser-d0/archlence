@@ -330,6 +330,9 @@ doğrulanıyor.
       farklar (bulanıklaşma, yanlış izleyici seçimi, pencere yeniden boyutlanma
       olayları) simüle edilemez, gerçek makinede denenmeli.
 - [ ] Çoklu monitör: pencere ikinci ekrana taşındığında ölçek bozulmuyor.
+      **Ölçülemedi — 2026-08-14:** doğrulama makinesinde ikinci monitör
+      bulunmuyor. Bu bir başarısızlık değil; donanım eksikliği nedeniyle
+      madde açık bırakıldı.
 
 ---
 
