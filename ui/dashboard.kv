@@ -2650,6 +2650,13 @@ MDScreen:
                                     on_release: screen_manager.current = "login"
                                     MDIcon:
                                         icon: "logout"
+                                        # Genişlik AÇIKÇA veriliyor: verilmezse
+                                        # kutu 0px kalıyor ve 30px'lik glif
+                                        # "Çıkış Yap" yazısının üstüne biniyor
+                                        # (kart başlıklarında düzeltilen kusurun
+                                        # aynısı; ölçüm dedektörüyle bulundu).
+                                        size_hint_x: None
+                                        width: "24dp"
                                         pos_hint: {"center_y": .5}
                                         theme_text_color: "Error"
                                     MDLabel:
