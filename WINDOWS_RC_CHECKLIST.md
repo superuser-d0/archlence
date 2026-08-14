@@ -1,4 +1,4 @@
-# Windows donanım doğrulama — kontrol listesi (RC-5 adayı)
+# Windows donanım doğrulama — kontrol listesi (RC-6 adayı)
 
 Kaynak: `HANDOFF_RC_WINDOWS.md` §2 + PR #97 ile gelen arayüz değişiklikleri.
 Amaç, "Windows integration verified" cümlesini kurabilmek için gereken
@@ -9,34 +9,41 @@ Amaç, "Windows integration verified" cümlesini kurabilmek için gereken
 ## 0. Hangi yapı test edilecek
 
 Doğrulanacak aday, #95 + #97'nin birleşimi — yani
-`fix/dashboard-scroll-and-empty-cards` dalının ucu (`5671859`). Aday derleme, o
-dalda elle tetiklenen `workflow_dispatch` koşusudur — `31679532152`
-(Build Windows EXE), **yeşil**. Artifact indirilip ölçüldü:
+`fix/dashboard-scroll-and-empty-cards` dalının ucu (`382f374`). Aday derleme, o
+dalda elle tetiklenen `workflow_dispatch` koşusudur — `31763276265`
+(Build Windows EXE), **yeşil** (Tests ve Build Linux da aynı commit'te yeşil).
+Artifact indirilip ölçüldü:
 
 ```
-Source commit : 5671859b576f0b2e8caf1e6c5030f008381d58d3   (RC-5)
-Workflow run  : 31679532152  (Build Windows EXE, head_sha eşleşiyor)
+Source commit : 382f374ae95be6d1c794805abc485397ba1aeeb7   (RC-6)
+Workflow run  : 31763276265  (Build Windows EXE, head_sha eşleşiyor)
 Artifact      : Archlence-Setup -> ArchlenceSetup.exe
-Boyut         : 55.174.507 bayt
-SHA-256       : 1c976b33d72dc119e24a824ce09079d29dcc529ecbff0387e540292bf29ee722
+Boyut         : 55.175.521 bayt
+SHA-256       : 92016d16e279c39fbbd1429e6a77781ac690ed503f758a37276b72571f632a0f
 ```
 
 ```bash
-gh run download 31679532152 --repo superuser-d0/archlence \
-  --name Archlence-Setup --dir rc5
-certutil -hashfile rc5\ArchlenceSetup.exe SHA256
+gh run download 31763276265 --repo superuser-d0/archlence \
+  --name Archlence-Setup --dir rc6
+certutil -hashfile rc6\ArchlenceSetup.exe SHA256
 ```
+
+**RC-6'da RC-5'ten farklı olarak ne var:** tek örnek kilidi artık Kivy
+import'larından önce kontrol ediliyor — ikinci örnek başlatıldığında boş siyah
+pencere açılmıyor (§2.4).
 
 - [ ] İndirdiğiniz dosyanın SHA-256'sı yukarıdaki değerle **birebir** aynı
       (farklıysa yapı sizin ölçtüğünüz kod değildir — durun)
 
 - [ ] Eski RC'ler diskten silindi — `151506a3…`, `094ead55…`, `3a64aafd…`
-      (RC-3), `02b334b3…` (RC-4) ve `31675937556` koşusundan inen yapı
+      (RC-3), `02b334b3…` (RC-4), `1c976b33…` (RC-5) ve `31675937556` koşusundan inen yapı
 
 > **Neden her tur yeni yapı:** `31675937556`/`d5c9b04` içinde "Kartlarım"
 > şeridinin sabit yüksekliğe döndürüldüğü düzeltme yok; `31677899610`/`0888ccb`
-> (RC-4) içinde de "Algoritmik Öngörü" ikon düzeltmesi yok. Eski bir yapıyla
-> §2.2 ya da §4 ölçmek, düzeltilmiş hâli değil gerilemiş hâli ölçer.
+> (RC-4) içinde "Algoritmik Öngörü" ikon düzeltmesi yok; `31679532152`/`5671859`
+> (RC-5) içinde de tek örnek kilidinin siyah pencere düzeltmesi yok. Eski bir
+> yapıyla §2.2, §2.4 ya da §4 ölçmek, düzeltilmiş hâli değil gerilemiş hâli
+> ölçer.
 
 ---
 
