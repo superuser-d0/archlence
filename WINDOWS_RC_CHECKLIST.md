@@ -120,16 +120,35 @@ Sayfa **tepedeyken** ölçün; ara konumdan ölçmek bu hatayı gizliyor (§4, d
 > sürüklemek sayfayı kaydırmaz; `MDCard` dokunuşu sahipleniyor, uygulama
 > genelinde geçerli çerçeve davranışı. Kartların üzerinde **tekerlek çalışır**.
 >
-> **Ölçüm notu:** `scripts/dev/verify_tab_scrolling.py` **boş profille** yeşil
-> (sürükleme ✓, tekerlek ✓) — CI de bu profille koşuyor. **Dolu profille**
-> aynı kapı `sürükleme=False` veriyor; bu, #95'in ucunda da böyle. Sebebi
-> büyük olasılıkla yukarıdaki bilinen sınır: kart sayısı arttıkça sürükleme
-> noktası bir kartın üzerine denk geliyor ve `MDCard` dokunuşu yutuyor.
-> Fiziksel makinede **dolu bir profille** sürükleyip hangi durumda olduğunuzu
-> ölçün: elle çalışıyorsa kapı yanlış noktadan ölçüyor demektir ve
-> düzeltilmelidir (§4'teki kural: kapı bilinen-bozuk yapıya karşı kırmızıya
-> dönmeli). Elle de çalışmıyorsa bu, kartların üzerinden sürüklemenin gerçek
-> sınırı olarak kayda geçmeli.
+> **ÇÖZÜLDÜ — kapının kırmızısının sebebi ölçüldü (2026-08-14).**
+> `scripts/dev/verify_tab_scrolling.py` suni dokunuşu **pencerenin tam
+> ortasından** başlatıyor (`x, y = Window.width / 2, Window.height / 2`).
+> Demo profiliyle o nokta doğrudan bir `PremiumCreditCardWidget`'in üstüne
+> düşüyor — widget yığını ölçüldü, derinlik 13'te MDCard var. `MDCard`
+> dokunuşu sahiplendiği için (yukarıdaki bilinen sınır) kapı **sağlam bir
+> yapıyı kırmızı gösteriyor**. Yani bu kırmızı bir ürün hatası değil, ölçüm
+> noktası hatası.
+>
+> Önceki not "boş profille yeşil, dolu profille kırmızı" diyordu; bu
+> çerçeveleme yanlıştı ve düzeltildi: kapı profil boşsa **kendi hesaplarını
+> kendisi yaratıyor** (1 vadesiz + 3 kredi kartı, satır 104-112). Yani her iki
+> koşumda da kartlar var; fark yalnızca hangi yerleşimde merkez noktasının bir
+> kartın üstüne denk geldiği. Bu da kapıyı kırılgan yapıyor: sonuç, kart
+> sayısına ve dizilime göre değişiyor.
+>
+> **Düzeltme denendi ve GERİ ALINDI.** Dokunuş noktasını "kartın üstünde
+> olmayan bir yer" seçecek şekilde değiştirmek kapıyı dolu profilde yeşile
+> döndürdü, ama `scroll_type: ["bars"]` düzeltmesi geri alındığında da yeşil
+> kaldı — yani hatayı tamamen kaçırır hâle geldi (ölçüldü). Nokta hesabı iç
+> içe ScrollView'ların koordinat uzayında güvenilir çalışmıyor: seçilen nokta
+> şeridin dışına düşerken "içinde" raporlanıyordu. Doğrulanamayan bir kapı
+> göndermemek için değişiklik geri alındı; kapı ilk hâliyle duruyor.
+>
+> - [ ] Kapı yeniden ele alınacak: dokunuş, şeridin İÇİNDE ama kartın
+>       üstünde olmayan bir noktadan başlamalı ve düzeltme geri alındığında
+>       kırmızıya döndüğü kanıtlanmalı. Kanıtlanamıyorsa kapı olduğu gibi
+>       bırakılmalı ve dolu profildeki kırmızısı "bilinen yanlış pozitif"
+>       olarak belgelenmeli.
 
 ---
 
