@@ -158,11 +158,22 @@ Sayfa **tepedeyken** ölçün; ara konumdan ölçmek bu hatayı gizliyor (§4, d
 > şeridin dışına düşerken "içinde" raporlanıyordu. Doğrulanamayan bir kapı
 > göndermemek için değişiklik geri alındı; kapı ilk hâliyle duruyor.
 >
-> - [ ] Kapı yeniden ele alınacak: dokunuş, şeridin İÇİNDE ama kartın
->       üstünde olmayan bir noktadan başlamalı ve düzeltme geri alındığında
->       kırmızıya döndüğü kanıtlanmalı. Kanıtlanamıyorsa kapı olduğu gibi
->       bırakılmalı ve dolu profildeki kırmızısı "bilinen yanlış pozitif"
->       olarak belgelenmeli.
+> - [x] **Kapı yeniden ele alındı ve kanıtlandı — 2026-08-16, kaynaktan,
+>       GERÇEK profil (9 hesap, aynı §5 taban çizgisi).** Dokunuş noktası
+>       taşınmadı — nokta taşımanın koordinat uzayında güvenilmediği yukarıda
+>       zaten ölçülmüştü. Onun yerine `ui/dashboard.kv`'deki `scroll_type:
+>       ["bars"]` satırı geçici olarak `["content"]`'e çevrilip
+>       `scripts/dev/verify_tab_scrolling.py` A/B çalıştırıldı:
+>       düzeltme YERİNDEYKEN `sürükleme=True`, düzeltme GERİ ALINDIĞINDA aynı
+>       dokunuş noktasıyla `sürükleme=False` (`::error::accounts_tab taşan
+>       içeriğe rağmen kaydırılamıyor`). Temiz bir dönüş — bu da dokunuşun bir
+>       `MDCard` tarafından yutulmadığının, kararı gerçekten dış
+>       `ScrollView`'ın `scroll_type` kuralının verdiğinin kanıtı (kart
+>       yutsaydı iki koşum da `False` verirdi). Değişiklik hemen geri alındı,
+>       `git diff` boş, kapı yeşile döndü. Kod tabanında kalıcı bir değişiklik
+>       yok; kanıt bu turun ölçümü. Dolu profildeki kırmızı artık "bilinen
+>       yanlış pozitif" olarak belgelenmesine gerek kalmadan gerçek bir
+>       regresyon sinyali sayılabilir.
 
 ---
 
