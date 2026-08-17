@@ -555,9 +555,26 @@ Not release-blocking, but worth doing before calling this stable.
   whoever calls it next. Fixed to defer to the same logic
   `fetch_prices_async()` already had; verified the old gate actually
   fails (reproduced the bug standalone before trusting the fix).
-- `main.py` is ~1,800 lines and `ArchlenceApp` inherits from a long list of
-  mixins. Split screen behavior into separate controller/view-model
-  classes; keep `ArchlenceApp` to app lifecycle only.
+- `main.py` and `ArchlenceApp`'s mixin list. Split screen behaviour into
+  separate controller classes; keep `ArchlenceApp` to app lifecycle only.
+
+  **A written plan exists: [`MAIN_PY_SPLIT_PLAN.md`](MAIN_PY_SPLIT_PLAN.md).**
+  No code has been changed. The figures in the earlier version of this entry
+  ("~1,800 lines") were stale; measured on 2026-08-17 it is **2,280 lines and
+  17 mixins**, two of which were added the same day by the search and
+  notification work.
+
+  The plan's finding worth surfacing here: the real constraint is not file
+  size but that `.kv` binds to `app` as a single object — 33 method calls and
+  344 references, all resolved *at runtime*. A missing name is not a build
+  error, it is a control that silently does nothing, which is exactly the
+  defect twice found and fixed in 0.0.11 and 0.0.12. So the plan keeps `.kv`
+  untouched behind delegating methods rather than repointing 344 call sites.
+
+  It also names a prerequisite that is worth doing **whether or not the split
+  happens**: there is currently no gate asserting that every `app.<name>` used
+  in `.kv` actually exists on `ArchlenceApp`. Writing that gate is a small
+  standalone change and closes the silent-breakage risk permanently.
 - ~~Split `requirements.txt` into `requirements-runtime.txt` and
   `requirements-dev.txt`, plus a pinned lockfile.~~ **Done** —
   [PR #12](https://github.com/superuser-d0/archlence/pull/12). Every
