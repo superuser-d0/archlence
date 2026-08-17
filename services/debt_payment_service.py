@@ -22,8 +22,12 @@ class DebtPaymentService:
                 desc = decrypt(row["debt_name"], SECRET_KEY) + " (Otomatik Taksit Ödemesi)"
                 now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 cur.execute("INSERT INTO transactions (account_id,amount,type,category,description,transaction_date) VALUES (?,?,'expense','Kredi Taksiti',?,?)", (account_id, encrypt(str(amount), SECRET_KEY), encrypt(desc, SECRET_KEY), now))
+                # Taksit işleminin id'si HEMEN alınıyor: `lastrowid` cursor'a
+                # ait, araya giren her INSERT (ve buradaki `_fault_hook`) onu
+                # ezebilir. Defterin `ref_id`'si bu satırı göstermek zorunda.
+                transaction_id = cur.lastrowid
                 if _fault_hook: _fault_hook("after_transaction")
-                adjust_account_balance(cur, account_id, "expense", amount, ref_id=cur.lastrowid, source="debt_payment")
+                adjust_account_balance(cur, account_id, "expense", amount, ref_id=transaction_id, source="debt_payment")
                 if _fault_hook: _fault_hook("after_balance")
                 paid = row["paid_installments"] + count
                 cur.execute("UPDATE active_debts SET paid_installments=?, last_auto_pay_date=?, is_active=? WHERE id=?", (paid, month, 0 if paid >= row["total_installments"] else 1, debt_id))

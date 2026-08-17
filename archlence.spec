@@ -115,6 +115,23 @@ a = Analysis(
         "peewee",
         "playhouse.sqlite_ext",
         "Crypto.Cipher.AES",
+        # WINDOWS'TA DOSYA SEÇİCİYİ ÇÖKERTEN EKSİK MODÜL.
+        # Kivy'nin dosya seçicisi `kivy/uix/filechooser.py` içinde gizli-dosya
+        # bayrağını okumak için `win32file.GetFileAttributesExW` çağırıyor.
+        # `win32file`'ın kendisi statik analizle bulunuyor ve pakete giriyor;
+        # ama pywin32 zaman dönüşümünü ÇAĞRI ANINDA `win32timezone`'u import
+        # ederek yapıyor ve PyInstaller o tembel importu göremiyor.
+        #
+        # Sonuç ölçüldü (gerçek Windows 11 makinesinde, v0.0.9 RC):
+        # Ayarlar -> Geri Yükle dosya seçicisini AÇMAK uygulamanın tamamını
+        # düşürüyordu — "Failed to execute script 'main' due to unhandled
+        # exception: No module named 'win32timezone'", `is_hidden()` içinde.
+        # Yedekleme çalışıyordu, veri bozulmuyordu; çöken şey uygulamaydı.
+        #
+        # DİKKAT: `win32file` bulunamazsa Kivy zaten zarifçe geri düşüyor
+        # (`_have_win32file = False`, gizli dosya kontrolü atlanıyor). Yani
+        # arıza "pywin32 yok" değil, "pywin32 EKSİK paketlendi" durumu.
+        "win32timezone",
         *collect_submodules("keyring.backends"),
         *kivymd_hidden,
     ],

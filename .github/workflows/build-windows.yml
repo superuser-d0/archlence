@@ -161,6 +161,19 @@ jobs:
           }
           Write-Host "Smoke test geçti: Archlence.exe 10 saniye sonra hâlâ çalışıyordu, crash.log'a yeni yazı yok."
 
+      - name: "Paketleme bütünlüğü: pywin32'nin tembel importu da pakette mi"
+        # NEDEN VAR: Kivy'nin dosya seçicisi `win32file`'ı kullanıyor, pywin32
+        # ise zaman dönüşümünü ÇAĞRI ANINDA `win32timezone`'u import ederek
+        # yapıyor. PyInstaller ilkini görüp ikincisini göremiyor ve sonuç,
+        # dosya seçici açılır açılmaz uygulamanın tamamen çökmesi oluyordu
+        # (gerçek Windows 11 makinesinde ölçüldü, v0.0.9 RC).
+        #
+        # Kontrolün kendisi `scripts/check_frozen_lazy_imports.py` içinde:
+        # kabuktan bağımsız, Linux'ta birim testi var (bu adımın ilk hâli
+        # `shell: pwsh` altında bash heredoc kullanıyordu ve PowerShell'de
+        # ayrıştırma hatası veriyordu).
+        run: python scripts/check_frozen_lazy_imports.py dist/Archlence
+
       - name: Paket içeriği ve secret taraması
         run: python scripts/inspect_package_contents.py dist/Archlence
 
@@ -447,6 +460,12 @@ jobs:
           $crashLogDir = python -c "from utils.app_paths import log_dir; print(log_dir())"
           $crashLogPath = Join-Path $crashLogDir "crash.log"
           $beforeSize = if (Test-Path $crashLogPath) { (Get-Item $crashLogPath).Length } else { 0 }
+          # KULLANICI VERİSİ DİZİNİ. Kaldırmadan SONRA hâlâ durduğunu
+          # doğrulayacağız: `installer/archlence.iss` içinde bilerek
+          # `UninstallDelete` YOK — kaldırma programı siler, kişisel finans
+          # verisini silmez. Bu bugüne kadar yalnızca "o satırın yokluğu"yla
+          # garanti ediliyordu; biri onu eklerse hiçbir kapı uyarmıyordu.
+          $dataDir = python -c "from utils.app_paths import data_dir; print(data_dir())"
 
           $proc = Start-Process -FilePath $exe -WorkingDirectory $installDir -PassThru
           Start-Sleep -Seconds 10
@@ -469,6 +488,16 @@ jobs:
           if ($exitedEarly -or $crashLogGrew) {
             exit 1
           }
+          # Uygulama gerçekten açıldığına göre profilini de kurmuş olmalı.
+          # Bu, aşağıdaki kaldırma kontrolünün ANLAMLI olması için ön koşul:
+          # olmayan bir dizinin "korunduğunu" doğrulamak hiçbir şey söylemez.
+          $dbPath = Join-Path $dataDir "finance.db"
+          if (-not (Test-Path $dbPath)) {
+            Write-Host "::error::Kurulu uygulama açıldı ama kullanıcı profilini ($dbPath) oluşturmadı."
+            exit 1
+          }
+          $dbSizeBefore = (Get-Item $dbPath).Length
+
           $uninstaller = Join-Path $installDir "unins000.exe"
           $remove = Start-Process -FilePath $uninstaller -PassThru `
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
@@ -477,7 +506,66 @@ jobs:
             Write-Host "::error::Kaldırma doğrulanamadı."
             exit 1
           }
-          Write-Host "Installer smoke testi geçti."
+          # KALDIRMA KULLANICI VERİSİNE DOKUNMAMALI. Bir kullanıcının
+          # uygulamayı kaldırıp yeniden kurması, tüm finansal geçmişini
+          # kaybetmesi anlamına gelmemeli.
+          if (-not (Test-Path $dbPath)) {
+            Write-Host "::error::Kaldırma kullanıcı veritabanını SİLDİ ($dbPath). installer/archlence.iss'e UninstallDelete eklenmiş olabilir."
+            exit 1
+          }
+          $dbSizeAfter = (Get-Item $dbPath).Length
+          if ($dbSizeAfter -ne $dbSizeBefore) {
+            Write-Host "::error::Kaldırma kullanıcı veritabanını DEĞİŞTİRDİ ($dbSizeBefore -> $dbSizeAfter bayt)."
+            exit 1
+          }
+          Write-Host "Installer smoke testi geçti (kullanıcı verisi kaldırmadan sonra korundu)."
+
+      - name: "Kurulum kapsamı: VARSAYILAN hedef kullanıcı profili altında mı"
+        shell: pwsh
+        timeout-minutes: 5
+        # Yukarıdaki smoke testi `/DIR=` ile AÇIK bir hedef veriyor; bu
+        # yalnızca "verilen dizine kuruluyor" der, ürünün asıl iddiasını
+        # ("kullanıcı başına kurulum, yönetici izni gerekmiyor" —
+        # installer/archlence.iss: PrivilegesRequired=lowest,
+        # DefaultDirName={localappdata}\Programs\Archlence) DOĞRULAMAZ.
+        # Burada hedef VERİLMİYOR: Inno Setup'ın kendi varsayılanı ölçülüyor.
+        #
+        # NOT — bunun ÖLÇMEDİĞİ şey: runner yönetici haklarıyla koşuyor,
+        # dolayısıyla "standart kullanıcı da kurabiliyor" iddiası burada
+        # KANITLANMAZ. Kanıtlanan tek şey kurulumun makine geneli bir konuma
+        # (Program Files) gitmediği. Standart kullanıcıyla kurulum gerçek
+        # makine turuna ait.
+        run: |
+          $installer = (Resolve-Path "installer_output\ArchlenceSetup.exe").Path
+          $setup = Start-Process -FilePath $installer -PassThru `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-"
+          if (-not $setup.WaitForExit(120000)) {
+            try { $setup.Kill() } catch { }
+            Write-Host "::error::Varsayılan hedefe kurulum 120 saniyede tamamlanmadı."
+            exit 1
+          }
+          [void]$setup.WaitForExit(10000)
+          if ($setup.ExitCode -ne 0) {
+            Write-Host "::error::Varsayılan hedefe kurulum başarısız (exit=$($setup.ExitCode))."
+            exit 1
+          }
+          $expected = Join-Path $env:LOCALAPPDATA "Programs\Archlence"
+          $exe = Join-Path $expected "Archlence.exe"
+          if (-not (Test-Path $exe)) {
+            Write-Host "::error::Varsayılan kurulum $expected altında bulunamadı; kapsam kullanıcı profilinden çıkmış olabilir."
+            Get-ChildItem (Join-Path $env:LOCALAPPDATA "Programs") -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  bulunan: $($_.FullName)" }
+            exit 1
+          }
+          if (Test-Path (Join-Path $env:ProgramFiles "Archlence")) {
+            Write-Host "::error::Kurulum makine geneli konuma (Program Files) yazdı — kullanıcı başına kurulum iddiası bozuldu."
+            exit 1
+          }
+          Write-Host "Varsayılan kurulum hedefi doğrulandı: $expected"
+          $uninstaller = Join-Path $expected "unins000.exe"
+          $remove = Start-Process -FilePath $uninstaller -PassThru `
+            -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
+          [void]$remove.WaitForExit(120000)
+          [void]$remove.WaitForExit(10000)
 
       - name: Kurulum paketini artifact olarak yükle
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4

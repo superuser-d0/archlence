@@ -358,6 +358,24 @@ jobs:
         run: >-
           xvfb-run -a python scripts/dev/verify_asset_dialog_layout.py
           --output visual/assets-${{ matrix.language }}-${{ matrix.dpi }}
+      - name: Sekme kaydırma sözleşmesi
+        # NEDEN BURADA: bu kapı GERÇEK bir olay döngüsüne ve pencereye
+        # ihtiyaç duyuyor — dokunuşu Kivy'nin girdi hattından gönderip
+        # `scroll_y`'nin değişip değişmediğine bakıyor. Birim testi bunu
+        # yakalayamazdı: "Kartlarım" sekmesinin geometrisi KUSURSUZDU
+        # (içerik 1056dp, görünür alan 456dp) ve `scroll_y` programatik
+        # olarak değişiyordu; kırık olan tek şey dokunuşun ScrollView'a
+        # ULAŞMASIYDI. Gerçek Windows makinesinde sayfa tamamen
+        # kaydırılamaz hâldeydi.
+        env:
+          KIVY_DPI: ${{ matrix.dpi }}
+          ARCHLENCE_LANGUAGE: ${{ matrix.language }}
+          XDG_DATA_HOME: ${{ runner.temp }}/archlence-scroll-data
+          XDG_CACHE_HOME: ${{ runner.temp }}/archlence-scroll-cache
+          XDG_STATE_HOME: ${{ runner.temp }}/archlence-scroll-state
+        run: >-
+          xvfb-run -a python scripts/dev/verify_tab_scrolling.py
+          --output visual/scroll-${{ matrix.language }}-${{ matrix.dpi }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         if: always()
         with:

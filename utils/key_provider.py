@@ -311,7 +311,29 @@ class DpapiKeyProvider(FileKeyProvider):
             raise KeyUnavailableError(
                 "Anahtar DPAPI ile korunamadı."
             ) from exc
-        return super()._create_atomically(protected) and key
+        stored = super()._create_atomically(protected)
+        # YARIŞI KAYBEDEN, KAZANANIN ANAHTARINI DÖNDÜRMELİ. Üst sınıf tam
+        # da bunun için `os.link` sıralaması kullanıyor: bağlamayı başka bir
+        # yazar kazandıysa `_read_existing()` ile DİSKTEKİ anahtarı döndürüyor
+        # ve `FileKeyProvider` bu sözleşmeye uyuyor.
+        #
+        # Buradaki eski ifade `super()._create_atomically(protected) and key`
+        # idi: üst sınıf ne döndürürse döndürsün, sonuç HER ZAMAN bizim
+        # ürettiğimiz `key` oluyordu. Yani yarışı kaybeden süreç/thread,
+        # diske HİÇ YAZILMAMIŞ bir anahtarla şifrelemeye devam ediyordu ve o
+        # veriler süreç kapandığında kalıcı olarak okunamaz hâle geliyordu —
+        # üst sınıftaki "sessiz anahtar imhası" notunun anlattığı arıza, DPAPI
+        # alt sınıfında geri gelmişti. Yol Windows'a özgü, ama koşulabilir:
+        # yarış dalı enjekte edilen bir protector ile her platformda ölçülüyor
+        # (tests/test_windows_platform_contracts.py).
+        #
+        # Ayrım kimlikle yapılıyor: üst sınıf başarı yolunda KENDİSİNE VERİLEN
+        # nesneyi geri döndürüyor, yarış yolunda ise diskten okunmuş yeni bir
+        # nesne. Değer karşılaştırması burada yanlış olurdu — korunmuş blob ile
+        # çözülmüş anahtar zaten farklı baytlar, eşitlik hiçbir şey söylemez.
+        if stored is protected:
+            return key
+        return stored
 
     def replace_key(self, key, *, expected_current):
         _validate_key(key)

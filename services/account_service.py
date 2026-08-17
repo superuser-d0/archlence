@@ -427,7 +427,20 @@ class AccountService:
     @staticmethod
     def pay_credit_card_debt(credit_card_id, source_account_id, amount):
         """Kredi kartı borcunu vadesiz hesaptan öder."""
-        amount = float(amount)
+        # `float(amount)` + `amount <= 0` NaN'i GEÇİRİYORDU ve `amount > debt`
+        # de geçiriyor (`nan > x` False). Ölçüldü: NaN İLK SQL UPDATE'e kadar
+        # ulaşıyor, kaynak hesabın bakiyesini transaction İÇİNDE NULL'a
+        # çeviriyordu (SQLite NaN'i NULL olarak saklar); kalıcı bozulma
+        # olmuyordu çünkü ikinci UPDATE'in koşulu tutmayıp ValueError
+        # fırlatıyor ve commit'e ulaşılmadan bağlantı kapanıyordu. Yine de
+        # projenin sözleşmesi bu: sonlu olmayan tutar HİÇBİR yazmadan önce,
+        # servis sınırında reddedilir (bkz. scripts/audit/
+        # test_phase2_nonfinite_matrix.py). `fiat` ortak primitif; kuruşa
+        # yuvarlaması da doğru — ödenen para kuruşludur.
+        try:
+            amount = float(fiat(amount))
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Ödenecek tutar geçerli bir sayı olmalıdır.") from exc
         if amount <= 0:
             raise ValueError("Ödenecek tutar sıfırdan büyük olmalıdır.")
 

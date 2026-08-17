@@ -238,6 +238,122 @@ class BudgetTrackingServiceTest(AccountFixtureMixin, unittest.TestCase):
         self.assertEqual(copied, 0)
 
 
+class PlanItemWriteBoundaryTest(AccountFixtureMixin, unittest.TestCase):
+    """`save_plan_item` — bütçe planının para sınırı.
+
+    Bu yazma, para tutan tabloların içinde servis sınırından geçmeyen TEK
+    yoldu: SQL doğrudan `mixins/budget_mixin.py` içindeydi ve tutarın tek
+    doğrulaması arayüzün kendi kontrolüydü. Arayüz `nan`/`inf` üretemediği
+    için bilinen bir açık değildi, ama kural arayüzde yaşadığı sürece ikinci
+    bir çağıran onu görmeden atlardı. Buradaki testler kuralı servis
+    katmanında sabitliyor.
+    """
+
+    def setUp(self):
+        fd, self.db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        self.db_patch = mock.patch("database.db.DB_NAME", self.db_path)
+        self.db_patch.start()
+        self.addCleanup(self.db_patch.stop)
+        self.addCleanup(lambda: os.path.exists(self.db_path) and os.unlink(self.db_path))
+        from database.init_db import initialize_database
+        initialize_database()
+
+    def _rows(self):
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        try:
+            return [dict(r) for r in conn.execute(
+                "SELECT * FROM monthly_budget_plan ORDER BY id")]
+        finally:
+            conn.close()
+
+    def _save(self, **overrides):
+        from services.budget_service import save_plan_item
+        params = dict(
+            item_type="expense", name="Market", amount=1500.0,
+            month=8, year=2026, category="Market", alert_threshold_pct=80,
+        )
+        params.update(overrides)
+        return save_plan_item(**params)
+
+    def test_rejects_non_finite_and_non_positive_amounts_without_writing(self):
+        for amount in (float("nan"), float("inf"), float("-inf"),
+                       0, -1.0, "abc", None):
+            with self.subTest(amount=amount):
+                with self.assertRaises(ValueError):
+                    self._save(amount=amount)
+                self.assertEqual(self._rows(), [],
+                                 "reddedilen tutar yine de satır yazdı")
+
+    def test_rejects_invalid_metadata_without_writing(self):
+        for label, kwargs in (
+            ("boş ad", {"name": "   "}),
+            ("bilinmeyen tür", {"item_type": "gider"}),
+            ("ay 0", {"month": 0}),
+            ("ay 13", {"month": 13}),
+            ("eşik 0", {"alert_threshold_pct": 0}),
+            ("eşik 101", {"alert_threshold_pct": 101}),
+            ("geçersiz kopya ayı", {"propagate_to_months": (13,)}),
+        ):
+            with self.subTest(case=label):
+                with self.assertRaises(ValueError):
+                    self._save(**kwargs)
+                self.assertEqual(self._rows(), [])
+
+    def test_amount_is_stored_quantised_to_the_kurus(self):
+        self._save(amount=1500.555)
+        self.assertEqual(self._rows()[0]["amount"], 1500.56)
+
+    def test_creates_then_updates_in_place(self):
+        self._save()
+        item_id = self._rows()[0]["id"]
+
+        self._save(item_id=item_id, amount=2000.0, name="Market (zam)")
+        rows = self._rows()
+        self.assertEqual(len(rows), 1, "güncelleme yeni satır yazdı")
+        self.assertEqual(rows[0]["id"], item_id)
+        self.assertEqual(rows[0]["amount"], 2000.0)
+        self.assertEqual(rows[0]["name"], "Market (zam)")
+
+    def test_editing_a_template_creates_a_monthly_item_and_keeps_the_template(self):
+        self._save(is_template=True)
+        template_id = self._rows()[0]["id"]
+
+        self._save(item_id=template_id, editing_a_template=True, amount=900.0)
+        rows = self._rows()
+        self.assertEqual(len(rows), 2)
+        template = next(r for r in rows if r["id"] == template_id)
+        created = next(r for r in rows if r["id"] != template_id)
+        self.assertEqual(template["is_template"], 1, "şablon değiştirildi")
+        self.assertEqual(created["is_template"], 0,
+                         "şablondan türetilen kalem yine şablon oldu")
+        self.assertEqual(created["amount"], 900.0)
+
+    def test_propagated_copies_are_written_and_are_never_templates(self):
+        self._save(is_template=False, propagate_to_months=(9, 10, 8))
+        rows = self._rows()
+        # Kaynak ay bir kez yazılır; kendine kopyalanmaz.
+        self.assertEqual(sorted(r["target_month"] for r in rows), [8, 9, 10])
+        self.assertTrue(all(r["is_template"] == 0 for r in rows))
+        self.assertTrue(all(r["amount"] == 1500.0 for r in rows))
+        self.assertTrue(all(r["target_year"] == 2026 for r in rows))
+
+    def test_a_rejected_propagation_writes_nothing_at_all(self):
+        """Kopyalama asıl yazımla AYNI transaction'da olmalı."""
+        with self.assertRaises(ValueError):
+            self._save(propagate_to_months=(9, 99))
+        self.assertEqual(self._rows(), [],
+                         "geçersiz kopya listesi yarım plan bıraktı")
+
+    def test_saved_item_is_visible_to_the_budget_calculation(self):
+        from services.budget_service import calculate_monthly_budget
+
+        self._save(amount=1500.0)
+        budget = calculate_monthly_budget(8, 2026)
+        self.assertEqual(budget["planned_expense"], Decimal("1500.00"))
+
+
 class PlannerMonthRangeTest(unittest.TestCase):
     """Ay seçici ufku: bulunduğumuz aydan Aralık'a (madde 2.1)."""
 

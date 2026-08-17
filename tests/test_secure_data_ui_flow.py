@@ -1,3 +1,4 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -118,3 +119,35 @@ class SecureDataUiFlowTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RestoreChooserLocationTest(unittest.TestCase):
+    """Kullanıcı KENDİ yedeğine uygulamanın içinden ulaşabilmeli.
+
+    Yedekler `data_dir()/backups` altına yazılıyor; Windows'ta bu
+    `%LOCALAPPDATA%\\Archlence\\backups`, yani `AppData`nın İÇİNDE. `AppData`
+    gizli bir klasör ve Kivy'nin dosya seçicisi gizli girdileri listelemiyor
+    (`show_hidden` kod tabanında hiçbir yerde set edilmiyor). Seçici ev
+    dizininde açıldığı sürece o klasöre gezinmek imkânsız.
+
+    Gerçek bir Windows 11 makinesinde ölçüldü: kullanıcı geri yükleme
+    ekranından kendi yedeğini göremiyordu.
+    """
+
+    def test_chooser_opens_where_the_backups_actually_are(self):
+        from mixins.migration_mixin import restore_chooser_path
+
+        with tempfile.TemporaryDirectory() as temp:
+            backups = Path(temp) / "backups"
+            backups.mkdir()
+            with mock.patch("utils.app_paths.data_dir", return_value=temp):
+                self.assertEqual(restore_chooser_path(), str(backups))
+
+    def test_chooser_falls_back_home_before_the_first_backup(self):
+        """Yedek klasörü henüz yoksa var olmayan bir yola açılmamalı."""
+        from mixins.migration_mixin import restore_chooser_path
+
+        with tempfile.TemporaryDirectory() as temp:
+            with mock.patch("utils.app_paths.data_dir", return_value=temp):
+                self.assertEqual(
+                    restore_chooser_path(), os.path.expanduser("~"))

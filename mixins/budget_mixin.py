@@ -920,11 +920,6 @@ class BudgetMixin:
             toast(_t("Şablon seçildi; belirli aylara kopyalama uygulanmadı."))
             propagate = False
 
-        values = (
-            self.bp_selected_type, name, amount, month, year, category,
-            int(self.bp_rollover_switch.active), int(template), threshold,
-        )
-
         editing_id = getattr(self, "editing_item_id", None)
         editing_item_is_template = getattr(self, "editing_item_is_template", False)
 
@@ -934,45 +929,39 @@ class BudgetMixin:
                 if getattr(child, "is_selected", False) and int(child.month_index) != month:
                     propagate_targets.append(int(child.month_index))
 
+        item_type = self.bp_selected_type
+        rollover = bool(self.bp_rollover_switch.active)
+
         def db_task():
-            from database.db import get_connection
-            conn = get_connection()
+            # SQL ARTIK BURADA DEĞİL. Bu yazma, para tutan tabloların içinde
+            # servis sınırından geçmeyen tek yoldu; doğrulama yalnızca
+            # yukarıdaki arayüz kontrolüydü. Kural artık `budget_service` ile
+            # birlikte, diğer bütün parasal sınırlarla aynı yerde.
+            from services.budget_service import save_plan_item
             try:
-                if editing_id and not editing_item_is_template:
-                    conn.execute(
-                        """UPDATE monthly_budget_plan SET
-                           type=?, name=?, amount=?, target_month=?, target_year=?,
-                           category_name=?, rollover_enabled=?, is_template=?,
-                           alert_threshold_pct=?
-                           WHERE id=? AND target_month=? AND target_year=?""",
-                        values + (editing_id, month, year),
-                    )
-                else:
-                    insert_values = list(values)
-                    if editing_id and editing_item_is_template:
-                        insert_values[7] = 0
-                    conn.execute(
-                        """INSERT INTO monthly_budget_plan
-                           (type,name,amount,target_month,target_year,category_name,
-                            rollover_enabled,is_template,alert_threshold_pct)
-                           VALUES (?,?,?,?,?,?,?,?,?)""",
-                        tuple(insert_values),
-                    )
-                if propagate:
-                    for target in propagate_targets:
-                        copied = list(values)
-                        copied[3] = target
-                        copied[7] = 0
-                        conn.execute(
-                            """INSERT INTO monthly_budget_plan
-                               (type,name,amount,target_month,target_year,category_name,
-                                rollover_enabled,is_template,alert_threshold_pct)
-                               VALUES (?,?,?,?,?,?,?,?,?)""",
-                            tuple(copied),
-                        )
-                conn.commit()
-            finally:
-                conn.close()
+                save_plan_item(
+                    item_type=item_type,
+                    name=name,
+                    amount=amount,
+                    month=month,
+                    year=year,
+                    category=category,
+                    rollover_enabled=rollover,
+                    is_template=template,
+                    alert_threshold_pct=threshold,
+                    item_id=editing_id,
+                    editing_a_template=editing_item_is_template,
+                    propagate_to_months=propagate_targets,
+                )
+            except ValueError as exc:
+                # Servis sınırı reddetti. `exc` adı except bloğundan çıkarken
+                # temizlendiği için mesaj kopyalanıyor (aynı gerekçe:
+                # subscription_mixin._apply_price_update).
+                message = str(exc)
+                from kivy.clock import Clock
+                Clock.schedule_once(
+                    lambda dt, value=message: toast(_t(value)), 0)
+                return
 
             from kivy.clock import Clock
             Clock.schedule_once(lambda dt: self.on_save_success(category))
