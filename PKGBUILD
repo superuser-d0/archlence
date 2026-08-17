@@ -1,7 +1,7 @@
 # Maintainer: Archlence contributors
 
 pkgname=archlence-bin
-pkgver=0.0.10
+pkgver=0.0.11
 # `pkgver` arttığı için 1'e SIFIRLANDI. `pkgrel` yalnızca upstream sürümü aynı
 # kalırken paketleme değiştiğinde artar (v0.0.7'de ölçeklenebilir ikon eklenince
 # 2 olmuştu); yeni sürümle birlikte sayaç yeniden başlar.
@@ -52,11 +52,11 @@ source=(
 # sessizce kabul eder; geçersiz hash ise gerçek değerler yazılana kadar
 # makepkg'i GÜVENLİ şekilde, yüksek sesle başarısız kılar.
 sha256sums=(
-  '82c272cb7f3f50c4ec0e612b37bd972b8756fbe1454e74d0f8833b6228ff98ea'
-  '4cf21f62e33e87cf69cd015fb9148dbe99badaf75c3caf3b87db1b8813089d71'
-  '1df0fe8c33ba3b13cee650cab7e254964e18acbd27c330dce19ac0aaf7110b9f'
-  'e27e0925f3d0d33dcd212391b038c04dbc89020f212d145bfdca6f0600b2e9ec'
-  '1684f5f89c0fb9943eaebf2b7ed20f2455a0c7b9b9ff195c3403f350418242eb'
+  '0000000000000000000000000000000000000000000000000000000000000000'
+  '0000000000000000000000000000000000000000000000000000000000000000'
+  '0000000000000000000000000000000000000000000000000000000000000000'
+  '0000000000000000000000000000000000000000000000000000000000000000'
+  '0000000000000000000000000000000000000000000000000000000000000000'
 )
 
 package() {
