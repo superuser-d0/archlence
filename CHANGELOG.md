@@ -309,12 +309,18 @@ here, for the reasons under Known limitations.
 
 ### Known limitations
 
+- Real OS display scaling at 125% has since been verified on a physical
+  Windows machine and is no longer a limitation. The window reports
+  `PER_MONITOR_AWARE` at 120 DPI, so Windows does not bitmap-scale it, and
+  Kivy resolves the scale to a density of exactly 1.25. Icon and label
+  layout and tab scrolling were both measured there with no override, and
+  both pass.
 - Some Windows environment combinations remain unverified: cross-user DPAPI
-  isolation, real OS display scaling at 125% and 150%, multi-monitor, and a
-  physical Turkish keyboard layout. Each was blocked by the validation
-  machine itself — one active user account, one monitor, 100% scaling — not
-  by a defect. The application-side paths behind them are covered by tests
-  and by simulated-density runs.
+  isolation, OS display scaling at 150%, multi-monitor, and a physical
+  Turkish keyboard layout. Each is blocked by the validation machine itself
+  — one active user account, one monitor — not by a defect. The
+  application-side paths behind them are covered by tests and by
+  simulated-density runs.
 - `accounts.balance` and `savings_goals.current_amount` remain `REAL`
   columns. The `Decimal` migration has moved the arithmetic that reads them,
   not the storage itself.

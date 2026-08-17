@@ -171,9 +171,40 @@ Sayfa **tepedeyken** ölçün; ara konumdan ölçmek bu hatayı gizliyor (§4, d
 >       `ScrollView`'ın `scroll_type` kuralının verdiğinin kanıtı (kart
 >       yutsaydı iki koşum da `False` verirdi). Değişiklik hemen geri alındı,
 >       `git diff` boş, kapı yeşile döndü. Kod tabanında kalıcı bir değişiklik
->       yok; kanıt bu turun ölçümü. Dolu profildeki kırmızı artık "bilinen
->       yanlış pozitif" olarak belgelenmesine gerek kalmadan gerçek bir
->       regresyon sinyali sayılabilir.
+>       yok; kanıt bu turun ölçümü.
+>
+> **DÜZELTME — 2026-08-17.** Yukarıdaki son cümle "dolu profildeki kırmızı
+> artık gerçek bir regresyon sinyali sayılabilir" diyordu; bu fazla kesindi
+> ve geri çekiliyor. O A/B, o anki gerçek yoğunlukta (1.25) koşmuştu ve
+> yalnızca ORADA temiz dönüş verdiği ölçülmüştü. Yoğunluk taranınca kapı
+> **density 1.0'da, gerçek 9 hesaplı profille kırmızı** veriyor — ve bu
+> kırmızı bir sinyal değil:
+>
+> | Koşum (gerçek profil, 9 hesap) | accounts_tab |
+> |---|---|
+> | density 1.25 (gerçek), düzeltme yerinde | ✓ sürükleme=True |
+> | density 1.25 (gerçek), düzeltme geri alınmış | ✗ sürükleme=False |
+> | density 1.0 (zorlanmış), düzeltme **yerinde** | ✗ sürükleme=False |
+> | density 1.0 (zorlanmış), düzeltme geri alınmış | ✗ sürükleme=False |
+> | density 1.5 (zorlanmış), düzeltme yerinde | ✓ sürükleme=True |
+>
+> 1.0'da iki koşum da kırmızı, yani kapı orada düzeltmeyi AYIRT ETMİYOR —
+> §2.2'nin başında anlatılan dokunuş-noktası artefaktının ta kendisi:
+> merkez nokta o yerleşimde bir `PremiumCreditCardWidget`'in üstüne düşüyor
+> ve `MDCard` dokunuşu sahipleniyor.
+>
+> **Kapı bu yüzden hâlâ kırılgan, ama kırılganlığın şekli değişti:** daha
+> önce "profil boş/dolu" sanılıyordu, ölçülen şey **yoğunluk + hesap
+> yerleşimi** kombinasyonu. CI'ın 96/192 DPI matrisinde yeşil kalmasının
+> sebebi de bu — CI profili boş bulup kendi 4 hesabını yaratıyor (satır
+> 104-112) ve o yerleşimde merkez noktası karta denk gelmiyor.
+>
+> **Ürün tarafında bulgu YOK:** düzeltmenin işe yaradığı gerçek yoğunlukta
+> (1.25) ve 1.5'te ayırt edici şekilde kanıtlandı. Kırılgan olan ölçüm
+> aracı. Kapıyı sağlamlaştırmak — dokunuşu yoğunluktan ve hesap sayısından
+> bağımsız, şeridin içinde ama kartın üstünde olmayan bir noktadan
+> başlatmak — hâlâ açık bir iş; nokta hesabının iç içe ScrollView'ların
+> koordinat uzayında güvenilmez olduğu yukarıda zaten ölçülmüştü.
 
 ---
 
@@ -406,6 +437,34 @@ turu yüzünden yinelenmiş durumda — test verisi, uygulama hatası değil).
       **Ortam envanteri — 2026-08-14:** Win32 `GetDpiForSystem` 96 DPI / %100
       verdi. %125 ve %150, oturumun gerçek Windows ölçeği değiştirilmeden
       doğrulanmış sayılmadı.
+
+      **%125 KAPANDI — 2026-08-17, gerçek Windows ölçeği, kaynaktan.**
+      Kullanıcı ekran ölçeğini %125'e aldı ve ölçüm simülasyonsuz yapıldı:
+
+      | Ölçüm | Değer |
+      |---|---|
+      | `GetDpiForSystem` / `GetDpiForMonitor` | 120 → %125 |
+      | Ekran (fiziksel) | 1920×1200 |
+      | Pencere farkındalığı (`GetWindowDpiAwarenessContext`) | `PER_MONITOR_AWARE` |
+      | `GetDpiForWindow` | 120 |
+      | Kivy `Metrics.density` / `dp(100)` / `sp(16)` | 1.25 / 125 / 20 |
+      | `verify_icon_label_layout.py` (override YOK) | 38 çift, 0 çakışma |
+      | `verify_tab_scrolling.py` (override YOK) | 3/3 sekme kaydırılabilir |
+
+      **Öngörülen bulanıklaşma GERÇEKLEŞMEDİ ve sebebi ölçüldü.** Kodda,
+      `.spec`'te ve `.iss`'te hiçbir DPI farkındalığı beyanı YOK (arandı,
+      bulunamadı) — ama SDL2 bunu runtime'da kendisi yapıyor, pencere
+      per-monitor aware doğuyor. Yani Windows bitmap ölçekleme yapmıyor,
+      uygulama 120 DPI'da natif çiziyor. Bu farkındalık uygulamanın kendi
+      kararı DEĞİL, bağımlılığın davranışı; SDL2 sürümü değişirse yeniden
+      ölçülmeli.
+
+      **Simülasyonun geçerliliği kanıtlandı:** gerçek yoğunluk tam olarak
+      1.25 çıktı ve `KIVY_METRICS_DENSITY=1.0/1.5` ile zorlanan koşumlar
+      içerik yüksekliğini tam orantılı değiştirdi (1188 → 1485 → 1782,
+      yani ×1.25 ve ×1.5). Yani önceki simüle ölçümler bu makinede geçerli.
+
+      **%150 hâlâ açık** — oturumun ölçeği %150'ye alınmadı.
 - [ ] Çoklu monitör: pencere ikinci ekrana taşındığında ölçek bozulmuyor.
       **Ölçülemedi — 2026-08-14:** doğrulama makinesinde ikinci monitör
       bulunmuyor; WinForms ekran sayımı yalnız `DISPLAY1` verdi
