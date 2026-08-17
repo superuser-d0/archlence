@@ -4,6 +4,21 @@ import re
 import sys
 from pathlib import Path
 
+# Konsol kodlaması: bu kapının Türkçe çıktısı süreci ÖLDÜRMESİN.
+# Windows'ta stdout yönlendirildiğinde (dosya, pipe, CI log) kod sayfası
+# cp1252'ye düşüyor ve 'ı' karakteri KODLANAMIYOR. Ölçüldü: sürüm kontrolü
+# TAMAMEN GEÇTİĞİ hâlde, son satırdaki "Sürüm tutarlı: ..." mesajı
+# UnicodeEncodeError fırlatıp scripti **exit 1** ile düşürüyordu — yani
+# yeşil bir kapı kırmızı raporlanıyordu. CI'da görülmedi çünkü bu adım
+# `ubuntu-latest`'ta koşuyor; Windows'tan elle yayın adımı koşturan
+# herkesi vururdu. Aynı koruma run_tests.py'ın tepesinde de var (oradaki
+# uzun gerekçeye bakın).
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        pass
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
