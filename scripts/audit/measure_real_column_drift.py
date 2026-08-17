@@ -26,6 +26,14 @@ import os
 import sqlite3
 import sys
 import tempfile
+from pathlib import Path
+
+# Docstring bu scripti `python scripts/audit/measure_real_column_drift.py` diye
+# çalıştırmayı söylüyor ama o yolla ÇALIŞMIYORDU: Python `sys.path[0]`'ı
+# scriptin kendi dizini (`scripts/audit`) yapıyor, depo kökü hiç girmiyor ve
+# `from utils...` `ModuleNotFoundError` veriyordu. `PYTHONPATH` elle
+# ayarlanmadan koşmayan bir tanı aracı, pratikte hiç koşmayan bir tanı aracıdır.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from contextlib import closing
 from decimal import Decimal
 from pathlib import Path

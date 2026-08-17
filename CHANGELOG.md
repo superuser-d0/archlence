@@ -2,6 +2,42 @@
 
 ## [Unreleased]
 
+### Testing and packaging
+
+- The four user-facing error boundaries in the card screens no longer catch
+  bare `Exception`. They wrap a single service call each — reading a card
+  statement, deleting a card, counting active instalment plans, listing
+  upcoming instalments — and the audit tool had been flagging them as
+  "narrowing should be reviewed" for several releases. They now catch exactly
+  what those calls raise: `ArchlenceError` (the base of the crypto and domain
+  errors), `sqlite3.Error`, and the `ValueError`/`TypeError` that
+  `delete_credit_card` and amount conversion produce.
+
+  The point is what is now *excluded*. A `KeyError` or `AttributeError` — a
+  coding mistake rather than a runtime condition — used to be shown to the
+  user as an unreadable toast; it now reaches
+  `main.py::_log_unhandled_exception` and is logged with a traceback.
+
+  This had been deferred deliberately, and the recorded reason was that the
+  GUI could not be run to check a narrower catch would not crash a screen
+  instead of degrading gracefully. That reason no longer applies: all four
+  dialogs were opened in the real application after the change and all four
+  render. Both directions are pinned by tests — expected types still produce a
+  toast, unexpected types now propagate — and re-widening the boundary to
+  `Exception` turns five of them red.
+
+  The audit's "narrowing should be reviewed" category is now empty, and the
+  total falls from 146 to 142. The remaining 142 are logged boundaries (120),
+  reviewed-and-accepted broad handlers (13) and re-raising boundaries (9) —
+  none of which the tool asks anyone to change.
+
+- Two diagnostic scripts now run the way their own docstrings say they do.
+  `measure_real_column_drift.py` and `measure_projection_precision.py` both
+  failed with `ModuleNotFoundError` unless `PYTHONPATH` happened to be set,
+  because Python puts the script's own directory on the path rather than the
+  repository root. A diagnostic that does not run without an undocumented
+  environment variable is a diagnostic that does not run.
+
 ## [0.0.12] — 2026-08-17
 
 This release finishes what a single user report started. The search bar that

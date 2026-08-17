@@ -489,6 +489,22 @@ Not release-blocking, but worth doing before calling this stable.
   screen instead of degrading gracefully. Scoped to the 58 in
   `services/`/`database/`/`utils/` instead — fully unit-testable, no UI
   risk.
+
+  **Update — the UI-verifiability reason no longer holds, and the four
+  handlers it was blocking are done.** The GUI can now be exercised, so the
+  four boundaries the audit tool flagged as "user-facing; narrowing should be
+  reviewed" (all in `mixins/account_mixin.py`) were narrowed to the exception
+  set their service calls actually raise, and all four dialogs were then opened
+  in the real application to confirm they still render. That category is now
+  empty; the total fell 146 → 142.
+
+  **The remaining 142 are not a queue.** They break down as 120 logged
+  boundaries, 13 broad handlers already reviewed and accepted with the audit
+  marker, and 9 that re-raise. The tool does not ask for any of them to change,
+  and narrowing a logged boundary in a Kivy callback trades graceful
+  degradation for a crash with no diagnostic gain — the traceback is already
+  in the log. Treat this item as closed unless the audit surfaces a new
+  user-facing boundary.
   Two behavior-vs-narrowing options were on the table for the decrypt-
   adjacent sites specifically: (A) narrow the caught exception type only,
   keep the existing fail-open recovery (still 0.0 / a placeholder string on
