@@ -359,13 +359,20 @@ jobs:
       #   run: >-
       #     xvfb-run -a python scripts/dev/verify_search_bar_visual.py
       #     --output visual/search-${{ matrix.language }}-${{ matrix.dpi }}
+      # XDG dizinleri BU ADIMA ÖZEL. Eskiden `archlence-visual-*` idi ve o adı
+      # yukarıdaki (artık parktaki) arama çubuğu kapısıyla PAYLAŞIYORDU. Arama
+      # kapısı önce koştuğu için profili o kuruyor, bu adım hazır profil
+      # buluyordu — kimse yazmamış, kimse fark etmemiş bir sıra bağımlılığı.
+      # Arama adımı parka alınınca bu kapı zincirin başı oldu, soğuk profille
+      # karşılaştı ve dörtte ikisi düştü. İkon/kaydırma kapıları zaten kendi
+      # dizinlerini kullanıyor; bu da artık öyle.
       - name: Asset dialog geometry contracts
         env:
           KIVY_DPI: ${{ matrix.dpi }}
           ARCHLENCE_LANGUAGE: ${{ matrix.language }}
-          XDG_DATA_HOME: ${{ runner.temp }}/archlence-visual-data
-          XDG_CACHE_HOME: ${{ runner.temp }}/archlence-visual-cache
-          XDG_STATE_HOME: ${{ runner.temp }}/archlence-visual-state
+          XDG_DATA_HOME: ${{ runner.temp }}/archlence-asset-data
+          XDG_CACHE_HOME: ${{ runner.temp }}/archlence-asset-cache
+          XDG_STATE_HOME: ${{ runner.temp }}/archlence-asset-state
         run: >-
           xvfb-run -a python scripts/dev/verify_asset_dialog_layout.py
           --output visual/assets-${{ matrix.language }}-${{ matrix.dpi }}
