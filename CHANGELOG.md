@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Financial correctness and reliability
+
+- The BIST and crypto pickers can find Turkish names again. Both filtered with
+  `.lower()`, which does not fold Turkish: measured against the real BIST-100
+  list, typing `is bankasi` or `tupras` returned **no results at all**, so
+  İş Bankası and Tüpraş were unreachable by name and only findable by ticker.
+  The budget category picker had the same class of bug through `.casefold()`.
+  All three now share the folding introduced in 0.0.11, so accents and the
+  ı/İ/I/i family all compare equal.
+
 ## [0.0.11] — 2026-08-17
 
 A single-feature release. The search bar in the home header, which 0.0.10

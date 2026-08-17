@@ -455,13 +455,15 @@ Not release-blocking, but worth doing before calling this stable.
   description search to a bounded recent window. None of these is obviously
   right, which is why the first round stopped at names.
 
-- **Fix Turkish folding in the two older search boxes** — the category picker
-  in `mixins/budget_mixin.py` and the asset search in `mixins/asset_mixin.py`
-  both use plain `.casefold()`, so `ISI` does not match `ısı` and a query
-  typed without accents misses accented records.
-  `services.search_service.normalize` already solves this and is unit-tested;
-  those two call sites should use it. Not done in the search round to keep
-  that change reviewable.
+- ~~**Fix Turkish folding in the older search boxes**~~ — **Done.** There were
+  three call sites, not two: the budget category picker used `.casefold()`,
+  and the BIST and crypto pickers used `.lower()`, which is weaker still. All
+  three now go through `services.search_service.matches`.
+
+  The BIST list made the cost concrete, since most of its names are Turkish.
+  Measured against the real `BIST100_STOCKS` data, the old code returned **no
+  results at all** for `is bankasi` or `tupras`; both now return the right
+  row. A user could not find İş Bankası by typing its name.
 
 - ~~Split overly broad exception handling by failure type~~ — **Partially
   done, scope deliberately narrowed** — [PR #13](https://github.com/superuser-d0/archlence/pull/13).

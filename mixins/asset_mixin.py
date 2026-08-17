@@ -8,6 +8,7 @@ from utils.toast import toast
 
 
 from data.bist100 import BIST100_STOCKS
+from services.search_service import matches
 import ui.theme as ftheme
 from ui.i18n import tr as _t
 
@@ -357,10 +358,13 @@ class AssetMixin:
 
         def _build_list(query=""):
             self._bist_list_widget.clear_widgets()
-            query_lower = query.strip().lower()
             prices = getattr(self, "_bist_prices", {})
             for code, name in BIST100_STOCKS:
-                if query_lower and query_lower not in code.lower() and query_lower not in name.lower():
+                # `.lower()` DEĞİL: BIST adlarının çoğu Türkçe ve orada
+                # yanlış sonuç veriyordu — "is bankasi" yazan kullanıcı
+                # "İŞ BANKASI"nı bulamıyordu (`"İ".lower()` "i" + birleşen
+                # nokta üretir, "ı"/"i" ayrımı da çözülmez).
+                if not matches(query, code, name):
                     continue
                 price = prices.get(code)
                 price_text = f"   [color=#14B85F]{format_price_tl(price)}[/color]" if price else ""
@@ -602,14 +606,16 @@ class AssetMixin:
 
         def _build_list(query=""):
             self._crypto_list_widget.clear_widgets()
-            query_lower = query.strip().lower()
             cryptos = getattr(self, "_crypto_list_data", [])
             for c in cryptos:
                 code = c["symbol"]
                 name = c["name"]
                 price = c["price"]
-                
-                if query_lower and query_lower not in code.lower() and query_lower not in name.lower():
+
+                # BIST listesiyle aynı gerekçe; kripto adları çoğunlukla
+                # İngilizce ama tek bir katlama kullanmak üç arama kutusunun
+                # aynı şekilde davranmasını da garanti ediyor.
+                if not matches(query, code, name):
                     continue
                 
                 price_text = f"   [color=#14B85F]${price:,.2f}[/color]" if price else ""
