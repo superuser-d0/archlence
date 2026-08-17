@@ -16,6 +16,20 @@
 
 ### Testing and packaging
 
+- The key's user scoping is now pinned by a test. Cross-user DPAPI isolation
+  rests on one thing: whether `CryptProtectData` is given
+  `CRYPTPROTECT_LOCAL_MACHINE`. With that flag the blob binds to the machine
+  and any Windows user on it can decrypt; without it, it binds to the calling
+  user. The code passes `dwFlags=0`, and that is now measured behaviourally —
+  the real call is intercepted and the flag captured, for both protect and
+  unprotect — rather than asserted by reading the source. Verified against a
+  known-broken state: setting the flag turns the test red.
+
+  This does **not** replace running the check as a second Windows user, which
+  the validation machine cannot do. It proves Windows is being asked for user
+  scope, and it means a future change that widens the scope fails loudly
+  instead of silently. See Known limitations.
+
 - The tab scrolling gate no longer depends on where cards happen to land. It
   started its synthetic drag at the window centre, which at some densities and
   account layouts fell on an `MDCard`; the card claims the touch, so the gate
@@ -26,6 +40,18 @@
   measurement is reported as skipped rather than failed. Verified by A/B at
   three densities: green with the fix and red without it at 1.0, 1.25 and 1.5,
   where 1.0 previously failed in both directions.
+
+### Known limitations
+
+- **Cross-user DPAPI isolation cannot be run on the validation machine** and
+  will stay that way: there is no second Windows account and one will not be
+  created. The mechanism behind the claim is now pinned by a test (see Testing
+  and packaging), which is a narrower guarantee than an end-to-end run and is
+  recorded as such rather than as a verification.
+- Multi-monitor behaviour remains unverified for the same class of reason —
+  the machine has one display.
+- The notification bell is absent rather than implemented; what it should show
+  is an open product question recorded in `docs/ROADMAP.md`.
 
 ### Financial correctness and reliability
 

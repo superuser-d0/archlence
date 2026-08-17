@@ -394,10 +394,31 @@ Windows kullanıcısıyla kullanıcılar arası yalıtım kontrolü açık kald�
       **Windows DPAPI** gösterdi.
 - [ ] Aynı kontrolü **ikinci bir Windows kullanıcı hesabıyla** tekrarlayın —
       DPAPI kullanıcı başına; başka kullanıcı sizin verinizi açamamalı.
-      **Ölçülemedi — 2026-08-14:** makinedeki tek etkin normal hesap
-      `ckrgz`; Administrator, Guest ve diğer yerleşik hesaplar devre dışı.
-      Yeni bir Windows oturumu ve kimlik bilgisi olmadan kullanıcılar arası
-      DPAPI davranışı fiziksel olarak koşturulamadı.
+      **Fiziksel koşum YAPILAMAZ — 2026-08-17 teyit edildi:** makinede ikinci
+      bir Windows hesabı yok ve oluşturulmayacak. Bu madde bu makinede
+      uçtan uca kapanamaz; aşağıdaki ölçüm onun YERİNE GEÇMEZ, kapsamı
+      daraltır.
+
+      **MEKANİZMA ÖLÇÜLDÜ ve kapıya bağlandı — 2026-08-17.** İzolasyon
+      iddiası tek bir şeye dayanıyor: `CryptProtectData`'ya
+      `CRYPTPROTECT_LOCAL_MACHINE` (0x4) verilip verilmediği. Verilirse blob
+      MAKİNEYE bağlanır ve o makinedeki her Windows kullanıcısı çözer;
+      verilmezse çağıran KULLANICIYA bağlanır. Kod `dwFlags=0` geçiyor.
+
+      Bu, kaynak metni aranarak değil **davranışsal olarak** ölçüldü: gerçek
+      `CryptProtectData` çağrısının arasına girilip `dwFlags` yakalandı
+      (`tests/test_windows_platform_contracts.py::RealWindowsDpapi`,
+      koruma ve çözme tarafı ayrı ayrı). Kapı bilinen-bozuk duruma karşı
+      doğrulandı: bayrak `0x4` yapılınca test kırmızıya döndü
+      ("anahtar MAKİNE kapsamıyla korunuyor"), geri alınca yeşile.
+
+      | | |
+      |---|---|
+      | **Kanıtlar** | Windows kendi sözleşmesi gereği blob'u çağıran kullanıcıya bağlar; başka kullanıcı çözemez. Ve biri ileride bu bayrağı eklerse sessizce değil, kırmızı kapıyla olur. |
+      | **Kanıtlamaz** | Windows'un kendi sözleşmesine uyduğunu (işletim sistemine güveniyoruz) ve gerçek bir ikinci hesapla koşulduğunu. |
+
+      **Kalan risk kabul ediliyor** ve CHANGELOG'un Known limitations
+      bölümünde bu şekilde yazılı — "doğrulandı" olarak DEĞİL.
 
 ---
 
