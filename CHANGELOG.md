@@ -5,8 +5,7 @@
 ## [0.1.0] — 2026-08-17
 
 This release closes the Windows hardware validation round that v0.0.9 left
-open, and it is the first build that does not describe itself as a
-pre-release. Almost everything it fixes was found by running the packaged
+open. Almost everything it fixes was found by running the packaged
 installer on a real Windows machine rather than in CI: tabs that could not be
 scrolled at all, cards that reserved screens of blank space for content they
 did not have, icons laid out without a width that spilled into the text beside
@@ -15,8 +14,11 @@ before explaining it would not run. The financial changes continue the move to
 `Decimal`, where binary floating point had been rounding portfolio values a
 kuruş away from the arithmetically correct number.
 
-Dropping "pre-release" is a statement about stability, not about the schema:
-see Known limitations for what a 0.x version number still leaves open.
+It remains a **pre-release**. An earlier draft of this section claimed
+otherwise; that was wrong and is retracted. The release workflow marks every
+`0.x` version as a pre-release, following the semver reading that a major
+version of zero makes no compatibility promise — and that reading is right
+here, for the reasons under Known limitations.
 
 ### Highlights
 
