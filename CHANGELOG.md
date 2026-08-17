@@ -2,30 +2,97 @@
 
 ## [Unreleased]
 
-### Features
+## [0.0.11] — 2026-08-17
 
-- The search bar in the home header works. It searches account and category
-  names and shows matches inline under the header; tapping an account opens
-  the accounts tab, tapping a category opens the settings tab with that
-  category type loaded. The magnifier is now an `MDIconButton` and focuses the
-  field — as an `MDIcon` it inherited no button behaviour and could not
-  receive a click at all, which is what prompted the report that the control
-  did nothing.
-- Search folds Turkish case and accents, which plain `casefold()` does not.
-  `"I".casefold()` gives `"i"` while `"ı".casefold()` stays `"ı"`, so a user
-  typing `ISI` could not find `ısı`; `"İ".casefold()` produces `i` followed by
-  a combining dot, which looks like `i` but does not compare equal. All of
-  them now normalise to the same key, and accents fold too, so `sirket` finds
-  `Şirket`. The two older search boxes in the budget and asset dialogs still
-  use plain `casefold()` and still have this bug.
-- Scope is deliberately narrow: account and category names only, both stored
-  as plain text. Transaction descriptions are out of scope because they are
-  encrypted, so matching them means decrypting a working set rather than
-  filtering in SQL — at 50.000 transactions a full decrypt takes 1,1s. That
-  trade-off is recorded in `docs/ROADMAP.md` Phase 2.
-- Results render inline rather than in a dropdown menu. KivyMD's
-  `MDDropdownMenu` is built on a `ModalView` that captures focus, so reopening
-  it on each keystroke would have stopped the user typing a second character.
+A single-feature release. The search bar in the home header, which 0.0.10
+removed because it had never been connected to anything, is back and now does
+what it looks like it does.
+
+### Highlights
+
+- **Search works.** Typing in the home header filters account and category
+  names and shows matches inline; tapping an account opens the accounts tab,
+  tapping a category opens the settings tab with that category type loaded.
+- **The magnifier is a button.** It was an `MDIcon`, which inherits no button
+  behaviour and cannot receive a click at all — the literal reason the
+  reported control did nothing. It is now an `MDIconButton` and focuses the
+  field.
+- **Turkish search actually folds Turkish.** `"I".casefold()` gives `"i"` but
+  `"ı".casefold()` stays `"ı"`, so typing `ISI` could never find `ısı`; and
+  `"İ".casefold()` produces `i` followed by a combining dot, which looks
+  identical and does not compare equal. All three now normalise to the same
+  key, and accents fold as well, so `sirket` finds `Şirket`.
+
+### Financial correctness and reliability
+
+- No changes. This release does not touch balances, transactions, encryption
+  or migrations.
+
+### Performance
+
+- No measured change. Search reads two small tables and filters in SQL; the
+  query is debounced by 300ms, following the pattern already used by the
+  budget and asset search boxes after both were measured as janky when
+  redrawing on every keystroke.
+- The 50.000-transaction decrypt cost measured for 0.0.10 is what keeps
+  transaction descriptions out of search scope; see Known limitations.
+
+### UI and accessibility
+
+- Results render inline under the header rather than in a dropdown.
+  KivyMD's `MDDropdownMenu` is built on a `ModalView` that captures focus, so
+  reopening it on each keystroke would have prevented typing a second
+  character.
+- The results panel occupies no space when there is nothing to show, and its
+  rows are removed rather than merely hidden — hiding by height alone leaves
+  rows clickable, the same defect class fixed for empty cards in 0.0.10.
+- An empty search reports "Sonuç bulunamadı" with a line naming what was
+  searched, so the narrow scope is visible rather than surprising.
+- The hint text now says what the box actually searches. "Archlence'ta ara..."
+  implied everything, and searched nothing.
+
+### Testing and packaging
+
+- 21 unit tests cover the search service, most of them on Turkish folding.
+  The suite is 955 tests.
+- The folding gate is verified against a known-broken state: removing the
+  `ı`→`i` fold turns five tests red, restoring it turns them green.
+- `verify_search_bar_visual.py` comes out of the park it was placed in for
+  0.0.10 and gets its own XDG directories, so the shared-directory ordering
+  dependency that broke the asset dialog gate cannot recur. Its docstring now
+  states plainly that it measures how the bar looks and not whether it does
+  anything — that gap is why a dead control stayed green for so long.
+
+### Additional issues found and fixed
+
+- The i18n gate caught a real omission during this work: the new hint string
+  had no English translation. Fixed rather than worked around, along with the
+  three other new strings.
+
+### Known limitations
+
+- **Search does not cover transaction descriptions.** Those fields are
+  encrypted, so matching them cannot be pushed into SQL — it means decrypting
+  a working set, and a full decrypt of 50.000 rows measures 1,1s. Doing it
+  properly needs a choice between a write-time index (which puts
+  plaintext-adjacent data back on disk and needs its own threat review), a
+  cancellable background worker, or a bounded recent window. The options are
+  recorded in `docs/ROADMAP.md` Phase 2 rather than guessed at.
+- **The two older search boxes still fold incorrectly.** The category picker
+  in the budget dialog and the asset search both still use plain
+  `.casefold()`, so they carry the Turkish bug this release fixes elsewhere.
+  Moving them onto the shared `normalize()` is queued rather than bundled
+  here.
+- Cross-user DPAPI isolation and multi-monitor behaviour remain unverified,
+  unchanged from 0.0.10 — both blocked by the validation machine having one
+  active user account and one monitor.
+
+### Installation and checksum verification
+
+- Windows: `ArchlenceSetup-0.0.11.exe`
+- Linux: `Archlence-0.0.11-x86_64.AppImage`
+- Download `SHA256SUMS.txt` from the same release and verify the matching
+  asset. The SBOM is published as `Archlence-0.0.11-sbom.cdx.json`.
 
 ## [0.0.10] — 2026-08-17
 
