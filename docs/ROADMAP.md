@@ -439,24 +439,29 @@ guarantees established earlier.
 
 Not release-blocking, but worth doing before calling this stable.
 
-- **Implement search, or leave it out deliberately** — the home header carried
-  a search bar from `0a905a1` through v0.0.9 that was never wired to anything.
-  The magnifier was an `MDIcon`, which inherits no button behaviour and cannot
-  receive a click; the field had zero handlers on `on_text_validate`; there is
-  no search service. A user reported it and the bar was removed in 0.0.10
-  rather than left as a control that does nothing.
+- ~~**Implement search**~~ — **Done for names, deliberately scoped** — the home
+  header carried a search bar from `0a905a1` through v0.0.10 that was never
+  wired to anything, and a user reported it. It now searches account and
+  category names (`services/search_service.py`, `mixins/search_mixin.py`).
 
-  Building it needs product decisions that have not been made: what it
-  searches (transactions, accounts, assets, categories, or several), how
-  results are presented (a dropdown, a dedicated screen, or filtering the list
-  in place), and whether it searches encrypted description fields — which is
-  the interesting one, since those are only readable after decryption, so
-  matching them means decrypting a working set rather than pushing the filter
-  into SQL.
+  **Still open: searching transaction descriptions.** Those fields are
+  encrypted, so matching them cannot be pushed into SQL — it means decrypting
+  a working set. A full decrypt of 50.000 transactions measures 1,1s
+  (`docs/performance/benchmark-results-windows.json`), so a naive
+  implementation would freeze the UI on every keystroke. Doing it properly
+  needs a decision on one of: a searchable index built at write time (which
+  reintroduces plaintext-adjacent data on disk and needs its own threat
+  review), decrypting in a background worker with cancellation, or restricting
+  description search to a bounded recent window. None of these is obviously
+  right, which is why the first round stopped at names.
 
-  The `SearchBar` component, its kv rule, `verify_search_bar_visual.py` and
-  `docs/SEARCH_RENDER_ARTIFACT.md` are all retained for this; the gate's CI
-  step is commented out, not deleted.
+- **Fix Turkish folding in the two older search boxes** — the category picker
+  in `mixins/budget_mixin.py` and the asset search in `mixins/asset_mixin.py`
+  both use plain `.casefold()`, so `ISI` does not match `ısı` and a query
+  typed without accents misses accented records.
+  `services.search_service.normalize` already solves this and is unit-tested;
+  those two call sites should use it. Not done in the search round to keep
+  that change reviewable.
 
 - ~~Split overly broad exception handling by failure type~~ — **Partially
   done, scope deliberately narrowed** — [PR #13](https://github.com/superuser-d0/archlence/pull/13).
