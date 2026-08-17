@@ -201,10 +201,32 @@ Sayfa **tepedeyken** ölçün; ara konumdan ölçmek bu hatayı gizliyor (§4, d
 >
 > **Ürün tarafında bulgu YOK:** düzeltmenin işe yaradığı gerçek yoğunlukta
 > (1.25) ve 1.5'te ayırt edici şekilde kanıtlandı. Kırılgan olan ölçüm
-> aracı. Kapıyı sağlamlaştırmak — dokunuşu yoğunluktan ve hesap sayısından
-> bağımsız, şeridin içinde ama kartın üstünde olmayan bir noktadan
-> başlatmak — hâlâ açık bir iş; nokta hesabının iç içe ScrollView'ların
-> koordinat uzayında güvenilmez olduğu yukarıda zaten ölçülmüştü.
+> aracıydı.
+>
+> **KAPANDI — 2026-08-17. Kapı sağlamlaştırıldı.** Dokunuş noktası artık
+> hesaplanmıyor, SEÇİLİYOR: yatay şeridin sınırları içinde bir aday ızgarası
+> taranıyor ve her aday için widget ağacı `collide_point` ile gerçekten
+> yoklanıp kartın üstüne düşüp düşmediği soruluyor. Aday bulunamazsa ölçüm
+> `ATLANDI` olarak raporlanıyor — ölçemediği bir durumu başarısızlık saymak
+> bu kapının asıl kusuruydu.
+>
+> Sonuç, üç yoğunlukta A/B ile doğrulandı:
+>
+> | Yoğunluk | Düzeltme yerinde | Düzeltme geri alınmış |
+> |---|---|---|
+> | 1.0 | ✓ yeşil | ✗ kırmızı |
+> | 1.25 | ✓ yeşil | ✗ kırmızı |
+> | 1.5 | ✓ yeşil | ✗ kırmızı |
+>
+> Öncesinde 1.0 hiç ayırt etmiyordu (iki koşumda da kırmızı).
+>
+> **Yolda bir kez yanlış yapıldı ve ölçülerek yakalandı:** ilk deneme adayı
+> SAYFANIN tamamında aradı ve dokunuşu şeridin dışına taşıdı. Kapı o hâlde
+> 1.0 ve 1.25'te düzeltme geri alınmışken bile YEŞİL kaldı — yani hatayı
+> tamamen kaçırır hâle geldi ve 1.25 gerilemiş oldu. Bu, §2.2'nin başında
+> "denendi ve geri alındı" diye kayıtlı tuzağın aynısı. Aday araması şeridin
+> sınırlarına hapsedilerek düzeltildi: hata şeridin İÇİNDE yaşıyor, dışarıda
+> `scroll_type` zaten etkisiz.
 
 ---
 
