@@ -42,7 +42,6 @@ os.environ.setdefault("KIVY_NO_ARGS", "1")
 
 from kivy.base import EventLoop
 from kivy.clock import Clock
-from kivy.core.window import Window
 from kivy.input.motionevent import MotionEvent
 from kivy.uix.scrollview import ScrollView
 
