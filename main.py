@@ -288,6 +288,7 @@ from mixins.scenario_mixin import ScenarioMixin
 from mixins.subscription_mixin import SubscriptionMixin
 from mixins.pending_mixin import PendingMixin
 from mixins.calendar_mixin import CalendarMixin
+from mixins.search_mixin import SearchMixin
 from security.security_service import LoginThrottle, PasswordPolicy, SecurityService
 from services.history_service import write_daily_snapshot
 
@@ -403,6 +404,7 @@ class ArchlenceApp(
     SubscriptionMixin,
     PendingMixin,
     CalendarMixin,
+    SearchMixin,
 ):
     title = "Archlence"
     icon = "assets/icon.png"

@@ -327,12 +327,30 @@ ve adı üstünde, yalnızca çubuğun nasıl GÖRÜNDÜĞÜNÜ ölçüyor. Bu d
 en genellenebilir bulgusu: **bir kontrolün doğru çizildiğini ölçmek, bir şey
 yaptığını ölçmez.**
 
-**Yapılan:** çubuk ana ekrandan kaldırıldı (uygulanana kadar yanıltmasın),
-görsel kapının CI adımı yoruma alındı. `SearchBar` bileşeni, kv kuralı, kapı
-scripti ve `docs/SEARCH_RENDER_ARTIFACT.md` bilerek DURUYOR — oradaki dikiş
-düzeltmesi gerçek bir işti ve arama uygulandığında geri açmak tek adım.
-Uygulama kararı (neyi arasın, sonuçlar nerede görünsün, şifreli açıklama
-alanları kapsansın mı) `docs/ROADMAP.md` Phase 2'ye yazıldı.
+**İlk yapılan (0.0.10):** çubuk ana ekrandan kaldırıldı, görsel kapının CI
+adımı yoruma alındı, bileşen ve dikiş düzeltmesi korundu.
+
+**Sonra UYGULANDI — 2026-08-17.** Kapsam kullanıcı tarafından belirlendi:
+hesap ve kategori adları. `services/search_service.py` (saf eşleştirme +
+SQL okuma) ve `mixins/search_mixin.py` (300 ms debounce, satır içi sonuç
+paneli). Büyüteç artık `MDIconButton` ve alanı odaklıyor. Görsel kapı
+parktan çıkarıldı; beş senaryonun beşi de yeşil.
+
+Canlı uygulamada ölçüldü: `"kart"` → 5 hesap satırı, `"nakit"` → 2 satır,
+`"zzzzz"` → "Sonuç bulunamadı", temizlik sonrası panel 0 satır / 0 yükseklik.
+
+**Bu turun asıl teknik bulgusu Türkçe katlama.** Depodaki iki eski arama
+kutusu düz `.casefold()` kullanıyor ve bu Türkçe'de YANLIŞ:
+`"I".casefold()` → `"i"` ama `"ı".casefold()` → `"ı"`, yani "ISI" yazan
+kullanıcı "ısı" kaydını bulamaz; `"İ".casefold()` ise `"i"` + U+0307
+üretiyor — görsel olarak "i" ama eşit değil. `normalize()` üçünü de aynı
+yere indiriyor, aksanları da katlıyor ("sirket" → "Şirket").
+21 birim testi bunu sabitliyor ve kapı bilinen-bozuk duruma karşı
+doğrulandı: `ı→i` katlaması kaldırılınca 5 test kırmızıya döndü.
+
+**Kalan iki iş `docs/ROADMAP.md` Phase 2'de:** şifreli işlem açıklamalarında
+arama (SQL'e itilemez, 50K işlemde tam çözüm 1,1 sn) ve eski iki arama
+kutusunun aynı `normalize()`'a geçirilmesi.
 
 ## 3. DPAPI — veri kaybı riski en yüksek madde
 

@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### Features
+
+- The search bar in the home header works. It searches account and category
+  names and shows matches inline under the header; tapping an account opens
+  the accounts tab, tapping a category opens the settings tab with that
+  category type loaded. The magnifier is now an `MDIconButton` and focuses the
+  field — as an `MDIcon` it inherited no button behaviour and could not
+  receive a click at all, which is what prompted the report that the control
+  did nothing.
+- Search folds Turkish case and accents, which plain `casefold()` does not.
+  `"I".casefold()` gives `"i"` while `"ı".casefold()` stays `"ı"`, so a user
+  typing `ISI` could not find `ısı`; `"İ".casefold()` produces `i` followed by
+  a combining dot, which looks like `i` but does not compare equal. All of
+  them now normalise to the same key, and accents fold too, so `sirket` finds
+  `Şirket`. The two older search boxes in the budget and asset dialogs still
+  use plain `casefold()` and still have this bug.
+- Scope is deliberately narrow: account and category names only, both stored
+  as plain text. Transaction descriptions are out of scope because they are
+  encrypted, so matching them means decrypting a working set rather than
+  filtering in SQL — at 50.000 transactions a full decrypt takes 1,1s. That
+  trade-off is recorded in `docs/ROADMAP.md` Phase 2.
+- Results render inline rather than in a dropdown menu. KivyMD's
+  `MDDropdownMenu` is built on a `ModalView` that captures focus, so reopening
+  it on each keystroke would have stopped the user typing a second character.
+
 ## [0.0.10] — 2026-08-17
 
 This release closes the Windows hardware validation round that v0.0.9 left

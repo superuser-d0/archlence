@@ -338,27 +338,24 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb
           python -m pip install -r requirements-runtime.txt
-      # ARAMA ÇUBUĞU GÖRSEL KAPISI PARKTA — ölçtüğü widget şu an ekranda
-      # değil. Çubuk hiçbir zaman bir işleyiciye bağlanmamıştı (büyüteç
-      # tıklanamayan bir `MDIcon`, alanın `on_text_validate`'inde sıfır
-      # bağlayıcı) ve kullanıcı tarafından bildirildi; uygulanana
-      # kadar ana ekrandan kaldırıldı (bkz. ui/dashboard.kv).
+      # PARKTAN ÇIKARILDI: arama çubuğu geri geldi ve artık gerçekten
+      # çalışıyor (services/search_service.py + mixins/search_mixin.py).
       #
-      # Kapı SİLİNMEDİ: ölçtüğü dikiş kusuru gerçek bir düzeltmeydi
-      # (docs/SEARCH_RENDER_ARTIFACT.md). Arama uygulanıp çubuk geri
-      # konduğunda bu adımı yorumdan çıkarmak yeterli — script,
-      # `SearchBar` bileşeni ve kv kuralı olduğu gibi duruyor.
-      #
-      # - name: Search bar visual contracts
-      #   env:
-      #     KIVY_DPI: ${{ matrix.dpi }}
-      #     ARCHLENCE_LANGUAGE: ${{ matrix.language }}
-      #     XDG_DATA_HOME: ${{ runner.temp }}/archlence-visual-data
-      #     XDG_CACHE_HOME: ${{ runner.temp }}/archlence-visual-cache
-      #     XDG_STATE_HOME: ${{ runner.temp }}/archlence-visual-state
-      #   run: >-
-      #     xvfb-run -a python scripts/dev/verify_search_bar_visual.py
-      #     --output visual/search-${{ matrix.language }}-${{ matrix.dpi }}
+      # XDG dizinleri BU ADIMA ÖZEL. Eskiden `archlence-visual-*` idi ve aynı
+      # adı aşağıdaki varlık diyaloğu adımıyla paylaşıyordu; bu adım önce
+      # koştuğu için profili o kuruyor, diğeri hazır bulunuyordu — kimse
+      # yazmamış bir sıra bağımlılığı. Bu adım parka alındığında diğeri soğuk
+      # profille karşılaşıp düştü. Artık her adım kendi dizinini kullanıyor.
+      - name: Search bar visual contracts
+        env:
+          KIVY_DPI: ${{ matrix.dpi }}
+          ARCHLENCE_LANGUAGE: ${{ matrix.language }}
+          XDG_DATA_HOME: ${{ runner.temp }}/archlence-search-data
+          XDG_CACHE_HOME: ${{ runner.temp }}/archlence-search-cache
+          XDG_STATE_HOME: ${{ runner.temp }}/archlence-search-state
+        run: >-
+          xvfb-run -a python scripts/dev/verify_search_bar_visual.py
+          --output visual/search-${{ matrix.language }}-${{ matrix.dpi }}
       # XDG dizinleri BU ADIMA ÖZEL. Eskiden `archlence-visual-*` idi ve o adı
       # yukarıdaki (artık parktaki) arama çubuğu kapısıyla PAYLAŞIYORDU. Arama
       # kapısı önce koştuğu için profili o kuruyor, bu adım hazır profil

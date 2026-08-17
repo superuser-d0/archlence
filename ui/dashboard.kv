@@ -569,35 +569,66 @@ MDScreen:
                                 theme_text_color: "Primary"
                                 on_release: bottom_nav.switch_tab("settings_tab")
                                 
-                            # ARAMA ÇUBUĞU BURADAN KALDIRILDI — hiçbir zaman
-                            # bir işleyiciye bağlanmamıştı. Büyüteç bir
-                            # `MDIcon`'du (`MDIconButton` değil, yani
-                            # `ButtonBehavior` mirası yok — hiç tıklama almıyor)
-                            # ve alanın `on_text_validate`'inde sıfır bağlayıcı
-                            # vardı; ölçüldü. `services/` altında bir arama
-                            # servisi de yok. Alan `0a905a1`'de eklendi ve o
-                            # commit'in işi görsel bir dikiş kusurunu
-                            # düzeltmekti, işlevsellik eklemek değil.
-                            #
-                            # Kullanıcı v0.1.0'da bunu bildirdi: "üstteki arama
-                            # butonu hiçbir şekilde çalışmıyor" — doğru bir
-                            # rapor. Çalışır görünen ama hiçbir şey yapmayan bir
-                            # kontrolü ekranda tutmaktansa, uygulanana kadar
-                            # göstermiyoruz.
-                            #
-                            # `SearchBar` bileşeni (ui/components.py), `<SearchBar>`
-                            # kv kuralı, görsel kapı ve docs/SEARCH_RENDER_ARTIFACT.md
-                            # BİLEREK DURUYOR: oradaki dikiş düzeltmesi gerçek bir
-                            # iş ve arama uygulandığında bu blok geri konulunca
-                            # hazır olacak. Kapının CI adımı o güne kadar parkta
-                            # (bkz. .github/workflows/tests.yml).
-                            Widget:
+                            SearchBar:
+                                size_hint_y: None
+                                height: "40dp"
+                                pos_hint: {"center_y": .5}
+                                MDIconButton:
+                                    # `MDIcon` DEĞİL. Eskiden öyleydi ve
+                                    # kullanıcının "arama butonu hiçbir şekilde
+                                    # çalışmıyor" demesinin sebebi tam olarak
+                                    # buydu: `MDIcon` `ButtonBehavior`
+                                    # miraslamaz, yani tıklamayı hiç almaz.
+                                    # Artık en azından alanı odaklıyor.
+                                    icon: "magnify"
+                                    icon_size: "20dp"
+                                    size_hint: None, None
+                                    # 40dp'lik çubuğa sığması için açık ölçü;
+                                    # MDIconButton varsayılanı 48dp ve çubuğu
+                                    # dikeyde taşırıyordu.
+                                    size: "32dp", "32dp"
+                                    pos_hint: {"center_y": .5}
+                                    theme_text_color: "Hint"
+                                    on_release: app.focus_home_search()
+                                TextInput:
+                                    id: home_search_input
+                                    hint_text: app.tr("Hesap veya kategori ara...", app.language)
+                                    multiline: False
+                                    write_tab: False
+                                    background_normal: ""
+                                    background_active: ""
+                                    background_color: 0, 0, 0, 0
+                                    foreground_color: ftheme.field_color(app.theme_cls.theme_style, 'text')
+                                    hint_text_color: ftheme.field_color(app.theme_cls.theme_style, 'hint')
+                                    cursor_color: app.theme_cls.primary_color
+                                    cursor_width: "1dp"
+                                    padding: [0, "9dp", 0, "9dp"]
+                                    on_focus: self.parent.focused = self.focus
+                                    on_text: app.on_home_search_text(self, self.text)
 
                             MDIconButton:
                                 icon: "bell-outline"
                                 icon_size: "28dp"
                                 pos_hint: {"center_y": .5}
                                 theme_text_color: "Primary"
+
+                        # ARAMA SONUÇLARI — modal değil, satır içi.
+                        # `MDDropdownMenu` KivyMD 1.2'de `ModalView` üzerine
+                        # kuruluyor ve açılınca odağı yakalıyor; her tuş
+                        # vuruşunda yeniden açmak kullanıcının ikinci
+                        # karakteri yazamaması demekti. Normal bir kutu
+                        # olduğu için odak `TextInput`'ta kalıyor.
+                        #
+                        # Yükseklik 0'dan başlıyor ve içeriği mixin
+                        # dolduruyor; sonuç yokken sıfır yer kaplıyor —
+                        # bu turda boş kartlarda düzeltilen kusurun aynısına
+                        # düşmemek için.
+                        MDBoxLayout:
+                            id: home_search_results
+                            orientation: "vertical"
+                            size_hint_y: None
+                            height: 0
+                            padding: ["16dp", 0, "16dp", 0]
 
                         ScrollView:
                             # Bu ekran programatik bir kaydırma göstergesine

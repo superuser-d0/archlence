@@ -37,6 +37,13 @@ EN = {
     "Karanlık Mod": "Dark Mode",
     "Ana Sayfa": "Home",
     "Archlence'ta ara...": "Search in Archlence...",
+    # Arama çubuğu — kapsam bilerek dar olduğu için ipucu metni de ne
+    # aradığını açıkça söylüyor ("Archlence'ta ara" her şeyi arıyormuş gibi
+    # duruyordu ve hiçbir şey aramıyordu).
+    "Hesap veya kategori ara...": "Search accounts or categories...",
+    "Sonuç bulunamadı": "No results found",
+    "Hesap ve kategori adlarında arandı": "Searched account and category names",
+    "Hesap": "Account",
     "Cüzdanım": "My Wallet",
     "Toplam Bakiye": "Total Balance",
     "Aylık Gider Değişimi": "Monthly Expense Change",
