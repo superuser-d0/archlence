@@ -261,6 +261,83 @@ class RealWindowsDpapi(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.path = os.path.join(self.temp.name, "encryption.key.dpapi")
 
+    #: `CryptProtectData`'nın kapsam bayrağı. Verilirse blob MAKİNEYE bağlanır
+    #: ve o makinedeki HERHANGİ bir Windows kullanıcısı çözebilir. Verilmezse
+    #: (0) blob çağıran KULLANICIYA bağlanır — kullanıcılar arası izolasyon
+    #: iddiasının dayandığı tek mekanizma budur.
+    CRYPTPROTECT_LOCAL_MACHINE = 0x4
+
+    def test_key_is_never_protected_with_machine_scope(self):
+        """Kullanıcılar arası izolasyonun MEKANİZMASINI sabitler.
+
+        İkinci bir Windows hesabıyla uçtan uca koşum bu makinede yapılamadı
+        (tek etkin normal hesap var). Yapılabilen ve aslında daha kalıcı olan
+        şey bu: bayrağın hiçbir zaman verilmediğini DAVRANIŞSAL olarak
+        ölçmek. Kaynak metni aramak yetmezdi — burada gerçek
+        `CryptProtectData` çağrısı araya girilerek `dwFlags` yakalanıyor.
+
+        NE KANITLAR: Windows kendi sözleşmesi gereği blob'u çağıran kullanıcı
+        hesabına bağlar; başka bir kullanıcı çözemez.
+        NE KANITLAMAZ: Windows'un kendi sözleşmesine uyduğunu (işletim
+        sistemine güveniyoruz) ve gerçek bir ikinci hesapla koşulduğunu.
+
+        Asıl değeri regresyona karşı: biri ileride "makinedeki servis de
+        okusun" diye bu bayrağı eklerse, sessizce tüm kullanıcılara açılmak
+        yerine bu test kırmızıya döner.
+        """
+        import ctypes
+        from unittest import mock as _mock
+        from utils.key_provider import _WindowsDpapi
+
+        real = ctypes.windll.crypt32.CryptProtectData
+        captured = {}
+
+        def _spy(*args):
+            # İmza: (pDataIn, szDataDescr, pOptionalEntropy, pvReserved,
+            #        pPromptStruct, dwFlags, pDataOut) -> dwFlags 6. sırada.
+            captured["flags"] = args[5]
+            return real(*args)
+
+        with _mock.patch.object(
+            ctypes.windll.crypt32, "CryptProtectData", _spy
+        ):
+            _WindowsDpapi().protect(os.urandom(32))
+
+        self.assertIn(
+            "flags", captured,
+            "CryptProtectData hiç çağrılmadı — test bir şey ölçmedi",
+        )
+        self.assertEqual(
+            captured["flags"] & self.CRYPTPROTECT_LOCAL_MACHINE, 0,
+            "anahtar MAKİNE kapsamıyla korunuyor: makinedeki her Windows "
+            "kullanıcısı çözebilir",
+        )
+
+    def test_unprotect_also_stays_in_user_scope(self):
+        """Çözme tarafı da bayraksız olmalı; asimetri sessiz sürprizdir."""
+        import ctypes
+        from unittest import mock as _mock
+        from utils.key_provider import _WindowsDpapi
+
+        dpapi = _WindowsDpapi()
+        blob = dpapi.protect(os.urandom(32))
+        real = ctypes.windll.crypt32.CryptUnprotectData
+        captured = {}
+
+        def _spy(*args):
+            captured["flags"] = args[5]
+            return real(*args)
+
+        with _mock.patch.object(
+            ctypes.windll.crypt32, "CryptUnprotectData", _spy
+        ):
+            dpapi.unprotect(blob)
+
+        self.assertIn("flags", captured)
+        self.assertEqual(
+            captured["flags"] & self.CRYPTPROTECT_LOCAL_MACHINE, 0
+        )
+
     def test_protect_unprotect_round_trip(self):
         from utils.key_provider import _WindowsDpapi
 
