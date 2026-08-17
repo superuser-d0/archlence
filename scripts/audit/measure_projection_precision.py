@@ -22,6 +22,12 @@ Ayrıştırma:
 import sys
 import time as _time
 from decimal import Decimal, getcontext, localcontext
+from pathlib import Path
+
+# `python -m scripts.audit.measure_projection_precision` ile koşarken kök
+# `sys.path`'e girer, ama dosya yolu verilerek koşulduğunda girmez ve
+# `from services...` düşer. İkisi de çalışsın.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 # Türkçe çıktı Windows'ta süreci ÖLDÜRMESİN — stdout yönlendirildiğinde kod
 # sayfası cp1252'ye düşüyor ve 'ı' kodlanamıyor. Gerekçenin tamamı

@@ -13,10 +13,37 @@ açılışta hesaplar — içerik sonradan büyürse başlığın üzerine taşa
 Diyalog üslubu için örnek: mixins/savings_mixin.py::add_funds_to_goal
 (MDDialog type="custom" + content_cls=MDBoxLayout + MDRaisedButton'lar).
 """
+import sqlite3
+
 from kivy.metrics import dp
 from ui.i18n import tr as _t
 from kivy.uix.widget import Widget
+from utils.errors import ArchlenceError
 from utils.toast import toast
+
+# Bu dosyadaki dört kullanıcıya-dönük sınırın yakaladığı istisna kümesi.
+#
+# NEDEN AÇIK BİR KÜME: dördü de eskiden `except Exception` idi ve denetim aracı
+# bunları "kullanıcıya gösterilen; daraltılması incelenmeli" diye işaretliyordu
+# (scripts/audit_exception_handlers.py). Daraltma daha önce bilerek
+# ertelenmişti ve gerekçesi kayıtlıydı: GUI koşturulamadığı için daraltılmış
+# bir catch'in ekranı zarifçe bozulmak yerine ÇÖKERTMEDİĞİ doğrulanamıyordu.
+# O engel kalktı; dördü de gerçek uygulamada açılıp doğrulandı.
+#
+# Küme, sarılan servis çağrılarının GERÇEKTEN fırlattıklarından türetildi:
+#   * `ArchlenceError` — kripto/domain hataları bunun alt sınıfı
+#     (KeyUnavailableError, DecryptionError, IntegrityVerificationError).
+#   * `sqlite3.Error` — dördü de DB'ye gidiyor.
+#   * `ValueError`/`TypeError` — `delete_credit_card` "Kredi kartı bulunamadı."
+#     için açıkça `ValueError` fırlatıyor; çözülen tutarların sayıya çevrimi de
+#     bu ikisini üretebilir.
+#
+# DIŞARIDA KALAN BİLİNÇLİ: `KeyError`, `AttributeError` gibi gerçek kodlama
+# hataları. Onlar artık yakalanmıyor ve `main.py::_log_unhandled_exception`'a
+# gidiyor — kullanıcıya anlaşılmaz bir toast göstermek yerine traceback'le
+# loglanıyorlar. Teşhis edilebilirlik kazancı, o durumda zaten bozuk olan bir
+# ekranı ayakta tutma iddiasından değerli.
+_USER_FACING_ERRORS = (ArchlenceError, sqlite3.Error, ValueError, TypeError)
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.label import MDLabel
 
@@ -329,7 +356,7 @@ class AccountMixin:
         try:
             # Ekstre, son hareket özetinin aksine yapay bir kayıt sınırı taşımaz.
             items = TransactionService.get_recent_for_account(account_id, limit=None)
-        except Exception as e:
+        except _USER_FACING_ERRORS as e:
             toast(_t(f"Ekstre okunamadı: {e}"))
             return
 
@@ -435,7 +462,7 @@ class AccountMixin:
             def confirm(*args):
                 try:
                     AccountService.delete_credit_card(account_id)
-                except Exception as exc:
+                except _USER_FACING_ERRORS as exc:
                     toast(_t(f"Kart silinemedi: {_t(str(exc))}"))
                     return
                 # Kartın ekrandan kalkmasını diyalog kapanış animasyonunun
@@ -505,7 +532,11 @@ class AccountMixin:
         def check_active_plans():
             try:
                 count = AccountService.get_active_installment_plan_count(account_id)
-            except Exception as exc:
+            # BU BİR ARKA PLAN THREAD'İ (aşağıdaki `threading.Thread`), ama
+            # yakalanan küme yine daraltıldı: hata kullanıcıya diyalogda
+            # gösteriliyor, sessizce yutulmuyor. Beklenmeyen bir tip artık
+            # thread'i düşürüp diyaloğu hiç açmamak yerine loglanacak.
+            except _USER_FACING_ERRORS as exc:
                 Clock.schedule_once(
                     lambda dt, captured_exc=exc: show_dialog(0, captured_exc), 0
                 )
@@ -587,7 +618,7 @@ class AccountMixin:
 
         try:
             plans = TransactionService.get_installment_plans(account_id)
-        except Exception as e:
+        except _USER_FACING_ERRORS as e:
             toast(_t(f"Taksit planları okunamadı: {_t(str(e))}"))
             return
 
