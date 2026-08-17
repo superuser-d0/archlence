@@ -2,17 +2,35 @@
 
 ## [Unreleased]
 
+### Features
+
+- Search now covers transaction descriptions as well as account and category
+  names. Descriptions are encrypted, so the filter cannot be pushed into SQL;
+  the search decrypts a bounded window of the most recent transactions
+  instead. The window is 500 rows, chosen by measurement rather than taste:
+  200, 500 and 1000 rows decrypt in 7,3ms, 17,5ms and 34,8ms here, and 500
+  stays under a single frame's budget even if a slower machine triples it.
+  The cost is explicit — a transaction older than that window will not be
+  found by its description — and the search box's empty state now says what
+  it searched so the boundary is visible rather than mysterious.
+- A write-time search index was **not** built, though it would be faster. It
+  puts plaintext-adjacent data back on disk, which defeats the reason the
+  descriptions are encrypted, and that is not a change to make without a
+  threat review.
+- The notification bell works. It lists pending transactions and recurring
+  payments falling due within seven days, using the same seven-day rule as
+  the "Yaklaşan Ödemeler" card — showing the same data under two different
+  thresholds would tell the user two different truths. The data is gathered
+  on a background thread, because collecting it decrypts each row.
+
 ### UI and accessibility
 
-- The bell icon has been removed from the home header. It had no handler at
-  all. This is the same defect class as the search bar reported against
-  0.0.10, and in one respect worse: the magnifier was an `MDIcon` and could
-  not receive a click, so it never responded, while the bell was a real
-  `MDIconButton` that rippled under the finger and then did nothing. A scan of
-  the whole interface found it to be the only remaining control without a
-  handler. Wiring it needs a product decision about what a notification
-  surface should show — the data exists — so that is recorded in
-  `docs/ROADMAP.md` rather than invented here.
+- The bell icon had no handler at all until this release. That is the same
+  defect class as the search bar reported against 0.0.10, and in one respect
+  worse: the magnifier was an `MDIcon` and could not receive a click, so it
+  never responded, while the bell was a real `MDIconButton` that rippled
+  under the finger and then did nothing. A scan of the whole interface found
+  it to be the only remaining control in that state.
 
 ### Testing and packaging
 
@@ -50,8 +68,10 @@
   recorded as such rather than as a verification.
 - Multi-monitor behaviour remains unverified for the same class of reason —
   the machine has one display.
-- The notification bell is absent rather than implemented; what it should show
-  is an open product question recorded in `docs/ROADMAP.md`.
+- **Description search reaches back 500 transactions, not further.** This is
+  the deliberate trade-off described under Features, not an oversight. Account
+  and category search is unaffected — those are plain text and filtered in
+  SQL.
 
 ### Financial correctness and reliability
 

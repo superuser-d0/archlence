@@ -26,6 +26,31 @@ DEFAULT_LIMIT = 20
 
 ACCOUNT = "account"
 CATEGORY = "category"
+TRANSACTION = "transaction"
+
+#: İşlem açıklamalarında aranırken çözülecek EN YENİ satır sayısı.
+#:
+#: BU SAYI BİR GÜVENLİK/PERFORMANS TAKASI, keyfi bir sabit değil. Açıklamalar
+#: AEAD ile şifreli tutuluyor, yani filtre SQL'e itilemiyor: eşleştirmek için
+#: satırları belleğe çözmek gerekiyor. Üç seçenek vardı ve ikisi reddedildi:
+#:
+#:   * Yazma-zamanı arama indeksi — en hızlısı, ama düz-metne yakın veriyi
+#:     diske geri koyuyor ve açıklamaları şifrelemenin amacını ortadan
+#:     kaldırıyor. Kendi tehdit incelemesi olmadan alınacak bir karar değil;
+#:     ALINMADI.
+#:   * Tüm veriyi çözmek — 50.000 işlemde 1,1 sn ölçüldü
+#:     (docs/performance/benchmark-results-windows.json). Her tuş vuruşunda
+#:     kabul edilemez.
+#:   * SINIRLI PENCERE — seçilen bu. En yeni N satır çözülüyor.
+#:
+#: 500 ölçülerek seçildi: bu makinede 200/500/1000 satır sırasıyla
+#: 7,3 / 17,5 / 34,8 ms. 500, tek kare bütçesinin (33 ms) altında kalıyor ve
+#: yavaş bir makinede 3 kat yavaşlasa bile donma değil, düşen bir kare üretir.
+#: 1000 zaten sınırda olduğu için seçilmedi.
+#:
+#: BEDELİ AÇIK: bu pencereden eski bir işlem açıklamasıyla BULUNAMAZ. Hesap ve
+#: kategori araması bu sınırdan etkilenmez; onlar düz metin ve SQL'de filtreleniyor.
+DEFAULT_DESCRIPTION_WINDOW = 500
 
 
 def normalize(text):
@@ -110,6 +135,61 @@ def match_names(query, items):
     return [item for _rank_value, _position, item in scored]
 
 
+def search_transactions(query, limit=DEFAULT_LIMIT,
+                        window=DEFAULT_DESCRIPTION_WINDOW):
+    """En yeni `window` işlemin AÇIKLAMASINDA arar.
+
+    Açıklama şifreli olduğu için eşleştirme Python'da yapılıyor; sıralama ve
+    pencereleme düz kolon (`transaction_date`) üzerinden SQL'de. Pencerenin
+    neden var olduğu ve bedelinin ne olduğu için `DEFAULT_DESCRIPTION_WINDOW`.
+
+    Çözülemeyen tek bir satır aramayı düşürmez, atlanır — bozuk/eski bir kayıt
+    yüzünden kutu tamamen çalışmaz hâle gelmemeli. Ama anahtarın kendisi
+    yoksa bu bir satır sorunu değil, `KeyUnavailableError` yukarı çıkar;
+    `get_pending_transactions` ile aynı ayrım.
+    """
+    needle = normalize(query)
+    if not needle:
+        return []
+
+    from utils.crypto import decrypt
+    from utils.errors import DecryptionError, KeyUnavailableError
+    from database.db import SECRET_KEY
+
+    with managed_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, account_id, description, category, transaction_date "
+            "FROM transactions WHERE description IS NOT NULL "
+            "ORDER BY date(transaction_date) DESC, id DESC LIMIT ?",
+            (int(window),),
+        )
+        rows = cursor.fetchall()
+
+    results = []
+    for row in rows:
+        try:
+            description = decrypt(str(row[2]), SECRET_KEY)
+        except KeyUnavailableError:
+            raise
+        except (DecryptionError, ValueError, TypeError):
+            continue
+        if _rank(needle, normalize(description)) is None:
+            continue
+        results.append({
+            "kind": TRANSACTION,
+            "id": row[0],
+            "name": description,
+            "detail": row[3] or "",
+            "date": row[4],
+        })
+        # Sıra zaten en yeniden eskiye; `limit` dolunca kalanları çözmenin
+        # anlamı yok ve çözme bu döngüdeki tek pahalı iş.
+        if len(results) >= limit:
+            break
+    return results
+
+
 def search(query, limit=DEFAULT_LIMIT):
     """Hesap ve kategori adlarında arar, sıralı tek liste döndürür.
 
@@ -141,8 +221,16 @@ def search(query, limit=DEFAULT_LIMIT):
             for row in cursor.fetchall()
         ]
 
-    # İki küme AYRI eşleştirilip sonra birleştiriliyor: hesaplar kategorilerden
-    # önce gelsin diye. Tek listede eşleştirmek, alfabetik olarak öne düşen bir
-    # kategoriyi kullanıcının kendi hesabının üstüne çıkarabilirdi.
+    # Kümeler AYRI eşleştirilip sonra birleştiriliyor: hesaplar kategorilerden,
+    # kategoriler de işlemlerden önce gelsin diye. Tek listede eşleştirmek,
+    # alfabetik olarak öne düşen bir kategoriyi kullanıcının kendi hesabının
+    # üstüne çıkarabilirdi.
+    #
+    # İŞLEMLER EN SONA: en pahalı küme onlar (çözme gerektiriyor) ve en
+    # gürültülüsü — 500 satırlık pencerede bir kelime çok kez geçebilir.
+    # Hesap/kategori isabetleri kullanıcının aradığı şey olma ihtimali daha
+    # yüksek ve onlar tepede kalıyor.
     results = match_names(query, accounts) + match_names(query, categories)
+    if len(results) < limit:
+        results += search_transactions(query, limit=limit - len(results))
     return results[:limit]

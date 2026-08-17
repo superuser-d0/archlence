@@ -159,6 +159,15 @@ class SearchAgainstDatabaseTest(unittest.TestCase):
             "account_type TEXT)"
         )
         conn.execute("CREATE TABLE categories (name TEXT, type TEXT)")
+        # `search()` artık işlem açıklamalarına da bakıyor. Tablonun BURADA da
+        # olması gerekiyor ve bu doğru olan: gerçek şemada `transactions` her
+        # zaman var, servisin eksik tabloyu tolere etmesi gerçek bir şema
+        # sorununu gizlerdi.
+        conn.execute(
+            "CREATE TABLE transactions (id INTEGER PRIMARY KEY, "
+            "account_id INTEGER, description TEXT, category TEXT, "
+            "transaction_date TEXT)"
+        )
         conn.executemany(
             "INSERT INTO accounts (id, name, account_type) VALUES (?, ?, ?)",
             [(1, "Ziraat Vadesiz", "checking"),
@@ -244,6 +253,146 @@ class SearchAgainstDatabaseTest(unittest.TestCase):
 
     def test_unmatched_query_returns_empty(self):
         self.assertEqual(self._search("kripto"), [])
+
+
+class TransactionDescriptionSearchTest(unittest.TestCase):
+    """Şifreli açıklamalarda arama — pencere sınırı dahil.
+
+    Bu paketin asıl işi sınırın GERÇEKTEN uygulandığını sabitlemek. Pencere,
+    yazma-zamanı indeks yerine seçilen güvenlik takasının ta kendisi: sessizce
+    büyürse her tuş vuruşunda tüm veriyi çözer hâle geliriz (50.000 işlemde
+    1,1 sn), sessizce küçülürse kullanıcı bulabildiği şeyleri bulamaz olur.
+    """
+
+    def setUp(self):
+        handle, self.db_path = tempfile.mkstemp(suffix=".db")
+        os.close(handle)
+        conn = sqlite3.connect(self.db_path)
+        conn.execute(
+            "CREATE TABLE transactions (id INTEGER PRIMARY KEY, "
+            "account_id INTEGER, description TEXT, category TEXT, "
+            "transaction_date TEXT)"
+        )
+        self.conn = conn
+
+    def tearDown(self):
+        self.conn.close()
+        os.unlink(self.db_path)
+
+    def _insert(self, rows):
+        """`rows`: (id, düz_açıklama, kategori, tarih)."""
+        from utils.crypto import encrypt
+        from database.db import SECRET_KEY
+
+        self.conn.executemany(
+            "INSERT INTO transactions (id, account_id, description, category,"
+            " transaction_date) VALUES (?, 1, ?, ?, ?)",
+            [(i, encrypt(text, SECRET_KEY), cat, date)
+             for i, text, cat, date in rows],
+        )
+        self.conn.commit()
+
+    def _search(self, query, **kwargs):
+        from services import search_service
+
+        conn = sqlite3.connect(self.db_path)
+
+        class _Ctx:
+            def __enter__(self_inner):
+                return conn
+
+            def __exit__(self_inner, *_exc):
+                return False
+
+        with mock.patch.object(
+            search_service, "managed_connection", lambda: _Ctx()
+        ):
+            try:
+                return search_service.search_transactions(query, **kwargs)
+            finally:
+                conn.close()
+
+    def test_finds_a_description_and_decrypts_it_for_display(self):
+        self._insert([(1, "Market alışverişi", "Market", "2026-08-01")])
+        results = self._search("market")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["name"], "Market alışverişi")
+        self.assertEqual(results[0]["kind"], "transaction")
+        self.assertEqual(results[0]["detail"], "Market")
+
+    def test_turkish_folding_applies_to_descriptions_too(self):
+        self._insert([(1, "ISITMA faturası", "Fatura", "2026-08-01")])
+        self.assertEqual(len(self._search("ısıtma")), 1)
+        self.assertEqual(len(self._search("isitma")), 1)
+
+    def test_empty_query_never_decrypts_anything(self):
+        from services import search_service
+
+        def _boom():
+            raise AssertionError("boş sorgu için DB açılmamalı")
+
+        with mock.patch.object(search_service, "managed_connection", _boom):
+            self.assertEqual(search_service.search_transactions("  "), [])
+
+    def test_window_bounds_how_far_back_the_search_reaches(self):
+        """Pencerenin DIŞINDAKİ satır bulunmamalı — takasın görünür bedeli."""
+        self._insert([
+            (1, "eski kayit hedef", "X", "2020-01-01"),
+            (2, "yeni kayit", "X", "2026-08-01"),
+            (3, "yeni kayit", "X", "2026-08-02"),
+        ])
+        self.assertEqual(self._search("hedef", window=2), [])
+        found = self._search("hedef", window=3)
+        self.assertEqual(len(found), 1)
+
+    def test_newest_rows_are_the_ones_inside_the_window(self):
+        self._insert([
+            (1, "alfa", "X", "2020-01-01"),
+            (2, "beta", "X", "2026-08-02"),
+        ])
+        self.assertEqual(len(self._search("beta", window=1)), 1)
+        self.assertEqual(self._search("alfa", window=1), [])
+
+    def test_undecryptable_row_is_skipped_not_fatal(self):
+        """Bozuk tek satır kutuyu tamamen çalışmaz hâle getirmemeli."""
+        self._insert([(1, "market", "X", "2026-08-01")])
+        self.conn.execute(
+            "INSERT INTO transactions (id, account_id, description, category,"
+            " transaction_date) VALUES (2, 1, 'AEADv1:bozuk', 'X', '2026-08-02')"
+        )
+        self.conn.commit()
+        self.assertEqual(len(self._search("market")), 1)
+
+    def test_limit_stops_the_decrypt_loop(self):
+        self._insert([
+            (i, f"market {i}", "X", f"2026-08-{i:02d}") for i in range(1, 6)
+        ])
+        self.assertEqual(len(self._search("market", limit=2)), 2)
+
+    def test_missing_key_is_not_swallowed(self):
+        """Anahtar yoksa bu bir satır sorunu değil; sessizce boş dönmemeli."""
+        from services import search_service
+        from utils.errors import KeyUnavailableError
+
+        self._insert([(1, "market", "X", "2026-08-01")])
+        conn = sqlite3.connect(self.db_path)
+
+        class _Ctx:
+            def __enter__(self_inner):
+                return conn
+
+            def __exit__(self_inner, *_exc):
+                return False
+
+        def _no_key(*_a, **_k):
+            raise KeyUnavailableError("anahtar yok")
+
+        with mock.patch.object(
+            search_service, "managed_connection", lambda: _Ctx()
+        ), mock.patch("utils.crypto.decrypt", _no_key):
+            with self.assertRaises(KeyUnavailableError):
+                search_service.search_transactions("market")
+        conn.close()
 
 
 if __name__ == "__main__":

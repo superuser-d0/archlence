@@ -40,10 +40,17 @@ EN = {
     # Arama çubuğu — kapsam bilerek dar olduğu için ipucu metni de ne
     # aradığını açıkça söylüyor ("Archlence'ta ara" her şeyi arıyormuş gibi
     # duruyordu ve hiçbir şey aramıyordu).
-    "Hesap veya kategori ara...": "Search accounts or categories...",
+    "Hesap, kategori veya işlem ara...": "Search accounts, categories or transactions...",
     "Sonuç bulunamadı": "No results found",
-    "Hesap ve kategori adlarında arandı": "Searched account and category names",
+    "Hesap, kategori ve son işlemlerde arandı": "Searched accounts, categories and recent transactions",
     "Hesap": "Account",
+    "İşlem": "Transaction",
+    # Bildirim zili
+    "Bekleyen bildirim yok": "No pending notifications",
+    "Bildirimler yüklenemedi": "Could not load notifications",
+    "Bekleyen işlem": "Pending transaction",
+    "Yaklaşan ödeme": "Upcoming payment",
+    "Gecikti": "Overdue",
     "Cüzdanım": "My Wallet",
     "Toplam Bakiye": "Total Balance",
     "Aylık Gider Değişimi": "Monthly Expense Change",
