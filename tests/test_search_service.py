@@ -18,7 +18,44 @@ from unittest import mock
 
 os.environ.setdefault("KIVY_NO_ARGS", "1")
 
-from services.search_service import ACCOUNT, CATEGORY, match_names, normalize
+from services.search_service import (
+    ACCOUNT, CATEGORY, match_names, matches, normalize,
+)
+
+
+class MatchesTest(unittest.TestCase):
+    """Liste filtreleyen çağıranların ortak yardımcısı.
+
+    `search()`in tersine BOŞ SORGU her şeyi geçirir: bu fonksiyon "filtrele"
+    için, "ara" için değil.
+    """
+
+    def test_empty_query_lets_everything_through(self):
+        for query in ("", "   ", None):
+            with self.subTest(query=query):
+                self.assertTrue(matches(query, "herhangi bir sey"))
+
+    def test_matches_any_of_the_given_fields(self):
+        self.assertTrue(matches("btc", "BTC", "Bitcoin"))
+        self.assertTrue(matches("bitcoin", "BTC", "Bitcoin"))
+        self.assertFalse(matches("ethereum", "BTC", "Bitcoin"))
+
+    def test_turkish_bist_name_is_found_without_special_characters(self):
+        """Asıl kusur buydu: `.lower()` ile bu arama BOŞ dönüyordu."""
+        self.assertTrue(matches("is bankasi", "ISCTR", "İŞ BANKASI"))
+        self.assertTrue(matches("İŞ", "ISCTR", "İŞ BANKASI"))
+        self.assertTrue(matches("tupras", "TUPRS", "TÜPRAŞ"))
+
+    def test_dotless_and_dotted_i_are_interchangeable_in_filters(self):
+        self.assertTrue(matches("ISI", "Isıtma"))
+        self.assertTrue(matches("ısı", "ISITMA"))
+
+    def test_no_candidates_means_no_match_unless_query_is_empty(self):
+        self.assertFalse(matches("btc"))
+        self.assertTrue(matches(""))
+
+    def test_none_fields_do_not_raise(self):
+        self.assertFalse(matches("btc", None, ""))
 
 
 class NormalizeTest(unittest.TestCase):

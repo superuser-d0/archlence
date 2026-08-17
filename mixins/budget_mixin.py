@@ -9,6 +9,7 @@ from utils.toast import toast
 from kivymd.uix.button import MDRaisedButton
 
 from ui.i18n import tr as _t
+from services.search_service import matches
 from utils.formatters import attach_amount_mask, read_amount, set_amount
 
 
@@ -659,9 +660,13 @@ class BudgetMixin:
             free = OneLineListItem(text=_t("Serbest metin gir"))
             free.bind(on_release=lambda _item: self._select_budget_category(None))
             listing.add_widget(free)
-            needle = query.strip().casefold()
             for category in categories:
-                if needle and needle not in category.casefold() and needle not in _t(category).casefold():
+                # `casefold()` DEĞİL: Türkçe'de yanlış sonuç veriyordu.
+                # `"I".casefold()` → `"i"` ama `"ı".casefold()` → `"ı"`, yani
+                # "ISI" yazan kullanıcı "ısı" kategorisini bulamıyordu.
+                # `matches()` ı/İ/I/i'yi aynı yere indirir ve aksanları da
+                # katlar (bkz. services/search_service.py).
+                if not matches(query, category, _t(category)):
                     continue
                 item = OneLineListItem(text=_t(category))
                 item.bind(

@@ -53,6 +53,22 @@ def normalize(text):
     return " ".join(stripped.replace("ı", "i").split())
 
 
+def matches(query, *candidates):
+    """Sorgu, verilen alanlardan HERHANGİ birinde geçiyor mu.
+
+    Liste FİLTRELEYEN çağıranlar için (bütçe kategori seçici, BIST/kripto
+    seçicileri). `search()`ten farklı olarak BOŞ SORGU `True` döndürür: orada
+    boş sorgu "hiçbir şey gösterme" demekti, burada "filtreleme yok, hepsini
+    göster" demek. İki karşıt varsayılan bilerek ayrı fonksiyonlarda; tek
+    fonksiyona bayrak eklemek çağrı yerinde hangi davranışın geçerli
+    olduğunu okunmaz kılardı.
+    """
+    needle = normalize(query)
+    if not needle:
+        return True
+    return any(needle in normalize(candidate) for candidate in candidates)
+
+
 def _rank(needle, haystack):
     """Eşleşmenin ne kadar iyi olduğunu döndürür; eşleşme yoksa None.
 
