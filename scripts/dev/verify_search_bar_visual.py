@@ -3,7 +3,7 @@
 PARKTA — ŞU AN KOŞMAZ. Ölçtüğü arama çubuğu ana ekrandan kaldırıldı, çünkü
 hiçbir zaman bir işleyiciye bağlanmamıştı: büyüteç tıklanamayan bir `MDIcon`,
 alanın `on_text_validate`'inde sıfır bağlayıcı, `services/` altında arama
-servisi yok. Kullanıcı v0.1.0'da bildirdi. Bu script `root.ids.home_search_input`
+servisi yok. Kullanıcı bildirdi. Bu script `root.ids.home_search_input`
 arar; widget olmadığı için elle çalıştırılırsa `KeyError` ile düşer — bu
 beklenen davranış, bozuk bir kapı değil.
 

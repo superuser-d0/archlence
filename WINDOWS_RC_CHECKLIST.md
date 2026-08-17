@@ -299,7 +299,7 @@ Kivy başlamadan çalıştığı için paketlemeye duyarlı.
 
 ---
 
-### 2.5 Arama çubuğu hiç bağlanmamıştı — kullanıcı bulgusu, v0.1.0
+### 2.5 Arama çubuğu hiç bağlanmamıştı — kullanıcı bulgusu
 
 **Bildirim (2026-08-17):** "üstteki arama butonu hiçbir şekilde çalışmıyor."
 Rapor doğru çıktı ve sebebi beklenenlerin hiçbiri değildi — regresyon değil,

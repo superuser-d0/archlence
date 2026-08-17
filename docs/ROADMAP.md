@@ -440,10 +440,10 @@ guarantees established earlier.
 Not release-blocking, but worth doing before calling this stable.
 
 - **Implement search, or leave it out deliberately** — the home header carried
-  a search bar from `0a905a1` through v0.1.0 that was never wired to anything.
+  a search bar from `0a905a1` through v0.0.9 that was never wired to anything.
   The magnifier was an `MDIcon`, which inherits no button behaviour and cannot
   receive a click; the field had zero handlers on `on_text_validate`; there is
-  no search service. A user reported it against v0.1.0 and the bar was removed
+  no search service. A user reported it and the bar was removed in 0.0.10
   rather than left as a control that does nothing.
 
   Building it needs product decisions that have not been made: what it
