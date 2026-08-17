@@ -19,8 +19,18 @@ Ayrıştırma:
     |A - C|  -> mevcut toplam hata
 """
 
+import sys
 import time as _time
 from decimal import Decimal, getcontext, localcontext
+
+# Türkçe çıktı Windows'ta süreci ÖLDÜRMESİN — stdout yönlendirildiğinde kod
+# sayfası cp1252'ye düşüyor ve 'ı' kodlanamıyor. Gerekçenin tamamı
+# run_tests.py'ın tepesinde.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        pass
 
 from services.projection_service import project_wealth_series
 

@@ -35,6 +35,15 @@ import os
 import sys
 from pathlib import Path
 
+# Türkçe çıktı Windows'ta süreci ÖLDÜRMESİN — stdout yönlendirildiğinde kod
+# sayfası cp1252'ye düşüyor ve 'ı' kodlanamıyor. Gerekçenin tamamı
+# run_tests.py'ın tepesinde.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        pass
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 os.chdir(PROJECT_ROOT)
 sys.path.insert(0, str(PROJECT_ROOT))

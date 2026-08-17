@@ -24,6 +24,16 @@ import sys
 import tempfile
 from pathlib import Path
 
+# Türkçe çıktı Windows'ta süreci ÖLDÜRMESİN — stdout yönlendirildiğinde kod
+# sayfası cp1252'ye düşüyor ve "yakalandı"nın 'ı'sı kodlanamıyor. Gerekçenin
+# tamamı run_tests.py'ın tepesinde; ölçüldü: koruma olmadan 16/16 YAKALAYAN
+# matris, yalnızca sonucu yazdırırken exit 1 ile kırmızı raporlanıyordu.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        pass
+
 ROOT = Path(__file__).resolve().parents[2]
 
 _APP_VERSION = re.compile(r'^APP_VERSION\s*=\s*"([^"]+)"', re.MULTILINE)
