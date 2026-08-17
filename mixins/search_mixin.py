@@ -16,7 +16,7 @@ from kivy.metrics import dp
 from kivymd.uix.list import TwoLineListItem
 
 from ui.i18n import tr as _t
-from services.search_service import ACCOUNT, search
+from services.search_service import ACCOUNT, CATEGORY, TRANSACTION, search
 
 #: Panelde aynı anda görünecek en fazla satır. Daha uzunu başlığın altını
 #: kaplayıp sayfayı ittiriyor; kullanıcı yazmaya devam ederek daraltır.
@@ -80,7 +80,10 @@ class SearchMixin:
         if not results:
             item = TwoLineListItem(
                 text=_t("Sonuç bulunamadı"),
-                secondary_text=_t("Hesap ve kategori adlarında arandı"),
+                # Kapsamı SÖYLÜYOR. "Son işlemlerde" boş bir nezaket değil:
+                # açıklama araması en yeni 500 satırla sınırlı ve kullanıcı
+                # eski bir işlemi bulamadığında sebebini burada görüyor.
+                secondary_text=_t("Hesap, kategori ve son işlemlerde arandı"),
             )
             # Bulunamadı satırı bir HEDEF DEĞİL; tıklanınca hiçbir yere
             # gitmemeli. `_no_ripple_effect` KivyMD'nin dalga animasyonunu da
@@ -96,13 +99,20 @@ class SearchMixin:
             len(results), MAX_VISIBLE_RESULTS
         )
 
+    #: Sonuç türünden alt satır etiketi. `else` dalıyla ayırt etmek, işlem
+    #: sonuçları eklenince onları sessizce "Kategori" diye etiketlemişti;
+    #: açık eşleme aynı hatayı bir daha yapmayı zorlaştırıyor.
+    _KIND_LABELS = {
+        ACCOUNT: "Hesap",
+        CATEGORY: "Kategori",
+        TRANSACTION: "İşlem",
+    }
+
     def _build_result_row(self, result):
-        is_account = result.get("kind") == ACCOUNT
+        kind = result.get("kind")
         item = TwoLineListItem(
             text=str(result.get("name") or ""),
-            secondary_text=(
-                _t("Hesap") if is_account else _t("Kategori")
-            ),
+            secondary_text=_t(self._KIND_LABELS.get(kind, "Kategori")),
         )
         # `result=result` ŞART: döngü değişkenini yakalamak, tüm satırların
         # son sonuca gitmesi demekti (Python'da klasik geç-bağlama tuzağı).
@@ -117,8 +127,13 @@ class SearchMixin:
         nav = self.root.ids.get("bottom_nav") if self.root else None
         if nav is None:
             return
-        if result.get("kind") == ACCOUNT:
+        kind = result.get("kind")
+        if kind == ACCOUNT:
             nav.switch_tab("accounts_tab")
+        elif kind == TRANSACTION:
+            # İşlem listesi ana sayfada; ayrı bir "işlem detayı" ekranı yok ve
+            # bu turda uydurulmuyor. Zil de aynı şekilde ana sayfaya dönüyor.
+            nav.switch_tab("home_tab")
         else:
             nav.switch_tab("settings_tab")
             # Kategori listesi tür başına yükleniyor; sonucun kendi türünü
