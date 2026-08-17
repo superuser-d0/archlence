@@ -33,7 +33,7 @@ yalnızca **kodda görünmeyen** kararlar var.
 | Bulgu | Kök neden | Düzeltme |
 |---|---|---|
 | Restore dosya seçicisi uygulamanın tamamını çökertiyordu | Kivy `win32file.GetFileAttributesExW` çağırıyor; pywin32 o çağrının İÇİNDE `win32timezone`'u import ediyor, PyInstaller statik analizi göremiyor | `archlence.spec` → `hiddenimports` |
-| "Kartlarım" sekmesi hiç kaydırılamıyordu | Sayfanın dikey ScrollView'ı içindeki yatay kart şeridi (620dp, görünür alandan büyük) her dokunuşu sahipleniyor; Kivy iç içe ScrollView'da dokunuşu ÖNCE çocuğa soruyor | `ui/dashboard.kv` → şeride `scroll_type: ["bars"]` (sürükleme) **+** `ui/components.py` → `HorizontalStripScrollView` (tekerlek) |
+| "Kartlarım" sekmesi hiç kaydırılamıyordu | Sayfanın dikey ScrollView'ı içindeki yatay kart şeridi (620dp, görünür alandan büyük) her dokunuşu sahipleniyor; Kivy iç içe ScrollView'da dokunuşu ÖNCE çocuğa soruyor | `ui/dashboard.kv` → şeride `scroll_type: ["bars"]` (sürükleme) **+** `ui/components.py` → `PassthroughScrollView` (tekerlek) |
 | Kullanıcı kendi yedeğine geri yükleme seçicisinden ulaşamıyordu | Yedekler `data_dir()/backups` altında, Windows'ta gizli `AppData`nın içinde; seçici ev dizininde açılıyor ve Kivy gizli girdileri listelemiyor | `mixins/migration_mixin.py` → `restore_chooser_path()` |
 
 ### Ölçülen öncesi/sonrası (Kartlarım, sayfa tepedeyken)
@@ -45,7 +45,7 @@ tekerlek (scrollup)       ölü       ÖLÜ           çalışıyor
 ```
 
 `scroll_type: ["bars"]` yalnız sürüklemeyi kurtardı; tekerlek ikinci turda
-fiziksel makinede hâlâ ölü bulundu ve `HorizontalStripScrollView` ile
+fiziksel makinede hâlâ ölü bulundu ve `PassthroughScrollView` ile
 kapatıldı. Ölçüm kapısı da düzeltildi: `scrolldown` yerine `scrollup`
 kullanıyor (ilki sayfa tepedeyken Kivy tarafından zaten reddediliyor, yani
 sağlam ve bozuk sekmeyi ayırt etmiyordu) ve tekerleği sürüklemeden ÖNCE
@@ -66,7 +66,7 @@ düzeltmek KivyMD kart davranışına dokunmayı gerektirir, ayrı bir iştir.
 > ölüydü**. Sebep, ilk düzeltmenin (`scroll_type: ["bars"]`) yalnızca sürükleme
 > yolunu kapatması; Kivy'nin tekerlek dalı `bars` kapısından ÖNCE çalışıyor ve
 > hiçbir şey kaydıramasa bile olayı yutuyor. Tekerlek yolu ayrıca
-> `HorizontalStripScrollView` ile kapatıldı (bkz. `ui/components.py`).
+> `PassthroughScrollView` ile kapatıldı (bkz. `ui/components.py`).
 > Yukarıdaki paragrafın kart/sürükleme kısmı geçerliliğini koruyor.
 
 ---

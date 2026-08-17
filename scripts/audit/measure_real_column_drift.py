@@ -24,11 +24,21 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import sys
 import tempfile
 from contextlib import closing
 from decimal import Decimal
 from pathlib import Path
 from unittest import mock
+
+# Türkçe çıktı Windows'ta süreci ÖLDÜRMESİN — stdout yönlendirildiğinde kod
+# sayfası cp1252'ye düşüyor ve 'ı' kodlanamıyor. Gerekçenin tamamı
+# run_tests.py'ın tepesinde.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError, OSError):
+        pass
 
 
 def _accumulate(step: str, times: int, sign: int = 1) -> float:

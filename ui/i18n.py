@@ -116,6 +116,7 @@ EN = {
     "Aktif Gelirlerim": "My Active Incomes",
     "Aktif geliriniz bulunmuyor.": "You have no active incomes.",
     "Son İşlemler": "Recent Transactions",
+    "Bu dönemde işlem bulunmuyor.": "No transactions in this period.",
     "Günlük": "Daily",
     "Haftalık": "Weekly",
     "Aylık": "Monthly",

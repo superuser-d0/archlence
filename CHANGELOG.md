@@ -2,6 +2,42 @@
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-08-17
+
+This release closes the Windows hardware validation round that v0.0.9 left
+open, and it is the first build that does not describe itself as a
+pre-release. Almost everything it fixes was found by running the packaged
+installer on a real Windows machine rather than in CI: tabs that could not be
+scrolled at all, cards that reserved screens of blank space for content they
+did not have, icons laid out without a width that spilled into the text beside
+them, and a second copy of the application that opened an empty black window
+before explaining it would not run. The financial changes continue the move to
+`Decimal`, where binary floating point had been rounding portfolio values a
+kuruş away from the arithmetically correct number.
+
+Dropping "pre-release" is a statement about stability, not about the schema:
+see Known limitations for what a 0.x version number still leaves open.
+
+### Highlights
+
+- **The "Kartlarım" tab can be scrolled.** On a real Windows install nothing
+  below the heading could be reached — the horizontal card strip is taller
+  than the visible area and Kivy offers a touch to the child scroll view
+  first, which claimed every drag whether or not it had anywhere to go.
+- **The wheel works over lists inside cards.** Kivy's scroll view claims a
+  wheel event even when its content fits entirely in view, so over the asset
+  history list — anywhere below that card's heading — the wheel did nothing.
+- **Empty cards take the space of their message.** Four areas had fixed
+  heights of 220, 190, 320 and 400dp, so an empty profile scrolled through
+  screens of blank card.
+- **A second copy no longer opens a black window.** The single-instance check
+  ran after every import in `main.py`, including the one that creates the
+  window.
+- **Portfolio values round to the arithmetically correct kuruş.** Fifteen
+  units priced at 0,045 TL is exactly 0,675 TL; it was reported as 0,67
+  because the multiplication ran in binary floating point and never produced
+  the half-kuruş the rounding needed to see.
+
 ### Financial correctness and reliability
 
 - Deleting an account no longer leaves its recent transactions behind in the
@@ -126,8 +162,10 @@
   scrollbar, so dragging reaches the page, and it declines vertical wheel events
   outright — restricting it to the scrollbar was not enough on its own, because
   the wheel is handled earlier than that and was swallowed even though nothing
-  moved. Dragging directly on a card still does not scroll; cards absorb touches
-  everywhere in the app.
+  moved. That wheel rule is no longer specific to this strip; it is the shared
+  behaviour of every list that sits inside the page, described under UI and
+  accessibility below. Dragging directly on a card still does not scroll; cards
+  absorb touches everywhere in the app.
 
 - Budget plan items are saved through the service layer, which validates the
   amount the same way every other monetary write does. This was the only write
@@ -153,6 +191,144 @@
   now returns the row it wrote instead of leaving callers to read the cursor
   afterwards. All of these were correct, but each depended on no other insert
   landing in between — the assumption that had already failed once.
+
+### Performance
+
+- The large-dataset benchmark has a Windows baseline for the first time, at
+  1.000, 10.000 and 50.000 transactions, measured in an isolated temporary
+  profile. Scaling is linear across all three sizes; nothing degrades
+  faster than the data grows.
+- At 10.000 transactions — a realistic upper end for several years of daily
+  use — the dashboard summary takes 129ms, the monthly summary 13ms and a
+  full decrypt of the dataset 138ms.
+- At 50.000 transactions the dashboard summary reaches 779ms and a year of
+  insights 1,7s. Backup and restore reach roughly 12s and 11s. These remain
+  usable but are the first numbers in this project a user could notice; they
+  are recorded here so the next release can be compared against them.
+- Windows runs 2-3x slower than the Linux baseline on the sizes both cover.
+  The ratio is uninteresting at these absolute times and no Windows-specific
+  bottleneck was found; the two runs also used different Python versions.
+- Results are committed as `docs/performance/benchmark-results-windows.json`,
+  beside the existing Linux baseline rather than replacing it.
+
+### UI and accessibility
+
+- The page can be scrolled with the wheel while the pointer rests over a list
+  inside a card. Kivy's scroll view claims a wheel event even when its content
+  fits entirely in view, so the event never reached the page behind it: over
+  the asset history list — anywhere below that card's heading — the wheel did
+  nothing at all. The same applied to the subscription, income, debt, upcoming
+  payment, recent transaction, active asset and account movement lists. Those
+  lists now hand the wheel back to the page whenever they cannot move in that
+  direction, including at the top and bottom of their own content. The card
+  strip on the "Kartlarım" tab is covered by the same rule, which replaces the
+  strip-specific one that fixed it first.
+- Cards no longer reserve space for content they do not have. The active
+  debts, upcoming payments, asset history and recent transactions areas had
+  fixed heights — 220, 190, 320 and 400dp — so an empty profile scrolled
+  through screens of blank card. The debts and upcoming payments cards now
+  take their content's height up to a limit, and the limit is a whole number
+  of rows, so a populated card no longer cuts the last row in half either. The
+  asset history card and the recent transactions list keep their previous
+  height when they have rows and close up when they have none. Empty states
+  keep their message: the labels that carry it are laid out with an explicit
+  height, without which a content-driven card would collapse to nothing and
+  hide them.
+- The 620dp card strip on the "Kartlarım" tab keeps its fixed height. Closing
+  it up when no card exists was tried and reverted against a measurement: with
+  the strip shortened, the account cards move under the point a drag starts
+  from, and a card absorbs the touch — so the tab stopped scrolling by drag,
+  which is the defect that tab was just fixed for. Reclaiming that blank space
+  is not worth the tab.
+- A note on why the two lists are sized by a switch rather than by their
+  contents: a `RecycleView` lays its rows out from its own height, so binding
+  that height back to the row count (or to the row layout's `minimum_height`)
+  closes a loop. It resolves to a size that renders rows outside the card,
+  over the card beneath it. Measured on the assets tab and reverted.
+- The recent transactions list says "Bu dönemde işlem bulunmuyor." when the
+  selected period has none, in place of what used to be an empty 400dp block.
+- Starting a second copy of the application no longer opens an empty black
+  window before saying why it will not run. The single-instance check sat at
+  the end of `main.py`, so Python had already executed every import above it —
+  including `kivy.core.window`, which creates the window as it is imported. The
+  notice then arrived on top of a window the user had no use for and could not
+  close. The check now runs before any Kivy import and releases through
+  `atexit`, so the early exits between the two are covered as well. Measured
+  from source: the second instance now produces no Kivy startup output at all,
+  where it previously ran the whole of it.
+- The robot icon on the "Algoritmik Öngörü" card no longer overlaps its text.
+  Reported from a real Windows install; same defect as the heading icons
+  below — the icon was laid out without a width, so its glyph spilled into the
+  paragraph beside it. Measured after the fix: 44dp icon, 15dp of space before
+  the text.
+- The heading icons on the "Aktif Borçlarım", "Yaklaşan Ödemeler", "Bekleyen
+  İşlemler" and "Varlık Geçmişi" cards no longer overlap the heading text.
+  They were laid out without an explicit width, unlike the icons on the
+  neighbouring cards, and the glyph spilled into the label beside it. The
+  monthly change indicator and the negative-balance warning carried the same
+  defect.
+
+### Testing and packaging
+
+- The full suite is 934 tests and runs green on Windows, up from 796 at the
+  v0.0.9 gate.
+- The scroll gate was proved to measure what it claims. Its red result on a
+  populated profile had been suspected of being an artefact of where the
+  synthetic touch starts, since a card absorbs a touch that lands on it.
+  Toggling the strip's `scroll_type` between `bars` and `content` and running
+  the gate both ways settles it: drag scrolls with the fix in place and fails
+  without it, from the same untouched point. Had a card been swallowing the
+  touch, both runs would have failed.
+- The icon and label layout gate scans all five tabs at 1.0, 1.25 and 1.5
+  density and is wired into the CI visual-regression matrix, so heading icons
+  cannot silently start overlapping their text again.
+- The single-instance startup order is pinned by a test, so the lock check
+  cannot drift back below the Kivy imports.
+- Dependency, type and lint gates were run against this tree on Windows:
+  `pip-audit` reports no known vulnerabilities, `mypy` is clean over
+  `services` and `database`, and the version mutation matrix catches all 16
+  cases. The one High-severity `bandit` finding is a false positive: it
+  blacklists the `Crypto.*` import namespace as the abandoned pyCrypto, while
+  the actual dependency is its maintained fork, pycryptodome.
+
+### Additional issues found and fixed
+
+- Six release and audit gates reported themselves red on Windows after
+  passing. Each prints its result in Turkish, and a redirected stdout falls
+  back to a code page that cannot encode those characters, so the script
+  raised `UnicodeEncodeError` once its work was already done. The version
+  consistency gate exited 1 on a fully consistent tree, and the version
+  mutation matrix exited 1 after catching all 16 mutations. CI never saw any
+  of it because those steps run on Linux; anyone driving a release from
+  Windows would have hit a red gate on a green tree. The scroll gate was the
+  worst of the six — its unencodable character appears only in the failure
+  line, so it would have crashed without a report at the exact moment it
+  turned red.
+
+### Known limitations
+
+- Some Windows environment combinations remain unverified: cross-user DPAPI
+  isolation, real OS display scaling at 125% and 150%, multi-monitor, and a
+  physical Turkish keyboard layout. Each was blocked by the validation
+  machine itself — one active user account, one monitor, 100% scaling — not
+  by a defect. The application-side paths behind them are covered by tests
+  and by simulated-density runs.
+- `accounts.balance` and `savings_goals.current_amount` remain `REAL`
+  columns. The `Decimal` migration has moved the arithmetic that reads them,
+  not the storage itself.
+- Broad exception-handler debt is still open, though the gate holds it flat.
+- A 0.x version number still applies: the database schema and the on-disk
+  profile layout may change in a future release, with migration provided.
+- The plaintext CSV export is written owner-only on POSIX. Windows has no
+  equivalent permission bit here, so the file inherits its directory's ACL —
+  export to a shared location with that in mind.
+
+### Installation and checksum verification
+
+- Windows: `ArchlenceSetup-0.1.0.exe`
+- Linux: `Archlence-0.1.0-x86_64.AppImage`
+- Download `SHA256SUMS.txt` from the same release and verify the matching
+  asset. The SBOM is published as `Archlence-0.1.0-sbom.cdx.json`.
 
 ## [0.0.9] — 2026-08-11
 

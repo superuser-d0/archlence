@@ -358,6 +358,27 @@ jobs:
         run: >-
           xvfb-run -a python scripts/dev/verify_asset_dialog_layout.py
           --output visual/assets-${{ matrix.language }}-${{ matrix.dpi }}
+      - name: İkon/yazı binişme sözleşmesi
+        # NEDEN BURADA: bu kusur depoda ÜÇ KEZ çıktı ve üçünde de kullanıcı
+        # bildirdi — kart başlıkları, "Algoritmik Öngörü" robot ikonu ve
+        # Ayarlar'daki "Çıkış Yap" satırı. Sebep her seferinde aynı: yatay
+        # kutudaki `MDIcon`'a genişlik verilmemiş, kutu 0px kalıyor ve glif
+        # yanındaki yazının üstüne taşıyor. Birim testi yakalayamaz: kusur
+        # ancak gerçek yerleşim hesaplandıktan sonra, `texture_size` ile
+        # `width` karşılaştırılınca görünür.
+        #
+        # Matristeki `dpi` değerleri sayesinde ölçek duyarlı hâli de
+        # kapsanıyor — Windows'un %125/%150 ölçeğinin uygulama tarafındaki
+        # karşılığı budur.
+        env:
+          KIVY_DPI: ${{ matrix.dpi }}
+          ARCHLENCE_LANGUAGE: ${{ matrix.language }}
+          XDG_DATA_HOME: ${{ runner.temp }}/archlence-icon-data
+          XDG_CACHE_HOME: ${{ runner.temp }}/archlence-icon-cache
+          XDG_STATE_HOME: ${{ runner.temp }}/archlence-icon-state
+        run: >-
+          xvfb-run -a python scripts/dev/verify_icon_label_layout.py
+          --output visual/icons-${{ matrix.language }}-${{ matrix.dpi }}
       - name: Sekme kaydırma sözleşmesi
         # NEDEN BURADA: bu kapı GERÇEK bir olay döngüsüne ve pencereye
         # ihtiyaç duyuyor — dokunuşu Kivy'nin girdi hattından gönderip

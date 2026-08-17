@@ -79,6 +79,46 @@ if ARCHLENCE_HEADLESS:
     os.environ.setdefault("KIVY_WINDOW", "sdl2")
 
 # =========================================================================
+# 2.5 TEK ÖRNEK KİLİDİ — KIVY IMPORT'LARINDAN ÖNCE
+# =========================================================================
+# BURADA, aşağıdaki Kivy import'larından ÖNCE olmak ZORUNDA. `kivy.core.window`
+# import edildiği anda SDL penceresi açılıyor; kilit kontrolü daha sonra
+# koşarsa kullanıcı önce boş siyah bir pencere görüyor, uyarı kutusu ancak
+# onun ÜSTÜNE geliyor ve kutu kapatılana kadar orada duruyor. Fiziksel
+# Windows makinesinde ölçüldü (bkz. WINDOWS_RC_CHECKLIST.md §2.4): koddaki
+# "Kivy/SQLite başlangıcından önce" notu paketlenmiş yapıda geçerli değildi,
+# çünkü kontrol modül sonundaki `__main__` bloğunda duruyordu — yani tüm
+# import'lar, pencere dahil, çoktan çalışmış oluyordu.
+#
+# `__main__` koşulu: main.py testlerden `import main` ile de yükleniyor
+# (bkz. tests/test_startup_import.py). Kilit yalnız uygulama gerçekten
+# çalıştırılırken alınır, import edilirken değil.
+_instance_lock = None
+
+if __name__ == "__main__":
+    import atexit
+
+    from utils.single_instance import (
+        AlreadyRunningError,
+        SingleInstanceLock,
+        notify_already_running,
+    )
+
+    _instance_lock = SingleInstanceLock(
+        os.path.join(data_dir(), "archlence.instance.lock")
+    )
+    try:
+        _instance_lock.acquire()
+    except AlreadyRunningError as exc:
+        notify_already_running(str(exc))
+        raise SystemExit(2) from exc
+
+    # `atexit`, aşağıdaki erken `SystemExit` yollarını da (ör. headless'ta
+    # pencere sağlayıcısı yokken) kapsıyor; `release()` yeniden çağrılmaya
+    # dayanıklı olduğu için çift bırakma sorun değil.
+    atexit.register(_instance_lock.release)
+
+# =========================================================================
 # 3. KIVY / KIVYMD IMPORTS
 # =========================================================================
 from kivy.config import Config
@@ -1557,6 +1597,13 @@ class ArchlenceApp(
                 )
 
             recent_list.data = data
+            # Liste yüksekliği artık içeriğe bağlı (ui/dashboard.kv): işlem
+            # yokken alan tamamen kapanır, o yüzden boş durum metni bu etikete
+            # düşer — varlık geçmişindeki kalıbın aynısı.
+            empty_label = self.root.ids.get("recent_tx_empty_label")
+            if empty_label is not None:
+                empty_label.height = 0 if data else dp(40)
+                empty_label.opacity = 0 if data else 1
             if brand_names_to_prefetch:
                 self._prefetch_recent_brand_icons(brand_names_to_prefetch, transactions)
         except Exception:
@@ -2219,21 +2266,11 @@ if __name__ == "__main__":
         print("ARCHLENCE_HEADLESS=1: GUI başlatılmadı, çıkılıyor.")
         raise SystemExit(0)
 
-    from utils.single_instance import (
-        AlreadyRunningError,
-        SingleInstanceLock,
-        notify_already_running,
-    )
-
-    _instance_lock = SingleInstanceLock(
-        os.path.join(data_dir(), "archlence.instance.lock")
-    )
-    try:
-        _instance_lock.acquire()
-    except AlreadyRunningError as exc:
-        notify_already_running(str(exc))
-        raise SystemExit(2) from exc
+    # Kilit burada DEĞİL, dosyanın başında alınıyor (bkz. bölüm 2.5): Kivy
+    # import'ları pencereyi açtığı için kontrolün onlardan önce koşması
+    # gerekiyor. Bırakma işini `atexit` üstleniyor.
     try:
         ArchlenceApp().run()
     finally:
-        _instance_lock.release()
+        if _instance_lock is not None:
+            _instance_lock.release()

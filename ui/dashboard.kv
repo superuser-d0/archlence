@@ -6,7 +6,8 @@
 #:import ftheme ui.theme
 #:import TextInput kivy.uix.textinput.TextInput
 #:import SearchBar ui.components.SearchBar
-#:import HorizontalStripScrollView ui.components.HorizontalStripScrollView
+#:import PassthroughScrollView ui.components.PassthroughScrollView
+#:import PassthroughRecycleView ui.components.PassthroughRecycleView
 
 # --- 0. GLOBAL WIDGET KURALLARI ---
 # Tüm giriş alanları: karanlık temada hint/helper metinleri KivyMD varsayılanıyla
@@ -692,6 +693,8 @@ MDScreen:
                                                 theme_text_color: "Custom"
                                                 text_color: ftheme.accent(app.theme_cls.theme_style, 'blue')
                                                 font_size: "16sp"
+                                                size_hint_x: None
+                                                width: "20dp"
                                                 pos_hint: {"center_y": .5}
                                                 
                                         MDLabel:
@@ -717,6 +720,8 @@ MDScreen:
                                         icon: "alert-circle"
                                         theme_text_color: "Error"
                                         font_size: "16sp"
+                                        size_hint_x: None
+                                        width: "20dp"
                                         pos_hint: {"center_y": .5}
                                     MDLabel:
                                         id: negative_balance_label
@@ -817,6 +822,13 @@ MDScreen:
                                         theme_text_color: "Custom"
                                         text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
                                         font_size: "36sp"
+                                        # Genişlik AÇIKÇA veriliyor: genişliksiz
+                                        # bırakılan MDIcon'un glifi yanındaki
+                                        # metnin üstüne taşıyor (kart başlıklarında
+                                        # düzeltilen kusurun aynısı). 36sp'lik glif
+                                        # için 44dp ölçüldü.
+                                        size_hint_x: None
+                                        width: "44dp"
                                         size_hint_y: None
                                         height: self.texture_size[1]
                                         pos_hint: {"top": 1}
@@ -946,7 +958,7 @@ MDScreen:
                                     # ancak sınırlı bir görüntü alanında çalışır,
                                     # sayfa boyunca uzayan bir liste her satırı
                                     # yine de oluştururdu.
-                                    RecycleView:
+                                    PassthroughRecycleView:
                                         id: active_subscriptions_rv
                                         viewclass: "SubscriptionRow"
                                         size_hint_y: None
@@ -1002,7 +1014,7 @@ MDScreen:
                                     # Aynı satır bileşeni; gelirler tipik olarak az
                                     # sayıda olduğu için yükseklik pratikte hep
                                     # içeriğe uyar, ama üst sınır burada da var.
-                                    RecycleView:
+                                    PassthroughRecycleView:
                                         id: active_incomes_rv
                                         viewclass: "SubscriptionRow"
                                         size_hint_y: None
@@ -1071,7 +1083,10 @@ MDScreen:
                                     padding: "16dp"
                                     spacing: "10dp"
                                     size_hint_y: None
-                                    height: "220dp"
+                                    # Kart içeriğe uyar: borç yokken yalnız başlık
+                                    # ve "borcunuz bulunmuyor" satırı kadar yer
+                                    # kaplar, sabit 220dp'lik boşluk bırakmaz.
+                                    adaptive_height: True
                                     radius: [24, 24, 24, 24]
                                     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
 
@@ -1084,23 +1099,38 @@ MDScreen:
                                             theme_text_color: "Custom"
                                             text_color: app.theme_cls.primary_color
                                             font_size: "24sp"
+                                            size_hint_x: None
+                                            width: "28dp"
+                                            pos_hint: {"center_y": .5}
                                         MDLabel:
                                             text: app.tr("Aktif Borçlarım", app.language)
                                             font_style: "H6"
                                             bold: True
                                             
-                                    ScrollView:
+                                    # İçerik yüksekliğini alır; iki borç kartında
+                                    # (2 × 140dp + 10dp aralık) sabitlenip içeride
+                                    # kayar. Sınır satır yüksekliğinin katı: kart
+                                    # eskisi gibi bir satırı ortadan kırpmaz.
+                                    PassthroughScrollView:
+                                        size_hint_y: None
+                                        height: min(active_debts_container.minimum_height, dp(290))
+
                                         MDBoxLayout:
                                             id: active_debts_container
                                             orientation: "vertical"
                                             spacing: "10dp"
                                             adaptive_height: True
-                                            
+
                                             MDLabel:
                                                 text: app.tr("Henüz aktif bir borcunuz bulunmuyor.", app.language)
                                                 theme_text_color: "Secondary"
                                                 font_style: "Body2"
                                                 halign: "center"
+                                                # size_hint_y varsayılanı 1: kapsayıcının
+                                                # minimum_height'ına 0 katkı verir ve boş
+                                                # kart tamamen kapanırdı.
+                                                size_hint_y: None
+                                                height: "40dp"
 
                                 # YENİ: YAKLAŞAN ÖDEMELER KARTI
                                 MDCard:
@@ -1111,7 +1141,7 @@ MDScreen:
                                     padding: "16dp"
                                     spacing: "10dp"
                                     size_hint_y: None
-                                    height: "190dp"
+                                    adaptive_height: True
                                     radius: [24, 24, 24, 24]
                                     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
 
@@ -1124,12 +1154,20 @@ MDScreen:
                                             theme_text_color: "Custom"
                                             text_color: app.theme_cls.primary_color
                                             font_size: "24sp"
+                                            size_hint_x: None
+                                            width: "28dp"
+                                            pos_hint: {"center_y": .5}
                                         MDLabel:
                                             text: app.tr("Yaklaşan Ödemeler", app.language)
                                             font_style: "H6"
                                             bold: True
 
-                                    ScrollView:
+                                    # İki ödeme kartı (2 × 100dp + 10dp aralık)
+                                    # sığar, sonrası içeride kayar.
+                                    PassthroughScrollView:
+                                        size_hint_y: None
+                                        height: min(upcoming_payments_container.minimum_height, dp(210))
+
                                         MDBoxLayout:
                                             id: upcoming_payments_container
                                             orientation: "vertical"
@@ -1141,6 +1179,8 @@ MDScreen:
                                                 theme_text_color: "Secondary"
                                                 font_style: "Body2"
                                                 halign: "center"
+                                                size_hint_y: None
+                                                height: "40dp"
 
                                 # BEKLEYEN (İLERİ TARİHLİ) İŞLEMLER KARTI
                                 # Bekleyen işlem yokken kart tamamen gizlenir
@@ -1170,6 +1210,9 @@ MDScreen:
                                             theme_text_color: "Custom"
                                             text_color: app.theme_cls.primary_color
                                             font_size: "24sp"
+                                            size_hint_x: None
+                                            width: "28dp"
+                                            pos_hint: {"center_y": .5}
                                         MDLabel:
                                             text: app.tr("Bekleyen İşlemler", app.language)
                                             font_style: "H6"
@@ -1218,11 +1261,16 @@ MDScreen:
                                         MDSegmentedControlItem:
                                             text: app.tr("Aylık", app.language)
                                             
-                                    RecycleView:
+                                    PassthroughRecycleView:
                                         id: recent_transactions_list
                                         viewclass: RecycleListRow
                                         size_hint_y: None
-                                        height: "400dp"
+                                        # Doluyken eski 400dp'lik görüntü alanı; dönemde
+                                        # hiç işlem yokken kapanır (eskiden boş bir blok
+                                        # bırakıyordu). Yüksekliği satır sayısıyla
+                                        # ölçeklemek RecycleView'ın kendi yerleşimiyle
+                                        # döngü kuruyor, o yüzden ikili durum kullanılıyor.
+                                        height: dp(400) if self.data else 0
 
                                         RecycleBoxLayout:
                                             id: recent_tx_rv_box
@@ -1231,6 +1279,18 @@ MDScreen:
                                             default_size_hint: 1, None
                                             size_hint_y: None
                                             height: self.minimum_height
+
+                                    # Boş dönem metni; görünürlüğünü
+                                    # _render_recent_transactions yönetir.
+                                    MDLabel:
+                                        id: recent_tx_empty_label
+                                        text: app.tr("Bu dönemde işlem bulunmuyor.", app.language)
+                                        theme_text_color: "Secondary"
+                                        font_style: "Body2"
+                                        halign: "center"
+                                        size_hint_y: None
+                                        height: 0
+                                        opacity: 0
 
                 # ==== 2. SEKME: VARLIKLARIM ====
                 MDBottomNavigationItem:
@@ -1498,6 +1558,10 @@ MDScreen:
                                                     padding: "16dp"
                                                     spacing: "10dp"
                                                     size_hint_y: None
+                                                    # Yükseklik varlık sayısına göre
+                                                    # AssetMixin.render_active_assets içinde
+                                                    # ayarlanır; liste kartı doldurduğu için
+                                                    # boş alan kalmaz.
                                                     height: "280dp"
                                                     radius: [24, 24, 24, 24]
                                                     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style) if app.theme_cls.theme_style == "Light" else [0.15, 0.15, 0.15, 1]
@@ -1543,7 +1607,7 @@ MDScreen:
                                                             pos_hint: {"center_y": .5}
                                                             on_release: app.show_add_asset_dialog()
 
-                                                    ScrollView:
+                                                    PassthroughScrollView:
                                                         MDBoxLayout:
                                                             id: active_assets_container
                                                             orientation: "vertical"
@@ -1555,6 +1619,8 @@ MDScreen:
                                                                 theme_text_color: "Hint"
                                                                 font_style: "Body2"
                                                                 halign: "center"
+                                                                size_hint_y: None
+                                                                height: "40dp"
 
                                                 # VARLIK GEÇMİŞİ KARTI
                                                 MDCard:
@@ -1564,7 +1630,11 @@ MDScreen:
                                                     padding: "16dp"
                                                     spacing: "10dp"
                                                     size_hint_y: None
-                                                    height: "320dp"
+                                                    # Geçmiş boşken kart yalnız başlık ve
+                                                    # boş durum satırı kadar yer kaplar;
+                                                    # işlem varken eski 320dp'lik liste
+                                                    # yüksekliğini korur.
+                                                    height: "320dp" if asset_history_list.data else "108dp"
                                                     radius: [24, 24, 24, 24]
                                                     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
 
@@ -1577,6 +1647,8 @@ MDScreen:
                                                             theme_text_color: "Custom"
                                                             text_color: ftheme.accent(app.theme_cls.theme_style, 'amber')
                                                             font_size: "24sp"
+                                                            size_hint_x: None
+                                                            width: "28dp"
                                                             pos_hint: {"center_y": .5}
                                                         MDLabel:
                                                             text: app.tr("Varlık Geçmişi", app.language)
@@ -1584,7 +1656,15 @@ MDScreen:
                                                             bold: True
                                                             pos_hint: {"center_y": .5}
 
-                                                    RecycleView:
+                                                    # Liste kartın kalan alanını doldurur.
+                                                    # Yüksekliği İÇERİKTEN türetmek (satır
+                                                    # sayısı ya da RecycleBoxLayout.minimum_height)
+                                                    # denendi ve geri alındı: RecycleView kendi
+                                                    # yerleşimini kendi boyutuna göre yapıyor,
+                                                    # boyutu da içeriğe bağlanınca satırlar kartın
+                                                    # dışına — alttaki kartın üstüne — çiziliyordu.
+                                                    # Boş durum kartın kendi yüksekliğinde çözülür.
+                                                    PassthroughRecycleView:
                                                         id: asset_history_list
                                                         viewclass: RecycleListRow
 
@@ -1834,13 +1914,26 @@ MDScreen:
                                                 elevation: 0
                                                 on_release: app.open_add_account_dialog()
 
-                                        HorizontalStripScrollView:
+                                        PassthroughScrollView:
                                             size_hint_y: None
                                             # Kart yüksekliği ölçüldü: 3 hareket
                                             # satırlı kredi kartı 567dp'ye çıkıyor
                                             # ("Kart Kullanım Özeti" + Son Hareketler
                                             # eklendikten sonra). 500dp'de kartın
                                             # alt kısmı kırpılıyordu.
+                                            #
+                                            # SABİT KALIYOR. Yüksekliği içeriğe
+                                            # bağlamak (kart yokken şerit kapansın
+                                            # diye) denendi ve ÖLÇÜLEREK geri alındı:
+                                            # scripts/dev/verify_tab_scrolling.py
+                                            # bu sekmede sürüklemeyi ölü buldu
+                                            # (#95'in koşusunda içerik 1056dp,
+                                            # sürükleme ✓; bu bağlamayla 1031dp,
+                                            # sürükleme ✗). Şerit kısalınca altındaki
+                                            # kartlar sürükleme noktasına geliyor ve
+                                            # MDCard dokunuşu yutuyor — yani boş
+                                            # kartın yerini kazanmak, bu sekmenin
+                                            # kaydırılabilmesine mal oluyordu.
                                             height: "620dp"
                                             do_scroll_y: False
                                             do_scroll_x: True
@@ -1876,6 +1969,13 @@ MDScreen:
                                             # 0 genişlikte çubuk hiçbir dokunuşu
                                             # yakalayamaz ve şerit tamamen
                                             # kaydırılamaz hâle gelirdi.
+                                            #
+                                            # TEKERLEK ayrı bir yol: `bars` kapısından
+                                            # ÖNCE çalıştığı için `scroll_type` onu
+                                            # etkilemiyor. Onu PassthroughScrollView
+                                            # kapatıyor (ui/components.py) — dikey
+                                            # kaydırma yapmayan bu şerit dikey tekerleği
+                                            # sayfaya bırakır.
                                             scroll_type: ["bars"]
                                             bar_width: "6dp"
                                             bar_margin: "2dp"
@@ -2550,6 +2650,13 @@ MDScreen:
                                     on_release: screen_manager.current = "login"
                                     MDIcon:
                                         icon: "logout"
+                                        # Genişlik AÇIKÇA veriliyor: verilmezse
+                                        # kutu 0px kalıyor ve 30px'lik glif
+                                        # "Çıkış Yap" yazısının üstüne biniyor
+                                        # (kart başlıklarında düzeltilen kusurun
+                                        # aynısı; ölçüm dedektörüyle bulundu).
+                                        size_hint_x: None
+                                        width: "24dp"
                                         pos_hint: {"center_y": .5}
                                         theme_text_color: "Error"
                                     MDLabel:
