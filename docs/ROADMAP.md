@@ -439,6 +439,25 @@ guarantees established earlier.
 
 Not release-blocking, but worth doing before calling this stable.
 
+- **Implement search, or leave it out deliberately** — the home header carried
+  a search bar from `0a905a1` through v0.1.0 that was never wired to anything.
+  The magnifier was an `MDIcon`, which inherits no button behaviour and cannot
+  receive a click; the field had zero handlers on `on_text_validate`; there is
+  no search service. A user reported it against v0.1.0 and the bar was removed
+  rather than left as a control that does nothing.
+
+  Building it needs product decisions that have not been made: what it
+  searches (transactions, accounts, assets, categories, or several), how
+  results are presented (a dropdown, a dedicated screen, or filtering the list
+  in place), and whether it searches encrypted description fields — which is
+  the interesting one, since those are only readable after decryption, so
+  matching them means decrypting a working set rather than pushing the filter
+  into SQL.
+
+  The `SearchBar` component, its kv rule, `verify_search_bar_visual.py` and
+  `docs/SEARCH_RENDER_ARTIFACT.md` are all retained for this; the gate's CI
+  step is commented out, not deleted.
+
 - ~~Split overly broad exception handling by failure type~~ — **Partially
   done, scope deliberately narrowed** — [PR #13](https://github.com/superuser-d0/archlence/pull/13).
   ~200 `except Exception` blocks exist across the codebase; ~157 of them are

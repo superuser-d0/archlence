@@ -338,16 +338,27 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb
           python -m pip install -r requirements-runtime.txt
-      - name: Search bar visual contracts
-        env:
-          KIVY_DPI: ${{ matrix.dpi }}
-          ARCHLENCE_LANGUAGE: ${{ matrix.language }}
-          XDG_DATA_HOME: ${{ runner.temp }}/archlence-visual-data
-          XDG_CACHE_HOME: ${{ runner.temp }}/archlence-visual-cache
-          XDG_STATE_HOME: ${{ runner.temp }}/archlence-visual-state
-        run: >-
-          xvfb-run -a python scripts/dev/verify_search_bar_visual.py
-          --output visual/search-${{ matrix.language }}-${{ matrix.dpi }}
+      # ARAMA ÇUBUĞU GÖRSEL KAPISI PARKTA — ölçtüğü widget şu an ekranda
+      # değil. Çubuk hiçbir zaman bir işleyiciye bağlanmamıştı (büyüteç
+      # tıklanamayan bir `MDIcon`, alanın `on_text_validate`'inde sıfır
+      # bağlayıcı) ve v0.1.0'da kullanıcı tarafından bildirildi; uygulanana
+      # kadar ana ekrandan kaldırıldı (bkz. ui/dashboard.kv).
+      #
+      # Kapı SİLİNMEDİ: ölçtüğü dikiş kusuru gerçek bir düzeltmeydi
+      # (docs/SEARCH_RENDER_ARTIFACT.md). Arama uygulanıp çubuk geri
+      # konduğunda bu adımı yorumdan çıkarmak yeterli — script,
+      # `SearchBar` bileşeni ve kv kuralı olduğu gibi duruyor.
+      #
+      # - name: Search bar visual contracts
+      #   env:
+      #     KIVY_DPI: ${{ matrix.dpi }}
+      #     ARCHLENCE_LANGUAGE: ${{ matrix.language }}
+      #     XDG_DATA_HOME: ${{ runner.temp }}/archlence-visual-data
+      #     XDG_CACHE_HOME: ${{ runner.temp }}/archlence-visual-cache
+      #     XDG_STATE_HOME: ${{ runner.temp }}/archlence-visual-state
+      #   run: >-
+      #     xvfb-run -a python scripts/dev/verify_search_bar_visual.py
+      #     --output visual/search-${{ matrix.language }}-${{ matrix.dpi }}
       - name: Asset dialog geometry contracts
         env:
           KIVY_DPI: ${{ matrix.dpi }}
