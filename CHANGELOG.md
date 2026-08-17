@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+## [0.0.12] — 2026-08-17
+
+This release finishes what a single user report started. The search bar that
+"did nothing" is now a working search over accounts, categories and
+transaction descriptions; the bell beside it, which turned out to have the
+same defect, does something too; and the Turkish folding bug that search
+exposed has been fixed in the two older pickers that still carried it.
+
+### Highlights
+
+- **Search reaches transaction descriptions**, not just names — within a
+  bounded, measured window, for reasons under Features.
+- **The bell works.** It was the only remaining control in the interface with
+  no handler at all, and it rippled under the finger while doing nothing.
+- **The asset and budget pickers can find Turkish names again.** Measured
+  against the real BIST-100 list, typing `is bankasi` or `tupras` previously
+  returned *no results*.
+- **The scroll gate stopped lying.** It called a sound build broken depending
+  on where cards happened to land, and in that state could not tell the fix
+  from its absence.
+
 ### Features
 
 - Search now covers transaction descriptions as well as account and category
@@ -82,6 +103,38 @@
   The budget category picker had the same class of bug through `.casefold()`.
   All three now share the folding introduced in 0.0.11, so accents and the
   ı/İ/I/i family all compare equal.
+
+### Performance
+
+- Description search decrypts a bounded window rather than the whole ledger.
+  Measured on this machine: 200, 500 and 1000 rows cost 7,3ms, 17,5ms and
+  34,8ms. The window is 500 — inside a single frame's budget even if a slower
+  machine triples it, where 1000 was already borderline. Behind the existing
+  300ms debounce, typing does not queue work.
+- Gathering notifications decrypts each pending transaction and recurring
+  payment, so the bell loads on a background thread rather than blocking the
+  press.
+- Nothing else changed. Account and category search still filters in SQL and
+  is unaffected by the window.
+
+### Additional issues found and fixed
+
+- A new test module imported a KivyMD-touching mixin at module level, which
+  runs during test *discovery* — before Kivy's metrics exist — so `dp(400)`
+  inside KivyMD raised and took **150 unrelated tests** down with it. The
+  import moved inside a helper, matching what the other KivyMD-touching tests
+  already do.
+- The version gate's own lint caught a dangling import left by the scroll gate
+  rework. Worth noting because the local run had been using a narrower flake8
+  selection than CI: `--select=F821,F822,F823,E722` rather than the full `F`
+  set. The local command now matches CI.
+
+### Installation and checksum verification
+
+- Windows: `ArchlenceSetup-0.0.12.exe`
+- Linux: `Archlence-0.0.12-x86_64.AppImage`
+- Download `SHA256SUMS.txt` from the same release and verify the matching
+  asset. The SBOM is published as `Archlence-0.0.12-sbom.cdx.json`.
 
 ## [0.0.11] — 2026-08-17
 

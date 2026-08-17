@@ -25,7 +25,7 @@
 ; etiketten türeyen sürüm sessizce varsayılana döner ve her release aynı sürüm
 ; numarasıyla çıkardı. Bu hâliyle CLI kazanır, yerel derlemede güncel sürüm kalır.
 #ifndef MyAppVersion
-  #define MyAppVersion "0.0.11"
+  #define MyAppVersion "0.0.12"
 #endif
 #define MyAppPublisher "Mehmet Cem Çakırgöz"
 #define MyAppExeName "Archlence.exe"
