@@ -455,6 +455,21 @@ Not release-blocking, but worth doing before calling this stable.
   description search to a bounded recent window. None of these is obviously
   right, which is why the first round stopped at names.
 
+- **Decide what the notification bell should do, or leave it out** — the home
+  header carried a bell `MDIconButton` with no handler. It was removed rather
+  than left as a control that ripples under the finger and does nothing, the
+  same call made for the search bar.
+
+  The data a notification surface would show already exists: upcoming
+  payments, pending transactions, and the anomaly and subscription detections
+  the insights service already produces. What is missing is the product
+  decision — which of those belong in a bell, whether it carries an unread
+  count, and whether tapping it opens a panel or jumps to an existing screen.
+  Restoring the control is a few lines once that is answered.
+
+  A scan of `ui/dashboard.kv` found this to be the only remaining button
+  without a handler, so there is no third instance of this defect waiting.
+
 - ~~**Fix Turkish folding in the older search boxes**~~ — **Done.** There were
   three call sites, not two: the budget category picker used `.casefold()`,
   and the BIST and crypto pickers used `.lower()`, which is weaker still. All

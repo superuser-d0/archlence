@@ -606,11 +606,22 @@ MDScreen:
                                     on_focus: self.parent.focused = self.focus
                                     on_text: app.on_home_search_text(self, self.text)
 
-                            MDIconButton:
-                                icon: "bell-outline"
-                                icon_size: "28dp"
-                                pos_hint: {"center_y": .5}
-                                theme_text_color: "Primary"
+                            # ZİL İKONU KALDIRILDI — hiçbir işleyicisi yoktu.
+                            # Arama çubuğuyla AYNI kusur sınıfı, ama bir
+                            # açıdan daha kötüsü: büyüteç `MDIcon`'du ve
+                            # dokunuşu hiç almıyordu, yani hiç tepki
+                            # vermiyordu. Zil ise gerçek bir `MDIconButton`
+                            # olduğu için dokununca dalga animasyonu oynuyor —
+                            # kullanıcıya "çalıştı" hissi verip hiçbir şey
+                            # yapmıyordu.
+                            #
+                            # Kaldırma, arama çubuğunda verilen kararla
+                            # tutarlı: arkasında davranış olmayan kontrolü
+                            # göstermiyoruz. Bağlamak için gereken veri zaten
+                            # var (Yaklaşan Ödemeler, bekleyen işlemler) ama
+                            # bildirim yüzeyinin ne göstereceği bir ÜRÜN
+                            # kararı ve verilmedi; verildiğinde bu blok geri
+                            # gelir. Kayıt: docs/ROADMAP.md Phase 2.
 
                         # ARAMA SONUÇLARI — modal değil, satır içi.
                         # `MDDropdownMenu` KivyMD 1.2'de `ModalView` üzerine

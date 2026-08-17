@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### UI and accessibility
+
+- The bell icon has been removed from the home header. It had no handler at
+  all. This is the same defect class as the search bar reported against
+  0.0.10, and in one respect worse: the magnifier was an `MDIcon` and could
+  not receive a click, so it never responded, while the bell was a real
+  `MDIconButton` that rippled under the finger and then did nothing. A scan of
+  the whole interface found it to be the only remaining control without a
+  handler. Wiring it needs a product decision about what a notification
+  surface should show — the data exists — so that is recorded in
+  `docs/ROADMAP.md` rather than invented here.
+
+### Testing and packaging
+
+- The tab scrolling gate no longer depends on where cards happen to land. It
+  started its synthetic drag at the window centre, which at some densities and
+  account layouts fell on an `MDCard`; the card claims the touch, so the gate
+  reported a sound build as broken and — worse — stopped distinguishing the
+  fix from its absence. The start point is now selected rather than computed:
+  candidates inside the card strip are probed against the widget tree with
+  `collide_point` until one lands clear of every card, and if none does the
+  measurement is reported as skipped rather than failed. Verified by A/B at
+  three densities: green with the fix and red without it at 1.0, 1.25 and 1.5,
+  where 1.0 previously failed in both directions.
+
 ### Financial correctness and reliability
 
 - The BIST and crypto pickers can find Turkish names again. Both filtered with

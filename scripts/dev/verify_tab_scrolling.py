@@ -42,7 +42,6 @@ os.environ.setdefault("KIVY_NO_ARGS", "1")
 
 from kivy.base import EventLoop
 from kivy.clock import Clock
-from kivy.core.window import Window
 from kivy.input.motionevent import MotionEvent
 from kivy.uix.scrollview import ScrollView
 
@@ -96,6 +95,76 @@ def _walk(widget):
     yield widget
     for child in widget.children:
         yield from _walk(child)
+
+
+def _touch_point(page):
+    """Sürüklemenin başlayacağı pencere-koordinatı noktasını SEÇER.
+
+    NEDEN VAR: bu kapı dokunuşu pencerenin tam ortasından başlatıyordu ve o
+    nokta bazı yerleşimlerde doğrudan bir `MDCard`'ın üstüne düşüyordu. Kart
+    dokunuşu sahiplendiği için kapı SAĞLAM bir yapıyı kırmızı gösteriyor ve
+    o koşulda düzeltmeyi hiç AYIRT ETMİYORDU (yoğunluk 1.0'da ölçüldü:
+    düzeltme yerinde de, geri alınmış da kırmızı).
+
+    NOKTA ŞERİDİN İÇİNDE OLMAK ZORUNDA. Hatanın yaşadığı yer orası: yatay
+    kart şeridi, görünür alandan yüksek olduğu için her dikey sürüklemeyi
+    sahipleniyordu ve `scroll_type: ["bars"]` tam olarak bunu çeviriyor.
+    Noktayı şeridin DIŞINA taşımak kapıyı yeşile döndürür ama hatayı da
+    tamamen kaçırır — bu tur bir kez denenip ölçülerek geri alındı
+    (1.0 ve 1.25'te düzeltme geri alınmışken bile yeşil kaldı).
+
+    Şeridin içinde kart olmayan yer var: kartlar arasında 16dp boşluk ve
+    şeridin 8dp dikey dolgusu. Burada hesap YOK — adaylar taranıyor ve her
+    biri için widget ağacı `collide_point` ile gerçekten yoklanıyor.
+
+    Şerit yoksa (diğer sekmeler) sayfanın ortası kullanılır; oralarda
+    böyle bir sahiplenen çocuk zaten yok.
+
+    Aday bulunamazsa `None` döner ve çağıran ölçümü ATLAR — ölçemediği bir
+    durumu başarısızlık saymak bu kapının düzeltilen kusurunun ta kendisiydi.
+    """
+    try:
+        from kivymd.uix.card import MDCard
+    except ImportError:      # kısıtlı ortam
+        MDCard = ()
+
+    def _blocked(x, y):
+        for widget in _walk(page):
+            if MDCard and isinstance(widget, MDCard):
+                if widget.collide_point(*widget.to_widget(x, y)):
+                    return True
+        return False
+
+    # Hatanın yaşadığı yatay şerit: x'te kayan, y'de kaymayan ScrollView.
+    strip = next(
+        (widget for widget in _walk(page)
+         if isinstance(widget, ScrollView)
+         and widget.do_scroll_x and not widget.do_scroll_y),
+        None,
+    )
+
+    if strip is not None:
+        left, bottom = strip.to_window(strip.x, strip.y)
+        right, top = strip.to_window(strip.right, strip.top)
+        # Görünür alanla kesiştir: şerit sayfadan yüksek, ekran dışındaki
+        # kısmına dokunmak anlamsız.
+        page_left, page_bottom = page.to_window(page.x, page.y)
+        page_right, page_top = page.to_window(page.right, page.top)
+        bottom = max(bottom, page_bottom)
+        top = min(top, page_top)
+        if top > bottom:
+            # Yatayda kart aralıklarını, dikeyde birkaç şeridi tara.
+            for x_fraction in (0.5, 0.25, 0.75, 0.12, 0.88, 0.38, 0.62):
+                x = left + (right - left) * x_fraction
+                for y_fraction in (0.5, 0.08, 0.92, 0.3, 0.7):
+                    y = bottom + (top - bottom) * y_fraction
+                    if not _blocked(x, y):
+                        return x, y
+        return None
+
+    x = (page.to_window(page.center_x, page.center_y))[0]
+    y = (page.to_window(page.center_x, page.center_y))[1]
+    return (x, y) if not _blocked(x, y) else None
 
 
 def _settle(frames=30):
@@ -176,7 +245,13 @@ class ScrollVerifier(ArchlenceApp):
             start = 1.0
             page.scroll_y = start
             _settle(45)
-            x, y = Window.width / 2, Window.height / 2
+            # Nokta HER ÖLÇÜMDE yeniden seçiliyor: `scroll_y` sıfırlandıktan
+            # ve düzen oturduktan sonra kartların yeri değişmiş olabilir.
+            point = _touch_point(page)
+            if point is None:
+                results[label] = None
+                continue
+            x, y = point
             if label == "drag":
                 # AŞAĞI doğru sürükleme: içeriğin alt kısmını açan yön.
                 touch = _Touch(x, y)
@@ -199,11 +274,19 @@ class ScrollVerifier(ArchlenceApp):
             _settle(40)
             results[label] = abs(page.scroll_y - start) > 1e-4
 
+        # `None` = ÖLÇÜLEMEDİ (kart üstünde olmayan aday nokta bulunamadı),
+        # `False` = ölçüldü ve kaymadı. İkisi bilerek ayrı: ölçemediğimiz bir
+        # durumu başarısızlık saymak, bu kapının tam da düzeltilen kusuruydu.
+        unmeasured = [key for key, value in results.items() if value is None]
         # Taşmayan içerik zaten kaymaz; kapı yalnız taşan sekmeler için.
         # İKİSİ DE ZORUNLU: gerçek makinede bildirilen arıza tam olarak
         # "ne sürükleme ne tekerlek" idi ve ölçüm bunu doğruladı — düzeltme
         # geri alındığında dört etkileşimin dördü de ölü.
-        passed = (not overflows) or (results["drag"] and results["wheel"])
+        passed = (
+            (not overflows)
+            or bool(unmeasured)
+            or (results["drag"] and results["wheel"])
+        )
         entry = {
             "tab": name,
             "passed": passed,
@@ -212,12 +295,16 @@ class ScrollVerifier(ArchlenceApp):
             "overflows": overflows,
             "scrolled_by_drag": results["drag"],
             "scrolled_by_wheel": results["wheel"],
+            "unmeasured": unmeasured,
         }
         self.report.append(entry)
         status = "OK" if passed else "BAŞARISIZ"
+        if unmeasured:
+            status = "ATLANDI"
         print(f"[{status}] {name}: içerik={entry['content_height']} "
               f"görünür={entry['viewport_height']} taşıyor={overflows} "
-              f"sürükleme={results['drag']} tekerlek={results['wheel']}")
+              f"sürükleme={results['drag']} tekerlek={results['wheel']}"
+              + (f" ÖLÇÜLEMEDİ={unmeasured}" if unmeasured else ""))
         # Ekran görüntüsü YARDIMCI bir çıktı, kapının parçası değil; yine de
         # geniş bir `except` eklenmiyor (projenin istisna kapısı bunu sayıyor
         # ve haklı olarak reddediyor). Başarısız olabilecek gerçek durumlar
