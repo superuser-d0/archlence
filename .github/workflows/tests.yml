@@ -341,7 +341,7 @@ jobs:
       # ARAMA ÇUBUĞU GÖRSEL KAPISI PARKTA — ölçtüğü widget şu an ekranda
       # değil. Çubuk hiçbir zaman bir işleyiciye bağlanmamıştı (büyüteç
       # tıklanamayan bir `MDIcon`, alanın `on_text_validate`'inde sıfır
-      # bağlayıcı) ve v0.1.0'da kullanıcı tarafından bildirildi; uygulanana
+      # bağlayıcı) ve kullanıcı tarafından bildirildi; uygulanana
       # kadar ana ekrandan kaldırıldı (bkz. ui/dashboard.kv).
       #
       # Kapı SİLİNMEDİ: ölçtüğü dikiş kusuru gerçek bir düzeltmeydi

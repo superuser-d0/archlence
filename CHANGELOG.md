@@ -2,25 +2,7 @@
 
 ## [Unreleased]
 
-### UI and accessibility
-
-- The search bar has been removed from the home screen header. It was never
-  connected to anything: the magnifier was an `MDIcon` rather than an
-  `MDIconButton`, so it inherited no button behaviour and received no click at
-  all, and the field had zero handlers bound to `on_text_validate`, so pressing
-  Enter did nothing either. There is no search service behind it. It was added
-  by a commit whose subject was fixing a rendering seam, not adding a feature,
-  and it shipped in every release up to and including v0.1.0 looking like a
-  working control. Reported by a user against v0.1.0. Rather than leave an
-  inviting control that does nothing, it is hidden until search is actually
-  implemented.
-- The `SearchBar` component, its kv rule, its visual gate and
-  `docs/SEARCH_RENDER_ARTIFACT.md` are all kept. The seam fix they cover was
-  real work and will be needed when search is built; the gate's CI step is
-  parked, not deleted, and restoring the feature is a matter of putting the
-  block back and uncommenting the step.
-
-## [0.1.0] — 2026-08-17
+## [0.0.10] — 2026-08-17
 
 This release closes the Windows hardware validation round that v0.0.9 left
 open. Almost everything it fixes was found by running the packaged
@@ -32,11 +14,15 @@ before explaining it would not run. The financial changes continue the move to
 `Decimal`, where binary floating point had been rounding portfolio values a
 kuruş away from the arithmetically correct number.
 
-It remains a **pre-release**. An earlier draft of this section claimed
-otherwise; that was wrong and is retracted. The release workflow marks every
-`0.x` version as a pre-release, following the semver reading that a major
-version of zero makes no compatibility promise — and that reading is right
-here, for the reasons under Known limitations.
+It remains a **pre-release**, and the version number now says so plainly. This
+work was first tagged `v0.1.0` on the reading that dropping the pre-release
+label was warranted. It was not: a user found within the hour that the search
+control in the home header does nothing and never had, and the release
+workflow was marking the build as a pre-release regardless, because it treats
+every `0.x` version that way. That tag and its release were deleted before
+anyone depended on them and the work was re-cut as `0.0.10`, which is where it
+belongs. Nothing about the code changed in the move; only the number and this
+paragraph did.
 
 ### Highlights
 
@@ -233,6 +219,20 @@ here, for the reasons under Known limitations.
 
 ### UI and accessibility
 
+- The search bar has been removed from the home screen header. It was never
+  connected to anything: the magnifier was an `MDIcon` rather than an
+  `MDIconButton`, so it inherited no button behaviour and received no click at
+  all, and the field had zero handlers bound to `on_text_validate`, so pressing
+  Enter did nothing either. There is no search service behind it. It arrived in
+  a commit whose subject was fixing a rendering seam, not adding a feature, and
+  it shipped in every release since, looking like a working control. Reported
+  by a user. Rather than leave an inviting control that does nothing, it is
+  hidden until search is actually implemented. The `SearchBar` component, its
+  kv rule, its visual gate and `docs/SEARCH_RENDER_ARTIFACT.md` are all kept —
+  the seam fix they cover was real work and will be needed when search is
+  built, so the gate's CI step is parked rather than deleted and restoring the
+  feature means putting the block back and uncommenting the step. What search
+  should actually do is written up in `docs/ROADMAP.md` Phase 2.
 - The page can be scrolled with the wheel while the pointer rests over a list
   inside a card. Kivy's scroll view claims a wheel event even when its content
   fits entirely in view, so the event never reached the page behind it: over
@@ -352,10 +352,10 @@ here, for the reasons under Known limitations.
 
 ### Installation and checksum verification
 
-- Windows: `ArchlenceSetup-0.1.0.exe`
-- Linux: `Archlence-0.1.0-x86_64.AppImage`
+- Windows: `ArchlenceSetup-0.0.10.exe`
+- Linux: `Archlence-0.0.10-x86_64.AppImage`
 - Download `SHA256SUMS.txt` from the same release and verify the matching
-  asset. The SBOM is published as `Archlence-0.1.0-sbom.cdx.json`.
+  asset. The SBOM is published as `Archlence-0.0.10-sbom.cdx.json`.
 
 ## [0.0.9] — 2026-08-11
 
