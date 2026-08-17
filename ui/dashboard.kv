@@ -569,31 +569,30 @@ MDScreen:
                                 theme_text_color: "Primary"
                                 on_release: bottom_nav.switch_tab("settings_tab")
                                 
-                            SearchBar:
-                                size_hint_y: None
-                                height: "40dp"
-                                pos_hint: {"center_y": .5}
-                                MDIcon:
-                                    icon: "magnify"
-                                    size_hint_x: None
-                                    width: "20dp"
-                                    pos_hint: {"center_y": .5}
-                                    theme_text_color: "Hint"
-                                TextInput:
-                                    id: home_search_input
-                                    hint_text: app.tr("Archlence'ta ara...", app.language)
-                                    multiline: False
-                                    write_tab: False
-                                    background_normal: ""
-                                    background_active: ""
-                                    background_color: 0, 0, 0, 0
-                                    foreground_color: ftheme.field_color(app.theme_cls.theme_style, 'text')
-                                    hint_text_color: ftheme.field_color(app.theme_cls.theme_style, 'hint')
-                                    cursor_color: app.theme_cls.primary_color
-                                    cursor_width: "1dp"
-                                    padding: [0, "9dp", 0, "9dp"]
-                                    on_focus: self.parent.focused = self.focus
-                                
+                            # ARAMA ÇUBUĞU BURADAN KALDIRILDI — hiçbir zaman
+                            # bir işleyiciye bağlanmamıştı. Büyüteç bir
+                            # `MDIcon`'du (`MDIconButton` değil, yani
+                            # `ButtonBehavior` mirası yok — hiç tıklama almıyor)
+                            # ve alanın `on_text_validate`'inde sıfır bağlayıcı
+                            # vardı; ölçüldü. `services/` altında bir arama
+                            # servisi de yok. Alan `0a905a1`'de eklendi ve o
+                            # commit'in işi görsel bir dikiş kusurunu
+                            # düzeltmekti, işlevsellik eklemek değil.
+                            #
+                            # Kullanıcı v0.1.0'da bunu bildirdi: "üstteki arama
+                            # butonu hiçbir şekilde çalışmıyor" — doğru bir
+                            # rapor. Çalışır görünen ama hiçbir şey yapmayan bir
+                            # kontrolü ekranda tutmaktansa, uygulanana kadar
+                            # göstermiyoruz.
+                            #
+                            # `SearchBar` bileşeni (ui/components.py), `<SearchBar>`
+                            # kv kuralı, görsel kapı ve docs/SEARCH_RENDER_ARTIFACT.md
+                            # BİLEREK DURUYOR: oradaki dikiş düzeltmesi gerçek bir
+                            # iş ve arama uygulandığında bu blok geri konulunca
+                            # hazır olacak. Kapının CI adımı o güne kadar parkta
+                            # (bkz. .github/workflows/tests.yml).
+                            Widget:
+
                             MDIconButton:
                                 icon: "bell-outline"
                                 icon_size: "28dp"

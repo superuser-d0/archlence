@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### UI and accessibility
+
+- The search bar has been removed from the home screen header. It was never
+  connected to anything: the magnifier was an `MDIcon` rather than an
+  `MDIconButton`, so it inherited no button behaviour and received no click at
+  all, and the field had zero handlers bound to `on_text_validate`, so pressing
+  Enter did nothing either. There is no search service behind it. It was added
+  by a commit whose subject was fixing a rendering seam, not adding a feature,
+  and it shipped in every release up to and including v0.1.0 looking like a
+  working control. Reported by a user against v0.1.0. Rather than leave an
+  inviting control that does nothing, it is hidden until search is actually
+  implemented.
+- The `SearchBar` component, its kv rule, its visual gate and
+  `docs/SEARCH_RENDER_ARTIFACT.md` are all kept. The seam fix they cover was
+  real work and will be needed when search is built; the gate's CI step is
+  parked, not deleted, and restoring the feature is a matter of putting the
+  block back and uncommenting the step.
+
 ## [0.1.0] — 2026-08-17
 
 This release closes the Windows hardware validation round that v0.0.9 left
@@ -317,11 +335,11 @@ here, for the reasons under Known limitations.
   measured at both with no override, and all pass. Note that the DPI
   awareness comes from SDL2 at runtime; nothing in this project declares it,
   so an SDL2 upgrade should re-measure.
+- A physical Turkish Q keyboard has since been exercised by hand with no
+  problems found, closing the last part of that item.
 - Some Windows environment combinations remain unverified: cross-user DPAPI
-  isolation, multi-monitor, and a physical Turkish keyboard layout. Each is
-  blocked by the validation machine itself — one active user account, one
-  monitor — not by a defect. The application-side paths behind them are
-  covered by tests.
+  isolation and multi-monitor. Both are blocked by the validation machine
+  itself — one active user account, one monitor — not by a defect.
 - `accounts.balance` and `savings_goals.current_amount` remain `REAL`
   columns. The `Decimal` migration has moved the arithmetic that reads them,
   not the storage itself.

@@ -1,4 +1,18 @@
-"""Repeatable SDL visual check for search seam, caret, theme and resizing."""
+"""Repeatable SDL visual check for search seam, caret, theme and resizing.
+
+PARKTA — ŞU AN KOŞMAZ. Ölçtüğü arama çubuğu ana ekrandan kaldırıldı, çünkü
+hiçbir zaman bir işleyiciye bağlanmamıştı: büyüteç tıklanamayan bir `MDIcon`,
+alanın `on_text_validate`'inde sıfır bağlayıcı, `services/` altında arama
+servisi yok. Kullanıcı v0.1.0'da bildirdi. Bu script `root.ids.home_search_input`
+arar; widget olmadığı için elle çalıştırılırsa `KeyError` ile düşer — bu
+beklenen davranış, bozuk bir kapı değil.
+
+SİLİNMEDİ çünkü ölçtüğü dikiş kusuru gerçek bir düzeltmeydi
+(docs/SEARCH_RENDER_ARTIFACT.md) ve arama uygulandığında yeniden gerekecek.
+Geri açmak için: ui/dashboard.kv'deki SearchBar bloğunu geri koy ve
+.github/workflows/tests.yml'deki "Search bar visual contracts" adımını
+yorumdan çıkar.
+"""
 
 import argparse
 import json

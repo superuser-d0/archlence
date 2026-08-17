@@ -24,6 +24,7 @@ class DialogHarness(AssetMixin, MDApp):
         self.output = Path(output)
         self.report = []
         self._bist_settle_retries = 0
+        self._gold_settle_retries = 0
 
     def build(self):
         self.theme_cls.theme_style = "Dark"
@@ -61,6 +62,26 @@ class DialogHarness(AssetMixin, MDApp):
         Clock.schedule_once(self._gold_done, 0.5)
 
     def _gold_done(self, _dt):
+        # `_bist_done` ile AYNI GEREKÇE, artı bir tane daha: bu kapı artık
+        # işi SOĞUK PROFİLLE başlatıyor. Önceden aynı XDG dizinlerini
+        # (`archlence-visual-*`) kullanan arama çubuğu kapısı bu adımdan
+        # ÖNCE koşuyor ve profili kendisi kuruyordu — DB şeması, şifreleme
+        # anahtarı, ilk `decrypt()`in ~250ms'lik PBKDF2 türetmesi (bkz.
+        # tests/test_startup_performance.py). Arama çubuğu kaldırılınca o
+        # adım da parka alındı ve bu kapı zincirin BAŞI oldu; ilk kurulum
+        # maliyeti 0.5sn'lik sabit pencereyi taşırıp diyaloğu oturmamış
+        # hâlde ölçtürüyordu. CI'da dörtte ikisi düştü — hepsi değil, çünkü
+        # bu bir yarış.
+        #
+        # Sabit gecikmeyi büyütmek yerine oturmayı BEKLİYORUZ: ölçüm ancak
+        # diyalog gerçek yüksekliğine ulaşınca yapılır.
+        if (
+            self.asset_dialog.height < 300
+            and self._gold_settle_retries < 6
+        ):
+            self._gold_settle_retries += 1
+            Clock.schedule_once(self._gold_done, 0.5)
+            return
         self._capture("gold-small-window", self.asset_dialog)
         self.asset_dialog.dismiss()
         Clock.schedule_once(self._bist, 0.6)

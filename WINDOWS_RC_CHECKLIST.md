@@ -297,6 +297,43 @@ Kivy başlamadan çalıştığı için paketlemeye duyarlı.
       yönlendirilmeli? **Karar bu RC turunun dışında ayrı bir iş olarak
       izleniyor; mevcut davranış bu turda değiştirilmedi.**
 
+---
+
+### 2.5 Arama çubuğu hiç bağlanmamıştı — kullanıcı bulgusu, v0.1.0
+
+**Bildirim (2026-08-17):** "üstteki arama butonu hiçbir şekilde çalışmıyor."
+Rapor doğru çıktı ve sebebi beklenenlerin hiçbiri değildi — regresyon değil,
+DPI ile ilgisi yok, §2.3'teki pencere örtüşmesi artefaktı da değil.
+
+**Ölçüldü, kaynaktan:**
+
+| Kontrol | Sonuç |
+|---|---|
+| Büyüteç ikonunun tipi | `MDIcon` — `MDIconButton` DEĞİL |
+| `MDIcon` → `ButtonBehavior` mirası | **False** (yani hiç buton değil, tıklama olayı almıyor) |
+| `home_search_input.on_text_validate` bağlayıcı sayısı | **0** (Enter de bir şey yapmıyor) |
+| `services/` altında arama servisi | Yok |
+| `home_search_input` kodda kaç yerde geçiyor | 2: kendi tanımı + yalnızca GÖRSEL kapı |
+
+Git geçmişi: alan `0a905a1`'de eklendi ve o commit'in konusu
+**"fix: remove search and header render seams"** — yani işi görsel bir dikiş
+kusurunu düzeltmekti, işlevsellik eklemek değil. Tüm geçmişte hiçbir zaman
+bir işleyiciye bağlanmadı; v0.0.9'da da aynıydı. ROADMAP, README ve
+CHANGELOG'da arama özelliğinden hiç söz edilmiyordu — "yakında" olarak bile
+kayıtlı değildi.
+
+**Neden hiçbir kapı yakalamadı:** tek kapısı `verify_search_bar_visual.py`
+ve adı üstünde, yalnızca çubuğun nasıl GÖRÜNDÜĞÜNÜ ölçüyor. Bu ders bu turun
+en genellenebilir bulgusu: **bir kontrolün doğru çizildiğini ölçmek, bir şey
+yaptığını ölçmez.**
+
+**Yapılan:** çubuk ana ekrandan kaldırıldı (uygulanana kadar yanıltmasın),
+görsel kapının CI adımı yoruma alındı. `SearchBar` bileşeni, kv kuralı, kapı
+scripti ve `docs/SEARCH_RENDER_ARTIFACT.md` bilerek DURUYOR — oradaki dikiş
+düzeltmesi gerçek bir işti ve arama uygulandığında geri açmak tek adım.
+Uygulama kararı (neyi arasın, sonuçlar nerede görünsün, şifreli açıklama
+alanları kapsansın mı) `docs/ROADMAP.md` Phase 2'ye yazıldı.
+
 ## 3. DPAPI — veri kaybı riski en yüksek madde
 
 Ana Windows kullanıcısındaki reboot yolu RC-6 ile ölçüldü. Farklı bir
@@ -407,7 +444,7 @@ turu yüzünden yinelenmiş durumda — test verisi, uygulama hatası değil).
 
 ## 6. Ortam matrisi
 
-- [ ] Türkçe klavye: tutar alanlarına `1.234,56` yazımı, ı/İ/ğ/ş içeren
+- [x] Türkçe klavye: tutar alanlarına `1.234,56` yazımı, ı/İ/ğ/ş içeren
       açıklamalar kaydedilip geri okunuyor.
       **Kısmen kapatıldı (2026-08-14, kaynaktan):** yazımın uygulama
       tarafındaki yolu zaten birim testlerinde kapsanıyor —
@@ -421,6 +458,12 @@ turu yüzünden yinelenmiş durumda — test verisi, uygulama hatası değil).
       ve elle denenmelidir. **Ortam envanteri — 2026-08-14:** etkin giriş
       yöntemleri arasında Türkçe Q (`0000041F`) var; ancak otomatik tuş
       gönderimi fiziksel klavyeyi ölçmeyeceği için madde işaretlenmedi.
+
+      **KAPANDI — 2026-08-17, kullanıcı fiziksel klavyeyle denedi, sorun
+      bildirilmedi.** Geriye kalan tek parça buydu ve yalnızca insan
+      deneyebilirdi; otomatik tuş gönderimi işletim sisteminin düzen
+      katmanını atlar. Kullanıcının aynı oturumda bildirdiği tek kusur
+      klavyeyle ilgili değildi (arama çubuğu — bkz. §2.5).
 - [x] %125 ve %150 DPI: metin kırpılmıyor, ikon/başlık hizaları bozulmuyor
       (bu turda düzeltilen kusur tam olarak buydu).
       **Kısmen kapatıldı (2026-08-14, kaynaktan, `KIVY_METRICS_DENSITY` ile
