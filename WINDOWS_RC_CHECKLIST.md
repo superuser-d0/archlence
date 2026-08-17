@@ -421,7 +421,7 @@ turu yüzünden yinelenmiş durumda — test verisi, uygulama hatası değil).
       ve elle denenmelidir. **Ortam envanteri — 2026-08-14:** etkin giriş
       yöntemleri arasında Türkçe Q (`0000041F`) var; ancak otomatik tuş
       gönderimi fiziksel klavyeyi ölçmeyeceği için madde işaretlenmedi.
-- [ ] %125 ve %150 DPI: metin kırpılmıyor, ikon/başlık hizaları bozulmuyor
+- [x] %125 ve %150 DPI: metin kırpılmıyor, ikon/başlık hizaları bozulmuyor
       (bu turda düzeltilen kusur tam olarak buydu).
       **Kısmen kapatıldı (2026-08-14, kaynaktan, `KIVY_METRICS_DENSITY` ile
       simüle edilerek).** `scripts/dev/verify_icon_label_layout.py` beş
@@ -464,7 +464,26 @@ turu yüzünden yinelenmiş durumda — test verisi, uygulama hatası değil).
       içerik yüksekliğini tam orantılı değiştirdi (1188 → 1485 → 1782,
       yani ×1.25 ve ×1.5). Yani önceki simüle ölçümler bu makinede geçerli.
 
-      **%150 hâlâ açık** — oturumun ölçeği %150'ye alınmadı.
+      **%150 de KAPANDI — 2026-08-17, aynı yöntem, aynı oturum.**
+      Ölçek %150'ye alındı ve ölçüm yine simülasyonsuz yapıldı:
+
+      | Ölçüm | Değer |
+      |---|---|
+      | `GetDpiForSystem` / `GetDpiForMonitor` | 144 → %150 |
+      | Pencere farkındalığı | `PER_MONITOR_AWARE` |
+      | `GetDpiForWindow` | 144 |
+      | Kivy `Metrics.density` / `dp(100)` / `sp(16)` | 1.5 / 150 / 24 |
+      | Pencere istemci alanı | 1200×900 (px) |
+      | `verify_icon_label_layout.py` (override YOK) | 38 çift, 0 çakışma, `1dp = 1.50px` |
+      | `verify_tab_scrolling.py` (override YOK) | 3/3 sekme kaydırılabilir |
+
+      Not: ilk `sp()` ölçümü ekrana `-24.0` gibi düştü ve gerçek bir kusur
+      sanıldı; dikkatli tekrar ölçümde tüm `sp` değerleri doğru ve pozitif
+      çıktı (8→12, 12→18, 14→21, 16→24, 20→30, 24→36) ve elle hesapla
+      (`16 × density × fontscale`) birebir uyuştu. Kusur yok, okuma hatasıydı.
+
+      **Bu maddenin tamamı kapandı** — %125 ve %150, ikisi de gerçek
+      işletim sistemi ölçeğinde ölçüldü.
 - [ ] Çoklu monitör: pencere ikinci ekrana taşındığında ölçek bozulmuyor.
       **Ölçülemedi — 2026-08-14:** doğrulama makinesinde ikinci monitör
       bulunmuyor; WinForms ekran sayımı yalnız `DISPLAY1` verdi
