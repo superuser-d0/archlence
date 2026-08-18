@@ -317,7 +317,8 @@ artık yanlış eşleşme üretemez, çünkü hiçbir eşleştirme yalnız id'ye
 | Durum | Karar |
 |---|---|
 | JSON ve SQL tam eşleşiyor (`id` + `goal_name`) | Eşleştir. Yalnız BOŞ `color`/`auto_deposit`/`created_at` alanlarını doldur. **Tutarlara dokunma.** |
-| JSON'daki `id` SQL'de yok | Yeni satır INSERT, yeni UID. `current_amount` JSON'dan |
+| JSON'daki `id` SQL'de yok, kayıt PARASIZ (`current == 0`) | Yeni satır INSERT, yeni UID |
+| JSON'daki `id` SQL'de yok ama kayıt PARA TAŞIYOR (`current > 0`) | **KARANTİNA** — gerekçe aşağıda |
 | Aynı `id`, farklı isim | **KARANTİNA.** §1(b)'nin ürettiği tam durum |
 | Aynı mantıksal hedef farklı `id`'lerle | **KARANTİNA.** Ad+tutar kanıt sayılmaz |
 | SQL'de var, JSON'da yok | **Hiçbir şey yapma.** SQL zaten kaynak |
@@ -325,6 +326,25 @@ artık yanlış eşleşme üretemez, çünkü hiçbir eşleştirme yalnız id'ye
 | Şifreleme anahtarı yok | Göç çalışmaz, işaret yazılmaz, JSON'a dokunulmaz; sonraki açılış tekrar dener |
 | Aynı ad ve tutarda iki MEŞRU hedef | İkisi de kendi `id`'siyle eşleşir; ad+tutar sezgisi kullanılmadığı için yanlış pozitif yok |
 | İşaret var, JSON hâlâ ortada | **KARANTİNA** (bayat JSON), göç YOK |
+
+### Karşılığı olmayan ama para taşıyan kayıt neden INSERT EDİLMİYOR
+
+Taslak bu satırı koşulsuz "INSERT, `current_amount` JSON'dan" diye yazıyordu.
+YANLIŞTI ve iki ilkeyi birden çiğniyordu ("finansal değer üretme", "net serveti
+büyütme").
+
+Eski uygulamada bir hedefe para yatırmak `deposit_to_goal` üzerinden geçiyordu:
+parası olan her hedefin SQL'de bir satırı VARDI. Karşılığı olmayan ama
+`current > 0` diyen bir JSON kaydı bu yüzden anomalidir — satır silinmiş ya da
+başka bir generation'dan kalmıştır ve paranın hesaba iade edilip edilmediğini
+bilmenin yolu yoktur. INSERT etmek, hiçbir hesaptan çıkmamış parayı defterde
+yoktan var etmek olurdu: `_backfill_ledger_baseline` o hedefe bir açılış olayı
+yazar ve defterin toplamı gerçek para hareketi olmadan büyür.
+
+Karar: karantina. Veri KAYBOLMAZ (kayıt saklanır, JSON `.migrated` olarak
+korunur), kullanıcıya gösterilir, ama otomatik olarak paraya çevrilmez.
+Parasız kayıtlar (`current == 0`) sorunsuz INSERT edilir — orada üretilen
+finansal değer sıfırdır.
 
 ### Ad+tutar sezgisi neden REDDEDİLDİ
 
@@ -349,10 +369,19 @@ katılır; yalnız kullanıcıya "bu kayıt otomatik taşınamadı" demek için 
   veritabanını bayat JSON'la birlikte yorumlaması kusuru geri getirirdi.
 - Gerçekten eski sürüme dönülecekse yol, göçün aldığı otomatik güvenlik
   yedeğidir.
-- **Göç, JSON'dan satır taşımadan önce otomatik güvenlik yedeği alır** —
-  restore'un yaptığının aynısı, aynı `create_backup` yoluyla. Geri dönüşün tek
-  garantisi budur. Anahtar yoksa yedek alınamaz; o durumda göç çalışmaz ve
-  JSON'a dokunulmaz.
+- **Göç, JSON'dan satır taşımadan önce otomatik güvenlik kopyası alır.**
+  Taslak burada `create_backup` diyordu; teknik olarak MÜMKÜN DEĞİLDİ:
+  `create_backup` en az 12 karakterlik bir kurtarma parolası ister, göç ise
+  açılışta, kullanıcıya hiçbir şey sormadan koşuyor. Kopya bunun yerine
+  SQLite'ın kendi online-backup API'siyle alınıyor
+  (`finance.db.pre-savings-migration-<zaman>`): dosyayı düz kopyalamak açık
+  bir WAL varken tutarsız bir kopya üretebilirdi. Kopya şifreleme anahtarını
+  İÇERMEZ, içeriği canlı veritabanının aynısıdır ve aynı kullanıcı veri
+  dizininde, aynı korumada durur.
+- Anahtar kullanılamıyorsa göç HİÇ çalışmaz: ne satır yazılır, ne JSON'a
+  dokunulur, ne işaret konur. Anahtar yazma anında değil, ilk adımda
+  sınanır — yoksa arıza transaction'ın ortasında patlar ve yarım bir göç
+  bırakırdı.
 
 ---
 

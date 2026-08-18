@@ -41,6 +41,11 @@ ENCRYPTED_FIELDS = {
     "recurring_payments": ("name", "amount"),
     "savings_goals": ("goal_name",),
     "installment_plans": ("description", "total_amount", "monthly_amount"),
+    # Göç karantinası da KİŞİSEL VERİ taşıyor: taşınamayan hedefin adı ve ham
+    # kaydı. Haritaya girmeseydi yedek doğrulaması bu satırları anahtara karşı
+    # hiç sınamaz ve legacy şifreleme taşıması onları atlardı — sessizce
+    # okunamaz hâle gelirlerdi.
+    "savings_migration_quarantine": ("goal_name", "payload"),
 }
 
 

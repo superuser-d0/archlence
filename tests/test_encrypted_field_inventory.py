@@ -92,6 +92,28 @@ class EncryptedFieldInventoryTest(unittest.TestCase):
         # savings_goals (goal_name)
         SavingsService.create_goal("Tatil", 10_000.0)
 
+        # savings_migration_quarantine (goal_name, payload). GERÇEK yazma
+        # yolu: göç motoru, otomatik taşınamayan bir legacy kaydı karantinaya
+        # alır. Elle INSERT etmek burada işe yaramazdı — bu testin amacı
+        # ÜRETİM yollarının o tabloya gerçekten şifreli veri yazdığını
+        # kanıtlamak.
+        import json as _json
+        from pathlib import Path as _Path
+        from services.savings_migration import run_savings_migration
+
+        legacy_json = _Path(self.db_path).with_name("savings_goals.json")
+        legacy_json.write_text(
+            _json.dumps({"goals": {"data": [
+                # SQL'de karşılığı yok ve üzerinde para var -> karantina.
+                {"id": 4242, "name": "Kayıp Fon", "target": 9000.0,
+                 "current": 4500.0},
+            ]}}),
+            encoding="utf-8",
+        )
+        run_savings_migration(
+            json_path=legacy_json, db_path=self.db_path
+        )
+
     def _columns_holding_encrypted_data(self):
         """Diskte gerçekten AEAD verisi taşıyan (tablo, sütun) çiftleri."""
         found = set()

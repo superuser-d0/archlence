@@ -154,6 +154,12 @@ class MigrationCoversEveryEncryptedTableTest(unittest.TestCase):
                     "created_at) VALUES (1, ?, ?, ?, 12, '2026-08-01')",
                     ("description", "total_amount", "monthly_amount"),
                 ),
+                "savings_migration_quarantine": (
+                    "INSERT INTO savings_migration_quarantine ("
+                    "quarantined_at, reason, source, goal_name, payload) "
+                    "VALUES ('2026-08-01', 'test', 'legacy-json', ?, ?)",
+                    ("goal_name", "payload"),
+                ),
             }
             self.assertEqual(
                 set(inserts), set(ENCRYPTED_FIELDS),
