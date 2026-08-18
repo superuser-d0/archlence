@@ -1,9 +1,18 @@
 """Birikim hedefleri (savings goals) mixin'i.
 
 Hedef ekleme/hesaplama diyalogları, hedef kartlarının dashboard'da çizimi,
-renk döngüsü ve hedefe para ekleme akışı. main.py'deki ArchlenceApp gövdesinden
-taşındı; hedef verisi self.savings_goals listesinde tutulur ve self.store
-(JsonStore) üzerinden savings_goals.json'a kalıcılaştırılır.
+renk döngüsü ve hedefe para ekleme akışı.
+
+TEK DOĞRULUK KAYNAĞI SQL'dir (docs/SAVINGS_SINGLE_SOURCE_PLAN.md).
+`self.savings_goals` artık kalıcı bir depo DEĞİL, `SavingsService.get_goals()`
+sonucunun ekrana uygun bir GÖRÜNÜMÜ; her başarılı servis çağrısından sonra
+SQL'den yeniden okunur. `savings_goals.json`'a yazan kod yolu kalmadı.
+
+Eskiden görüntü JSON'dan, para SQL'den geliyordu ve ikisi ayrışabiliyordu:
+JSON hedefi yalnız SAYISAL id ile işaretliyordu, restore `sqlite_sequence`i
+geri sarıyordu ve bayat bir kart başka bir hedefi fonluyordu
+(tests/test_savings_identity_reuse_regression.py). Bu yüzden her kart işlemi
+artık `goal_uid` ile doğrulanıyor.
 """
 import datetime
 import math
@@ -25,8 +34,108 @@ from services.account_service import AccountService, CHECKING
 from services.savings_service import SavingsService
 
 
+# Kart kaydında kalıcı kimlik yoksa işlem servise HİÇ gönderilmez. Sayısal id
+# tek başına kullanıcının hangi hedefi kastettiğini kanıtlamıyor;
+# kanıtlayamadığımız bir eylemle para hareket ettirmek, düzeltmeye
+# çalıştığımız kusurun ta kendisi.
+#
+# SINIF DEĞİL MODÜL seviyesinde: mixin'in metotları bağlanmamış hâlde de
+# çağrılabiliyor (testler ve `main.py`'nin sınıf üzerinden aldığı bağlar) ve
+# sabiti `self` üzerinden okumak orada AttributeError veriyordu — üstelik tam
+# da reddetme yolunda, yani kullanıcıya gösterilecek mesajı üretirken.
+GOAL_IDENTITY_MISSING_MESSAGE = (
+    "Bu hedef kartı güncel değil; işlem güvenlik için durduruldu ve "
+    "hiçbir para hareket etmedi. Lütfen ekranı yenileyip tekrar deneyin."
+)
+
+
 class SavingsMixin:
     savings_goals: list[dict[str, Any]]
+
+    #: Geriye uyumluluk için sınıf üzerinden de erişilebilir.
+    GOAL_IDENTITY_MISSING_MESSAGE = GOAL_IDENTITY_MISSING_MESSAGE
+
+    @staticmethod
+    def _goal_view(row):
+        """Servis sözlüğünü kartların beklediği görünüme çevirir.
+
+        Kimlik alanları (`id`, `goal_uid`) BİLEREK taşınıyor: kart üzerinden
+        yapılan her işlem bunlarla doğrulanıyor.
+        """
+        return {
+            "id": row["id"],
+            "goal_uid": row["goal_uid"],
+            "name": row["goal_name"],
+            "target": float(row["target_amount"] or 0.0),
+            "current": float(row["current_amount"] or 0.0),
+            "color": row["color"] or "green",
+            "auto_deposit": bool(row["auto_deposit"]),
+            "created_at": row["created_at"],
+            "status": row["status"],
+            "target_date": row["target_date"],
+        }
+
+    def load_savings_goals(self):
+        """Hedefleri TEK KAYNAKTAN (SQL) okuyup belleği tazeler.
+
+        Her başarılı servis çağrısından ve restore'dan sonra çağrılır: arayüz
+        kendi bellek durumunu güncellemek yerine SQL'in söylediğini gösterir.
+        """
+        from utils.errors import KeyUnavailableError
+
+        try:
+            rows = SavingsService.get_goals()
+        except KeyUnavailableError:
+            # Anahtar yoksa TÜM hedefler etkilenir. Boş liste göstermek
+            # "hedefiniz yok" demek olurdu — kullanıcının hedefleri duruyor,
+            # okunamıyor. Ayrımı kart alanında açıkça söylüyoruz.
+            from utils.logging_config import get_logger
+            get_logger().exception("Birikim hedefleri okunamadı: anahtar yok")
+            self._savings_unavailable = True
+            self.savings_goals = []
+            return self.savings_goals
+
+        self._savings_unavailable = False
+        self.savings_goals = [self._goal_view(row) for row in rows]
+        return self.savings_goals
+
+    def deposit_into_goal(self, goal, amount, account_id):
+        """Bir hedef KARTINDAN yatırma — tek servis/transaction sınırı.
+
+        Kimlik doğrulanamıyorsa servise hiç gidilmez; servis de kendi
+        tarafında `goal_uid`i yeniden doğrular (fail-closed, iki katman).
+        Başarıdan sonra bellek SQL'den tazelenir; çağıran kendi sözlüğünü
+        elle güncellemez.
+        """
+        goal_uid = (goal or {}).get("goal_uid")
+        goal_id = (goal or {}).get("id")
+        if not goal_uid or goal_id is None:
+            from utils.logging_config import get_logger
+            get_logger().warning(
+                "[KİMLİK] kalıcı kimliği olmayan hedef kartından yatırma "
+                "denendi; işlem reddedildi")
+            raise ValueError(GOAL_IDENTITY_MISSING_MESSAGE)
+        updated = SavingsService.deposit_to_goal(
+            int(goal_id), amount, account_id, goal_uid=goal_uid
+        )
+        self.load_savings_goals()
+        return updated
+
+    def delete_goal_record(self, goal, account_id=None, refund=False):
+        """Bir hedef KARTINDAN silme — `deposit_into_goal` ile aynı sözleşme."""
+        goal_uid = (goal or {}).get("goal_uid")
+        goal_id = (goal or {}).get("id")
+        if not goal_uid or goal_id is None:
+            from utils.logging_config import get_logger
+            get_logger().warning(
+                "[KİMLİK] kalıcı kimliği olmayan hedef kartı silinmeye "
+                "çalışıldı; işlem reddedildi")
+            raise ValueError(GOAL_IDENTITY_MISSING_MESSAGE)
+        deleted = SavingsService.delete_goal(
+            int(goal_id), account_id, refund=refund, goal_uid=goal_uid
+        )
+        self.load_savings_goals()
+        return deleted
     
     def calculate_savings_goal(self, *args):
         """Birikim hedefi için girilen verilere göre hedefe ulaşma süresini hesaplar
@@ -70,17 +179,17 @@ class SavingsMixin:
             if len(self.savings_goals) >= 3:
                 toast(_t("\u26a0\ufe0f En fazla 3 aktif hedef ekleyebilirsin!"))
                 return
-            goal = {
-                "name":         name,
-                "target":       target,
-                "color":        "green",
-                "current":      0.0,
-                "auto_deposit": getattr(self, "sg_auto_deposit", False),
-                "created_at":   datetime.date.today().isoformat(),
-            }
-            goal["id"] = SavingsService.create_goal(name, target)
-            self.savings_goals.append(goal)
-            self.store.put('goals', data=self.savings_goals)
+            # Hedefin TAMAMI tek servis çağrısında yazılır (renk, otomatik
+            # yatırma tercihi, oluşturma tarihi dahil) ve liste SQL'den
+            # yeniden okunur. Eskiden satır SQL'e, alanların geri kalanı
+            # JSON'a gidiyordu; ikisi ayrı ayrı yazıldığı için ayrışabiliyordu.
+            SavingsService.create_goal(
+                name, target,
+                color="green",
+                auto_deposit=bool(getattr(self, "sg_auto_deposit", False)),
+                created_at=datetime.date.today().isoformat(),
+            )
+            self.load_savings_goals()
             toast(_t(f"\u2714 '{name}' hedefi eklendi!"))
             self.sg_dialog.dismiss()
             # Refresh the dashboard cards
@@ -131,19 +240,12 @@ class SavingsMixin:
         return _t(f"Şu anki hızla ~{remaining_months} ay kaldı")
 
     # ─── One-time deposit into a goal ────────────────────────────────────────
-    def _ensure_goal_db_id(self, goal):
-        """Eski JsonStore hedefini bir kez SQL servisine taşır."""
-        goal_id = goal.get("id")
-        if goal_id is not None:
-            return int(goal_id)
-        goal["id"] = SavingsService.create_goal(
-            goal.get("name", "Birikim Hedefim"),
-            float(goal.get("target", 0)),
-            current_amount=float(goal.get("current", 0)),
-        )
-        self.store.put("goals", data=self.savings_goals)
-        val = goal.get("id")
-        return int(val) if val is not None else 0
+    #
+    # `_ensure_goal_db_id` KALDIRILDI. "Kartın id'si yoksa SQL'de yeni bir
+    # hedef aç" diyordu ve bu, bayat bir JSON kaydını sessizce paraya
+    # çevirmenin yoluydu; id VARSA da hiçbir doğrulama yapmadan o id'ye para
+    # yatırıyordu. Kimlik artık `goal_uid` ile kanıtlanıyor
+    # (`deposit_into_goal` / `delete_goal_record`).
 
     def add_funds_to_goal(self, goal_idx, *args):
         """Belirtilen hedefe tek seferlik fon/para eklemek için bir diyalog penceresi açar.
@@ -249,37 +351,50 @@ class SavingsMixin:
         _sync_account_button(checking_accounts)
 
         def _do_add(instance):
+            # İKİ AYRI HATA SINIRI. Eskiden tek `except ValueError` hem
+            # "geçersiz sayı"yı hem SERVİSİN REDDİNİ yakalıyordu ve ikisine de
+            # "Geçerli bir sayı girin!" diyordu — servis kimlik uyuşmazlığı
+            # yüzünden reddettiğinde kullanıcı ne olduğunu ASLA öğrenemezdi.
             try:
                 amount = read_amount(amount_field)
-                if amount <= 0:
-                    toast(_t("0'dan b\u00fcy\u00fck bir tutar girin!"))
-                    return
-                target = float(g.get("target", 1)) or 1.0
-                old_pct = max(0.0, min(100.0, (g.get("current", 0.0) / target) * 100))
-                goal_id = self._ensure_goal_db_id(g)
-                updated = SavingsService.deposit_to_goal(goal_id, amount, selected_account_id)
-                if updated is not None:
-                    g["current"] = float(updated["current_amount"])
-                new_pct = max(0.0, min(100.0, (g["current"] / target) * 100))
-                self.store.put('goals', data=self.savings_goals)
-                toast(_t(f"\u20ba{amount:,.2f} eklendi!"))
-                fund_dlg.dismiss()
-                self.render_savings_goals(0)
-                self.safe_refresh_charts()
-
-                crossed = [m for m in (25, 50, 75, 100) if old_pct < m <= new_pct]
-                if crossed:
-                    top = max(crossed)
-                    try:
-                        if self.root and 'confetti_overlay' in self.root.ids:
-                            self.root.ids.confetti_overlay.burst()
-                    except Exception:
-                        from utils.logging_config import get_logger
-                        get_logger().exception("Hedef kutlama animasyonu oynatılamadı")
-                    msg = _t("\U0001F389\U0001F389\U0001F389 Hedefe ula\u015ft\u0131n!") if top == 100 else _t(f"\U0001F389 %{top} tamamland\u0131!")
-                    toast(msg)
             except ValueError:
-                toast(_t("Ge\u00e7erli bir say\u0131 girin!"))
+                toast(_t("Geçerli bir sayı girin!"))
+                return
+            if amount <= 0:
+                toast(_t("0'dan büyük bir tutar girin!"))
+                return
+
+            target = float(g.get("target", 1)) or 1.0
+            old_pct = max(0.0, min(100.0, (g.get("current", 0.0) / target) * 100))
+            try:
+                updated = self.deposit_into_goal(g, amount, selected_account_id)
+            except ValueError as exc:
+                # Kullanıcıya anlaşılır metin, log'a ayrıntı.
+                from utils.logging_config import get_logger
+                get_logger().warning("Hedefe yatırma reddedildi", exc_info=True)
+                toast(_t(str(exc)))
+                return
+
+            # Yeni durum SQL'DEN dönen satırdan okunuyor; kart sözlüğü elle
+            # güncellenmiyor. `deposit_into_goal` listeyi zaten tazeledi.
+            current = float((updated or {}).get("current_amount", 0.0))
+            new_pct = max(0.0, min(100.0, (current / target) * 100))
+            toast(_t(f"₺{amount:,.2f} eklendi!"))
+            fund_dlg.dismiss()
+            self.render_savings_goals(0)
+            self.safe_refresh_charts()
+
+            crossed = [m for m in (25, 50, 75, 100) if old_pct < m <= new_pct]
+            if crossed:
+                top = max(crossed)
+                try:
+                    if self.root and 'confetti_overlay' in self.root.ids:
+                        self.root.ids.confetti_overlay.burst()
+                except Exception:
+                    from utils.logging_config import get_logger
+                    get_logger().exception("Hedef kutlama animasyonu oynatılamadı")
+                msg = _t("🎉🎉🎉 Hedefe ulaştın!") if top == 100 else _t(f"🎉 %{top} tamamlandı!")
+                toast(msg)
 
         fund_dlg = MDDialog(
             title=_t(f"{g['name']} \u2014 Para Yatır"),
@@ -309,14 +424,19 @@ class SavingsMixin:
 
         def _finish(refund=False, account_id=None):
             try:
-                goal_id = self._ensure_goal_db_id(goal)
-                if not SavingsService.delete_goal(goal_id, account_id, refund=refund):
-                    raise ValueError("Hedef bulunamadı")
+                # Silme, yanlış hedefte en pahalı işlem: kimlik `goal_uid` ile
+                # doğrulanmadan servise hiç gitmiyor. Liste servis içinde
+                # SQL'den tazeleniyor, elle `pop` edilmiyor — ekranın gösterdiği
+                # şey her zaman veritabanının söylediği şey.
+                if not self.delete_goal_record(goal, account_id, refund=refund):
+                    raise ValueError(
+                        "Hedef bulunamadı; ekranı yenileyip tekrar deneyin."
+                    )
             except (ValueError, TypeError) as exc:
+                from utils.logging_config import get_logger
+                get_logger().warning("Hedef silme reddedildi", exc_info=True)
                 toast(_t(str(exc)))
                 return False
-            self.savings_goals.pop(goal_idx)
-            self.store.put("goals", data=self.savings_goals)
             if card is not None and card.parent is not None:
                 card.parent.remove_widget(card)
             Clock.schedule_once(lambda dt: self.render_savings_goals(0), 0)
@@ -415,8 +535,18 @@ class SavingsMixin:
         generation = self._savings_render_generation
 
         if not self.savings_goals:
+            # "Hedef yok" ile "hedefler OKUNAMIYOR" AYRI şeyler. Anahtara
+            # ulaşılamadığında boş-durum metnini göstermek kullanıcıya
+            # hedeflerinin silindiğini düşündürürdü; hedefler yerinde, yalnız
+            # çözülemiyor.
+            empty_text = (
+                _t("Birikim hedefleri şu anda açılamıyor — şifreleme "
+                   "anahtarına ulaşılamadı. Verileriniz yerinde.")
+                if getattr(self, "_savings_unavailable", False)
+                else _t("Birikim hedefi belirlenmedi — Araçlar sekmesinden hedef ekleyebilirsin!")
+            )
             lbl = MDLabel(
-                text=_t("Birikim hedefi belirlenmedi — Araçlar sekmesinden hedef ekleyebilirsin!"),
+                text=empty_text,
                 font_style="Caption",
                 italic=True,
                 theme_text_color="Secondary",

@@ -32,6 +32,44 @@ from utils.financial_decimal import fiat
 STATUS_ACTIVE = "aktif"
 STATUS_COMPLETED = "tamamlandi"
 
+# Kullanıcıya gösterilecek metin: teknik ayrıntı, id, dosya yolu ya da
+# traceback İÇERMEZ (`startup_recovery.USER_MESSAGE` ile aynı gerekçe).
+# Ayrıntı loglanır.
+IDENTITY_MISMATCH_MESSAGE = (
+    "Bu hedef artık mevcut değil ya da değişmiş görünüyor; işlem güvenlik "
+    "için durduruldu ve hiçbir para hareket etmedi. Lütfen ekranı yenileyip "
+    "tekrar deneyin."
+)
+
+
+def _assert_identity(cursor, goal_id, goal_uid):
+    """Sayısal id ile KALICI kimliğin aynı satırı gösterdiğini kanıtlar.
+
+    FAIL-CLOSED ve para hareket etmeden ÖNCE çalışır. Sayısal `id` restore
+    sonrasında yeniden kullanılabiliyor (bkz. database/init_db.py ve
+    tests/test_savings_identity_reuse_regression.py): bir kullanıcı eyleminin
+    HANGİ hedefi kastettiğini tek başına kanıtlayamaz. `goal_uid` verilmişse
+    ikisi birlikte tutmak zorundadır.
+
+    `goal_uid` None ise doğrulama yapılmaz — bu, kimliği bilmeyen eski
+    çağıranlar (servis testleri, bakım betikleri) için bilinçli bir kapı.
+    Arayüz HER ZAMAN UID geçirir; kart kaydında UID yoksa `SavingsMixin`
+    işlemi zaten servise hiç göndermez.
+    """
+    if goal_uid is None:
+        return
+    cursor.execute(
+        "SELECT 1 FROM savings_goals WHERE id = ? AND goal_uid = ?",
+        (goal_id, str(goal_uid)),
+    )
+    if cursor.fetchone() is None:
+        from utils.logging_config import get_logger
+        get_logger().warning(
+            "[KİMLİK] savings_goals id=%s ile verilen goal_uid eşleşmiyor; "
+            "işlem reddedildi", goal_id,
+        )
+        raise ValueError(IDENTITY_MISMATCH_MESSAGE)
+
 
 class SavingsService:
 
@@ -132,11 +170,15 @@ class SavingsService:
         }
 
     @staticmethod
-    def deposit_to_goal(goal_id, amount, account_id=DEFAULT_ACCOUNT_ID):
+    def deposit_to_goal(goal_id, amount, account_id=DEFAULT_ACCOUNT_ID,
+                       goal_uid=None):
         """Ana hesaptan hedefe para aktarır (atomik izolasyon).
 
         Yetersiz bakiye koruması iptal edildi: hesap eksiye düşebilir.
         Güncel hedef durumunu (dict) döndürür.
+
+        `goal_uid` verilirse kimlik doğrulaması PARA HAREKET ETMEDEN ÖNCE
+        yapılır ve eşleşmezse işlem reddedilir.
         """
         amount = float(fiat(amount))
         if amount <= 0:
@@ -145,6 +187,7 @@ class SavingsService:
         conn = get_connection()
         try:
             cursor = conn.cursor()
+            _assert_identity(cursor, goal_id, goal_uid)
 
             cursor.execute(
                 "UPDATE accounts SET balance = balance - ? WHERE id = ?",
@@ -200,8 +243,12 @@ class SavingsService:
             conn.close()
 
     @staticmethod
-    def withdraw_from_goal(goal_id, amount, account_id=DEFAULT_ACCOUNT_ID):
-        """Hedeften ana hesaba para iade eder (deposit'in tersi, aynı atomik desen)."""
+    def withdraw_from_goal(goal_id, amount, account_id=DEFAULT_ACCOUNT_ID,
+                           goal_uid=None):
+        """Hedeften ana hesaba para iade eder (deposit'in tersi, aynı atomik desen).
+
+        `goal_uid` sözleşmesi `deposit_to_goal` ile aynıdır.
+        """
         amount = float(fiat(amount))
         if amount <= 0:
             raise ValueError("Çekilecek tutar 0'dan büyük olmalıdır")
@@ -209,6 +256,7 @@ class SavingsService:
         conn = get_connection()
         try:
             cursor = conn.cursor()
+            _assert_identity(cursor, goal_id, goal_uid)
 
             # ROUND(...,2): bu koruma olmadan uygulama, EKRANDA GÖSTERDİĞİ
             # parayı kullanıcıya vermiyordu. 3000 x 0,10 TL yatıran birinin
@@ -286,12 +334,18 @@ class SavingsService:
         return SavingsService._goal_dict(r, name)
 
     @staticmethod
-    def delete_goal(goal_id, account_id=DEFAULT_ACCOUNT_ID, refund=True):
-        """Hedefi atomik olarak siler; istenirse bakiyeyi vadesiz hesaba aktarır."""
+    def delete_goal(goal_id, account_id=DEFAULT_ACCOUNT_ID, refund=True,
+                    goal_uid=None):
+        """Hedefi atomik olarak siler; istenirse bakiyeyi vadesiz hesaba aktarır.
+
+        `goal_uid` sözleşmesi `deposit_to_goal` ile aynıdır — silme, yanlış
+        hedefte en pahalı işlem olduğu için doğrulama burada da yapılır.
+        """
         conn = get_connection()
         try:
             cursor = conn.cursor()
             cursor.execute("BEGIN IMMEDIATE")
+            _assert_identity(cursor, goal_id, goal_uid)
             cursor.execute("SELECT current_amount FROM savings_goals WHERE id = ?", (goal_id,))
             row = cursor.fetchone()
             if not row:

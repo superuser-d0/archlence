@@ -52,13 +52,25 @@ from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 
-from database.db import DB_NAME, SECRET_KEY
+from database import db as _db
+from database.db import SECRET_KEY
 from utils.app_paths import data_dir
 from utils.crypto import decrypt, encrypt
 from utils.errors import DecryptionError, KeyUnavailableError
 from utils.financial_decimal import fiat
 
 SAVINGS_JSON_NAME = "savings_goals.json"
+
+
+def _default_db_path():
+    """Veritabanı yolunu ÇAĞRI ANINDA çözer.
+
+    `from database.db import DB_NAME` bağı import anında sabitleniyor ve
+    `database.db.DB_NAME`'i yamalayan çağıranlar (testler, sıfırlama akışı)
+    sessizce GERÇEK profile yazardı. Kod tabanının geri kalanı da (bkz.
+    `database/db.py::get_connection`) değeri her çağrıda okuyor.
+    """
+    return _db.DB_NAME
 
 #: `savings_migration_state` içindeki nihai işaret. Bu satır varsa göç
 #: tamamlanmıştır ve sonradan ortaya çıkan her JSON dosyası BAYATTIR.
@@ -164,7 +176,7 @@ def _write_journal(db_path, state, detail=None):
 
 
 def read_journal(db_path=None):
-    path = _journal_dir(db_path or DB_NAME) / _JOURNAL_NAME
+    path = _journal_dir(db_path or _default_db_path()) / _JOURNAL_NAME
     if not path.exists():
         return None
     try:
@@ -186,7 +198,7 @@ def _connect(db_path):
 
 def migration_completed(db_path=None) -> bool:
     """Nihai işaret var mı? (Bayat JSON kuralının tek dayanağı.)"""
-    db_path = Path(db_path or DB_NAME)
+    db_path = Path(db_path or _default_db_path())
     if not db_path.exists():
         return False
     with closing(_connect(db_path)) as conn:
@@ -203,7 +215,7 @@ def migration_completed(db_path=None) -> bool:
 
 def pending_quarantine(db_path=None):
     """Kullanıcıya HENÜZ gösterilmemiş karantina kayıtları."""
-    db_path = Path(db_path or DB_NAME)
+    db_path = Path(db_path or _default_db_path())
     if not db_path.exists():
         return []
     with closing(_connect(db_path)) as conn:
@@ -245,7 +257,7 @@ def acknowledge_quarantine(db_path=None):
     Bildirim TEK SEFERLİKTİR ama kayıt SİLİNMEZ: kullanıcı daha sonra da
     hangi hedeflerin taşınamadığını görebilmeli.
     """
-    db_path = Path(db_path or DB_NAME)
+    db_path = Path(db_path or _default_db_path())
     if not db_path.exists():
         return 0
     with closing(_connect(db_path)) as conn:
@@ -583,7 +595,7 @@ def run_savings_migration(*, json_path=None, db_path=None, _failure_hook=None):
     `_failure_hook` testlerin her kritik aşamada kesinti enjekte etmesi için;
     üretimde `None` (restore'daki `_failure_hook` ile aynı desen).
     """
-    db_path = Path(db_path or DB_NAME)
+    db_path = Path(db_path or _default_db_path())
     json_path = Path(json_path) if json_path else savings_json_path(db_path.parent)
 
     if not db_path.exists():
