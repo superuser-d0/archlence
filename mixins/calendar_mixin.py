@@ -387,7 +387,10 @@ class CalendarMixin:
             size_hint_y=None, height=dp(24),
         )
         row.add_widget(MDLabel(
-            text=_tf("{time}  {category}", time=item['time'], category=_t(item['category'])),
+            text=_tf("{time}  {category}", time=item['time'], category=# Kategori, uygulamanın KENDİ sözlüğünden gelen bir etikettir
+        # (init_db'deki varsayılan liste), kullanıcının serbest metni
+        # değil; bu yüzden tam anahtarla çevrilir.
+        _t(item['category'])),
             font_style="Caption",
         ))
         is_income = item["type"] in ("income", "Gelir")

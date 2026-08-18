@@ -757,7 +757,9 @@ class AccountMixin:
                 card_number_full=card_number_full,
             )
         except ValueError as exc:
-            toast(str(exc))
+            # Servis metni UYGULAMA metnidir (kullanıcı verisi değil):
+            # tam anahtarla çevrilir, sözlükte yoksa olduğu gibi çıkar.
+            toast(_t(str(exc)))
             return False
 
         label = ACCOUNT_TYPE_LABELS.get(account_type, "Hesap")

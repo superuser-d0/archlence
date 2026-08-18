@@ -634,7 +634,10 @@ class InsightsMixin:
         text = MDLabel(
             text=_tf(
                 "{category} · {amount}\nBu kategorideki ortalamanın {amount_1} üzerinde ({date})",
-                category=_t(anomaly['category']),
+                category=# Kategori, uygulamanın KENDİ sözlüğünden gelen bir etikettir
+        # (init_db'deki varsayılan liste), kullanıcının serbest metni
+        # değil; bu yüzden tam anahtarla çevrilir.
+        _t(anomaly['category']),
                 amount=_fmt(anomaly['amount']),
                 amount_1=_fmt(anomaly['deviation']),
                 date=anomaly['date'],
