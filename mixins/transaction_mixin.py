@@ -10,7 +10,7 @@ from services.transaction_service import TransactionService
 from services.queries import CategoryService
 import ui.theme as ftheme
 from ui.components import is_read_only_asset_account, MiniCardPreviewWidget
-from ui.i18n import tr as _t
+from ui.i18n import tr as _t, trf as _tf
 from utils.formatters import attach_amount_mask, read_amount
 
 
@@ -248,7 +248,7 @@ class TransactionMixin:
         self.installment_segment.bind(on_active=self._on_installment_mode_active)
 
         self.installment_count_button = ftheme.primary_button(
-            _t(f"Taksit Sayısı: {self.selected_installments}"), self.theme_cls,
+            _tf("Taksit Sayısı: {selected_installments}", selected_installments=self.selected_installments), self.theme_cls,
             size_hint_x=1, size_hint_y=None, height=dp(44),
             on_release=self.open_installment_count_menu,
         )
@@ -335,7 +335,7 @@ class TransactionMixin:
             selected = datetime.date.today()
         if selected == datetime.date.today():
             return _t("Tarih: Bugün")
-        return _t(f"Tarih: {selected.isoformat()}")
+        return _tf("Tarih: {date}", date=selected.isoformat())
 
     def open_transaction_date_picker(self, *args):
         """İşlem tarihi için takvimi açar — BUGÜN ve sonrası.
@@ -546,7 +546,7 @@ class TransactionMixin:
     def open_installment_count_menu(self, *args):
         """1-12 arası taksit sayısı menüsü (1 = fiilen tek çekim)."""
         items = [{
-            "text": _t(f"{n} Taksit"),
+            "text": _tf("{count} Taksit", count=n),
             "viewclass": "OneLineListItem",
             "on_release": (lambda n=n: self._set_installment_count(n)),
         } for n in range(1, 13)]
@@ -557,7 +557,7 @@ class TransactionMixin:
 
     def _set_installment_count(self, count):
         self.selected_installments = int(count)
-        self.installment_count_button.text = _t(f"Taksit Sayısı: {count}")
+        self.installment_count_button.text = _tf("Taksit Sayısı: {count}", count=count)
         menu = getattr(self, "installment_count_menu", None)
         if menu is not None:
             try:
@@ -1032,10 +1032,7 @@ class TransactionMixin:
                     except Exception:
                         from utils.logging_config import get_logger
                         get_logger().exception("Bekleyen özeti tazelenemedi")
-                toast(_t(
-                    f"İşlem {submitted_date.isoformat()} tarihine planlandı; "
-                    "bekleyenler listesinde."
-                ))
+                toast(_tf("İşlem {date} tarihine planlandı; bekleyenler listesinde.", date=submitted_date.isoformat()))
             else:
                 toast(_t("İşlem başarıyla eklendi!"))
 
@@ -1140,7 +1137,7 @@ class TransactionMixin:
             detail = "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gider hemen, gelmediyse seçilen günde düşülür."
 
         content = MDLabel(
-            text=_t(f"{question}\n\n{detail}"),
+            text=_tf("{question}\n\n{detail}", question=question, detail=detail),
             size_hint_y=None,
             height=dp(110),
             theme_text_color="Secondary",

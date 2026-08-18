@@ -10,7 +10,7 @@ from kivymd.uix.button import MDFlatButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
 import ui.theme as ftheme
-from ui.i18n import tr as _t
+from ui.i18n import tr as _t, trf as _tf
 
 
 class RecurringMixin:
@@ -81,11 +81,11 @@ class RecurringMixin:
                 due = datetime.date.fromisoformat(p["next_due_date"])
                 days_left = (due - today).days
                 if days_left < 0:
-                    status = _t(f"Gecikti ({-days_left} gün)")
+                    status = _tf("Gecikti ({days} gün)", days=-days_left)
                 elif days_left == 0:
                     status = _t("Bugün")
                 else:
-                    status = _t(f"{days_left} gün kaldı")
+                    status = _tf("{days_left} gün kaldı", days_left=days_left)
 
                 card = ftheme.apply_card_theme(MDCard(
                     orientation="vertical", padding="12dp", spacing="6dp",

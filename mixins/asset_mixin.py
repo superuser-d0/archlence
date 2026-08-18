@@ -10,7 +10,7 @@ from utils.toast import toast
 from data.bist100 import BIST100_STOCKS
 from services.search_service import matches
 import ui.theme as ftheme
-from ui.i18n import tr as _t
+from ui.i18n import tr as _t, trf as _tf
 
 # ─── Varlık / Hisse Simgeleri ─────────────────────────────────────────────────
 # Varlık türü → Material Design ikon adı
@@ -126,7 +126,7 @@ def _extract_and_strip_kz(text):
         kz_amount = _parse_price_str(m.group(2))
     except ValueError:
         return stripped, None
-    return stripped, _t(f"K/Z: {m.group(1)}{format_price_tl(kz_amount)}")
+    return stripped, _tf("K/Z: {sign}{amount}", sign=m.group(1), amount=format_price_tl(kz_amount))
 
 
 def format_history_description(description, category, is_buy):
@@ -255,7 +255,7 @@ class AssetMixin:
         )
 
         type_btn = MDRaisedButton(
-            text=_t(f"Tür Seç: {self._asset_selected_type}"),
+            text=_tf("Tür Seç: {asset_selected_type}", asset_selected_type=self._asset_selected_type),
             size_hint_x=1,
             md_bg_color=self.theme_cls.primary_color, elevation=0,
         )
@@ -300,7 +300,7 @@ class AssetMixin:
     def _select_asset_type_main(self, asset_type, button):
         """Tür seçim diyaloğundaki dropdown için handler."""
         self._asset_selected_type = asset_type
-        button.text = _t(f"Tür Seç: {asset_type}")
+        button.text = _tf("Tür Seç: {asset_type}", asset_type=asset_type)
         self._asset_type_menu.dismiss()
 
     def _on_asset_type_confirmed(self):
@@ -887,13 +887,13 @@ class AssetMixin:
                 size_hint_y=None, height="36dp",
             )
             gold_btn = MDRaisedButton(
-                text=_t(f"Altın Türü: {gold_types[0][0]}"),
+                text=_tf("Altın Türü: {label}", label=gold_types[0][0]),
                 size_hint_x=1,
                 md_bg_color=GOLD_ICON_COLOR,
             )
 
             def _select_gold_type(label, symbol, friendly_name):
-                gold_btn.text = _t(f"Altın Türü: {label}")
+                gold_btn.text = _tf("Altın Türü: {label}", label=label)
                 self._asset_code_input.text = symbol
                 self._asset_name_input.text = friendly_name
                 self._gold_type_menu.dismiss()
@@ -966,7 +966,7 @@ class AssetMixin:
         scroll_content.add_widget(content)
 
         self.asset_dialog = MDDialog(
-            title=_t(f"Yeni {self._asset_selected_type} Ekle"),
+            title=_tf("Yeni {asset_selected_type} Ekle", asset_selected_type=self._asset_selected_type),
             type="custom",
             content_cls=scroll_content,
             buttons=[
@@ -1147,7 +1147,7 @@ class AssetMixin:
     def _select_asset_type(self, asset_type, button, menu):
         """Eski uyumluluk — diğer varlık formu dropdown'ı için."""
         self._asset_selected_type = asset_type
-        button.text = _t(f"Tür: {asset_type}")
+        button.text = _tf("Tür: {asset_type}", asset_type=asset_type)
         menu.dismiss()
 
     def _save_new_asset(self):
@@ -1623,13 +1623,15 @@ class AssetMixin:
                 existing_card._archlence_type_lbl.text = _t(
                     asset.get("asset_type", "")
                 )
-                existing_card._archlence_buy_lbl.text = _t(
-                    f"Alım: {asset['purchase_price']:,.4f} ₺  ×  "
-                    f"{asset['quantity']:g}"
+                existing_card._archlence_buy_lbl.text = _tf(
+                    "Alım: {purchase_price} ₺  ×  {quantity}",
+                    purchase_price=f"{asset['purchase_price']:,.4f}",
+                    quantity=f"{asset['quantity']:g}",
                 )
                 if asset.get("current_price") is not None:
-                    existing_card._archlence_cur_lbl.text = _t(
-                        f"Anlık: {asset['current_price']:,.4f} ₺"
+                    existing_card._archlence_cur_lbl.text = _tf(
+                        "Anlık: {current_price} ₺",
+                        current_price=f"{asset['current_price']:,.4f}",
                     )
                     existing_card._archlence_cur_lbl.theme_text_color = "Secondary"
                 elif signal == "error":
@@ -1640,10 +1642,12 @@ class AssetMixin:
                     existing_card._archlence_cur_lbl.theme_text_color = "Hint"
                 if asset.get("pnl_pct") is not None:
                     sign = "+" if asset["pnl_pct"] >= 0 else ""
-                    pnl_text = _t(
-                        f"{sign}{asset['pnl_pct']:.2f}%  |  "
-                        f"{sign}{asset['pnl_amount']:,.2f} ₺  "
-                        f"(Toplam: {asset['total_value']:,.2f} ₺)"
+                    pnl_text = _tf(
+                        "{sign}{pnl_pct}%  |  {sign}{pnl_amount} ₺  (Toplam: {total_value} ₺)",
+                        sign=sign,
+                        pnl_pct=f"{asset['pnl_pct']:.2f}",
+                        pnl_amount=f"{asset['pnl_amount']:,.2f}",
+                        total_value=f"{asset['total_value']:,.2f}",
                     )
                 elif signal == "error":
                     pnl_text = _t("Bağlantı Hatası!")
@@ -1712,13 +1716,17 @@ class AssetMixin:
                 height="22dp",
             )
             buy_lbl = MDLabel(
-                text=_t(f"Alım: {asset['purchase_price']:,.4f} ₺  ×  {asset['quantity']:g}"),
+                text=_tf(
+                    "Alım: {purchase_price} ₺  ×  {quantity}",
+                    purchase_price=f"{asset['purchase_price']:,.4f}",
+                    quantity=f"{asset['quantity']:g}",
+                ),
                 font_style="Caption",
                 theme_text_color="Secondary",
             )
             if asset.get("current_price") is not None:
                 cur_lbl = MDLabel(
-                    text=_t(f"Anlık: {asset['current_price']:,.4f} ₺"),
+                    text=_tf("Anlık: {current_price} ₺", current_price=f"{asset['current_price']:,.4f}"),
                     font_style="Caption",
                     theme_text_color="Secondary",
                     halign="right",
@@ -1743,10 +1751,12 @@ class AssetMixin:
             # Alt satır: K/Z
             if asset.get("pnl_pct") is not None:
                 sign = "+" if asset["pnl_pct"] >= 0 else ""
-                pnl_text = _t(
-                    f"{sign}{asset['pnl_pct']:.2f}%  |  "
-                    f"{sign}{asset['pnl_amount']:,.2f} ₺  "
-                    f"(Toplam: {asset['total_value']:,.2f} ₺)"
+                pnl_text = _tf(
+                    "{sign}{pnl_pct}%  |  {sign}{pnl_amount} ₺  (Toplam: {total_value} ₺)",
+                    sign=sign,
+                    pnl_pct=f"{asset['pnl_pct']:.2f}",
+                    pnl_amount=f"{asset['pnl_amount']:,.2f}",
+                    total_value=f"{asset['total_value']:,.2f}",
                 )
             elif signal == "error":
                 pnl_text = _t("Bağlantı Hatası!")
@@ -1815,10 +1825,12 @@ class AssetMixin:
             padding=["0dp", "8dp", "0dp", "0dp"],
         )
         info_lbl = MDLabel(
-            text=_t(
-                f"{asset['asset_name']} ({asset['asset_code']})\n"
-                f"Miktar: {asset['quantity']:g}  |  "
-                f"Alım fiyatı: {asset['purchase_price']:,.4g} ₺"
+            text=_tf(
+                "{asset_name} ({asset_code})\nMiktar: {quantity}  |  Alım fiyatı: {purchase_price} ₺",
+                asset_name=asset['asset_name'],
+                asset_code=asset['asset_code'],
+                quantity=f"{asset['quantity']:g}",
+                purchase_price=f"{asset['purchase_price']:,.4g}",
             ),
             font_style="Body2",
             size_hint_y=None,
@@ -1901,7 +1913,7 @@ class AssetMixin:
 
                 Clock.schedule_once(
                     lambda dt: toast(
-                        _t(f"Satış tamamlandı! {sign}₺{abs(pnl):,.2f} K/Z")
+                        _tf("Satış tamamlandı! {sign}₺{value} K/Z", sign=sign, value=f"{abs(pnl):,.2f}")
                     ), 0)
                 Clock.schedule_once(lambda dt: self.load_active_assets(), 0)
                 Clock.schedule_once(lambda dt: self.load_asset_history(), 0)

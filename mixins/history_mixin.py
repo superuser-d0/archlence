@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from kivy.clock import Clock
 from kivy.metrics import dp
 from kivymd.uix.boxlayout import MDBoxLayout
-from ui.i18n import tr as _t
+from ui.i18n import tr as _t, trf as _tf
 from kivymd.uix.button import MDFlatButton
 from kivymd.uix.dialog import MDDialog
 from kivymd.uix.label import MDLabel
@@ -63,7 +63,7 @@ class HistoryMixin:
         content.add_widget(loading)
 
         self._history_dialog = MDDialog(
-            title=_t(f"Bakiye Geçmişi (son {days_back} gün)"),
+            title=_tf("Bakiye Geçmişi (son {days_back} gün)", days_back=days_back),
             type="custom",
             content_cls=content,
             buttons=[
@@ -172,8 +172,10 @@ class HistoryMixin:
             halign="center",
         ))
         if self._history_dialog is not None:
-            self._history_dialog.title = _t(
-                f"Bakiye Geçmişi ({from_date} → {to_date})"
+            self._history_dialog.title = _tf(
+                "Bakiye Geçmişi ({from_date} → {to_date})",
+                from_date=from_date,
+                to_date=to_date,
             )
 
         def work():
@@ -209,7 +211,7 @@ class HistoryMixin:
             halign="center",
         ))
         if self._history_dialog is not None:
-            self._history_dialog.title = _t(f"{selected_date} Tarihindeki Bakiye")
+            self._history_dialog.title = _tf("{selected_date} Tarihindeki Bakiye", selected_date=selected_date)
 
         def work():
             try:
@@ -234,9 +236,10 @@ class HistoryMixin:
             container.clear_widgets()
             if result["basis"] == "before_ledger":
                 note = MDLabel(
-                    text=_t(
-                        f"Bakiye defteri {result.get('ledger_start') or '—'} "
-                        f"tarihinde başlıyor; {result['date']} için kayıt yok."
+                    text=_tf(
+                        "Bakiye defteri {value} tarihinde başlıyor; {date} için kayıt yok.",
+                        value=result.get('ledger_start') or '—',
+                        date=result['date'],
                     ),
                     theme_text_color="Secondary",
                     halign="center",
@@ -254,10 +257,11 @@ class HistoryMixin:
                 height=dp(44),
             ))
             details = MDLabel(
-                text=_t(
-                    f"{result['date']} gün sonu\n"
-                    f"Birikim hedefleri: {_fmt(result['savings_total'])}\n"
-                    f"Kaynak: {'Günlük snapshot' if result['basis'] == 'snapshot' else 'Defter replay'}"
+                text=_tf(
+                    "{date} gün sonu\nBirikim hedefleri: {amount}\nKaynak: {value}",
+                    date=result['date'],
+                    amount=_fmt(result['savings_total']),
+                    value='Günlük snapshot' if result['basis'] == 'snapshot' else 'Defter replay',
                 ),
                 font_style="Caption",
                 theme_text_color="Secondary",
@@ -298,9 +302,10 @@ class HistoryMixin:
                 )
                 container.add_widget(headline)
                 note = MDLabel(
-                    text=_t(f"Bakiye defteri {result.get('ledger_start') or '—'} "
-                            f"tarihinde başlıyor; öncesi için kayıt yok.\n"
-                            f"Aşağıdaki hareketler defterin başlangıcından bugüne."),
+                    text=_tf(
+                        "Bakiye defteri {value} tarihinde başlıyor; öncesi için kayıt yok.\nAşağıdaki hareketler defterin başlangıcından bugüne.",
+                        value=result.get('ledger_start') or '—',
+                    ),
                     font_style="Caption",
                     theme_text_color="Secondary",
                     size_hint_y=None,
@@ -335,7 +340,7 @@ class HistoryMixin:
 
             if result["savings_change"]:
                 savings = MDLabel(
-                    text=_t(f"Birikim hedeflerinde: {_fmt(result['savings_change'])} değişim"),
+                    text=_tf("Birikim hedeflerinde: {amount} değişim", amount=_fmt(result['savings_change'])),
                     font_style="Caption",
                     theme_text_color="Secondary",
                     size_hint_y=None,
@@ -362,7 +367,7 @@ class HistoryMixin:
                 row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
                                   height=dp(24), spacing=dp(8))
                 row.add_widget(MDLabel(
-                    text=_t(f"{_SOURCE_LABELS.get(source, source)} ({info['count']})"),
+                    text=_tf("{source} ({count})", source=_SOURCE_LABELS.get(source, source), count=info['count']),
                     font_style="Caption",
                     theme_text_color="Secondary",
                 ))

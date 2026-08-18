@@ -10,7 +10,7 @@ from kivymd.uix.gridlayout import MDGridLayout
 from kivymd.uix.segmentedcontrol import MDSegmentedControl, MDSegmentedControlItem
 from kivymd.uix.label import MDLabel
 import ui.theme as ftheme
-from ui.i18n import tr as _t
+from ui.i18n import tr as _t, trf as _tf
 from utils.calculator import evaluate_calculator_expression
 
 
@@ -322,7 +322,12 @@ class CalculatorMixin:
             f_profit = f"{profit:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             f_amount = f"{amount:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            self.comp_result_label.text = _t(f"Yatırım: {f_invest}\nKazanç: + {f_profit}\nToplam: {f_amount}")
+            self.comp_result_label.text = _tf(
+                "Yatırım: {invested}\nKazanç: + {profit}\nToplam: {amount}",
+                invested=f_invest,
+                profit=f_profit,
+                amount=f_amount,
+            )
             self.comp_result_label.theme_text_color = "Custom"
             self.comp_result_label.text_color = (0.6, 0.2, 0.8, 1)
         except ValueError:
@@ -351,7 +356,7 @@ class CalculatorMixin:
                     max_term = 120
                     
             if n > max_term:
-                toast(_t(f"Seçtiğiniz kredi türü için vade en fazla {max_term} ay olabilir!"))
+                toast(_tf("Seçtiğiniz kredi türü için vade en fazla {max_term} ay olabilir!", max_term=max_term))
                 return
             # -----------------------------------
                 
@@ -410,10 +415,10 @@ class CalculatorMixin:
             f_emi = f"{emi:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             f_total = f"{total_payment:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            res_text = _t(f"Temel Taksit: {f_emi}\nToplam Geri Ödeme: {f_total}")
+            res_text = _tf("Temel Taksit: {monthly}\nToplam Geri Ödeme: {total}", monthly=f_emi, total=f_total)
             if is_advanced:
                 f_net = f"{net_cash:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
-                res_text += _t(f"\nEle Geçecek: {f_net} (Tüm Peşin Masraflar Düşülmüş)")
+                res_text += _tf("\nEle Geçecek: {net} (Tüm Peşin Masraflar Düşülmüş)", net=f_net)
                 
             self.loan_result_label.text = res_text
             self.loan_result_label.theme_text_color = "Custom"
@@ -537,7 +542,7 @@ class CalculatorMixin:
         
         filepath = os.path.join(desk_dir, "Ödeme_Planı.pdf")
         pdf.output(filepath)
-        toast(_t(f"PDF kaydedildi: {filepath}"))
+        toast(_tf("PDF kaydedildi: {filepath}", filepath=filepath))
 
 
     # ── Kredi/faiz hesaplayıcı yardımcıları ──────────────────────────────
@@ -656,7 +661,7 @@ class CalculatorMixin:
                 toast(_t("Süre 1 aydan büyük olmalı!"))
                 return
             if self.loan_term.text and term > int(self.loan_term.text):
-                toast(_t(f"Süre, kredi vadesinden büyük olamaz ({self.loan_term.text} ay)!"))
+                toast(_tf("Süre, kredi vadesinden büyük olamaz ({term} ay)!", term=self.loan_term.text))
                 return
 
         exp_data = {
@@ -673,7 +678,7 @@ class CalculatorMixin:
     def update_expense_list_ui(self):
         """Özel masraflar listesi arayüzünü (UI) yeniden çizer."""
         self.expense_list_layout.clear_widgets()
-        self.expense_header_label.text = _t(f"Özel Masraflar ({len(self.custom_expenses)}/10)")
+        self.expense_header_label.text = _tf("Özel Masraflar ({count}/10)", count=len(self.custom_expenses))
         
         for idx, exp in enumerate(self.custom_expenses):
             row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="24dp")
@@ -720,7 +725,11 @@ class CalculatorMixin:
             f_profit = f"{net_profit:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             f_total = f"{total:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             
-            self.int_result_label.text = _t(f"Net Getiri: + {f_profit}\nVade Sonu: {f_total}\n(%5 Stopaj düşülmüştür)")
+            self.int_result_label.text = _tf(
+                "Net Getiri: + {profit}\nVade Sonu: {total}\n(%5 Stopaj düşülmüştür)",
+                profit=f_profit,
+                total=f_total,
+            )
             self.int_result_label.theme_text_color = "Custom"
             self.int_result_label.text_color = (0.13, 0.59, 0.95, 1)
         except ValueError:

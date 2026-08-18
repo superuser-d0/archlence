@@ -265,7 +265,11 @@ from ui.theme import (
     _refresh,
 )
 import ui.theme as ftheme
-from ui.i18n import tr as translate, set_language as set_active_language
+from ui.i18n import (
+    tr as translate,
+    trf as translate_format,
+    set_language as set_active_language,
+)
 from utils.currency import format_try
 from utils.errors import FinancialDataIntegrityError, SchemaTooNewError
 from utils.version import APP_VERSION
@@ -519,7 +523,7 @@ class ArchlenceApp(
             name = item.get("goal_name") or "Bilinmeyen Hedef"
             lines.append(f"• {name} — {item.get('message', '')}".strip())
         if len(pending) > 10:
-            lines.append(translate(f"…ve {len(pending) - 10} kayıt daha."))
+            lines.append(translate_format("…ve {count} kayıt daha.", count=len(pending) - 10))
 
         body = translate(
             "Eski hedef dosyanızdaki bazı kayıtlar otomatik olarak "
@@ -1364,8 +1368,12 @@ class ArchlenceApp(
                 )
                 sign = "+" if today_pnl >= 0 else "-"
                 c_sign = "+" if pct >= 0 else "-"
-                pnl.text = translate(
-                    f"{sign}{self._fmt_tr(abs(today_pnl))} ({c_sign}{abs(pct):.2f}%) Bugün"
+                pnl.text = translate_format(
+                    "{sign}{value} ({c_sign}{value_1}%) Bugün",
+                    sign=sign,
+                    value=self._fmt_tr(abs(today_pnl)),
+                    c_sign=c_sign,
+                    value_1=f"{abs(pct):.2f}",
                 )
 
                 if today_pnl > 0:
@@ -1684,12 +1692,14 @@ class ArchlenceApp(
                         icon_name, icon_col = "cart-outline", (0.9, 0.2, 0.2, 1)
 
                     if category == "Varlık Alımı":
-                        amount_text = translate(
-                            f"[color=#0277BD]- ₺{amount:,.2f} Yatırım[/color]"
+                        amount_text = translate_format(
+                            "[color=#0277BD]- ₺{amount} Yatırım[/color]",
+                            amount=f"{amount:,.2f}",
                         )
                     elif category == "Varlık Satışı":
-                        amount_text = translate(
-                            f"[color=#2E7D32]+ ₺{amount:,.2f} Satış[/color]"
+                        amount_text = translate_format(
+                            "[color=#2E7D32]+ ₺{amount} Satış[/color]",
+                            amount=f"{amount:,.2f}",
                         )
                     elif t_type == "income":
                         amount_text = f"[color=#2E7D32]+ ₺{amount:,.2f}[/color]"
@@ -1899,8 +1909,9 @@ class ArchlenceApp(
         )
         remaining = LoginThrottle.seconds_remaining(throttle_state)
         if remaining > 0:
-            self._handle_failed_login(message=translate(
-                f"Çok fazla hatalı deneme. {int(remaining) + 1} saniye sonra tekrar deneyin."
+            self._handle_failed_login(message=translate_format(
+                "Çok fazla hatalı deneme. {seconds} saniye sonra tekrar deneyin.",
+                seconds=int(remaining) + 1,
             ))
             return
 
@@ -1921,8 +1932,9 @@ class ArchlenceApp(
             self.config_store.put("security_throttle", **new_throttle)
             new_remaining = LoginThrottle.seconds_remaining(new_throttle)
             if new_remaining > 0:
-                self._handle_failed_login(message=translate(
-                    f"Çok fazla hatalı deneme. {int(new_remaining) + 1} saniye sonra tekrar deneyin."
+                self._handle_failed_login(message=translate_format(
+                    "Çok fazla hatalı deneme. {seconds} saniye sonra tekrar deneyin.",
+                    seconds=int(new_remaining) + 1,
                 ))
             else:
                 self._handle_failed_login()
@@ -2102,9 +2114,9 @@ class ArchlenceApp(
         if last_month_exp > 0:
             change_percent = ((this_month_exp - last_month_exp) / last_month_exp) * 100
             change_text = (
-                translate(f"%{change_percent:.1f} arttı")
+                translate_format("%{percent} arttı", percent=f"{change_percent:.1f}")
                 if change_percent > 0
-                else translate(f"%{abs(change_percent):.1f} azaldı")
+                else translate_format("%{percent} azaldı", percent=f"{abs(change_percent):.1f}")
             )
         else:
             change_text = translate("karşılaştırılacak veri yok")
@@ -2115,10 +2127,11 @@ class ArchlenceApp(
             else 0
         )
 
-        advice_text = translate(
-            f"Bu ay harcamalarınız geçen döneme kıyasla {change_text}.\n"
-            f"En çok harcama yapılan alan: {translate(highest_cat_name)}.\n"
-            f"Bu ayki net tasarruf oranınız: %{savings_rate:.1f}. Harika birikim dönemi!"
+        advice_text = translate_format(
+            "Bu ay harcamalarınız geçen döneme kıyasla {change_text}.\nEn çok harcama yapılan alan: {highest_cat_name}.\nBu ayki net tasarruf oranınız: %{savings_rate}. Harika birikim dönemi!",
+            change_text=change_text,
+            highest_cat_name=translate(highest_cat_name),
+            savings_rate=f"{savings_rate:.1f}",
         )
 
         forecast_text, forecast_state = self._compute_monthly_forecast_text()

@@ -23,7 +23,7 @@ from utils.toast import toast
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.button import MDRaisedButton, MDFlatButton
 from kivymd.uix.dialog import MDDialog
-from ui.i18n import tr as _t
+from ui.i18n import tr as _t, trf as _tf
 from utils.formatters import attach_amount_mask, read_amount
 from kivymd.uix.label import MDLabel
 from kivymd.uix.menu import MDDropdownMenu
@@ -151,16 +151,31 @@ class SavingsMixin:
                 
             periods = math.ceil(target / deposit)
             
+            # Hedef adı KULLANICI VERİSİ; süre ve periyot kontrollü değer.
+            # Yaklaşık süre metni de şablondan kuruluyor: "3 Ay, 5 Gün"
+            # cümlesini parça parça çevirmek, düzeltilen kusurun ta kendisiydi.
             if self.sg_period == _t("Günlük"):
                 months = periods // 30
                 days = periods % 30
-                time_str = f"{months} Ay, {days} Gün" if months > 0 else f"{days} Gün"
-                self.sg_result_label.text = _t(f"'{name}' için gereken süre:\n{periods} Gün\n(~{time_str})")
+                time_str = (
+                    _tf("{months} Ay, {days} Gün", months=months, days=days)
+                    if months > 0 else _tf("{days} Gün", days=days)
+                )
+                self.sg_result_label.text = _tf(
+                    "'{name}' için gereken süre:\n{periods} Gün\n(~{approx})",
+                    name=name, periods=periods, approx=time_str,
+                )
             else:
                 years = periods // 12
                 months = periods % 12
-                time_str = f"{years} Yıl, {months} Ay" if years > 0 else f"{months} Ay"
-                self.sg_result_label.text = _t(f"'{name}' için gereken süre:\n{periods} Ay\n(~{time_str})")
+                time_str = (
+                    _tf("{years} Yıl, {months} Ay", years=years, months=months)
+                    if years > 0 else _tf("{months} Ay", months=months)
+                )
+                self.sg_result_label.text = _tf(
+                    "'{name}' için gereken süre:\n{periods} Ay\n(~{approx})",
+                    name=name, periods=periods, approx=time_str,
+                )
                 
             self.sg_result_label.theme_text_color = "Custom"
             self.sg_result_label.text_color = ftheme.accent(self.theme_cls, "blue")
@@ -190,7 +205,7 @@ class SavingsMixin:
                 created_at=datetime.date.today().isoformat(),
             )
             self.load_savings_goals()
-            toast(_t(f"\u2714 '{name}' hedefi eklendi!"))
+            toast(_tf("\u2714 '{name}' hedefi eklendi!", name=name))
             self.sg_dialog.dismiss()
             # Refresh the dashboard cards
             #
@@ -237,7 +252,7 @@ class SavingsMixin:
             return _t("Henüz tahmin için yeterli veri yok")
 
         remaining_months = math.ceil((target - current) / avg_monthly_pace)
-        return _t(f"Şu anki hızla ~{remaining_months} ay kaldı")
+        return _tf("Şu anki hızla ~{months} ay kaldı", months=remaining_months)
 
     # ─── One-time deposit into a goal ────────────────────────────────────────
     #
@@ -372,6 +387,8 @@ class SavingsMixin:
                 # Kullanıcıya anlaşılır metin, log'a ayrıntı.
                 from utils.logging_config import get_logger
                 get_logger().warning("Hedefe yatırma reddedildi", exc_info=True)
+                # Servis metni zaten kullanıcıya yönelik ve sözlükte tam
+                # karşılığı aranır; parça değiştirilmez.
                 toast(_t(str(exc)))
                 return
 
@@ -379,7 +396,7 @@ class SavingsMixin:
             # güncellenmiyor. `deposit_into_goal` listeyi zaten tazeledi.
             current = float((updated or {}).get("current_amount", 0.0))
             new_pct = max(0.0, min(100.0, (current / target) * 100))
-            toast(_t(f"₺{amount:,.2f} eklendi!"))
+            toast(_tf("₺{amount} eklendi!", amount=f"{amount:,.2f}"))
             fund_dlg.dismiss()
             self.render_savings_goals(0)
             self.safe_refresh_charts()
@@ -393,11 +410,13 @@ class SavingsMixin:
                 except Exception:
                     from utils.logging_config import get_logger
                     get_logger().exception("Hedef kutlama animasyonu oynatılamadı")
-                msg = _t("🎉🎉🎉 Hedefe ulaştın!") if top == 100 else _t(f"🎉 %{top} tamamlandı!")
+                msg = (_t("🎉🎉🎉 Hedefe ulaştın!") if top == 100
+                       else _tf("🎉 %{percent} tamamlandı!", percent=top))
                 toast(msg)
 
         fund_dlg = MDDialog(
-            title=_t(f"{g['name']} \u2014 Para Yatır"),
+            # Hedef adı KULLANICI VERİSİ.
+            title=_tf("{name} — Para Yatır", name=g["name"]),
             type="custom",
             content_cls=inner,
             buttons=[
@@ -415,7 +434,8 @@ class SavingsMixin:
         name = str(goal.get("name", "Birikim Hedefim"))
         current = float(goal.get("current", 0) or 0)
         formatted = f"{current:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-        message = (_t(f"Bu hedef için şu ana kadar biriktirdiğiniz {formatted} ₺ ne yapılsın?")
+        message = (_tf("Bu hedef için şu ana kadar biriktirdiğiniz {amount} ₺ "
+                       "ne yapılsın?", amount=formatted)
                    if current > 0 else
                    _t("Bu hedefte birikmiş bakiye yok. Hedef kalıcı olarak silinsin mi?"))
         content = MDLabel(text=message, theme_text_color="Secondary",
@@ -464,7 +484,8 @@ class SavingsMixin:
         if current > 0:
             buttons.append(ftheme.primary_button(_t("HESABA AKTAR VE SİL"), self.theme_cls,
                                                   on_release=_open_refund))
-        decision = MDDialog(title=_t(f"Hedefi Sil: {name}"), type="custom",
+        decision = MDDialog(title=_tf("Hedefi Sil: {name}", name=name),
+                            type="custom",
                             content_cls=content, buttons=buttons)
         decision.open()
 
