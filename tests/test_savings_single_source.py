@@ -322,5 +322,103 @@ class StartupMigrationWiringTest(_Profile):
             self.assertIsNone(app._run_savings_migration_at_startup())
 
 
+class QuarantineNotificationTest(_Profile):
+    """Karantina bildirimi SESSİZ LOGLA SINIRLI KALMAMALI.
+
+    Otomatik taşınamayan bir hedefi yalnız log'a yazmak, düzeltmeye
+    çalıştığımız kusurun (sessiz yanlış atıf) sessiz kardeşi olurdu:
+    kullanıcı bir hedefinin ekranda görünmediğini fark etmezdi.
+    """
+
+    def _quarantine_a_record(self):
+        import json
+
+        from services.savings_migration import run_savings_migration
+
+        legacy = self.root / "savings_goals.json"
+        legacy.write_text(
+            json.dumps({"goals": {"data": [
+                # SQL'de karşılığı yok ve üzerinde para var -> karantina.
+                {"id": 4242, "name": "Kayıp Fon", "target": 9000.0,
+                 "current": 4500.0},
+            ]}}),
+            encoding="utf-8",
+        )
+        run_savings_migration(json_path=legacy, db_path=self.db_path)
+
+    def _present(self):
+        """Bildirimi GERÇEK `main.py` koduyla çalıştırır, widget kurmadan.
+
+        KivyMD düğmeleri çalışan bir `MDApp` istiyor; bu test bildirimin
+        İÇERİĞİNİ ve kapanış sözleşmesini ölçüyor, KivyMD'nin kendisini değil.
+        """
+        import main as archlence_main
+
+        captured = {}
+
+        class _Dialog:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+                self.on_dismiss_handlers = []
+                captured["dialog"] = self
+
+            def bind(self, **kwargs):
+                self.on_dismiss_handlers.append(kwargs["on_dismiss"])
+
+            def open(self):
+                captured["opened"] = True
+
+            def dismiss(self):
+                for handler in self.on_dismiss_handlers:
+                    handler(self)
+
+        app = self.make_app()
+        app.theme_cls = mock.Mock()
+        with mock.patch.dict(
+            "sys.modules",
+            {"kivymd.uix.dialog": mock.Mock(MDDialog=_Dialog)},
+        ), mock.patch.object(
+            archlence_main.ftheme, "primary_button",
+            side_effect=lambda *a, **k: mock.Mock(),
+        ):
+            archlence_main.ArchlenceApp._present_savings_quarantine(app)
+        return captured
+
+    def test_the_user_is_shown_which_goals_could_not_be_migrated(self):
+        self._quarantine_a_record()
+
+        captured = self._present()
+
+        self.assertTrue(captured.get("opened"), "diyalog açılmadı")
+        self.assertIn("Kayıp Fon", captured["text"])
+        self.assertNotIn("Traceback", captured["text"])
+        self.assertNotIn(str(self.db_path), captured["text"])
+
+    def test_dismissing_the_dialog_acknowledges_but_keeps_the_records(self):
+        from services import savings_migration
+
+        self._quarantine_a_record()
+        captured = self._present()
+
+        self.assertEqual(
+            len(savings_migration.pending_quarantine(self.db_path)), 1,
+            "kapanıştan önce kayıt hâlâ bekliyor olmalı",
+        )
+        captured["dialog"].dismiss()
+
+        self.assertEqual(
+            savings_migration.pending_quarantine(self.db_path), [],
+            "kapanış bildirimi 'gösterildi' diye işaretlemeli",
+        )
+        with closing(sqlite3.connect(self.db_path)) as conn:
+            kept = conn.execute(
+                "SELECT COUNT(*) FROM savings_migration_quarantine"
+            ).fetchone()[0]
+        self.assertEqual(kept, 1, "bildirim gösterildi diye kayıt silinemez")
+
+    def test_a_clean_profile_shows_no_dialog(self):
+        self.assertNotIn("opened", self._present())
+
+
 if __name__ == "__main__":
     unittest.main()
