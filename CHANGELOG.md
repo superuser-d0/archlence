@@ -4,6 +4,21 @@
 
 ### Testing and packaging
 
+- Every `app.<name>` used in a `.kv` file is now checked against
+  `ArchlenceApp`. Kivy resolves those names at runtime, so a missing one is
+  not a build error — it is a control that silently does nothing. That is
+  precisely the defect found twice recently: the search bar reported by a user
+  against 0.0.10, and the notification bell found beside it. Both were caught
+  by hand, not by a gate. The scan finds 40 distinct references and was
+  verified against a known-broken state: renaming `toggle_wealth_visibility`
+  turns it red and names the site (`ui/dashboard.kv:1579`).
+
+  The gate checks that the names *exist*, not that they do anything — the
+  search bar would still have passed it. Behaviour remains the job of the
+  service and mixin tests. It is also the prerequisite
+  `docs/MAIN_PY_SPLIT_PLAN.md` names for that refactor, which leans on
+  delegating methods staying reachable from `.kv`.
+
 - The four user-facing error boundaries in the card screens no longer catch
   bare `Exception`. They wrap a single service call each — reading a card
   statement, deleting a card, counting active instalment plans, listing

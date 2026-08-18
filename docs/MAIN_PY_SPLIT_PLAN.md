@@ -163,8 +163,15 @@ raporlama, kilit, yaşam döngüsü, property'ler, delege metotları).
 
 ## 4. Önce yazılması gereken kapı
 
-**Bu plan bir kod dilimi başlamadan önce şu test yazılmalı**, çünkü tek gerçek
-riski o kapatıyor:
+**YAZILDI — `tests/test_kv_app_surface.py`.** Aşağıdaki gereklilik
+karşılandı; ayrıştırmanın önkoşulu artık açık değil.
+
+Kapı `.kv` dosyalarını tarıyor, 40 benzersiz `app.<isim>` referansı buluyor ve
+her birinin `ArchlenceApp`'te var olduğunu doğruluyor. Bilinen-bozuk duruma
+karşı sınandı: `toggle_wealth_visibility` yeniden adlandırıldığında kırmızıya
+döndü ve kırılmanın yerini (`ui/dashboard.kv:1579`) gösterdi.
+
+Özgün gereklilik, kayıt için:
 
 `tests/test_kv_app_surface.py` — `.kv` dosyalarını tarar, her `app.<isim>`
 referansını çıkarır ve `ArchlenceApp` üzerinde o ismin GERÇEKTEN var olduğunu
