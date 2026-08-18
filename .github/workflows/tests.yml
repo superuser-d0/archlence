@@ -394,6 +394,25 @@ jobs:
         run: >-
           xvfb-run -a python scripts/dev/verify_icon_label_layout.py
           --output visual/icons-${{ matrix.language }}-${{ matrix.dpi }}
+      - name: Kullanıcı verisi çevrilmiyor (TR/EN)
+        # NEDEN BURADA: `tr()` eskiden tam eşleşme bulamayınca sözlükteki
+        # Türkçe parçaları metin içinde değiştiriyordu ve çağıranlar
+        # f-string'i önce kurup çeviriye veriyordu. Kullanıcının "Nakit"
+        # adını verdiği hesap İngilizce arayüzde "Cash" görünüyordu.
+        #
+        # Birim testi ve AST kapısı sözleşmeyi tutuyor; bu kapı EKRANI
+        # ölçüyor — gözden kaçan tek bir çağrı yeri ancak orada görünür.
+        # Dişleri doğrulandı: eski davranış geri konduğunda kartlar
+        # ['Income', 'Settings', 'Cash'] gösterip kapı kırmızı veriyor.
+        env:
+          KIVY_DPI: ${{ matrix.dpi }}
+          ARCHLENCE_LANGUAGE: ${{ matrix.language }}
+          XDG_DATA_HOME: ${{ runner.temp }}/archlence-i18n-data
+          XDG_CACHE_HOME: ${{ runner.temp }}/archlence-i18n-cache
+          XDG_STATE_HOME: ${{ runner.temp }}/archlence-i18n-state
+        run: >-
+          xvfb-run -a python scripts/dev/verify_i18n_user_data.py
+          --output visual/i18n-${{ matrix.language }}-${{ matrix.dpi }}
       - name: Birikim hedefi kartları SQL'den besleniyor
         # NEDEN BURADA: birikim kartları uzun süre savings_goals.json'dan
         # çiziliyordu, para ise SQLite'taydı. Tek kaynak SQL'e taşındıktan
