@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -559,6 +560,20 @@ class MigrationMixin:
                 "Restore tamamlandı. Güvenlik backup'ı:\n"
                 f"{result['safety_backup_path']}"
             ))
+            # HEDEFLER SQL'DEN YENİDEN OKUNUR — yeniden başlatma gerekmez.
+            # Restore `finance.db`yi bütün olarak değiştiriyor; bellekteki
+            # `savings_goals` restore ÖNCESİ generation'ı gösteriyor ve
+            # tazelenmezse kullanıcı artık var olmayan hedeflerin kartlarına
+            # bakıyor olurdu. Kart işlemleri `goal_uid` ile doğrulandığı için
+            # böyle bir kart parayı yanlış hedefe yazdıramaz; yine de EKRANIN
+            # doğru olması gerekiyor.
+            try:
+                self.load_savings_goals()
+                self.render_savings_goals(0)
+            except (AttributeError, KeyError, sqlite3.Error) as exc:
+                from utils.logging_config import get_logger
+                get_logger().warning(
+                    "Restore sonrası birikim hedefleri tazelenemedi: %s", exc)
             self.refresh_dashboard_data()
 
         self.background_tasks.submit(
