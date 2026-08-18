@@ -12,6 +12,9 @@ goal_name AES şifreli saklanır; tutarlar düz REAL'dir (bkz. init_db.py'deki
 altına inerse tekrar 'aktif'.
 """
 
+import uuid
+from datetime import date
+
 from database.db import (
     ACCOUNT,
     DEFAULT_ACCOUNT_ID,
@@ -33,8 +36,16 @@ STATUS_COMPLETED = "tamamlandi"
 class SavingsService:
 
     @staticmethod
-    def create_goal(goal_name, target_amount, target_date=None, current_amount=0.0):
-        """Yeni birikim hedefi açar; hedefin id'sini döndürür."""
+    def create_goal(goal_name, target_amount, target_date=None, current_amount=0.0,
+                    color=None, auto_deposit=False, created_at=None,
+                    goal_uid=None):
+        """Yeni birikim hedefi açar; hedefin id'sini döndürür.
+
+        `goal_uid` KALICI kimliktir ve burada üretilir — sayısal `id` restore
+        sonrasında yeniden kullanılabildiği için (bkz. init_db.py'deki not)
+        kimlik olarak ona güvenilemez. Çağıran açıkça bir UID verebilir;
+        yalnız göç motoru bunu kullanır ve orada da değer `uuid4()`'tür.
+        """
         target_amount = float(fiat(target_amount))
         current_amount = float(fiat(current_amount))
         if target_amount <= 0:
@@ -45,13 +56,18 @@ class SavingsService:
         try:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO savings_goals (goal_name, target_amount, current_amount, target_date, status)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO savings_goals (goal_name, target_amount, current_amount,
+                                           target_date, status, goal_uid, color,
+                                           auto_deposit, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (encrypt(str(goal_name), SECRET_KEY), target_amount,
                   current_amount, target_date,
                   STATUS_COMPLETED
                   if fiat(current_amount) >= fiat(target_amount)
-                  else STATUS_ACTIVE))
+                  else STATUS_ACTIVE,
+                  str(goal_uid or uuid.uuid4()), color,
+                  1 if auto_deposit else 0,
+                  created_at or date.today().isoformat()))
             goal_id = cursor.lastrowid
             # [Faz 2 · defter] Hedef 0 birikimle açılır: delta 0, toplamı
             # etkilemez ama defterde hedefin doğuşu görünür.
@@ -91,15 +107,29 @@ class SavingsService:
                     "[VERİ BÜTÜNLÜĞÜ] savings_goals id=%s adı çözülemedi",
                     r["id"])
                 name = "Bilinmeyen Hedef"
-            goals.append({
-                "id": r["id"],
-                "goal_name": name,
-                "target_amount": r["target_amount"],
-                "current_amount": r["current_amount"],
-                "target_date": r["target_date"],
-                "status": r["status"],
-            })
+            goals.append(SavingsService._goal_dict(r, name))
         return goals
+
+    @staticmethod
+    def _goal_dict(row, name):
+        """Satırı servis sözleşmesindeki tek sözlük şekline çevirir.
+
+        `get_goals` ve `_get_goal_row` eskiden bu sözlüğü AYRI AYRI kuruyordu;
+        yeni alanlar eklendiğinde birini güncelleyip diğerini unutmak, hedef
+        kartının bir işlemden sonra rengini/tarihini kaybetmesi demekti.
+        """
+        return {
+            "id": row["id"],
+            "goal_uid": row["goal_uid"],
+            "goal_name": name,
+            "target_amount": row["target_amount"],
+            "current_amount": row["current_amount"],
+            "target_date": row["target_date"],
+            "status": row["status"],
+            "color": row["color"],
+            "auto_deposit": bool(row["auto_deposit"]),
+            "created_at": row["created_at"],
+        }
 
     @staticmethod
     def deposit_to_goal(goal_id, amount, account_id=DEFAULT_ACCOUNT_ID):
@@ -253,14 +283,7 @@ class SavingsService:
             get_logger().exception(
                 "[VERİ BÜTÜNLÜĞÜ] savings_goals id=%s adı çözülemedi", goal_id)
             name = "Bilinmeyen Hedef"
-        return {
-            "id": r["id"],
-            "goal_name": name,
-            "target_amount": r["target_amount"],
-            "current_amount": r["current_amount"],
-            "target_date": r["target_date"],
-            "status": r["status"],
-        }
+        return SavingsService._goal_dict(r, name)
 
     @staticmethod
     def delete_goal(goal_id, account_id=DEFAULT_ACCOUNT_ID, refund=True):

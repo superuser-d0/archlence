@@ -368,8 +368,16 @@ class GoldenBackupRestoreRoundTrip(_TemporaryProfile):
         with closing(sqlite3.connect(self.db_path)) as conn:
             self.assertEqual(
                 conn.execute("PRAGMA integrity_check").fetchone()[0], "ok")
+            # SABİT SAYI DEĞİL, MODÜL SABİTİ: kuşak numarası her ileri-uyumsuz
+            # şema değişikliğinde artıyor (v0.0.12'de 1, birikim hedefleri
+            # SQL'e taşınırken 2). Burada literal tutmak, kapının ölçtüğü şeyi
+            # ("yedek kuşak işaretini taşıyor mu") her bump'ta alakasız biçimde
+            # kırardı.
+            from database.init_db import SCHEMA_VERSION
+
             self.assertEqual(
-                conn.execute("PRAGMA user_version").fetchone()[0], 1,
+                conn.execute("PRAGMA user_version").fetchone()[0],
+                SCHEMA_VERSION,
                 "geri yüklenen veritabanı şema kuşağı işaretini taşımıyor",
             )
 
