@@ -29,7 +29,6 @@ import os
 import sys
 import tempfile
 import unittest
-from types import SimpleNamespace
 from unittest import mock
 
 os.environ.setdefault("KIVY_NO_ARGS", "1")

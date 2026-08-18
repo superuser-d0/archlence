@@ -6,6 +6,7 @@ destekleyen `_Widget`), modül ilk kez import edilirken sys.modules'a
 patch'lenir.
 """
 import datetime
+import re
 import sys
 import types
 import unittest
@@ -77,7 +78,10 @@ _stubs = {
         on_primary=lambda theme_cls: "on_primary",
         inactive_control_text=lambda style: "muted",
     ),
-    "ui.i18n": _module("ui.i18n", tr=lambda text, language=None: text),
+    "ui.i18n": _module(
+        "ui.i18n", tr=lambda text, language=None: text,
+        trf=lambda template, language=None, **params: re.sub(r"\{(\w+)\}", lambda m: str(params.get(m.group(1), m.group(0))), template),
+    ),
 }
 with mock.patch.dict(sys.modules, _stubs):
     import mixins.calendar_mixin as calendar_module

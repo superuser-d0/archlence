@@ -1,5 +1,6 @@
 """Insights UI eylemlerinin pencere açmadan çalışan ince entegrasyon testleri."""
 
+import re
 import sys
 import types
 import unittest
@@ -75,6 +76,7 @@ _stubs = {
     ),
     "ui.i18n": _module(
         "ui.i18n", tr=lambda text, language=None: text,
+        trf=lambda template, language=None, **params: re.sub(r"\{(\w+)\}", lambda m: str(params.get(m.group(1), m.group(0))), template),
         get_language=lambda: "tr",
     ),
 }

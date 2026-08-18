@@ -1,5 +1,6 @@
 """What-if mixin veri akışının pencere gerektirmeyen testleri."""
 
+import re
 import sys
 import types
 import unittest
@@ -40,7 +41,10 @@ _stubs = {
         "kivymd.uix.textfield", MDTextField=_Widget,
     ),
     "ui.charts": _module("ui.charts", ScenarioComparisonChart=_Widget),
-    "ui.i18n": _module("ui.i18n", tr=lambda text: text),
+    "ui.i18n": _module(
+        "ui.i18n", tr=lambda text: text,
+        trf=lambda template, language=None, **params: re.sub(r"\{(\w+)\}", lambda m: str(params.get(m.group(1), m.group(0))), template),
+    ),
     "ui.theme": _module("ui.theme", accent=lambda *args: [0, 0, 0, 1]),
 }
 with mock.patch.dict(sys.modules, _stubs):
