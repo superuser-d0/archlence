@@ -56,7 +56,17 @@ Important contracts include:
   a confident zero;
 - daily snapshots and ledger replay support historical balance views;
 - financial-number boundaries use the shared Decimal policy where migration is
-  complete, with remaining paths tracked as stabilization work.
+  complete, with remaining paths tracked as stabilization work;
+- **savings goals have a single source of truth: SQLite.** They used to be
+  displayed from `savings_goals.json` while the money lived in SQL, so the two
+  could drift apart. Restore replaces `finance.db` whole, which rewinds
+  `sqlite_sequence`, so a goal created after a restore could reclaim the
+  numeric id a stale JSON card still pointed at — and a deposit made from that
+  card landed on a different goal. Every goal now carries a permanent
+  `goal_uid` (UUIDv4), every card operation is verified against it, and the
+  service refuses fail-closed when the numeric id and the uid disagree. The
+  numeric id remains as the internal key because `balance_events.entity_id`
+  depends on it. See `docs/SAVINGS_SINGLE_SOURCE_PLAN.md`.
 
 Financial-logic pull requests should prove these contracts with regression
 tests covering success, rollback, and failure paths.

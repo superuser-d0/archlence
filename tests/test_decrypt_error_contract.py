@@ -103,7 +103,10 @@ class DecryptErrorContractTest(_ContractTestBase):
 
         self._corrupt_row(
             "savings_goals", ["goal_name"],
-            {"target_amount": 100.0, "current_amount": 0.0},
+            # goal_uid ZORUNLU (şema kuşağı 2): kalıcı kimlik opsiyonel
+            # değil. Bozulan şey burada hedefin ADI, kimliği değil.
+            {"target_amount": 100.0, "current_amount": 0.0,
+             "goal_uid": "bozuk-satir-uid-1"},
         )
         goals = SavingsService.get_goals()
 
@@ -178,7 +181,10 @@ class DecryptErrorContractTest(_ContractTestBase):
 
         self._corrupt_row(
             "savings_goals", ["goal_name"],
-            {"target_amount": 100.0, "current_amount": 0.0},
+            # goal_uid ZORUNLU (şema kuşağı 2): kalıcı kimlik opsiyonel
+            # değil. Bozulan şey burada hedefin ADI, kimliği değil.
+            {"target_amount": 100.0, "current_amount": 0.0,
+             "goal_uid": "bozuk-satir-uid-1"},
         )
         with self._with_unavailable_key("services.savings_service"):
             with self.assertRaises(KeyUnavailableError):

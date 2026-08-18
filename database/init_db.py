@@ -39,6 +39,39 @@ SCHEMA_TOO_NEW_MESSAGE = (
     "dokunulmadı. Lütfen uygulamanın güncel sürümünü kullanın."
 )
 
+#: `savings_goals` şemasının TEK tanımı.
+#
+# Taze kurulum bu metinle yaratıyor, göç eden profil ise `goal_uid NOT NULL`
+# kısıtını uygularken tabloyu AYNI metinle yeniden yaratıyor. İki yolun
+# şemasını ayrı ayrı yazmak, aralarında görünmez bir sapma bırakırdı ve
+# `scripts/audit/check_schema_consistency.py`nin "fresh vs upgraded"
+# karşılaştırması bunu ancak CI'da, sebebi belirsiz bir farkla gösterirdi.
+#
+# goal_uid NOT NULL: kalıcı kimlik OPSİYONEL OLAMAZ. Kısıt yine de göçün
+# İKİNCİ adımında uygulanıyor (önce nullable + backfill), çünkü backfill
+# yarıda kalırsa NOT NULL bir şema açılmayan bir profil bırakırdı.
+SAVINGS_GOALS_DDL = """
+    CREATE TABLE {exists}{table} (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        goal_name TEXT NOT NULL,
+        target_amount REAL NOT NULL,
+        current_amount REAL DEFAULT 0,
+        target_date TEXT,
+        status TEXT DEFAULT 'aktif',
+        goal_uid TEXT NOT NULL,
+        color TEXT,
+        auto_deposit INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT
+    )
+"""
+
+#: Yeniden yaratımda satırların taşınacağı sütunlar (SIRA ÖNEMLİ).
+SAVINGS_GOALS_COLUMNS = (
+    "id, goal_name, target_amount, current_amount, target_date, status,"
+    " goal_uid, color, auto_deposit, created_at"
+)
+
+
 def initialize_database():
     """Şemayı kurar/günceller — bağlantıyı HER ÇIKIŞ YOLUNDA kapatarak.
 
@@ -458,20 +491,9 @@ def _initialize_database(conn):
     # açılan hedef, eski bir kaydın id'sini yeniden alıyor
     # (tests/test_savings_identity_reuse_regression.py). `id` yine de KALIYOR:
     # `balance_events.entity_id` ona bağlı, kaldırmak defteri kırardı.
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS savings_goals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            goal_name TEXT NOT NULL,
-            target_amount REAL NOT NULL,
-            current_amount REAL DEFAULT 0,
-            target_date TEXT,
-            status TEXT DEFAULT 'aktif',
-            goal_uid TEXT,
-            color TEXT,
-            auto_deposit INTEGER NOT NULL DEFAULT 0,
-            created_at TEXT
-        )
-    """)
+    cursor.execute(
+        SAVINGS_GOALS_DDL.format(table="savings_goals", exists="IF NOT EXISTS ")
+    )
 
     # Migration guard. SIRA ÖNEMLİ: aşağıdaki dört `ALTER TABLE` sütunları
     # yukarıdaki `CREATE TABLE` ile AYNI sırayla ekliyor.
@@ -520,6 +542,69 @@ def _initialize_database(conn):
             "AND goal_uid IS NULL",
             (str(uuid.uuid4()), goal_id),
         )
+
+    # KISIT GEÇİŞİNİN İKİNCİ ADIMI: backfill'in EKSİKSİZ olduğu ölçüldükten
+    # sonra `goal_uid NOT NULL` uygulanır. SQLite `ALTER TABLE` ile kısıt
+    # eklemediği için tablo yeniden yaratılır.
+    #
+    # Sıra bilinçli (plan §2.3): NOT NULL'u backfill'den ÖNCE koymak, göç
+    # yarıda kalırsa AÇILMAYAN bir profil bırakırdı. Kısıt burada, yalnız
+    # "NULL kalmadı" kanıtlandığında uygulanıyor; kanıtlanmazsa şema nullable
+    # kalır ve bir sonraki açılış eksiği tamamlar.
+    cursor.execute("PRAGMA table_info(savings_goals)")
+    goal_columns = {row[1]: row for row in cursor.fetchall()}
+    uid_column = goal_columns.get("goal_uid")
+    if uid_column is not None and not uid_column[3]:  # notnull == 0
+        cursor.execute(
+            "SELECT COUNT(*) FROM savings_goals WHERE goal_uid IS NULL"
+        )
+        if cursor.fetchone()[0] == 0:
+            # SAYAÇ KORUNUR. `DROP TABLE` `sqlite_sequence` satırını da siler
+            # ve yeni tablo sayacı max(id)'ye göre kurar. Aradaki fark teorik
+            # değil: silinmiş bir hedefin id'si defterde
+            # (`balance_events.entity_id`) hâlâ yaşıyor ve sayaç geri
+            # sararsa o id yeniden dağıtılır — düzeltmek için var olduğumuz
+            # kimlik yeniden kullanımının aynısı, bu sefer restore olmadan.
+            cursor.execute(
+                "SELECT seq FROM sqlite_sequence WHERE name = 'savings_goals'"
+            )
+            row = cursor.fetchone()
+            previous_seq = row[0] if row else None
+
+            cursor.execute(
+                SAVINGS_GOALS_DDL.format(
+                    table="savings_goals_uid_migration", exists=""
+                )
+            )
+            cursor.execute(
+                f"INSERT INTO savings_goals_uid_migration ({SAVINGS_GOALS_COLUMNS}) "  # nosec B608 - sabit sütun listesi
+                f"SELECT {SAVINGS_GOALS_COLUMNS} FROM savings_goals"
+            )
+            cursor.execute("DROP TABLE savings_goals")
+            cursor.execute(
+                "ALTER TABLE savings_goals_uid_migration RENAME TO savings_goals"
+            )
+            # Index tabloyla birlikte düştü; yeniden kurulmalı.
+            cursor.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_savings_goals_uid "
+                "ON savings_goals(goal_uid)"
+            )
+            if previous_seq is not None:
+                cursor.execute(
+                    "SELECT seq FROM sqlite_sequence WHERE name = 'savings_goals'"
+                )
+                current = cursor.fetchone()
+                if current is None:
+                    cursor.execute(
+                        "INSERT INTO sqlite_sequence(name, seq) VALUES(?, ?)",
+                        ("savings_goals", previous_seq),
+                    )
+                elif current[0] < previous_seq:
+                    cursor.execute(
+                        "UPDATE sqlite_sequence SET seq = ? WHERE name = ?",
+                        (previous_seq, "savings_goals"),
+                    )
+            conn.commit()
 
     # 8b. Göç karantinası — otomatik taşınamayan legacy JSON kayıtları.
     #

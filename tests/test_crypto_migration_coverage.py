@@ -144,8 +144,12 @@ class MigrationCoversEveryEncryptedTableTest(unittest.TestCase):
                     ("name", "amount"),
                 ),
                 "savings_goals": (
+                    # goal_uid ZORUNLU: her satır kalıcı kimlik taşır.
+                    # `hex(random)` yerine sayaç: iki satır aynı testte
+                    # yazılıyor ve UNIQUE index çakışmamalı.
                     "INSERT INTO savings_goals (goal_name, target_amount, "
-                    "current_amount, status) VALUES (?, 1000, 0, 'active')",
+                    "current_amount, status, goal_uid) "
+                    "VALUES (?, 1000, 0, 'active', hex(randomblob(16)))",
                     ("goal_name",),
                 ),
                 "installment_plans": (

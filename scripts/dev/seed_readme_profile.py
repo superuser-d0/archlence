@@ -20,6 +20,7 @@ import os
 import random
 import shutil
 import sys
+import uuid
 from collections import defaultdict
 from contextlib import closing
 from datetime import date, datetime, time, timedelta
@@ -162,7 +163,6 @@ def main():
     # AccountService timestamps openings at runtime. Move those baseline events
     # to the beginning of the synthetic year so balance replay is meaningful.
     opening_ts = dt_on(start, 8).strftime("%Y-%m-%d %H:%M:%S")
-    goal_cards = []
     with closing(get_connection()) as conn, conn:
         conn.execute(
             "UPDATE balance_events SET ts = ? WHERE source = 'account_opened'",
@@ -518,22 +518,20 @@ def main():
             ("Emergency Fund", 350_000, 260_000, as_of + timedelta(days=210)),
         ]
         for name, target, current, target_date in goals:
+            # goal_uid ZORUNLU: hedeflerin kalıcı kimliği artık şemanın bir
+            # parçası (bkz. database/init_db.py). Örnek profil de gerçek
+            # profillerle aynı şemayı taşımalı, yoksa "örnekle çalışıyor ama
+            # gerçek profilde patlıyor" farkı üretilir.
             cursor.execute(
                 """INSERT INTO savings_goals
-                   (goal_name, target_amount, current_amount, target_date, status)
-                   VALUES (?, ?, ?, ?, 'aktif')""",
-                (encrypt(name, SECRET_KEY), target, current, target_date.isoformat()),
+                   (goal_name, target_amount, current_amount, target_date,
+                    status, goal_uid, color, auto_deposit, created_at)
+                   VALUES (?, ?, ?, ?, 'aktif', ?, 'green', 0, ?)""",
+                (encrypt(name, SECRET_KEY), target, current,
+                 target_date.isoformat(), str(uuid.uuid4()),
+                 (as_of - timedelta(days=275)).isoformat()),
             )
             goal_id = cursor.lastrowid
-            goal_cards.append({
-                "id": goal_id,
-                "name": name,
-                "target": target,
-                "current": current,
-                "color": "green",
-                "auto_deposit": False,
-                "created_at": (as_of - timedelta(days=275)).isoformat(),
-            })
             # A goal deposit is an internal allocation: move it out of the
             # source account without recording a fake expense transaction.
             goal_ts = dt_on(as_of - timedelta(days=90), 10).strftime(
@@ -579,10 +577,9 @@ def main():
         }, indent=2),
         encoding="utf-8",
     )
-    (data_dir / "savings_goals.json").write_text(
-        json.dumps({"goals": {"data": goal_cards}}, indent=2),
-        encoding="utf-8",
-    )
+    # `savings_goals.json` ARTIK YAZILMIYOR. Hedefler SQLite'ta yaşıyor; bu
+    # dosyayı üretmek örnek profile SAHTE bir legacy artefakt koyar ve
+    # uygulama onu ilk açılışta göç ettirmeye çalışırdı.
     (profile / SAMPLE_MARKER).write_text(
         f"Synthetic README profile generated through {as_of.isoformat()} with seed {args.seed}\n",
         encoding="utf-8",
