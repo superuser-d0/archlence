@@ -1137,7 +1137,10 @@ class TransactionMixin:
             detail = "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gider hemen, gelmediyse seçilen günde düşülür."
 
         content = MDLabel(
-            text=_tf("{question}\n\n{detail}", question=question, detail=detail),
+            # KONTROLLÜ UYGULAMA METNİ: iki sabit cümle çifti, kullanıcı
+            # verisi değil; tam anahtarla ayrıca çevrilir.
+            text=_tf("{question}\n\n{detail}",
+                     question=_t(question), detail=_t(detail)),
             size_hint_y=None,
             height=dp(110),
             theme_text_color="Secondary",

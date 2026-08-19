@@ -136,7 +136,7 @@ class TemplateFormattingTest(unittest.TestCase):
         )
 
     def test_user_values_are_inserted_verbatim(self):
-        """Kullanıcı verisi formatlama mekanizmasını BOZAMAZ ve BOZULMAZ."""
+        """Değer hiçbir işleme girmez: süslü parantez, %, emoji, satır sonu."""
         from ui.i18n import trf
 
         hostile = "{test} %s %% {name} 🎉 çğışüö\nikinci satır"
@@ -146,7 +146,13 @@ class TemplateFormattingTest(unittest.TestCase):
         )
 
     def test_a_value_that_looks_like_a_placeholder_is_not_substituted(self):
-        """Tek geçiş: değerin içindeki `{name}` yeniden değerlendirilmez."""
+        """Tek geçiş: değerin içindeki `{name}` ikinci kez değerlendirilmez.
+
+        NOT: `str.format` da yerleştirdiği değeri yeniden yorumlamaz
+        (`"{x}".format(x="{test}") == "{test}"`). Burada sabitlenen şey bir
+        çökme korkusu değil, ÖNGÖRÜLEBİLİRLİK: sonuç parametre sırasından
+        bağımsız kalır.
+        """
         from ui.i18n import trf
 
         self.assertEqual(

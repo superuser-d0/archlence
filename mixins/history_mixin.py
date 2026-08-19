@@ -261,7 +261,9 @@ class HistoryMixin:
                     "{date} gün sonu\nBirikim hedefleri: {amount}\nKaynak: {value}",
                     date=result['date'],
                     amount=_fmt(result['savings_total']),
-                    value='Günlük snapshot' if result['basis'] == 'snapshot' else 'Defter replay',
+                    # KONTROLLÜ ETİKET: iki sabit değer, tam anahtarla çevrilir.
+                value=_t("Günlük snapshot") if result["basis"] == "snapshot"
+                else _t("Defter replay"),
                 ),
                 font_style="Caption",
                 theme_text_color="Secondary",
@@ -367,7 +369,7 @@ class HistoryMixin:
                 row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
                                   height=dp(24), spacing=dp(8))
                 row.add_widget(MDLabel(
-                    text=_tf("{source} ({count})", source=_SOURCE_LABELS.get(source, source), count=info['count']),
+                    text=_tf("{source} ({count})", source=_t(_SOURCE_LABELS.get(source, source)), count=info['count']),
                     font_style="Caption",
                     theme_text_color="Secondary",
                 ))

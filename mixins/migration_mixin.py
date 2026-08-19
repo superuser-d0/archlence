@@ -643,4 +643,7 @@ class MigrationMixin:
             "%s", message,
             exc_info=(type(exc), exc, exc.__traceback__),
         )
-        toast(_tf("{message}. Ayrıntılar uygulama loguna kaydedildi.", message=message))
+        # `message` çağrı yerlerinden gelen KONTROLLÜ uygulama metni
+        # ("Backup oluşturulamadı" gibi), kullanıcı verisi değil.
+        toast(_tf("{message}. Ayrıntılar uygulama loguna kaydedildi.",
+                  message=_t(message)))

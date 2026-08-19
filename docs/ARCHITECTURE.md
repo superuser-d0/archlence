@@ -143,6 +143,12 @@ Further rules:
 
 - Number, date and currency formatting stays at the call site
   (`amount=f"{value:,.2f}"`); the translation layer never reformats.
+- `trf` substitutes only `{name}` placeholders, in a single pass, without
+  `str.format`. The reason is a deliberately narrow contract — no format
+  specs, no attribute or index access inside a translatable string — plus a
+  verified placeholder set and an order-independent result. It is **not**
+  that `str.format` would re-interpret an inserted value: it does not
+  (`"{x}".format(x="{test}") == "{test}"`).
 - Placeholder **sets** must match between Turkish and English; the order is
   free, and English word order usually differs
   (`"{name} hesabı eklendi."` → `"Account added: {name}"`).

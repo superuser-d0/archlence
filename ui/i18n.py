@@ -821,6 +821,42 @@ EN = {
     "Kasım": "November",
     "Aralık": "December",
 
+    # ── Şablona PARAMETRE olarak giren kontrollü etiketler ───────────────
+    #
+    # Bunlar kullanıcı verisi DEĞİL, uygulamanın kendi sözlüğü. Şablonun
+    # içine girmeden ÖNCE `tr()` ile ayrıca çevrilirler; karşılıkları
+    # burada olmazsa İngilizce cümlenin ortasında Türkçe bir parça kalır
+    # ("Balance on 2026-08-01 · Günlük snapshot" gibi).
+    "Gelir işlemleri": "Income transactions",
+    "Gider işlemleri": "Expense transactions",
+    "Günlük snapshot": "Daily snapshot",
+    "Defter replay": "Ledger replay",
+    # `_secure_operation_error` çağrı yerlerinden gelen sabit başlıklar.
+    "Backup oluşturulamadı": "Backup could not be created",
+    "Restore başarısız; mevcut veri korundu":
+        "Restore failed; your current data was preserved",
+    "Migration geri alındı": "Migration was rolled back",
+    "Kurtarma paketi oluşturulamadı":
+        "Recovery package could not be created",
+    "Kurtarma paketi içe aktarılamadı":
+        "Recovery package could not be imported",
+    "Anahtar rotasyonu başlatılamadı": "Key rotation could not be started",
+    "Anahtar rotasyonu geri alındı": "Key rotation was rolled back",
+    # Tekrarlayan işlem diyaloğunun sabit soru/açıklama çiftleri.
+    "Bu ayki gelir hesaba eklensin mi?":
+        "Should this month's income be added to the account?",
+    "Bu ayki gider hesaptan düşülsün mü?":
+        "Should this month's expense be deducted from the account?",
+    "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gelir hemen, "
+    "gelmediyse seçilen günde eklenir.":
+        "If “INCLUDE THIS MONTH” is selected, the income is added right away "
+        "when this month's day has passed, and on the selected day otherwise.",
+    "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gider hemen, "
+    "gelmediyse seçilen günde düşülür.":
+        "If “INCLUDE THIS MONTH” is selected, the expense is deducted right "
+        "away when this month's day has passed, and on the selected day "
+        "otherwise.",
+
 # ─── Şablonlar (`trf`) ────────────────────────────────────────────────────
 #
 # Bu bölümdeki anahtarlar YER TUTUCU içerir ve yalnız `trf()` ile kullanılır:
@@ -1076,6 +1112,41 @@ def tr(text: str | None, language: str | None = None) -> str:
     return EN.get(source, source)
 
 
+#: ŞABLONA GİRMEDEN ÖNCE `tr()`DEN GEÇMESİ ZORUNLU etiket kaynakları.
+#:
+#: `trf()` parametreleri üç sınıfa ayrılır (docs/ARCHITECTURE.md):
+#:   * kullanıcı verisi — ASLA çevrilmez,
+#:   * sayı/tarih/tutar/yol/hata ayrıntısı — biçimlenir ama çevrilmez,
+#:   * kontrollü etiket — tam anahtarla AYRICA çevrilir.
+#:
+#: Üçüncü sınıfı otomatik tespit etmek güvenilir DEĞİL: bir ifadenin
+#: kullanıcı verisi mi etiket mi olduğu kaynağına bakmadan bilinemez. Bu
+#: liste o yüzden TAHMİN değil SÖZLEŞME: buradaki adlardan okunan bir değer
+#: `trf` parametresine girerken `tr()` ile sarılmak zorundadır ve
+#: `tests/test_i18n_static_gate.py` bunu kapıya bağlar.
+#:
+#: Liste dar tutulur; her giriş gerçekten Türkçe etiket ÜRETEN bir kaynaktır.
+#: Kullanılmayan giriş bırakılmaz (kapı ölü girdiyi de yakalar), çünkü ölü
+#: giriş "korunuyor" izlenimi verir.
+CONTROLLED_LABEL_SOURCES = frozenset({
+    # Varlık türü ve altın türü enum'ları (mixins/asset_mixin.py).
+    "_asset_selected_type",
+    "asset_type",
+    "_GOLD_TYPES",
+    # Defter kaynak etiketleri ve hesap tabanı (mixins/history_mixin.py).
+    "_SOURCE_LABELS",
+    # Abonelik sıklığı (mixins/insights_mixin.py).
+    "_frequency_label",
+    # Ay ve gün adları.
+    "_MONTH_NAMES",
+    "_MONTH_KEYS",
+    "_WEEKDAY_NAMES",
+    "MONTHS",
+    # Hesap türü etiketi (services/account_service.py -> "type_label").
+    "ACCOUNT_TYPE_LABELS",
+})
+
+
 def escape_markup(text) -> str:
     """Kullanıcı verisini Kivy markup'ına GİRMEDEN önce zararsızlaştırır.
 
@@ -1119,15 +1190,29 @@ def trf(template: str, language: str | None = None, **params) -> str:
     Sıra sözleşmenin kendisi: parametreler çeviriden SONRA girdiği için
     kullanıcı verisi çeviri motoruna hiç uğramaz.
 
-    Yerleştirme `str.format` ile YAPILMAZ ve TEK GEÇİŞTE tamamlanır. İkisi de
-    kullanıcı verisi yüzünden:
-      * `str.format` değerin içindeki `{...}` ve `{}` dizilerini biçim
-        belirteci sanıp `KeyError`/`IndexError` fırlatırdı; kullanıcı
-        açıklamasına "{test}" yazmak arayüzü çökertirdi,
-      * tek geçiş, bir parametrenin içindeki `{başka}` metninin ikinci bir
-        parametreyle DEĞİŞTİRİLMESİNİ imkânsız kılar.
-    Yüzde işareti, emoji, satır sonu ve RTL karakterleri hiçbir işleme
-    girmediği için birebir korunur.
+    Yerleştirme `str.format` ile DEĞİL, dar bir `{ad}` sözleşmesiyle ve TEK
+    GEÇİŞTE yapılır. Gerekçe:
+
+      * **Dar sözleşme.** Yalnız `{ad}` biçimindeki yer tutucular tanınır.
+        `str.format`ın desteklediği biçim belirteci (`{x:>10}`), öznitelik
+        (`{x.attr}`) ve indeks (`{x[0]}`) erişimi ÇEVRİLEBİLİR bir şablonda
+        istenmiyor: sayı/tarih/para biçimlendirmesi çağrı yerinde kalmalı ve
+        bir çeviri metni nesne grafiğine uzanabilmemeli.
+      * **Doğrulanmış yer tutucu kümesi.** Şablonun beklediği adlarla verilen
+        parametreler karşılaştırılır; uyuşmazlık `TranslationTemplateError`.
+        `str.format` aynı durumda `KeyError`/`IndexError` fırlatır ve hata
+        mesajı hangi ŞABLONUN bozuk olduğunu söylemez.
+      * **Tek geçiş = öngörülebilirlik.** Bir parametrenin içindeki `{başka}`
+        metni ikinci bir parametreyle değiştirilemez; sonuç parametre
+        sırasından bağımsızdır.
+
+    DÜZELTME (önceki gerekçe yanlıştı): `str.format` YERLEŞTİRDİĞİ değeri
+    yeniden şablon olarak yorumlamaz — `"{x}".format(x="{test}")` sonucu
+    `"{test}"`tir, hata değil. Buradaki tercih bir çökme korkusuna değil,
+    yukarıdaki üç özelliğe dayanıyor.
+
+    Değerler hiçbir işleme girmediği için yüzde işareti, süslü parantez,
+    emoji, satır sonu ve RTL karakterleri birebir korunur.
     """
     if template is None:
         return ""

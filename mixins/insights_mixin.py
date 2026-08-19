@@ -475,7 +475,7 @@ class InsightsMixin:
             ))
 
         title = MDLabel(
-            text=_tf("{name}  ·  {frequency}", name=cand['name'], frequency=_frequency_label(cand['frequency'])),
+            text=_tf("{name}  ·  {frequency}", name=cand['name'], frequency=_t(_frequency_label(cand["frequency"]))),
             font_style="Subtitle2", bold=True,
             size_hint_y=None, height="24dp")
         title_row.add_widget(title)
@@ -487,7 +487,7 @@ class InsightsMixin:
                 amount=_fmt(cand['average_amount']),
                 occurrences=cand['occurrences'],
                 amount_1=_fmt(cand['monthly_cost']),
-                category=cand['category'],
+                category=_t(cand["category"]),
                 last_seen=cand['last_seen'],
             ),
             font_style="Caption", theme_text_color="Secondary",

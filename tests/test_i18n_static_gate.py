@@ -231,6 +231,113 @@ def collect_templates():
     return templates
 
 
+class ControlledValuesReachTheTranslatorTest(unittest.TestCase):
+    """Kontrollü Türkçe etiket, şablona HAM giremez.
+
+    ÖLÇÜLEN KUSUR: `trf()` sözleşmesi doğruydu ama üretim çağrıları enum
+    değerini ham veriyordu — "Select Type: Hisse", "Add New Altın",
+    "Gold Type: Gram Altın", "Type: Döviz".
+
+    OTOMATİK SINIFLANDIRMA GÜVENİLİR DEĞİL: bir ifadenin kullanıcı verisi mi
+    yoksa etiket mi olduğu kaynağa bakmadan bilinemez. O yüzden kapı TAHMİN
+    ETMİYOR, AÇIK BİR SÖZLEŞME uyguluyor: bilinen etiket KAYNAKLARI
+    (`ui.i18n.CONTROLLED_LABEL_SOURCES`) `trf` parametresine girerken
+    `tr()`den geçmek zorunda. Liste dar ve elle bakımlı; yanlış pozitif
+    üretmiyor çünkü yalnız gerçekten etiket üreten adları içeriyor.
+    """
+
+    def _controlled_source(self, node):
+        """İfade bilinen bir ETİKET KAYNAĞINDAN mı okuyor?"""
+        from ui.i18n import CONTROLLED_LABEL_SOURCES
+
+        names = set()
+        for child in ast.walk(node):
+            if isinstance(child, ast.Name):
+                names.add(child.id)
+            elif isinstance(child, ast.Attribute):
+                names.add(child.attr)
+        hit = names & set(CONTROLLED_LABEL_SOURCES)
+        return sorted(hit)[0] if hit else None
+
+    def _is_translated(self, node):
+        """İfade `tr()`/`_t()` çağrısıyla SARILMIŞ mı?"""
+        if not isinstance(node, ast.Call):
+            return False
+        func = node.func
+        name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+        return name in TRANSLATION_NAMES
+
+    def test_controlled_labels_are_translated_before_substitution(self):
+        offenders = []
+        for path in python_files():
+            name = relative(path)
+            if name in ALLOWLIST or name.startswith("tests/"):
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call) or not is_template_helper(node):
+                    continue
+                for keyword in node.keywords:
+                    if self._is_translated(keyword.value):
+                        continue
+                    source = self._controlled_source(keyword.value)
+                    if source:
+                        offenders.append(
+                            f"{name}:{node.lineno} — {keyword.arg} "
+                            f"({source} etiket kaynağı, tr() ile sarılmalı)"
+                        )
+        self.assertEqual(
+            offenders, [],
+            "Kontrollü Türkçe etiket şablona HAM giriyor; İngilizce cümlenin "
+            "ortasında Türkçe kalır:\n" + "\n".join(offenders),
+        )
+
+    def test_the_controlled_source_check_has_teeth(self):
+        """Kapı gerçekten yakalıyor mu — kusurun kendisiyle sınanıyor."""
+        broken = ast.parse(
+            '_tf("Tür Seç: {t}", t=self._asset_selected_type)'
+        )
+        call = next(node for node in ast.walk(broken)
+                    if isinstance(node, ast.Call) and is_template_helper(node))
+        keyword = call.keywords[0]
+        self.assertFalse(self._is_translated(keyword.value))
+        self.assertEqual(
+            self._controlled_source(keyword.value), "_asset_selected_type"
+        )
+
+    def test_a_translated_controlled_source_is_accepted(self):
+        fixed = ast.parse(
+            '_tf("Tür Seç: {t}", t=_t(self._asset_selected_type))'
+        )
+        call = next(node for node in ast.walk(fixed)
+                    if isinstance(node, ast.Call) and is_template_helper(node))
+        self.assertTrue(self._is_translated(call.keywords[0].value))
+
+    def test_user_data_is_not_flagged_as_a_controlled_label(self):
+        """Yanlış pozitif olmamalı: kullanıcı adı etiket kaynağı değildir."""
+        tree = ast.parse('_tf("{name} eklendi", name=payment["name"])')
+        call = next(node for node in ast.walk(tree)
+                    if isinstance(node, ast.Call) and is_template_helper(node))
+        self.assertIsNone(self._controlled_source(call.keywords[0].value))
+
+    def test_every_declared_label_source_is_still_used(self):
+        """Sözleşme listesi ÖLÜ girdi biriktirmemeli.
+
+        Kullanılmayan bir ad listede kalırsa kapı, artık var olmayan bir
+        riski koruyormuş gibi görünür.
+        """
+        from ui.i18n import CONTROLLED_LABEL_SOURCES
+
+        haystack = "".join(
+            path.read_text(encoding="utf-8")
+            for path in python_files()
+            if not relative(path).startswith("tests/")
+        )
+        unused = [name for name in CONTROLLED_LABEL_SOURCES
+                  if name not in haystack]
+        self.assertEqual(unused, [])
+
+
 class TemplateCatalogueTest(unittest.TestCase):
     def test_every_template_has_an_english_entry(self):
         from ui.i18n import EN
