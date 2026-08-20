@@ -101,63 +101,61 @@ def dynamic_kind(argument):
     return None
 
 
-#: Sözleşmenin TANIMLANDIĞI yer — kendi tanımı kullanım sayılmaz.
-CONTRACT_DEFINITION_FILE = "ui/i18n.py"
-CONTRACT_NAME = "CONTROLLED_LABEL_SOURCES"
+def controlled_sources_in_expression(node, declared):
+    """İfadede OKUNAN (Load bağlamı) beyan edilmiş kontrollü kaynaklar.
 
-
-def identifiers_used(tree):
-    """AST'de GERÇEKTEN kullanılan tanımlayıcılar.
-
-    Yalnız `Name.id` ve `Attribute.attr`. String sabitleri, yorumlar ve
-    docstring'ler tanım gereği dışarıda kalır — bu, "sözleşmenin kendi
-    tanımını kullanım sayma" şartını da kendiliğinden karşılar, çünkü
-    sözleşme girdileri string sabitidir.
+    `Store` bağlamı bilerek dışarıda: `_OLU = 1` bir KULLANIM değil, bir
+    tanımdır. Eski ölçüm bunu ayırmıyordu ve yalnız atanan bir ad kendini
+    canlı gösterebiliyordu.
     """
-    used = set()
+    found = set()
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Load):
+            identifier = sub.id
+        elif isinstance(sub, ast.Attribute) and isinstance(sub.ctx, ast.Load):
+            identifier = sub.attr
+        else:
+            continue
+        if identifier in declared:
+            found.add(identifier)
+    return found
+
+
+def controlled_sources_in_template_parameters(tree, declared):
+    """YALNIZ `trf`/`_tf`/`translate_format` KEYWORD ifadelerinde geçenler.
+
+    Sözleşmenin iddiası "bu ad kod tabanında bir yerde geçiyor" DEĞİL,
+    "bu ad şablon parametresine giriyor ve bu yüzden kapı onu koruyor".
+    Ölçüm bu yüzden şablon çağrılarıyla sınırlı.
+
+    Bu daraltma iki eski açığı birden kapatır:
+      * sözleşmenin KENDİ TANIMI artık kendiliğinden dışarıda — bir
+        `frozenset` literali şablon parametresi değildir; ayrıca girdiler
+        string sabiti olduğu için `Name`/`Attribute` de üretmezler,
+      * yorum, docstring ve string literalleri AST'de tanımlayıcı değildir.
+    """
+    found = set()
     for node in ast.walk(tree):
-        if isinstance(node, ast.Name):
-            used.add(node.id)
-        elif isinstance(node, ast.Attribute):
-            used.add(node.attr)
-    return used
-
-
-def _without_contract_definition(tree):
-    """Sözleşme atamasını ağaçtan çıkarır.
-
-    String sabitleri zaten sayılmıyor; bu adım BELT-AND-BRACES: ileride
-    sözleşme tanımı tanımlayıcı içerecek biçimde yazılırsa (ör. bir sabitin
-    yeniden kullanımı) kendi kendini canlı göstermesin.
-    """
-    for node in list(ast.walk(tree)):
-        for field, value in ast.iter_fields(node):
-            if not isinstance(value, list):
-                continue
-            value[:] = [
-                child for child in value
-                if not (
-                    isinstance(child, ast.Assign)
-                    and any(isinstance(target, ast.Name)
-                            and target.id == CONTRACT_NAME
-                            for target in child.targets)
-                )
-            ]
-    return tree
+        if not isinstance(node, ast.Call) or not is_template_helper(node):
+            continue
+        for keyword in node.keywords:
+            found |= controlled_sources_in_expression(keyword.value, declared)
+    return found
 
 
 def unused_label_sources(names):
-    """Verilen adlardan ÜRETİMDE hiç kullanılmayanlar (sıralı)."""
-    used = set()
+    """Beyan edilip ŞABLON PARAMETRESİNDE hiç görülmeyen kaynaklar.
+
+    `declared - sources_seen_in_template_parameters`.
+    """
+    declared = set(names)
+    seen = set()
     for path in python_files():
-        rel = relative(path)
-        if rel.startswith("tests/"):
+        if relative(path).startswith("tests/"):
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
-        if rel == CONTRACT_DEFINITION_FILE:
-            tree = _without_contract_definition(tree)
-        used |= identifiers_used(tree)
-    return sorted(name for name in names if name not in used)
+        seen |= controlled_sources_in_template_parameters(tree, declared)
+    return sorted(declared - seen)
 
 
 class NoDynamicTextReachesTheTranslatorTest(unittest.TestCase):
@@ -352,22 +350,21 @@ class ControlledValuesReachTheTranslatorTest(unittest.TestCase):
         )
 
     def test_the_controlled_source_check_has_teeth(self):
-        """Kapı gerçekten yakalıyor mu — kusurun kendisiyle sınanıyor."""
-        broken = ast.parse(
-            '_tf("Tür Seç: {t}", t=self._asset_selected_type)'
-        )
+        """Kapı gerçekten yakalıyor mu — kusurun kendisiyle sınanıyor.
+
+        Örnek CANLI bir kaynakla kuruluyor (`asset_type`): sözleşmede
+        olmayan bir adla sınamak, kapının o adı zaten görmeyeceği için
+        yanıltıcı bir "diş" iddiası olurdu.
+        """
+        broken = ast.parse('_tf("Tür Seç: {t}", t=asset_type)')
         call = next(node for node in ast.walk(broken)
                     if isinstance(node, ast.Call) and is_template_helper(node))
         keyword = call.keywords[0]
         self.assertFalse(self._is_translated(keyword.value))
-        self.assertEqual(
-            self._controlled_source(keyword.value), "_asset_selected_type"
-        )
+        self.assertEqual(self._controlled_source(keyword.value), "asset_type")
 
     def test_a_translated_controlled_source_is_accepted(self):
-        fixed = ast.parse(
-            '_tf("Tür Seç: {t}", t=_t(self._asset_selected_type))'
-        )
+        fixed = ast.parse('_tf("Tür Seç: {t}", t=_t(asset_type))')
         call = next(node for node in ast.walk(fixed)
                     if isinstance(node, ast.Call) and is_template_helper(node))
         self.assertTrue(self._is_translated(call.keywords[0].value))
@@ -385,20 +382,20 @@ class ControlledValuesReachTheTranslatorTest(unittest.TestCase):
         Kullanılmayan bir ad listede kalırsa kapı, artık var olmayan bir
         riski koruyormuş gibi görünür.
 
-        ÖLÇÜM AST İLE: eski hâli kaynak metinlerde düz metin araması
-        yapıyordu ve `ui/i18n.py`deki SÖZLEŞME TANIMININ KENDİSİNİ de
-        tarıyordu — tamamen ölü bir ad, yalnız kendi tanımında geçtiği için
-        "kullanılıyor" sayılıyordu (ölçüldü: uydurma bir ad eklendiğinde
-        test yeşil kalıyordu). AST yalnız GERÇEK ifadelerdeki `Name`/
-        `Attribute` düğümlerini görür: sözleşmedeki girdiler string sabiti
-        olduğu için sayılmaz, yorum ve docstring'ler zaten AST'de yoktur.
+        ÖLÇÜM ŞABLON PARAMETRELERİYLE SINIRLI. İki önceki hâl kaynak
+        metinlerde düz metin araması yapıyor ve sözleşmenin KENDİ TANIMINI
+        da tarıyordu; bir önceki hâl AST'ye geçti ama `Load`/`Store`
+        ayırmıyor ve adın kod tabanında HERHANGİ bir yerde geçmesini
+        "canlı" sayıyordu. İkisi de sözleşmenin asıl iddiasını
+        kanıtlamıyordu: bu ad ŞABLON PARAMETRESİNE giriyor ve kapı onu
+        orada koruyor.
         """
         from ui.i18n import CONTROLLED_LABEL_SOURCES
 
         self.assertEqual(unused_label_sources(CONTROLLED_LABEL_SOURCES), [])
 
-    def test_the_dead_source_check_has_teeth(self):
-        """Bilerek eklenen ölü bir ad YAKALANMALI."""
+    # ── Diş testleri: ölçümün kendisi doğru mu ───────────────────────────
+    def test_a_fake_source_is_reported_as_dead(self):
         from ui.i18n import CONTROLLED_LABEL_SOURCES
 
         fake = "_TAMAMEN_OLU_SAHTE_KAYNAK"
@@ -407,22 +404,89 @@ class ControlledValuesReachTheTranslatorTest(unittest.TestCase):
             [fake],
         )
 
-    def test_a_name_only_mentioned_in_a_comment_or_string_is_not_usage(self):
+    def test_a_name_that_is_only_assigned_is_not_alive(self):
+        """`_OLU = 1` bir KULLANIM değil, tanımdır."""
+        tree = ast.parse("_OLU = 1")
+        self.assertEqual(
+            controlled_sources_in_template_parameters(tree, {"_OLU"}), set()
+        )
+        # Doğrudan ifade seviyesinde de: Store bağlamı sayılmaz.
+        assign = tree.body[0]
+        self.assertEqual(
+            controlled_sources_in_expression(assign.targets[0], {"_OLU"}),
+            set(),
+        )
+
+    def test_a_read_outside_a_template_parameter_is_not_alive(self):
+        """Şablon dışı okuma bu SÖZLEŞME açısından canlı değildir."""
+        tree = ast.parse("x = _SOURCE_LABELS")
+        self.assertEqual(
+            controlled_sources_in_template_parameters(
+                tree, {"_SOURCE_LABELS"}),
+            set(),
+        )
+
+    def test_the_dictionary_definition_itself_is_not_alive(self):
+        """`_SOURCE_LABELS = {...}` kendini canlı gösteremez."""
+        tree = ast.parse('_SOURCE_LABELS = {"a": "b"}')
+        self.assertEqual(
+            controlled_sources_in_template_parameters(
+                tree, {"_SOURCE_LABELS"}),
+            set(),
+        )
+
+    def test_a_translated_template_parameter_is_alive(self):
+        tree = ast.parse('_tf("{x}", x=_t(_SOURCE_LABELS.get(k, k)))')
+        self.assertEqual(
+            controlled_sources_in_template_parameters(
+                tree, {"_SOURCE_LABELS"}),
+            {"_SOURCE_LABELS"},
+        )
+
+    def test_a_raw_template_parameter_is_alive_but_fails_the_safety_gate(self):
+        """Liveness ile GÜVENLİK ayrı sorular.
+
+        Ham verilen bir kaynak sözleşme açısından CANLIDIR (şablon
+        parametresine giriyor), ama ana kapı onu `tr()` ile sarılmadığı için
+        REDDEDER. İkisini birbirine karıştırmak, ham kullanımı "zaten
+        korunuyor" sanmaya yol açardı.
+        """
+        tree = ast.parse('_tf("{x}", x=_SOURCE_LABELS.get(k, k))')
+
+        self.assertEqual(
+            controlled_sources_in_template_parameters(
+                tree, {"_SOURCE_LABELS"}),
+            {"_SOURCE_LABELS"},
+        )
+
+        call = next(node for node in ast.walk(tree)
+                    if isinstance(node, ast.Call) and is_template_helper(node))
+        keyword = call.keywords[0]
+        self.assertFalse(self._is_translated(keyword.value))
+        self.assertEqual(self._controlled_source(keyword.value),
+                         "_SOURCE_LABELS")
+
+    def test_an_attribute_read_inside_a_template_parameter_is_alive(self):
+        tree = ast.parse('_tf("{x}", x=_t(self._asset_selected_type))')
+        self.assertEqual(
+            controlled_sources_in_template_parameters(
+                tree, {"_asset_selected_type"}),
+            {"_asset_selected_type"},
+        )
+
+    def test_a_name_only_in_a_comment_or_string_is_not_alive(self):
         """Yorum, docstring ve string literali KULLANIM SAYILMAZ."""
         source = "\n".join([
             '"""Docstring içinde _SADECE_YORUMDA gecen bir ad."""',
             "# Yorumda da _SADECE_YORUMDA var.",
             'ETIKET = "_SADECE_YORUMDA"',
+            '_tf("{x}", x="_SADECE_YORUMDA")',
         ])
-        self.assertNotIn("_SADECE_YORUMDA", identifiers_used(ast.parse(source)))
-
-    def test_a_real_expression_counts_as_usage(self):
-        used = identifiers_used(ast.parse("x = _t(_SOURCE_LABELS.get(k, k))"))
-        self.assertIn("_SOURCE_LABELS", used)
-
-    def test_an_attribute_access_counts_as_usage(self):
-        used = identifiers_used(ast.parse("y = _t(self._asset_selected_type)"))
-        self.assertIn("_asset_selected_type", used)
+        self.assertEqual(
+            controlled_sources_in_template_parameters(
+                ast.parse(source), {"_SADECE_YORUMDA"}),
+            set(),
+        )
 
 
 class TemplateCatalogueTest(unittest.TestCase):

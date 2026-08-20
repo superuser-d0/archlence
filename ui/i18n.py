@@ -1125,25 +1125,33 @@ def tr(text: str | None, language: str | None = None) -> str:
 #: `trf` parametresine girerken `tr()` ile sarılmak zorundadır ve
 #: `tests/test_i18n_static_gate.py` bunu kapıya bağlar.
 #:
-#: Liste dar tutulur; her giriş gerçekten Türkçe etiket ÜRETEN bir kaynaktır.
-#: Kullanılmayan giriş bırakılmaz (kapı ölü girdiyi de yakalar), çünkü ölü
-#: giriş "korunuyor" izlenimi verir.
+#: KAPSAM DAR VE ÖLÇÜLÜ. Bir girdi ancak GERÇEKTEN bir `trf`/`_tf` KEYWORD
+#: parametresinde okunuyorsa burada durur; kapı bunu AST ile ölçer ve ölü
+#: girdiyi reddeder. Metin üretimi saf yardımcılara (`asset_type_button_text`,
+#: `gold_type_button_text`, `balance_detail_text` …) taşındığında bazı adlar
+#: artık doğrudan parametreye girmiyor — onlar listeden ÇIKARILDI:
+#:
+#:   `_asset_selected_type`, `_GOLD_TYPES`  -> yardımcıya argüman olarak
+#:       geçiyorlar; yardımcının kendi parametresi (`asset_type`, `label`)
+#:       şablona giriyor. `asset_type` listede; `label` BİLEREK değil —
+#:       fazla genel bir ad, yanlış pozitif üretirdi. O yardımcıların
+#:       `_t()` davranışı gerçek üretim-yolu testleriyle korunuyor
+#:       (tests/test_i18n_controlled_values.py).
+#:   `ACCOUNT_TYPE_LABELS`                  -> önce yerel `label`e alınıp
+#:       `label=_t(label)` olarak veriliyor; aynı gerekçe.
+#:   `MONTHS`, `_MONTH_KEYS`, `_WEEKDAY_NAMES` -> düz `_t(...)` çağrılarında
+#:       kullanılıyorlar, şablon parametresinde değil. `tr()` sarmaları
+#:       yerinde; bu sözleşmenin konusu değiller.
 CONTROLLED_LABEL_SOURCES = frozenset({
-    # Varlık türü ve altın türü enum'ları (mixins/asset_mixin.py).
-    "_asset_selected_type",
+    # Varlık türü — `asset_type_button_text` / `asset_type_short_text`
+    # yardımcılarının parametresi doğrudan şablona giriyor.
     "asset_type",
-    "_GOLD_TYPES",
-    # Defter kaynak etiketleri ve hesap tabanı (mixins/history_mixin.py).
+    # Defter kaynak etiketleri (mixins/history_mixin.py::ledger_source_text).
     "_SOURCE_LABELS",
-    # Abonelik sıklığı (mixins/insights_mixin.py).
+    # Abonelik sıklığı (mixins/insights_mixin.py::recurring_candidate_title).
     "_frequency_label",
-    # Ay ve gün adları.
+    # Takvim başlığındaki ay adı (mixins/calendar_mixin.py).
     "_MONTH_NAMES",
-    "_MONTH_KEYS",
-    "_WEEKDAY_NAMES",
-    "MONTHS",
-    # Hesap türü etiketi (services/account_service.py -> "type_label").
-    "ACCOUNT_TYPE_LABELS",
 })
 
 
