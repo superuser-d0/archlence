@@ -41,6 +41,36 @@ _SOURCE_LABELS = {
 }
 
 
+def balance_basis_label(basis) -> str:
+    """Bakiyenin hangi kaynaktan hesaplandığını söyleyen KONTROLLÜ etiket.
+
+    İki sabit değer; tam anahtarla çevrilir. Ham bırakıldığında İngilizce
+    cümlenin ortasında "Günlük snapshot" kalıyordu.
+    """
+    return _t("Günlük snapshot") if basis == "snapshot" else _t("Defter replay")
+
+
+def balance_detail_text(result, format_amount) -> str:
+    """Seçilen günün bakiye ayrıntı satırı.
+
+    Saf fonksiyon: testler metni ÜRETEN kodun kendisini çağırabilsin diye.
+    Tutar biçimlendirmesi çağırandan gelir.
+    """
+    return _tf(
+        "{date} gün sonu\nBirikim hedefleri: {amount}\nKaynak: {value}",
+        date=result["date"],
+        amount=format_amount(result["savings_total"]),
+        value=balance_basis_label(result["basis"]),
+    )
+
+
+def ledger_source_text(source, count) -> str:
+    """Defter kaynağı dağılım satırı — kaynak adı KONTROLLÜ etikettir."""
+    return _tf("{source} ({count})",
+               source=_t(_SOURCE_LABELS.get(source, source)),
+               count=count)
+
+
 class HistoryMixin:
     """'Bakiye Geçmişi' diyaloğunu açan ve dolduran mixin."""
 
@@ -257,14 +287,7 @@ class HistoryMixin:
                 height=dp(44),
             ))
             details = MDLabel(
-                text=_tf(
-                    "{date} gün sonu\nBirikim hedefleri: {amount}\nKaynak: {value}",
-                    date=result['date'],
-                    amount=_fmt(result['savings_total']),
-                    # KONTROLLÜ ETİKET: iki sabit değer, tam anahtarla çevrilir.
-                value=_t("Günlük snapshot") if result["basis"] == "snapshot"
-                else _t("Defter replay"),
-                ),
+                text=balance_detail_text(result, _fmt),
                 font_style="Caption",
                 theme_text_color="Secondary",
             )
@@ -369,7 +392,7 @@ class HistoryMixin:
                 row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
                                   height=dp(24), spacing=dp(8))
                 row.add_widget(MDLabel(
-                    text=_tf("{source} ({count})", source=_t(_SOURCE_LABELS.get(source, source)), count=info['count']),
+                    text=ledger_source_text(source, info["count"]),
                     font_style="Caption",
                     theme_text_color="Secondary",
                 ))

@@ -132,6 +132,36 @@ def _fmt(value):
     return f"₺{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
+def recurring_candidate_title(candidate) -> str:
+    """Abonelik adayı kartının başlık satırı.
+
+    Ad KULLANICI VERİSİ (çevrilmez), sıklık KONTROLLÜ ETİKET (çevrilir).
+    Saf fonksiyon: testler metni ÜRETEN kodun kendisini çağırır; üretim
+    ifadesini kopyalayan bir test, üretim değiştiğinde sessizce yalan
+    söylemeye başlardı.
+    """
+    return _tf("{name}  ·  {frequency}",
+               name=candidate["name"],
+               frequency=_t(_frequency_label(candidate["frequency"])))
+
+
+def recurring_candidate_detail(candidate, format_amount) -> str:
+    """Abonelik adayı kartının ayrıntı satırı.
+
+    Tutar biçimlendirmesi ÇAĞIRANDAN geliyor (`format_amount`); bu yardımcı
+    para biçimlendirme politikasına karışmıyor.
+    """
+    return _tf(
+        "{amount} × {occurrences} kez  →  ayda {amount_1}\n"
+        "Kategori: {category}  ·  Son: {last_seen}",
+        amount=format_amount(candidate["average_amount"]),
+        occurrences=candidate["occurrences"],
+        amount_1=format_amount(candidate["monthly_cost"]),
+        category=_t(candidate["category"]),
+        last_seen=candidate["last_seen"],
+    )
+
+
 class InsightsMixin:
     """Sağlık skoru + abonelik radarı + anomali uyarılarını yöneten mixin.
 
@@ -475,21 +505,14 @@ class InsightsMixin:
             ))
 
         title = MDLabel(
-            text=_tf("{name}  ·  {frequency}", name=cand['name'], frequency=_t(_frequency_label(cand["frequency"]))),
+            text=recurring_candidate_title(cand),
             font_style="Subtitle2", bold=True,
             size_hint_y=None, height="24dp")
         title_row.add_widget(title)
         card.add_widget(title_row)
 
         detail = MDLabel(
-            text=_tf(
-                "{amount} × {occurrences} kez  →  ayda {amount_1}\nKategori: {category}  ·  Son: {last_seen}",
-                amount=_fmt(cand['average_amount']),
-                occurrences=cand['occurrences'],
-                amount_1=_fmt(cand['monthly_cost']),
-                category=_t(cand["category"]),
-                last_seen=cand['last_seen'],
-            ),
+            text=recurring_candidate_detail(cand, _fmt),
             font_style="Caption", theme_text_color="Secondary",
             size_hint_y=None, height="40dp")
         detail.bind(size=detail.setter("text_size"))

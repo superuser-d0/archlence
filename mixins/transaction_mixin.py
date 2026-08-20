@@ -22,6 +22,35 @@ def _fmt(value):
         return "₺0,00"
 
 
+#: Tekrarlayan işlem diyaloğunun sabit soru/açıklama çiftleri.
+#:
+#: KONTROLLÜ UYGULAMA METNİ — kullanıcı verisi değil; tam anahtarla
+#: çevrilirler. Modül seviyesinde duruyorlar ki hem üretim hem testler AYNI
+#: kaynaktan okusun.
+RECURRING_PERIOD_PROMPTS = {
+    True: (
+        "Bu ayki gelir hesaba eklensin mi?",
+        "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gelir hemen, "
+        "gelmediyse seçilen günde eklenir.",
+    ),
+    False: (
+        "Bu ayki gider hesaptan düşülsün mü?",
+        "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gider hemen, "
+        "gelmediyse seçilen günde düşülür.",
+    ),
+}
+
+
+def recurring_period_prompt(is_income) -> str:
+    """Tekrarlayan işlem diyaloğunun soru + açıklama metni.
+
+    Saf fonksiyon: testler metni ÜRETEN kodun kendisini çağırır.
+    """
+    question, detail = RECURRING_PERIOD_PROMPTS[bool(is_income)]
+    return _tf("{question}\n\n{detail}",
+               question=_t(question), detail=_t(detail))
+
+
 class TransactionMixin:
     """Gelir/gider işlemi ekleme akışı: dialog, kategori seçimi ve kayıt.
 
@@ -1129,18 +1158,10 @@ class TransactionMixin:
             except AttributeError:
                 pass
 
-        if getattr(self, "selected_type", "expense") == "income":
-            question = "Bu ayki gelir hesaba eklensin mi?"
-            detail = "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gelir hemen, gelmediyse seçilen günde eklenir."
-        else:
-            question = "Bu ayki gider hesaptan düşülsün mü?"
-            detail = "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gider hemen, gelmediyse seçilen günde düşülür."
+        is_income = getattr(self, "selected_type", "expense") == "income"
 
         content = MDLabel(
-            # KONTROLLÜ UYGULAMA METNİ: iki sabit cümle çifti, kullanıcı
-            # verisi değil; tam anahtarla ayrıca çevrilir.
-            text=_tf("{question}\n\n{detail}",
-                     question=_t(question), detail=_t(detail)),
+            text=recurring_period_prompt(is_income),
             size_hint_y=None,
             height=dp(110),
             theme_text_color="Secondary",

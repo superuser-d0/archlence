@@ -156,97 +156,62 @@ class AssetTypeSelectionTest(_LanguageCase):
 
 
 class AssetDialogTitleTest(_LanguageCase):
-    """"Yeni <tür> Ekle" başlığı — üretimdeki ifadenin aynısı."""
-
-    def _title(self, selected_type):
-        """`show_asset_form`un başlığı kurduğu İFADENİN kendisi.
-
-        Diyaloğun tamamını kurmak çalışan bir `MDApp` ister; ölçülen şey
-        başlık metnini üreten çağrı, widget değil. İfade üretim kodundan
-        birebir alınmıştır ve `test_the_dialog_title_expression_matches_
-        production` onun kaynakla aynı kaldığını sabitler.
-        """
-        from mixins.asset_mixin import _t, _tf
-
-        return _tf("Yeni {asset_selected_type} Ekle",
-                   asset_selected_type=_t(selected_type))
+    """ÜRETİM YOLU: `asset_form_title` — diyaloğun gerçekten çağırdığı üretici."""
 
     def test_the_title_is_fully_english(self):
+        from mixins.asset_mixin import asset_form_title
+
         self.in_english()
-        self.assertEqual(self._title("Altın"), "Add New Gold")
-        self.assertEqual(self._title("Hisse"), "Add New Stock")
+        self.assertEqual(asset_form_title("Altın"), "Add New Gold")
+        self.assertEqual(asset_form_title("Hisse"), "Add New Stock")
+
+    def test_every_asset_type_produces_an_english_title(self):
+        from mixins.asset_mixin import asset_form_title
+
+        self.in_english()
+        for turkish in ("Hisse", "Altın", "Tahvil", "Döviz", "Kripto", "Diğer"):
+            with self.subTest(asset_type=turkish):
+                title = asset_form_title(turkish)
+                self.assertTrue(title.startswith("Add New "), title)
+                self.assertNotIn(turkish, title)
 
     def test_the_title_stays_turkish_in_turkish(self):
+        from mixins.asset_mixin import asset_form_title
+
         self.in_turkish()
-        self.assertEqual(self._title("Altın"), "Yeni Altın Ekle")
-
-    def test_the_dialog_title_expression_matches_production(self):
-        """Bu testin taklit ettiği ifade üretimde GERÇEKTEN kullanılıyor mu?
-
-        Taklit testinin kör noktası tam olarak budur: üretim değişirse
-        taklit sessizce yalan söylemeye başlar. Kaynak metin kontrolü o
-        sessizliği kapatıyor.
-        """
-        from pathlib import Path
-
-        source = (Path(__file__).resolve().parents[1]
-                  / "mixins" / "asset_mixin.py").read_text(encoding="utf-8")
-        self.assertIn(
-            'title=_tf("Yeni {asset_selected_type} Ekle",\n'
-            '                    asset_selected_type=_t(self._asset_selected_type)),',
-            source,
-        )
+        self.assertEqual(asset_form_title("Altın"), "Yeni Altın Ekle")
 
 
 class GoldTypeSelectionTest(_LanguageCase):
-    """Altın türü: ilk gösterim ve seçim sonrası metin."""
-
-    def _initial_label(self):
-        from mixins.asset_mixin import AssetMixin, _t, _tf
-
-        first = AssetMixin._GOLD_TYPES[0][0]
-        return _tf("Altın Türü: {label}", label=_t(first))
-
-    def _selected_label(self, label):
-        from mixins.asset_mixin import _t, _tf
-
-        return _tf("Altın Türü: {label}", label=_t(label))
+    """ÜRETİM YOLU: `gold_type_button_text` — düğmenin çağırdığı üretici."""
 
     def test_the_first_gold_type_is_translated(self):
+        from mixins.asset_mixin import AssetMixin, gold_type_button_text
+
         self.in_english()
-        self.assertEqual(self._initial_label(), "Gold Type: Gram Gold")
+        first = AssetMixin._GOLD_TYPES[0][0]
+        self.assertEqual(gold_type_button_text(first), "Gold Type: Gram Gold")
 
     def test_every_gold_type_is_translated(self):
-        from mixins.asset_mixin import AssetMixin
+        from mixins.asset_mixin import AssetMixin, gold_type_button_text
 
         self.in_english()
         for label, _symbol, _friendly in AssetMixin._GOLD_TYPES:
             with self.subTest(gold_type=label):
-                rendered = self._selected_label(label)
+                rendered = gold_type_button_text(label)
                 self.assertTrue(rendered.startswith("Gold Type: "), rendered)
                 self.assertNotIn("Altın", rendered)
 
     def test_turkish_mode_keeps_the_turkish_gold_label(self):
+        from mixins.asset_mixin import AssetMixin, gold_type_button_text
+
         self.in_turkish()
-        self.assertEqual(self._initial_label(), "Altın Türü: Gram Altın")
-
-    def test_the_gold_expressions_match_production(self):
-        from pathlib import Path
-
-        source = (Path(__file__).resolve().parents[1]
-                  / "mixins" / "asset_mixin.py").read_text(encoding="utf-8")
-        self.assertIn(
-            'text=_tf("Altın Türü: {label}", label=_t(gold_types[0][0])),',
-            source,
-        )
-        self.assertIn(
-            'gold_btn.text = _tf("Altın Türü: {label}", label=_t(label))',
-            source,
-        )
+        first = AssetMixin._GOLD_TYPES[0][0]
+        self.assertEqual(gold_type_button_text(first), "Altın Türü: Gram Altın")
 
 
 class RecurringCandidateTest(_LanguageCase):
-    """Abonelik adayı kartı: sıklık ve kategori kontrollü etiket."""
+    """ÜRETİM YOLU: abonelik adayı kartının başlık ve ayrıntı üreticileri."""
 
     CANDIDATE = {
         "name": "Nakit",            # KULLANICI VERİSİ — çevrilmemeli
@@ -258,94 +223,127 @@ class RecurringCandidateTest(_LanguageCase):
         "last_seen": "2026-08-01",
     }
 
+    @staticmethod
+    def _format_amount(value):
+        """Üretimdeki `_fmt` yerine sabit bir biçimlendirici.
+
+        Para biçimlendirmesi bu testin konusu değil; ölçülen şey ÇEVİRİ.
+        """
+        return f"{value:,.2f}"
+
     def test_the_frequency_label_is_translated(self):
-        from mixins.insights_mixin import _frequency_label, _t, _tf
+        from mixins.insights_mixin import recurring_candidate_title
 
         self.in_english()
-        text = _tf("{name}  ·  {frequency}",
-                   name=self.CANDIDATE["name"],
-                   frequency=_t(_frequency_label(self.CANDIDATE["frequency"])))
+        text = recurring_candidate_title(self.CANDIDATE)
 
         self.assertEqual(text, "Nakit  ·  monthly")
         self.assertNotIn("aylık", text)
 
-    def test_every_frequency_key_has_an_english_label(self):
-        from mixins.insights_mixin import _frequency_label
-        from ui.i18n import tr
+    def test_the_candidate_name_is_never_translated(self):
+        """Kullanıcı verisi koruması bozulmamış olmalı."""
+        from mixins.insights_mixin import recurring_candidate_title
+
+        self.in_english()
+        text = recurring_candidate_title(dict(self.CANDIDATE, name="Ayarlar"))
+        self.assertTrue(text.startswith("Ayarlar"), text)
+        self.assertNotIn("Settings", text)
+
+    def test_every_frequency_key_is_translated_by_the_title_builder(self):
+        from mixins.insights_mixin import (
+            _frequency_label, recurring_candidate_title,
+        )
 
         self.in_english()
         for key in ("weekly", "biweekly", "monthly", "quarterly", "yearly"):
             with self.subTest(frequency=key):
-                turkish = _frequency_label(key)
-                english = tr(turkish)
-                self.assertNotEqual(
-                    english, turkish,
-                    f"'{turkish}' İngilizce karşılığı olmadan cümleye giriyor",
+                text = recurring_candidate_title(
+                    dict(self.CANDIDATE, frequency=key)
                 )
+                self.assertNotIn(_frequency_label(key), text)
 
-    def test_the_candidate_name_is_never_translated(self):
-        """Kullanıcı verisi koruması bozulmamış olmalı."""
-        from mixins.insights_mixin import _frequency_label, _t, _tf
-
-        self.in_english()
-        text = _tf("{name}  ·  {frequency}",
-                   name="Ayarlar",
-                   frequency=_t(_frequency_label("weekly")))
-        self.assertTrue(text.startswith("Ayarlar"), text)
-
-    def test_the_category_is_translated_as_a_label(self):
-        from mixins.insights_mixin import _t, _tf
+    def test_the_category_is_translated_in_the_detail_builder(self):
+        from mixins.insights_mixin import recurring_candidate_detail
+        from ui.i18n import tr
 
         self.in_english()
-        text = _tf(
-            "{amount} × {occurrences} kez  →  ayda {amount_1}\n"
-            "Kategori: {category}  ·  Son: {last_seen}",
-            amount="100,00", occurrences=3, amount_1="100,00",
-            category=_t("Dijital Platformlar"), last_seen="2026-08-01",
-        )
-        # Karşılık sözlükten gelir (ürün kararı), test onu uydurmaz —
-        # sabitlenen şey "kategori İngilizce cümlede Türkçe kalmıyor".
-        self.assertIn(_t("Dijital Platformlar"), text)
+        text = recurring_candidate_detail(self.CANDIDATE, self._format_amount)
+
+        # Karşılık sözlükten gelir (ürün kararı); sabitlenen şey kategorinin
+        # İngilizce cümlede Türkçe KALMAMASI.
+        self.assertIn(tr("Dijital Platformlar"), text)
         self.assertNotIn("Dijital Platformlar", text)
+        self.assertNotIn("Kategori:", text)
 
-    def test_the_production_expressions_translate_their_labels(self):
-        from pathlib import Path
+    def test_turkish_mode_keeps_the_turkish_labels(self):
+        from mixins.insights_mixin import recurring_candidate_title
 
-        source = (Path(__file__).resolve().parents[1]
-                  / "mixins" / "insights_mixin.py").read_text(encoding="utf-8")
-        self.assertIn('frequency=_t(_frequency_label(cand["frequency"]))', source)
-        self.assertIn('category=_t(cand["category"]),', source)
+        self.in_turkish()
+        self.assertEqual(
+            recurring_candidate_title(self.CANDIDATE), "Nakit  ·  aylık"
+        )
 
 
 class LedgerSourceLabelTest(_LanguageCase):
-    """Bakiye geçmişi: hesap tabanı ve kaynak etiketleri."""
+    """ÜRETİM YOLU: bakiye ayrıntısı ve defter kaynağı üreticileri."""
 
-    def test_the_basis_label_is_translated(self):
-        from ui.i18n import tr
+    RESULT = {
+        "date": "2026-08-01",
+        "savings_total": 1250.0,
+        "basis": "snapshot",
+    }
+
+    @staticmethod
+    def _format_amount(value):
+        return f"{value:,.2f}"
+
+    def test_the_basis_label_is_translated_by_the_builder(self):
+        from mixins.history_mixin import balance_detail_text
 
         self.in_english()
-        self.assertEqual(tr("Günlük snapshot"), "Daily snapshot")
-        self.assertEqual(tr("Defter replay"), "Ledger replay")
+        text = balance_detail_text(self.RESULT, self._format_amount)
 
-    def test_every_source_label_has_an_english_entry(self):
-        from mixins.history_mixin import _SOURCE_LABELS
-        from ui.i18n import tr
+        self.assertIn("Daily snapshot", text)
+        self.assertNotIn("Günlük snapshot", text)
+
+    def test_the_replay_basis_is_translated_too(self):
+        from mixins.history_mixin import balance_detail_text
+
+        self.in_english()
+        text = balance_detail_text(
+            dict(self.RESULT, basis="ledger"), self._format_amount
+        )
+
+        self.assertIn("Ledger replay", text)
+        self.assertNotIn("Defter replay", text)
+
+    def test_every_source_label_is_translated_by_the_builder(self):
+        from mixins.history_mixin import _SOURCE_LABELS, ledger_source_text
 
         self.in_english()
         for key, turkish in _SOURCE_LABELS.items():
             with self.subTest(source=key):
-                self.assertNotEqual(
-                    tr(turkish), turkish,
+                text = ledger_source_text(key, 3)
+                self.assertNotIn(
+                    turkish, text,
                     f"'{turkish}' İngilizce cümleye Türkçe giriyor",
                 )
+                self.assertTrue(text.endswith(" (3)"), text)
 
-    def test_the_production_expressions_translate_their_labels(self):
-        from pathlib import Path
+    def test_an_unknown_source_key_falls_back_to_itself(self):
+        """Bilinmeyen kaynak anahtarı çökmemeli, olduğu gibi görünmeli."""
+        from mixins.history_mixin import ledger_source_text
 
-        source = (Path(__file__).resolve().parents[1]
-                  / "mixins" / "history_mixin.py").read_text(encoding="utf-8")
-        self.assertIn("source=_t(_SOURCE_LABELS.get(source, source))", source)
-        self.assertIn('value=_t("Günlük snapshot")', source)
+        self.in_english()
+        self.assertEqual(ledger_source_text("bilinmeyen_kaynak", 1),
+                         "bilinmeyen_kaynak (1)")
+
+    def test_turkish_mode_keeps_the_turkish_basis(self):
+        from mixins.history_mixin import balance_detail_text
+
+        self.in_turkish()
+        text = balance_detail_text(self.RESULT, self._format_amount)
+        self.assertIn("Günlük snapshot", text)
 
 
 class SecureOperationErrorTest(_LanguageCase):
@@ -390,34 +388,38 @@ class SecureOperationErrorTest(_LanguageCase):
 
 
 class RecurringQuestionTest(_LanguageCase):
-    """Tekrarlayan işlem diyaloğunun sabit soru/açıklama çifti."""
+    """ÜRETİM YOLU: `recurring_period_prompt` — diyaloğun çağırdığı üretici."""
 
-    PAIRS = (
-        ("Bu ayki gelir hesaba eklensin mi?",
-         "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gelir hemen, "
-         "gelmediyse seçilen günde eklenir."),
-        ("Bu ayki gider hesaptan düşülsün mü?",
-         "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gider hemen, "
-         "gelmediyse seçilen günde düşülür."),
-    )
-
-    def test_both_pairs_are_fully_english(self):
-        from ui.i18n import tr, trf
+    def test_both_prompts_are_fully_english(self):
+        from mixins.transaction_mixin import (
+            RECURRING_PERIOD_PROMPTS, recurring_period_prompt,
+        )
 
         self.in_english()
-        for question, detail in self.PAIRS:
-            with self.subTest(question=question):
-                text = trf("{question}\n\n{detail}",
-                           question=tr(question), detail=tr(detail))
+        for is_income in (True, False):
+            with self.subTest(is_income=is_income):
+                text = recurring_period_prompt(is_income)
+                question, detail = RECURRING_PERIOD_PROMPTS[is_income]
+                self.assertNotIn(question, text)
+                self.assertNotIn(detail, text)
                 self.assertNotIn("seçilirse", text)
-                self.assertNotIn("Bu ayki", text)
 
-    def test_the_production_expression_translates_both(self):
-        from pathlib import Path
+    def test_the_two_parts_are_separated_by_a_blank_line(self):
+        """Şablonun yapısı da üretimden geliyor, testten değil."""
+        from mixins.transaction_mixin import recurring_period_prompt
 
-        source = (Path(__file__).resolve().parents[1]
-                  / "mixins" / "transaction_mixin.py").read_text(encoding="utf-8")
-        self.assertIn("question=_t(question), detail=_t(detail)", source)
+        self.in_english()
+        self.assertEqual(len(recurring_period_prompt(True).split("\n\n")), 2)
+
+    def test_turkish_mode_shows_the_turkish_pair(self):
+        from mixins.transaction_mixin import (
+            RECURRING_PERIOD_PROMPTS, recurring_period_prompt,
+        )
+
+        self.in_turkish()
+        question, detail = RECURRING_PERIOD_PROMPTS[True]
+        self.assertEqual(recurring_period_prompt(True),
+                         f"{question}\n\n{detail}")
 
 
 if __name__ == "__main__":

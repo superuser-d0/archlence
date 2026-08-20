@@ -1147,6 +1147,25 @@ CONTROLLED_LABEL_SOURCES = frozenset({
 })
 
 
+#: KULLANICININ KENDİ YAZDIĞI alanlar — hiçbir koşulda çevrilmez.
+#:
+#: `CONTROLLED_LABEL_SOURCES`in karşı tarafı. Bu adlardan okunan bir değer
+#: çeviri fonksiyonuna geçirilemez (kapı: `tests/test_i18n_static_gate.py`)
+#: ve envanterde ayrı bir sınıf olarak raporlanır.
+#:
+#: `type_label`, `category`, `asset_type` BURADA DEĞİL: onlar uygulamanın
+#: kendi etiket sözlüğü, kullanıcının serbest metni değil.
+USER_DATA_FIELDS = frozenset({
+    "name",
+    "goal_name",
+    "debt_name",
+    "account_name",
+    "card_name",
+    "asset_name",
+    "description",
+})
+
+
 def escape_markup(text) -> str:
     """Kullanıcı verisini Kivy markup'ına GİRMEDEN önce zararsızlaştırır.
 

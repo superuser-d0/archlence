@@ -6,6 +6,11 @@ NEDEN VAR: bu envanterin ilk elle üretilmiş hâlinde sayılar tutmuyordu
 Sayım artık koddan üretiliyor ve her satır tek bir kümeye giriyor; toplamlar
 tanım gereği kapanıyor.
 
+SINIFLANDIRMA DÜRÜSTLÜĞÜ: parametre sınıfları AST ile GÜVENİLİR biçimde
+ayrılabildiği kadar ayrılır. "Belirlenemeyen" kovası kullanıcı verisi diye
+ADLANDIRILMAZ — orada bir sayaç, bir tarih ya da bir kullanıcı adı olabilir
+ve AST bunu söyleyemez. O kova elle/semantik incelemenin konusudur.
+
 EVREN (açıkça tanımlı):
   * Yalnız ÜRETİM kodu: depo kökündeki `.py` dosyaları, `tests/` ve
     `scripts/` hariç (test/araç kodu kendi kusurunu üretmez).
@@ -118,6 +123,31 @@ def classify(rel, path):
     return rows
 
 
+def _user_field_name(node):
+    """İfade TANINAN bir kullanıcı alanını mı okuyor?
+
+    Yalnız AST'den KESİN okunabilen biçimler: `x["name"]`, `x.get("name")`,
+    `x.name`. Bunun dışındakiler "belirlenemedi" sınıfına gider — tahmin
+    edip kullanıcı verisi demiyoruz.
+    """
+    sys.path.insert(0, str(PROJECT_ROOT))
+    from ui.i18n import USER_DATA_FIELDS
+
+    if isinstance(node, ast.Subscript):
+        key = node.slice
+        if isinstance(key, ast.Constant) and key.value in USER_DATA_FIELDS:
+            return str(key.value)
+    if isinstance(node, ast.Call):
+        func = node.func
+        if isinstance(func, ast.Attribute) and func.attr == "get" and node.args:
+            first = node.args[0]
+            if isinstance(first, ast.Constant) and first.value in USER_DATA_FIELDS:
+                return str(first.value)
+    if isinstance(node, ast.Attribute) and node.attr in USER_DATA_FIELDS:
+        return node.attr
+    return None
+
+
 def parameter_rows():
     """Şablon çağrılarının PARAMETRELERİ — ayrı bir evren, ayrı toplam."""
     rows = []
@@ -136,14 +166,24 @@ def parameter_rows():
                 translated = (isinstance(keyword.value, ast.Call)
                               and _is_translator(keyword.value))
                 formatted = expr.startswith(('f"', "f'"))
+                user_field = _user_field_name(keyword.value)
+                # SIRA ÖNEMLİ ve kümeler AYRIK: çevrilmiş etiket > tanınan
+                # kullanıcı alanı > biçimlenmiş değer > belirlenemedi.
+                if translated:
+                    bucket = "controlled-label-translated"
+                elif user_field:
+                    bucket = "user-data-field"
+                elif formatted:
+                    bucket = "formatted-value"
+                else:
+                    bucket = "undetermined"
                 rows.append({
                     "file": rel,
                     "line": node.lineno,
                     "param": keyword.arg,
                     "expr": expr,
-                    "bucket": ("controlled-label-translated" if translated
-                               else "formatted-value" if formatted
-                               else "user-data-or-plain-value"),
+                    "user_field": user_field,
+                    "bucket": bucket,
                 })
     return rows
 
@@ -192,8 +232,18 @@ def main():
     print()
     print(f"BENZERSİZ ŞABLON: {report['unique_templates']}")
     print(f"TOPLAM ŞABLON PARAMETRESİ: {report['parameters_total']}")
+    labels = {
+        "controlled-label-translated":
+            "tr() ile çevrilmiş kontrollü etiket   (AST ile ölçüldü)",
+        "user-data-field":
+            "tanınan kullanıcı alanı              (AST ile ölçüldü)",
+        "formatted-value":
+            "biçimlenmiş değer (f-string)         (AST ile ölçüldü)",
+        "undetermined":
+            "semantiği AST'den belirlenemeyen     (elle sınıflandırılır)",
+    }
     for bucket, count in sorted(param_buckets.items(), key=lambda i: -i[1]):
-        print(f"  {count:5}  {bucket}")
+        print(f"  {count:5}  {labels.get(bucket, bucket)}")
     print(f"  {'-' * 5}")
     print(f"  {sum(param_buckets.values()):5}  (toplam — kümeler ayrık)")
 

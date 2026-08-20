@@ -113,8 +113,49 @@ class SavingsCardVerifier(ArchlenceApp):
         self.observations["container_tab"] = tab
         if tab:
             nav.switch_tab(tab)
+        # BELLEĞİ ÖNCE SQL'DEN TAZELE. `savings_goals` açılışta arka plan
+        # tazelemesiyle doluyor; `_enter` o tazelemeden ÖNCE koşarsa liste
+        # boş oluyor ve render hiçbir kart çizmiyordu (ölçüldü: beş koşumun
+        # üçünde `goals_in_memory` doluyken `cards_rendered=1`). Bu bir ÖLÇÜM
+        # YARIŞIYDI; `load_savings_goals` zaten üretimin kendi yeniden yükleme
+        # yolu, yani kapı hâlâ gerçek kod yolunu çalıştırıyor.
+        self.load_savings_goals()
         self.render_savings_goals(0)
-        Clock.schedule_once(self._check_initial_render, 1.5)
+        self._render_deadline = 0
+        self._previous_draw_count = -1
+        Clock.schedule_once(self._await_cards, 0.3)
+
+    def _await_cards(self, _dt):
+        """Kartların TAMAMI çizilene kadar bekler — sabit süre YETMİYOR.
+
+        `render_savings_goals` kartları FRAME BAŞINA BİR TANE çiziyor
+        (`Clock.schedule_once(... draw_goal(idx + 1), 0)`). Sabit 1.5 sn
+        beklemek yükün altında yetmiyordu ve kapı ölçüm anında yalnız 1 kart
+        görüp kırmızı veriyordu — üründe kusur yokken (ölçüldü: aynı koşumda
+        yatırma/silme adımları tam durumu gördü). Bu bir ÖLÇÜM YARIŞIYDI.
+
+        Bekleme SINIRLI: kartlar gerçekten hiç çizilmezse kapı yine kırmızı
+        verir, yani dişleri kaybolmuyor.
+        """
+        # Beklenen sayı TOHUMDAN geliyor, bellekteki listeden değil: liste
+        # henüz dolmamışsa `0 >= 0` ile döngü hemen çıkar ve kapı boş ekranı
+        # "tamam" sanardı.
+        #
+        # ÜST ÜSTE İKİ kez doğru sayıyı görmek şart. Arka plan dashboard
+        # tazelemesi kendi `render_savings_goals` çağrısını yapıyor ve o çağrı
+        # kabı ÖNCE temizleyip kartları frame başına bir tane yeniden çiziyor;
+        # tek ölçüm o yeniden çizimin ortasına düşebiliyordu (ölçüldü:
+        # cards_rendered=1, container_children=1, hedefler bellekte tam).
+        expected = len(SEED)
+        drawn = len(self._cards())
+        self._render_deadline += 1
+        settled = drawn == expected and self._previous_draw_count == drawn
+        self._previous_draw_count = drawn
+        if not settled and self._render_deadline < 40:
+            Clock.schedule_once(self._await_cards, 0.2)
+            return
+        self.observations["render_polls"] = self._render_deadline
+        Clock.schedule_once(self._check_initial_render, 0.3)
 
     def _container_tab_name(self):
         from kivymd.uix.bottomnavigation import MDBottomNavigationItem

@@ -101,6 +101,65 @@ def dynamic_kind(argument):
     return None
 
 
+#: Sözleşmenin TANIMLANDIĞI yer — kendi tanımı kullanım sayılmaz.
+CONTRACT_DEFINITION_FILE = "ui/i18n.py"
+CONTRACT_NAME = "CONTROLLED_LABEL_SOURCES"
+
+
+def identifiers_used(tree):
+    """AST'de GERÇEKTEN kullanılan tanımlayıcılar.
+
+    Yalnız `Name.id` ve `Attribute.attr`. String sabitleri, yorumlar ve
+    docstring'ler tanım gereği dışarıda kalır — bu, "sözleşmenin kendi
+    tanımını kullanım sayma" şartını da kendiliğinden karşılar, çünkü
+    sözleşme girdileri string sabitidir.
+    """
+    used = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            used.add(node.id)
+        elif isinstance(node, ast.Attribute):
+            used.add(node.attr)
+    return used
+
+
+def _without_contract_definition(tree):
+    """Sözleşme atamasını ağaçtan çıkarır.
+
+    String sabitleri zaten sayılmıyor; bu adım BELT-AND-BRACES: ileride
+    sözleşme tanımı tanımlayıcı içerecek biçimde yazılırsa (ör. bir sabitin
+    yeniden kullanımı) kendi kendini canlı göstermesin.
+    """
+    for node in list(ast.walk(tree)):
+        for field, value in ast.iter_fields(node):
+            if not isinstance(value, list):
+                continue
+            value[:] = [
+                child for child in value
+                if not (
+                    isinstance(child, ast.Assign)
+                    and any(isinstance(target, ast.Name)
+                            and target.id == CONTRACT_NAME
+                            for target in child.targets)
+                )
+            ]
+    return tree
+
+
+def unused_label_sources(names):
+    """Verilen adlardan ÜRETİMDE hiç kullanılmayanlar (sıralı)."""
+    used = set()
+    for path in python_files():
+        rel = relative(path)
+        if rel.startswith("tests/"):
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        if rel == CONTRACT_DEFINITION_FILE:
+            tree = _without_contract_definition(tree)
+        used |= identifiers_used(tree)
+    return sorted(name for name in names if name not in used)
+
+
 class NoDynamicTextReachesTheTranslatorTest(unittest.TestCase):
     def test_no_dynamic_expression_is_passed_to_a_translation_function(self):
         offenders = []
@@ -325,17 +384,45 @@ class ControlledValuesReachTheTranslatorTest(unittest.TestCase):
 
         Kullanılmayan bir ad listede kalırsa kapı, artık var olmayan bir
         riski koruyormuş gibi görünür.
+
+        ÖLÇÜM AST İLE: eski hâli kaynak metinlerde düz metin araması
+        yapıyordu ve `ui/i18n.py`deki SÖZLEŞME TANIMININ KENDİSİNİ de
+        tarıyordu — tamamen ölü bir ad, yalnız kendi tanımında geçtiği için
+        "kullanılıyor" sayılıyordu (ölçüldü: uydurma bir ad eklendiğinde
+        test yeşil kalıyordu). AST yalnız GERÇEK ifadelerdeki `Name`/
+        `Attribute` düğümlerini görür: sözleşmedeki girdiler string sabiti
+        olduğu için sayılmaz, yorum ve docstring'ler zaten AST'de yoktur.
         """
         from ui.i18n import CONTROLLED_LABEL_SOURCES
 
-        haystack = "".join(
-            path.read_text(encoding="utf-8")
-            for path in python_files()
-            if not relative(path).startswith("tests/")
+        self.assertEqual(unused_label_sources(CONTROLLED_LABEL_SOURCES), [])
+
+    def test_the_dead_source_check_has_teeth(self):
+        """Bilerek eklenen ölü bir ad YAKALANMALI."""
+        from ui.i18n import CONTROLLED_LABEL_SOURCES
+
+        fake = "_TAMAMEN_OLU_SAHTE_KAYNAK"
+        self.assertEqual(
+            unused_label_sources(set(CONTROLLED_LABEL_SOURCES) | {fake}),
+            [fake],
         )
-        unused = [name for name in CONTROLLED_LABEL_SOURCES
-                  if name not in haystack]
-        self.assertEqual(unused, [])
+
+    def test_a_name_only_mentioned_in_a_comment_or_string_is_not_usage(self):
+        """Yorum, docstring ve string literali KULLANIM SAYILMAZ."""
+        source = "\n".join([
+            '"""Docstring içinde _SADECE_YORUMDA gecen bir ad."""',
+            "# Yorumda da _SADECE_YORUMDA var.",
+            'ETIKET = "_SADECE_YORUMDA"',
+        ])
+        self.assertNotIn("_SADECE_YORUMDA", identifiers_used(ast.parse(source)))
+
+    def test_a_real_expression_counts_as_usage(self):
+        used = identifiers_used(ast.parse("x = _t(_SOURCE_LABELS.get(k, k))"))
+        self.assertIn("_SOURCE_LABELS", used)
+
+    def test_an_attribute_access_counts_as_usage(self):
+        used = identifiers_used(ast.parse("y = _t(self._asset_selected_type)"))
+        self.assertIn("_asset_selected_type", used)
 
 
 class TemplateCatalogueTest(unittest.TestCase):
@@ -408,12 +495,16 @@ class UserDataNeverReachesTheTranslatorTest(unittest.TestCase):
     örneği (kusurun anlatıldığı yer) yanlış pozitif üretiyordu.
     """
 
-    #: Kullanıcının kendi yazdığı alanlar. `type_label`, `category`,
-    #: `asset_type` BİLEREK yok: onlar uygulamanın kendi etiket sözlüğü.
-    USER_FIELDS = {
-        "name", "goal_name", "debt_name", "account_name", "description",
-        "card_name", "asset_name",
-    }
+    @property
+    def USER_FIELDS(self):
+        """Sözleşmenin TEK kaynağı `ui.i18n.USER_DATA_FIELDS`.
+
+        Testin kendi kopyasını tutması, iki listenin sessizce ayrışmasına
+        açık kapı bırakıyordu; envanter aracı da aynı kaynağı okuyor.
+        """
+        from ui.i18n import USER_DATA_FIELDS
+
+        return USER_DATA_FIELDS
 
     def _user_field(self, argument):
         """İfade bir kullanıcı alanını okuyor mu?"""

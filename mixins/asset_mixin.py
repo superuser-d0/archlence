@@ -226,6 +226,36 @@ class AssetTypeMenuItem(_OneLineIconListItem):
 _Factory.register("AssetTypeMenuItem", cls=AssetTypeMenuItem)
 
 
+def asset_type_button_text(asset_type) -> str:
+    """Tür seçim düğmesinin metni.
+
+    KONTROLLÜ ENUM: iç mantık Türkçe değerle çalışmaya devam eder
+    (`self._asset_selected_type == "Altın"` gibi karşılaştırmalar);
+    çevrilen yalnız GÖRÜNTÜ değeridir.
+
+    Saf fonksiyon olarak duruyor ki testler metni ÜRETEN kodun kendisini
+    çağırabilsin — üretim ifadesini kopyalayıp kaynakta arayan test,
+    üretim değiştiğinde sessizce yalan söylemeye başlar.
+    """
+    return _tf("Tür Seç: {asset_type}", asset_type=_t(asset_type))
+
+
+def asset_type_short_text(asset_type) -> str:
+    """Eski uyumluluk dropdown'ının kısa etiketi."""
+    return _tf("Tür: {asset_type}", asset_type=_t(asset_type))
+
+
+def asset_form_title(asset_type) -> str:
+    """"Yeni <tür> Ekle" diyalog başlığı."""
+    return _tf("Yeni {asset_selected_type} Ekle",
+               asset_selected_type=_t(asset_type))
+
+
+def gold_type_button_text(label) -> str:
+    """Altın türü düğmesinin metni (ilk gösterim ve seçim sonrası aynı)."""
+    return _tf("Altın Türü: {label}", label=_t(label))
+
+
 class AssetMixin:
     def show_add_asset_dialog(self):
         """Varlık türü seçim diyaloğunu açar. Hisse için BIST100 picker'a yönlendirir."""
@@ -255,10 +285,7 @@ class AssetMixin:
         )
 
         type_btn = MDRaisedButton(
-            text=_tf("Tür Seç: {asset_selected_type}",
-                     # KONTROLLÜ ENUM: iç mantık Türkçe değerle çalışmaya
-                     # devam ediyor; yalnız GÖRÜNTÜ değeri çevriliyor.
-                     asset_selected_type=_t(self._asset_selected_type)),
+            text=asset_type_button_text(self._asset_selected_type),
             size_hint_x=1,
             md_bg_color=self.theme_cls.primary_color, elevation=0,
         )
@@ -303,7 +330,7 @@ class AssetMixin:
     def _select_asset_type_main(self, asset_type, button):
         """Tür seçim diyaloğundaki dropdown için handler."""
         self._asset_selected_type = asset_type
-        button.text = _tf("Tür Seç: {asset_type}", asset_type=_t(asset_type))
+        button.text = asset_type_button_text(asset_type)
         self._asset_type_menu.dismiss()
 
     def _on_asset_type_confirmed(self):
@@ -890,13 +917,13 @@ class AssetMixin:
                 size_hint_y=None, height="36dp",
             )
             gold_btn = MDRaisedButton(
-                text=_tf("Altın Türü: {label}", label=_t(gold_types[0][0])),
+                text=gold_type_button_text(gold_types[0][0]),
                 size_hint_x=1,
                 md_bg_color=GOLD_ICON_COLOR,
             )
 
             def _select_gold_type(label, symbol, friendly_name):
-                gold_btn.text = _tf("Altın Türü: {label}", label=_t(label))
+                gold_btn.text = gold_type_button_text(label)
                 self._asset_code_input.text = symbol
                 self._asset_name_input.text = friendly_name
                 self._gold_type_menu.dismiss()
@@ -969,8 +996,7 @@ class AssetMixin:
         scroll_content.add_widget(content)
 
         self.asset_dialog = MDDialog(
-            title=_tf("Yeni {asset_selected_type} Ekle",
-                    asset_selected_type=_t(self._asset_selected_type)),
+            title=asset_form_title(self._asset_selected_type),
             type="custom",
             content_cls=scroll_content,
             buttons=[
@@ -1151,7 +1177,7 @@ class AssetMixin:
     def _select_asset_type(self, asset_type, button, menu):
         """Eski uyumluluk — diğer varlık formu dropdown'ı için."""
         self._asset_selected_type = asset_type
-        button.text = _tf("Tür: {asset_type}", asset_type=_t(asset_type))
+        button.text = asset_type_short_text(asset_type)
         menu.dismiss()
 
     def _save_new_asset(self):
