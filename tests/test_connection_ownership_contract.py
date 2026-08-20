@@ -5,8 +5,9 @@ SAYIYOR. O ölçüm iki nedenle kırılgan: (1) yalnız Linux'ta `/proc` ile
 çalışır, (2) sızan `sqlite3.Connection` nesneleri statement cache üzerinden
 referans döngüsüne girdiği için descriptor'lar generational GC'ye kadar
 ayakta kalır — yani FD deltası "sızıntı yok"u değil "GC henüz koşmadı"yı da
-gösterebilir. Tam olarak bu belirsizlik, P2-7 denetim bulgusunun yanlış
-yorumlanmasına yol açtı (bkz. docs/audits/V0_0_9_PRE_WINDOWS_GATE.md).
+gösterebilir. Tam olarak bu belirsizlik, geçmiş bir denetim bulgusunun
+yanlış yorumlanmasına yol açtı: sızıntı sanılan şey ölçüm probe'unun
+kendisiydi.
 
 Buradaki testler bunun yerine AÇMA/KAPAMA SAYIYOR: `sqlite3.connect`
 sarmalanır, her açılan bağlantı kaydedilir, blok sonunda

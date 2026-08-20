@@ -53,16 +53,16 @@ _REAL_STDERR = sys.stderr
 # `import main` çağrıları üst-seviye kodu tekrar ÇALIŞTIRMAZ. Yani bu
 # değişkeni yalnızca tek tek dosyaların kendi başına set etmesine güvenmek,
 # "hangi dosya önce import edildi" sırasına bağlı kırılgan bir davranış
-# üretirdi (bkz. docs/ROADMAP.md Faz 1 madde 2 — main.py artık gerçek
-# pencere kurulamadığında yalnızca bu bayrak açıkça set edildiyse sessizce
-# stub sınıflara düşüyor, aksi hâlde görünür şekilde patlıyor).
+# üretirdi: `main.py` gerçek pencere kurulamadığında yalnızca bu bayrak
+# açıkça set edildiyse sessizce stub sınıflara düşer, aksi hâlde görünür
+# şekilde patlar.
 os.environ.setdefault("ARCHLENCE_HEADLESS", "1")
 
 # Aynı sıralama kırılganlığı bir kademe daha derinde de var: main.py'nin
 # kendi ARCHLENCE_HEADLESS bloğu SDL_VIDEODRIVER=dummy / KIVY_WINDOW=sdl2
-# set ediyor (bkz. main.py, docs/ROADMAP.md Faz 1 madde 2 — CI'da display
-# sunucusu hiç yokken Kivy'nin ham x11 sağlayıcısı süreci OS seviyesinde
-# çökertiyordu). Ama Kivy kendi `kivy_options` sözlüğünü, `kivy` paketi
+# set ediyor (bkz. main.py — CI'da display sunucusu hiç yokken Kivy'nin ham
+# x11 sağlayıcısı süreci OS seviyesinde çökertiyordu). Ama Kivy kendi
+# `kivy_options` sözlüğünü, `kivy` paketi
 # İLK import edildiğinde (main.py'den bağımsız olarak) bir kere okuyup
 # sabitliyor. Bazı mixin dosyaları (ör. mixins/transaction_mixin.py) kendi
 # tepesinde `from kivy.clock import Clock` yapıyor ve bir test METODU

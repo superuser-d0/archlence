@@ -59,8 +59,8 @@ jobs:
         # test results, which would have made this check meaningless).
         #
         # ARCHLENCE_HEADLESS: main.py no longer silently falls back to stub
-        # UI classes unless this is explicitly set (docs/ROADMAP.md Faz 1
-        # madde 2 — the old DISPLAY-based guess was actively broken).
+        # UI classes unless this is explicitly set (the old DISPLAY-based
+        # guess was actively broken).
         #
         # SDL_VIDEODRIVER / KIVY_WINDOW: this runner has no display server
         # at all. Without these, Kivy's provider search reaches the raw
@@ -276,7 +276,7 @@ jobs:
           --exclude=.venv,venv,build,dist,.git,AppDir
           --count
 
-      # ARTIK BLOKLUYOR (docs/ROADMAP.md Faz 0 kapandı).
+      # ARTIK BLOKLUYOR — borç sıfırlandığı için kapı bedava.
       #
       # Bu adım uzun süre `continue-on-error: true` ile bilgilendiriciydi,
       # çünkü 122 mevcut ihlal vardı ve zorunlu yapmak her PR'ı ilgisiz

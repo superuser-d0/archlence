@@ -1,6 +1,6 @@
 """Restore sözleşmesi: hedefler tek generation olarak geri geliyor (dilim 4).
 
-Sabitlenen şeyler (docs/SAVINGS_SINGLE_SOURCE_PLAN.md §5):
+Sabitlenen şeyler (docs/ARCHITECTURE.md):
 
   * Backup → BOŞ profil → restore, hedefin BÜTÜN alanlarını geri getiriyor:
     goal_uid, ad, hedef tutarı, biriken tutar, hedef tarihi, durum,

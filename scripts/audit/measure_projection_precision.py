@@ -4,7 +4,8 @@ A (mevcut float RK4) / B (yüksek hassasiyetli Decimal RK4) / C (analitik
 referans) üçlüsünü aynı vakalar üzerinde koşturur. Üretim kodu
 DEĞİŞTİRİLMEZ; `project_wealth_series` olduğu gibi çağrılır.
 
-Kararın kendisi ve okunmuş hâli: `docs/audits/PROJECTION_FLOAT_AUDIT.md`.
+ÖLÇÜMÜN SONUCU (karar): RK4 çekirdeği bilinçli olarak float kalır — 22
+vakanın 21'inde kuruş aynı çıktı ve Decimal çekirdek 4,1x maliyetliydi.
 
 Bilerek CI kapısı DEĞİL ve test paketine bağlı değil: ürettiği sayılar
 kayan nokta aritmetiğinin özellikleri, uygulamanın verdiği sözler değil.

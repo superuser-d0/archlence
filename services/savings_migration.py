@@ -1,6 +1,6 @@
 """Eski `savings_goals.json` kayıtlarını SQLite'a taşıyan göç motoru.
 
-NEDEN VAR (docs/SAVINGS_SINGLE_SOURCE_PLAN.md): birikim hedefleri iki yerde
+NEDEN VAR (sözleşme: docs/ARCHITECTURE.md): birikim hedefleri iki yerde
 yaşıyordu — para SQLite'ta, ekrandaki kart `savings_goals.json`'da. JSON hedefi
 yalnız SAYISAL id ile işaretliyordu ve `sqlite_sequence` `finance.db`'nin
 içinde olduğu için restore o sayacı geri sarıyordu: restore'dan sonra açılan

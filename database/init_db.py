@@ -19,10 +19,11 @@ from utils.errors import SchemaTooNewError
 # aşağıdaki reddetme yolu var olan hiçbir kurulumda tetiklenemez; ancak
 # birisi ileride daha yeni bir yapı çalıştırıp sonra geri dönerse devreye girer.
 #
-# 2 = birikim hedeflerinin tek doğruluk kaynağı SQLite kuşağı
-# (docs/SAVINGS_SINGLE_SOURCE_PLAN.md). Bump BİLİNÇLİ ve kuralın "sütun
-# eklemek yetmez" tarafına RAĞMEN yapıldı, çünkü değişen şey yalnız sütunlar
-# değil OKUMA SÖZLEŞMESİ: bu kuşaktan itibaren hedefler yalnız SQL'den
+# 2 = birikim hedeflerinin tek doğruluk kaynağı SQLite kuşağı; sözleşme
+# docs/ARCHITECTURE.md — "Persistence and financial integrity". Bump
+# BİLİNÇLİ ve kuralın "sütun eklemek yetmez" tarafına RAĞMEN yapıldı,
+# çünkü değişen şey yalnız sütunlar değil OKUMA SÖZLEŞMESİ: bu kuşaktan
+# itibaren hedefler yalnız SQL'den
 # okunuyor ve `savings_goals.json` artık veri kaynağı değil. Eski bir yapı bu
 # veritabanını açsaydı hedefleri yine bayat JSON'la birlikte yorumlar ve
 # düzeltilen kimlik-yeniden-kullanım kusurunu geri getirirdi — üstelik
@@ -485,10 +486,10 @@ def _initialize_database(conn):
     # şifreli kolonla "current_amount = current_amount + ?" yazılamazdı.
     # status: 'aktif' | 'tamamlandi'
     #
-    # goal_uid: NESİLLER ARASI KALICI KİMLİK (docs/SAVINGS_SINGLE_SOURCE_PLAN.md
-    # §3). Sayısal `id` bu işi YAPAMAZ: `sqlite_sequence` `finance.db`'nin
-    # İÇİNDE olduğu için restore sayacı da geri sarıyor ve restore'dan sonra
-    # açılan hedef, eski bir kaydın id'sini yeniden alıyor
+    # goal_uid: NESİLLER ARASI KALICI KİMLİK. Sayısal `id` bu işi YAPAMAZ:
+    # `sqlite_sequence` `finance.db`'nin İÇİNDE olduğu için restore sayacı
+    # da geri sarıyor ve restore'dan sonra açılan hedef, eski bir kaydın
+    # id'sini yeniden alıyor
     # (tests/test_savings_identity_reuse_regression.py). `id` yine de KALIYOR:
     # `balance_events.entity_id` ona bağlı, kaldırmak defteri kırardı.
     cursor.execute(

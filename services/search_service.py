@@ -6,7 +6,7 @@ ikisi de düz metin (bkz. account_service.py'nin tepesindeki not: hesap adı
 bir sınır: o alanlar AES ile şifreli tutuluyor, yani orada arama yapmak filtreyi
 SQL'e itmek yerine bir çalışma kümesini belleğe çözmek demek. 50.000 işlemli bir
 profilde tüm veriyi çözmek 1,1 sn sürüyor (docs/performance/benchmark-results-windows.json).
-Bu tur o maliyeti almıyor; kararın kaydı docs/ROADMAP.md Phase 2'de.
+Bu tur o maliyeti almıyor; kararın ölçümlü kaydı CHANGELOG.md'de (v0.0.12).
 
 TÜRKÇE KATLAMA BU DOSYANIN ASIL İŞİ. Depoda hâlihazırda arama yapan iki yer
 (mixins/budget_mixin.py, mixins/asset_mixin.py) düz `.casefold()` kullanıyor ve

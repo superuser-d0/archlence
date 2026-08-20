@@ -1,6 +1,6 @@
 """Arayüz/servis sınırı: hedefler yalnız SQL'den besleniyor (dilim 3).
 
-Sabitlenen sözleşme (docs/SAVINGS_SINGLE_SOURCE_PLAN.md §9):
+Sabitlenen sözleşme (docs/ARCHITECTURE.md):
 
   * `main.py` hedefleri `JsonStore` üzerinden OKUMUYOR,
   * `SavingsMixin` listeyi `SavingsService.get_goals()`'tan alıyor,

@@ -7,23 +7,22 @@ yapılmadı; `main.py` ve controller'lar konusunda kod değişmedi.
 ve merge edildi. Bu, ayrıştırmanın onaylandığı anlamına GELMEZ; o kapı
 ayrıştırma hiç yapılmasa bile değerli olduğu için ayrıca ele alındı.
 
-Kaynak madde: `docs/ROADMAP.md` Phase 2 — *"`main.py` ~1.800 satır ve
-`ArchlenceApp` uzun bir mixin listesinden miras alıyor. Ekran davranışını ayrı
-controller/view-model sınıflarına ayır; `ArchlenceApp`'i yalnız uygulama yaşam
-döngüsüne indir."*
+Kaynak madde: [`docs/ROADMAP.md`](ROADMAP.md) — açık iş 1. Ekran davranışı
+ayrı controller/view-model sınıflarına ayrılacak, `ArchlenceApp` yalnız
+uygulama yaşam döngüsüne inecek.
 
 ---
 
 ## 0. Ölçülen mevcut durum
 
-ROADMAP'in sayıları bayat. 2026-08-17 itibarıyla:
+2026-08-17 itibarıyla ölçülen değerler:
 
-| | ROADMAP diyor | Gerçek |
-|---|---|---|
-| `main.py` | ~1.800 satır | **2.280** |
-| Mixin sayısı | "uzun bir liste" | **17** |
-| `ui/dashboard.kv` | — | 2.762 satır |
-| Test paketi | — | 996 test |
+| | Ölçülen |
+|---|---|
+| `main.py` | **2.280 satır** |
+| Mixin sayısı | **17** |
+| `ui/dashboard.kv` | 2.762 satır |
+| Test paketi | 996 test |
 
 Mixin'lerin dağılımı — asıl kütle `main.py`'de değil, mixin'lerde:
 
@@ -243,9 +242,8 @@ bağları, testlerin yakalayamayacağı tek yer ve §4'teki kapı yazılmadan bu
 kabul edilemez.
 
 **Alternatif:** hiç yapmamak. `main.py` 2.280 satırla çalışıyor, testler yeşil,
-kullanıcı etkilenmiyor. Bu madde ROADMAP'te "Phase 2 — sürüm engelleyici değil"
-altında ve o sınıflandırma doğru. Ayrıştırma bir bakım yatırımı, bir düzeltme
-değil.
+kullanıcı etkilenmiyor. Bu madde sürüm engelleyici DEĞİL ve o sınıflandırma
+doğru. Ayrıştırma bir bakım yatırımı, bir düzeltme değil.
 
 **Önerim:** §4'teki kapıyı (`test_kv_app_surface.py`) ayrıştırmadan bağımsız
 olarak **şimdi** yaz — küçük, tek başına değerli ve `.kv`'nin sessiz kırılma

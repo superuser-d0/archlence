@@ -5,7 +5,7 @@ NEDEN VAR: `fetch_active_non_try_total` her varlığın değerini
 topluyordu. `calculate_pnl`'de kapatılan sınıfın aynısı: çarpım yuvarlama
 sınırına düştüğünde ikili gösterim yarım kuruşu yutuyor.
 
-Denetimde ölçüldü (`docs/audits/PORTFOLIO_TOTAL_AUDIT.md`), ve önemli olan
+Ölçülerek doğrulandı, ve önemli olan
 şu: bu vakalar uydurma değil, Archlence'in KENDİ hassasiyet politikası
 içinde — kripto miktarı 8 hane, hisse 6 hane, fiyatlar iki-üç ondalık.
 

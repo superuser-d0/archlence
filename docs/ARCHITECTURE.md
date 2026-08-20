@@ -66,7 +66,7 @@ Important contracts include:
   `goal_uid` (UUIDv4), every card operation is verified against it, and the
   service refuses fail-closed when the numeric id and the uid disagree. The
   numeric id remains as the internal key because `balance_events.entity_id`
-  depends on it. See `docs/SAVINGS_SINGLE_SOURCE_PLAN.md`.
+  depends on it.
 
 Financial-logic pull requests should prove these contracts with regression
 tests covering success, rollback, and failure paths.
@@ -108,6 +108,16 @@ widget callbacks.
 UI changes should be checked in both languages, light and dark themes where
 relevant, and representative display scaling. Include screenshots or a short
 recording in the pull request.
+
+The home search field is the project's own `SearchBar` component — one rounded
+surface plus one rounded border — rather than KivyMD's `MDTextField` with
+`mode: "round"`, which draws its right cap as a half ellipse the middle
+rectangle does not fully cover and leaves a visible vertical seam. The home
+`ScrollView` also keeps its visual bar indicator disabled while wheel and touch
+scrolling stay available. `scripts/dev/verify_search_bar_visual.py` measures
+both in a real SDL window across light/dark, focus/unfocus, resize, and
+high-DPI, and runs in CI; do not replace the component with a stock round text
+field without re-running it.
 
 ### Translation contract
 
@@ -165,6 +175,12 @@ Further rules:
 `python run_tests.py` is the primary suite entry point. It establishes the
 headless environment before Kivy imports and preserves test reporting and exit
 status.
+
+Discovery covers `tests/` only. `scripts/audit/` holds diagnostic and
+adversarial reproduction tools that are deliberately outside the suite —
+some are expected to be red until the behaviour they reproduce is fixed, and
+the ones that are real gates (schema consistency, version mutation matrix)
+are wired into CI as their own steps.
 
 The Tests workflow runs the suite on Linux and Windows. Linux jobs also enforce
 critical lint rules, the broad-exception baseline, selected type checks, version

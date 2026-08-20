@@ -1,7 +1,7 @@
 """Kimlik yeniden kullanımı: restore sonrası para YANLIŞ hedefe gidiyor.
 
-ÖLÇÜLEN KUSUR (docs/SAVINGS_SINGLE_SOURCE_PLAN.md §1b). Birikim hedefleri iki
-yerde yaşıyor: para SQLite'ta, ekrandaki kart ise `savings_goals.json`'da. JSON
+ÖLÇÜLEN KUSUR (sözleşme: docs/ARCHITECTURE.md). Birikim hedefleri iki yerde
+yaşıyordu: para SQLite'ta, ekrandaki kart ise `savings_goals.json`'da. JSON
 hedefi yalnızca SQL satırının SAYISAL id'siyle işaretliyor.
 
 `sqlite_sequence` `finance.db` dosyasının İÇİNDE. Restore dosyayı bütün olarak

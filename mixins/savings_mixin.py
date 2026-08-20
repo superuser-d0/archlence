@@ -3,7 +3,7 @@
 Hedef ekleme/hesaplama diyalogları, hedef kartlarının dashboard'da çizimi,
 renk döngüsü ve hedefe para ekleme akışı.
 
-TEK DOĞRULUK KAYNAĞI SQL'dir (docs/SAVINGS_SINGLE_SOURCE_PLAN.md).
+TEK DOĞRULUK KAYNAĞI SQL'dir (sözleşme: docs/ARCHITECTURE.md).
 `self.savings_goals` artık kalıcı bir depo DEĞİL, `SavingsService.get_goals()`
 sonucunun ekrana uygun bir GÖRÜNÜMÜ; her başarılı servis çağrısından sonra
 SQL'den yeniden okunur. `savings_goals.json`'a yazan kod yolu kalmadı.

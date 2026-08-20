@@ -12,12 +12,17 @@ screenshots, current status, and quick installation choices.
 
 ## Project and engineering
 
-- [Architecture](ARCHITECTURE.md)
+- [Architecture](ARCHITECTURE.md) — boundaries and the contracts a change must
+  preserve
 - [Product vision and scope](VISION.md)
-- [Security and reliability status](SECURITY_RELIABILITY_STATUS.md)
-- [Security and release-readiness roadmap](ROADMAP.md)
-- [Search-field rendering artifact](SEARCH_RENDER_ARTIFACT.md)
+- [Security and reliability status](SECURITY_RELIABILITY_STATUS.md) — current
+  posture and known limitations
+- [Security and release-readiness roadmap](ROADMAP.md) — what is still open
+- [`main.py` split plan](MAIN_PY_SPLIT_PLAN.md) — written, not yet carried out
 
 Release history belongs in the project [changelog](../CHANGELOG.md). Contributor
 workflow and vulnerability reporting live in [CONTRIBUTING.md](../CONTRIBUTING.md)
 and [SECURITY.md](../SECURITY.md).
+
+Completed audits, release gates, test matrices and session handoffs are not
+kept in the source tree; git history is the archive.

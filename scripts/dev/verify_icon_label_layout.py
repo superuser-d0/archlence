@@ -19,8 +19,7 @@ taşan şey gliftir.
 
 Bu ayrım pahalıya öğrenildi: bu betiğin ilk hâli genişliği 0 olan ikonları
 "ölçülemez" diye ATLIYORDU, yani tam da yakalaması gereken durumu eliyordu.
-Bilinen-bozuk duruma karşı koşturulup kırmızıya döndüğü doğrulandı
-(bkz. WINDOWS_RC_CHECKLIST.md §2.3 civarındaki ölçüm notları).
+Bilinen-bozuk duruma karşı koşturulup kırmızıya döndüğü doğrulandı.
 
 Ölçek duyarlı olduğu için birden çok `KIVY_METRICS_DENSITY` değeriyle
 koşturulabilir; %125/%150 Windows ölçeğinin uygulama tarafındaki karşılığı
