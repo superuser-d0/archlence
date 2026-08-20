@@ -144,8 +144,12 @@ class MigrationCoversEveryEncryptedTableTest(unittest.TestCase):
                     ("name", "amount"),
                 ),
                 "savings_goals": (
+                    # goal_uid ZORUNLU: her satır kalıcı kimlik taşır.
+                    # `hex(random)` yerine sayaç: iki satır aynı testte
+                    # yazılıyor ve UNIQUE index çakışmamalı.
                     "INSERT INTO savings_goals (goal_name, target_amount, "
-                    "current_amount, status) VALUES (?, 1000, 0, 'active')",
+                    "current_amount, status, goal_uid) "
+                    "VALUES (?, 1000, 0, 'active', hex(randomblob(16)))",
                     ("goal_name",),
                 ),
                 "installment_plans": (
@@ -153,6 +157,12 @@ class MigrationCoversEveryEncryptedTableTest(unittest.TestCase):
                     "total_amount, monthly_amount, total_installments, "
                     "created_at) VALUES (1, ?, ?, ?, 12, '2026-08-01')",
                     ("description", "total_amount", "monthly_amount"),
+                ),
+                "savings_migration_quarantine": (
+                    "INSERT INTO savings_migration_quarantine ("
+                    "quarantined_at, reason, source, goal_name, payload) "
+                    "VALUES ('2026-08-01', 'test', 'legacy-json', ?, ?)",
+                    ("goal_name", "payload"),
                 ),
             }
             self.assertEqual(

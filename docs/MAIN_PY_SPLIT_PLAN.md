@@ -1,6 +1,11 @@
 # `main.py` ayrıştırma planı
 
-**Durum: TASLAK — onay bekliyor. Kodda hiçbir değişiklik yapılmadı.**
+**Durum: AYRIŞTIRMA ONAY BEKLİYOR.** §3'teki altı dilimin hiçbiri
+yapılmadı; `main.py` ve controller'lar konusunda kod değişmedi.
+
+**İstisna — §4'teki önkoşul yapıldı:** `tests/test_kv_app_surface.py` yazıldı
+ve merge edildi. Bu, ayrıştırmanın onaylandığı anlamına GELMEZ; o kapı
+ayrıştırma hiç yapılmasa bile değerli olduğu için ayrıca ele alındı.
 
 Kaynak madde: `docs/ROADMAP.md` Phase 2 — *"`main.py` ~1.800 satır ve
 `ArchlenceApp` uzun bir mixin listesinden miras alıyor. Ekran davranışını ayrı
@@ -18,7 +23,7 @@ ROADMAP'in sayıları bayat. 2026-08-17 itibarıyla:
 | `main.py` | ~1.800 satır | **2.280** |
 | Mixin sayısı | "uzun bir liste" | **17** |
 | `ui/dashboard.kv` | — | 2.762 satır |
-| Test paketi | — | 993 test |
+| Test paketi | — | 996 test |
 
 Mixin'lerin dağılımı — asıl kütle `main.py`'de değil, mixin'lerde:
 
@@ -128,7 +133,7 @@ Her controller:
 
 ## 3. Dilimler
 
-Her dilim **ayrı PR**. Her PR'da: 993 test + dört görsel kapı + tam pyflakes +
+Her dilim **ayrı PR**. Her PR'da: tüm test paketi + dört görsel kapı + tam pyflakes +
 mypy yeşil olmalı, ve uygulama gerçekten açılıp ilgili ekran görülmeli.
 
 Sıra **kasıtlı**: en iyi test korumasına sahip ve en az bağlı bölüm önce,
@@ -216,7 +221,7 @@ Bilinçli sınırlar:
 Ayrıştırma şu durumlarda **durdurulup geri alınır**, "sonra düzeltiriz"
 denmez:
 
-- Bir dilimde 993 testten biri kırmızıya döner ve sebebi taşımanın kendisi
+- Bir dilimde test paketinden biri kırmızıya döner ve sebebi taşımanın kendisi
   değil, gizli bir bağımlılıksa.
 - `.kv` yüzey kapısı bir dilimde kırmızı verirse.
 - Uygulama açılır ama ilgili ekran boş/ölü görünürse — bu turda öğrenildiği

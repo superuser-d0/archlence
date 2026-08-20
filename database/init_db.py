@@ -1,3 +1,5 @@
+import uuid
+
 from database.db import get_connection
 from datetime import date
 from database.models import ASSET_PRICE_CACHE_SCHEMA
@@ -16,7 +18,17 @@ from utils.errors import SchemaTooNewError
 # 1 = v0.0.9 kuşağı. Mevcut bütün profiller 0 taşıyor ve 0 < 1 olduğu için
 # aşağıdaki reddetme yolu var olan hiçbir kurulumda tetiklenemez; ancak
 # birisi ileride daha yeni bir yapı çalıştırıp sonra geri dönerse devreye girer.
-SCHEMA_VERSION = 1
+#
+# 2 = birikim hedeflerinin tek doğruluk kaynağı SQLite kuşağı
+# (docs/SAVINGS_SINGLE_SOURCE_PLAN.md). Bump BİLİNÇLİ ve kuralın "sütun
+# eklemek yetmez" tarafına RAĞMEN yapıldı, çünkü değişen şey yalnız sütunlar
+# değil OKUMA SÖZLEŞMESİ: bu kuşaktan itibaren hedefler yalnız SQL'den
+# okunuyor ve `savings_goals.json` artık veri kaynağı değil. Eski bir yapı bu
+# veritabanını açsaydı hedefleri yine bayat JSON'la birlikte yorumlar ve
+# düzeltilen kimlik-yeniden-kullanım kusurunu geri getirirdi — üstelik
+# kullanıcının parasını yanlış hedefe yazarak. Eski sürüme dönmenin doğru yolu
+# göçün aldığı otomatik güvenlik yedeğidir.
+SCHEMA_VERSION = 2
 
 # Kullanıcıya gösterilecek metin. Dosya yolu, sürüm numarası veya exception
 # ayrıntısı İÇERMEZ — `services/startup_recovery.py::USER_MESSAGE` ile aynı
@@ -26,6 +38,39 @@ SCHEMA_TOO_NEW_MESSAGE = (
     "Verilerinizi bozmamak için açılış durduruldu; hiçbir dosyaya "
     "dokunulmadı. Lütfen uygulamanın güncel sürümünü kullanın."
 )
+
+#: `savings_goals` şemasının TEK tanımı.
+#
+# Taze kurulum bu metinle yaratıyor, göç eden profil ise `goal_uid NOT NULL`
+# kısıtını uygularken tabloyu AYNI metinle yeniden yaratıyor. İki yolun
+# şemasını ayrı ayrı yazmak, aralarında görünmez bir sapma bırakırdı ve
+# `scripts/audit/check_schema_consistency.py`nin "fresh vs upgraded"
+# karşılaştırması bunu ancak CI'da, sebebi belirsiz bir farkla gösterirdi.
+#
+# goal_uid NOT NULL: kalıcı kimlik OPSİYONEL OLAMAZ. Kısıt yine de göçün
+# İKİNCİ adımında uygulanıyor (önce nullable + backfill), çünkü backfill
+# yarıda kalırsa NOT NULL bir şema açılmayan bir profil bırakırdı.
+SAVINGS_GOALS_DDL = """
+    CREATE TABLE {exists}{table} (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        goal_name TEXT NOT NULL,
+        target_amount REAL NOT NULL,
+        current_amount REAL DEFAULT 0,
+        target_date TEXT,
+        status TEXT DEFAULT 'aktif',
+        goal_uid TEXT NOT NULL,
+        color TEXT,
+        auto_deposit INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT
+    )
+"""
+
+#: Yeniden yaratımda satırların taşınacağı sütunlar (SIRA ÖNEMLİ).
+SAVINGS_GOALS_COLUMNS = (
+    "id, goal_name, target_amount, current_amount, target_date, status,"
+    " goal_uid, color, auto_deposit, created_at"
+)
+
 
 def initialize_database():
     """Şemayı kurar/günceller — bağlantıyı HER ÇIKIŞ YOLUNDA kapatarak.
@@ -439,14 +484,165 @@ def _initialize_database(conn):
     # accounts.balance ile aynı SQL işleminde atomik güncellenmek zorunda,
     # şifreli kolonla "current_amount = current_amount + ?" yazılamazdı.
     # status: 'aktif' | 'tamamlandi'
+    #
+    # goal_uid: NESİLLER ARASI KALICI KİMLİK (docs/SAVINGS_SINGLE_SOURCE_PLAN.md
+    # §3). Sayısal `id` bu işi YAPAMAZ: `sqlite_sequence` `finance.db`'nin
+    # İÇİNDE olduğu için restore sayacı da geri sarıyor ve restore'dan sonra
+    # açılan hedef, eski bir kaydın id'sini yeniden alıyor
+    # (tests/test_savings_identity_reuse_regression.py). `id` yine de KALIYOR:
+    # `balance_events.entity_id` ona bağlı, kaldırmak defteri kırardı.
+    cursor.execute(
+        SAVINGS_GOALS_DDL.format(table="savings_goals", exists="IF NOT EXISTS ")
+    )
+
+    # Migration guard. SIRA ÖNEMLİ: aşağıdaki dört `ALTER TABLE` sütunları
+    # yukarıdaki `CREATE TABLE` ile AYNI sırayla ekliyor.
+    # `scripts/audit/check_schema_consistency.py` taze kurulum ile göç etmiş
+    # profili sütun sütun (ve sırasıyla) karşılaştırıyor; sıra farkı kapıyı
+    # kırardı, üstelik gerçek bir uyumsuzluk olmadan.
+    cursor.execute("PRAGMA table_info(savings_goals)")
+    existing_goal_cols = {row[1] for row in cursor.fetchall()}
+    if "goal_uid" not in existing_goal_cols:
+        cursor.execute("ALTER TABLE savings_goals ADD COLUMN goal_uid TEXT")
+    if "color" not in existing_goal_cols:
+        cursor.execute("ALTER TABLE savings_goals ADD COLUMN color TEXT")
+    if "auto_deposit" not in existing_goal_cols:
+        # NOT NULL DEFAULT 0 — `auto_deposit` bir kullanıcı TERCİHİ ve
+        # varsayılanı "kapalı". Sütunu eklerken sabit varsayılan vermek
+        # SQLite'ta serbesttir; mevcut satırlar 0 alır.
+        cursor.execute(
+            "ALTER TABLE savings_goals "
+            "ADD COLUMN auto_deposit INTEGER NOT NULL DEFAULT 0"
+        )
+    if "created_at" not in existing_goal_cols:
+        cursor.execute("ALTER TABLE savings_goals ADD COLUMN created_at TEXT")
+
+    # UNIQUE ama (henüz) NOT NULL DEĞİL. SQLite'ta UNIQUE birden çok NULL'a
+    # izin verir; bu, backfill tamamlanmadan da veritabanının AÇILABİLİR
+    # kalmasını sağlıyor. Sıra bilinçli (plan §2.3): önce nullable + unique,
+    # sonra backfill, NOT NULL ise ancak backfill'in eksiksizliği ölçüldükten
+    # sonra. Ters sırada, göç yarıda kalırsa açılmayan bir profil kalırdı.
+    cursor.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_savings_goals_uid "
+        "ON savings_goals(goal_uid)"
+    )
+
+    # Backfill YALNIZ `goal_uid IS NULL` satırlara yazar. Bu, idempotentliğin
+    # tamamı: aynı migration ikinci kez koştuğunda var olan hiçbir UID
+    # değişmez — değişseydi yedeklerdeki UID'lerle bağ kopar ve restore
+    # sonrası eşleştirme çökerdi.
+    #
+    # Deterministik türetme (ör. ad+tutar hash'i) BİLEREK kullanılmadı: aynı
+    # ad ve tutara sahip iki MEŞRU hedef aynı UID'yi alır, UNIQUE kısıtı göçü
+    # kilitler ve "belirsizlikte otomatik karar verme" ilkesi çiğnenirdi.
+    cursor.execute("SELECT id FROM savings_goals WHERE goal_uid IS NULL")
+    for (goal_id,) in cursor.fetchall():
+        cursor.execute(
+            "UPDATE savings_goals SET goal_uid = ? WHERE id = ? "
+            "AND goal_uid IS NULL",
+            (str(uuid.uuid4()), goal_id),
+        )
+
+    # KISIT GEÇİŞİNİN İKİNCİ ADIMI: backfill'in EKSİKSİZ olduğu ölçüldükten
+    # sonra `goal_uid NOT NULL` uygulanır. SQLite `ALTER TABLE` ile kısıt
+    # eklemediği için tablo yeniden yaratılır.
+    #
+    # Sıra bilinçli (plan §2.3): NOT NULL'u backfill'den ÖNCE koymak, göç
+    # yarıda kalırsa AÇILMAYAN bir profil bırakırdı. Kısıt burada, yalnız
+    # "NULL kalmadı" kanıtlandığında uygulanıyor; kanıtlanmazsa şema nullable
+    # kalır ve bir sonraki açılış eksiği tamamlar.
+    cursor.execute("PRAGMA table_info(savings_goals)")
+    goal_columns = {row[1]: row for row in cursor.fetchall()}
+    uid_column = goal_columns.get("goal_uid")
+    if uid_column is not None and not uid_column[3]:  # notnull == 0
+        cursor.execute(
+            "SELECT COUNT(*) FROM savings_goals WHERE goal_uid IS NULL"
+        )
+        if cursor.fetchone()[0] == 0:
+            # SAYAÇ KORUNUR. `DROP TABLE` `sqlite_sequence` satırını da siler
+            # ve yeni tablo sayacı max(id)'ye göre kurar. Aradaki fark teorik
+            # değil: silinmiş bir hedefin id'si defterde
+            # (`balance_events.entity_id`) hâlâ yaşıyor ve sayaç geri
+            # sararsa o id yeniden dağıtılır — düzeltmek için var olduğumuz
+            # kimlik yeniden kullanımının aynısı, bu sefer restore olmadan.
+            cursor.execute(
+                "SELECT seq FROM sqlite_sequence WHERE name = 'savings_goals'"
+            )
+            row = cursor.fetchone()
+            previous_seq = row[0] if row else None
+
+            cursor.execute(
+                SAVINGS_GOALS_DDL.format(
+                    table="savings_goals_uid_migration", exists=""
+                )
+            )
+            cursor.execute(
+                f"INSERT INTO savings_goals_uid_migration ({SAVINGS_GOALS_COLUMNS}) "  # nosec B608 - sabit sütun listesi
+                f"SELECT {SAVINGS_GOALS_COLUMNS} FROM savings_goals"
+            )
+            cursor.execute("DROP TABLE savings_goals")
+            cursor.execute(
+                "ALTER TABLE savings_goals_uid_migration RENAME TO savings_goals"
+            )
+            # Index tabloyla birlikte düştü; yeniden kurulmalı.
+            cursor.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_savings_goals_uid "
+                "ON savings_goals(goal_uid)"
+            )
+            if previous_seq is not None:
+                cursor.execute(
+                    "SELECT seq FROM sqlite_sequence WHERE name = 'savings_goals'"
+                )
+                current = cursor.fetchone()
+                if current is None:
+                    cursor.execute(
+                        "INSERT INTO sqlite_sequence(name, seq) VALUES(?, ?)",
+                        ("savings_goals", previous_seq),
+                    )
+                elif current[0] < previous_seq:
+                    cursor.execute(
+                        "UPDATE sqlite_sequence SET seq = ? WHERE name = ?",
+                        (previous_seq, "savings_goals"),
+                    )
+            conn.commit()
+
+    # 8b. Göç karantinası — otomatik taşınamayan legacy JSON kayıtları.
+    #
+    # BU TABLO FİNANSAL DEĞİLDİR. Hiçbir bakiye, metrik, defter ya da toplam
+    # sorgusu burayı okumaz ve buradan para hareketi başlatılamaz. Amacı tek:
+    # belirsiz bir kaydı SESSİZCE ATMAK yerine saklayıp kullanıcıya
+    # gösterebilmek — sessiz atma, düzeltmeye çalıştığımız kusurun ta kendisi.
+    #
+    # goal_name ve payload ŞİFRELİ tutulur (savings_goals.goal_name ile aynı
+    # gerekçe: hedef adı ve tutarlar kişisel finans verisidir) ve
+    # `backup_service.ENCRYPTED_FIELDS`'e eklidir.
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS savings_goals (
+        CREATE TABLE IF NOT EXISTS savings_migration_quarantine (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            goal_name TEXT NOT NULL,
-            target_amount REAL NOT NULL,
-            current_amount REAL DEFAULT 0,
-            target_date TEXT,
-            status TEXT DEFAULT 'aktif'
+            quarantined_at TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            source TEXT NOT NULL,
+            legacy_id INTEGER,
+            goal_name TEXT,
+            target_amount REAL,
+            current_amount REAL,
+            payload TEXT,
+            acknowledged INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+
+    # 8c. Göç işareti (provenance).
+    #
+    # "Gerçek legacy profil" ile "restore sonrasında ortada kalmış BAYAT
+    # JSON" diskte birbirinin AYNI görünür. Ayrımı yapan tek şey bu işaretin
+    # nerede durduğudur: `finance.db`'nin İÇİNDE, yani DB generation'ıyla
+    # birlikte hareket ediyor. İşaret varken bulunan bir JSON tanım gereği
+    # bayattır ve göç EDİLMEZ (plan §2.6).
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS savings_migration_state (
+            marker TEXT PRIMARY KEY,
+            completed_at TEXT NOT NULL,
+            detail TEXT
         )
     """)
 

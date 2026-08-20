@@ -56,7 +56,17 @@ Important contracts include:
   a confident zero;
 - daily snapshots and ledger replay support historical balance views;
 - financial-number boundaries use the shared Decimal policy where migration is
-  complete, with remaining paths tracked as stabilization work.
+  complete, with remaining paths tracked as stabilization work;
+- **savings goals have a single source of truth: SQLite.** They used to be
+  displayed from `savings_goals.json` while the money lived in SQL, so the two
+  could drift apart. Restore replaces `finance.db` whole, which rewinds
+  `sqlite_sequence`, so a goal created after a restore could reclaim the
+  numeric id a stale JSON card still pointed at — and a deposit made from that
+  card landed on a different goal. Every goal now carries a permanent
+  `goal_uid` (UUIDv4), every card operation is verified against it, and the
+  service refuses fail-closed when the numeric id and the uid disagree. The
+  numeric id remains as the internal key because `balance_events.entity_id`
+  depends on it. See `docs/SAVINGS_SINGLE_SOURCE_PLAN.md`.
 
 Financial-logic pull requests should prove these contracts with regression
 tests covering success, rollback, and failure paths.
@@ -98,6 +108,57 @@ widget callbacks.
 UI changes should be checked in both languages, light and dark themes where
 relevant, and representative display scaling. Include screenshots or a short
 recording in the pull request.
+
+### Translation contract
+
+Turkish source text is the lookup key. Two functions, one rule between them:
+
+- `tr(text)` performs an **exact key match only**. Unknown text returns
+  unchanged. It never rewrites fragments inside a longer string.
+- `trf(template, **params)` translates the **template first**, then substitutes
+  the parameters. Parameter values never pass through the translator again.
+
+```python
+# wrong — the user's own data reaches the translator
+_t(f"{payment['name']} aboneliği durduruldu.")
+# right — the sentence is translated, the name is inserted afterwards
+_tf("{name} aboneliği durduruldu.", name=payment["name"])
+```
+
+`tr()` used to fall back to replacing every known Turkish fragment it could
+find inside the string. Because callers built the f-string before translating,
+that fallback rewrote **user data**: an account named `Nakit` was displayed as
+`Cash`, `Ayarlar` as `Settings`, and `Tür Seç: Hisse Senedi` came out as the
+half-translated `Select Type: Stock Senedi`. The fallback is gone.
+
+Classify every value before it reaches a sentence:
+
+| Class | Examples | Rule |
+|---|---|---|
+| User data | account/card name, goal name, debt name, subscription name, transaction description, file path, `str(exc)` detail | **Never translated.** Passed as a `trf` parameter |
+| Controlled value | amount, percentage, instalment count, day/month count, date, counter | Formatted by the caller, passed as a parameter |
+| Enum / label | asset type, month name, account type label, category, frequency, status | Translated separately with `tr()` by exact key, then passed as a parameter |
+
+Further rules:
+
+- Number, date and currency formatting stays at the call site
+  (`amount=f"{value:,.2f}"`); the translation layer never reformats.
+- `trf` substitutes only `{name}` placeholders, in a single pass, without
+  `str.format`. The reason is a deliberately narrow contract — no format
+  specs, no attribute or index access inside a translatable string — plus a
+  verified placeholder set and an order-independent result. It is **not**
+  that `str.format` would re-interpret an inserted value: it does not
+  (`"{x}".format(x="{test}") == "{test}"`).
+- Placeholder **sets** must match between Turkish and English; the order is
+  free, and English word order usually differs
+  (`"{name} hesabı eklendi."` → `"Account added: {name}"`).
+- User data entering a `markup=True` widget goes through
+  `ui.i18n.escape_markup` first.
+- `tests/test_i18n_static_gate.py` enforces all of this: f-strings, string
+  concatenation and `%`/`str.format()` results cannot be passed to a
+  translation function (in `.py` or `.kv`), every template exists in the
+  English dictionary with matching placeholders and renders in both languages,
+  and user-supplied name fields cannot be handed to `tr()`.
 
 ## Test and CI boundaries
 

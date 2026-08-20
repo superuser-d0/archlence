@@ -1,6 +1,7 @@
 """Bakiye zaman makinesi UI orkestrasyonunun headless testleri."""
 
 import datetime
+import re
 import sys
 import types
 import unittest
@@ -59,7 +60,10 @@ _stubs = {
     "kivymd.uix.label": _module("kivymd.uix.label", MDLabel=_Widget),
     "kivymd.uix.pickers": _module("kivymd.uix.pickers", MDDatePicker=_Widget),
     "ui.theme": _module("ui.theme", accent=lambda *args: [0, 0, 0, 1]),
-    "ui.i18n": _module("ui.i18n", tr=lambda text: text),
+    "ui.i18n": _module(
+        "ui.i18n", tr=lambda text: text,
+        trf=lambda template, language=None, **params: re.sub(r"\{(\w+)\}", lambda m: str(params.get(m.group(1), m.group(0))), template),
+    ),
 }
 with mock.patch.dict(sys.modules, _stubs):
     import mixins.history_mixin as history_module

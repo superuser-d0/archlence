@@ -3,10 +3,40 @@
 Türkçe metinler kaynak anahtar olarak kullanılır. Bu yaklaşım mevcut arayüzü
 parça parça taşımayı kolaylaştırırken eksik bir çeviride kullanıcıya anlamsız
 bir anahtar göstermek yerine Türkçe metne güvenli biçimde geri döner.
+
+SÖZLEŞME — ikisi birlikte geçerli:
+
+  * `tr(metin)` YALNIZ TAM ANAHTAR eşleşmesi yapar. Bilinmeyen metinde kaynağa
+    döner. Alt dize değiştirmez.
+  * Dinamik cümleler `trf(sablon, **parametre)` ile kurulur: ÖNCE şablon
+    çevrilir, SONRA parametreler yerleştirilir. Parametre değerleri bir daha
+    ASLA çeviriden geçmez.
+
+NEDEN: `tr()` eskiden tam eşleşme bulamayınca sözlükteki Türkçe parçaları metin
+içinde sırayla değiştiriyordu ve çağıranlar f-string'i ÖNCE kurup sonra
+çeviriye veriyordu. Sonuç, kullanıcının KENDİ VERİSİNİN çevrilmesiydi —
+ölçüldü: "Nakit" adlı hesap İngilizce arayüzde "Cash", "Ayarlar" adlı abonelik
+"Settings" görünüyordu. Cümleler de bozuluyordu: "Tür Seç: Hisse Senedi"
+"Select Type: Stock Senedi" oluyordu, yani yarısı çevrilmiş bir melez.
+
+Parça değiştirme ayrıca Türkçe cümle SIRASINI İngilizceye taşıyordu. Şablon
+yaklaşımında sıra tamamen çeviriye ait: "{name} hesabı eklendi." karşılığı
+"Account added: {name}" olabilir.
 """
+
+import re
 
 SUPPORTED_LANGUAGES = {"tr": "Türkçe", "en": "English"}
 _language = "tr"
+
+#: Şablonlarda izin verilen tek yer tutucu biçimi: `{ad}`.
+#:
+#: Biçim belirteci (`{amount:,.2f}`) BİLEREK desteklenmiyor. Sayı/tarih/para
+#: biçimlendirmesi çağıran tarafta, bugünkü davranışıyla yapılır ve sonucu
+#: hazır METİN olarak parametreye geçer; böylece bu katman biçimlendirme
+#: politikasına hiç karışmaz ve şablonların çevirmen tarafında okunması kolay
+#: kalır.
+_PLACEHOLDER = re.compile(r"\{(\w+)\}")
 
 
 EN = {
@@ -57,6 +87,9 @@ EN = {
     "Dikkat: Bakiye Negatif!": "Warning: Negative Balance!",
     "Bugün": "Today",
     "Değişim": "Change",
+    # Eskiden "Değişim" + "Bugün" parçalarının ayrı ayrı
+    # değiştirilmesiyle oluşuyordu; artık tam anahtar.
+    "Değişim (Bugün)": "Change (Today)",
     "1 Hafta": "1 Week",
     "1 Ay": "1 Month",
     "1 Yıl": "1 Year",
@@ -763,6 +796,10 @@ EN = {
     "Yukarıdan tür seçin veya elle girin (Gram: GC=F)": "Select a type above or enter manually (Gram: GC=F)",
     "Yahoo Finance sembolü girin": "Enter the Yahoo Finance symbol",
     "Hisse": "Stock",
+    # Varlık türü listesinde uzun yazımı da geçiyor; kısa anahtarın
+    # alt dize olarak eşleşmesine güvenmek "Stock Senedi" gibi yarı
+    # çevrilmiş melezler üretiyordu.
+    "Hisse Senedi": "Stock",
     "Altın": "Gold",
     "Tahvil": "Bond",
     "Döviz": "Currency",
@@ -783,6 +820,259 @@ EN = {
     "Ekim": "October",
     "Kasım": "November",
     "Aralık": "December",
+
+    # ── Şablona PARAMETRE olarak giren kontrollü etiketler ───────────────
+    #
+    # Bunlar kullanıcı verisi DEĞİL, uygulamanın kendi sözlüğü. Şablonun
+    # içine girmeden ÖNCE `tr()` ile ayrıca çevrilirler; karşılıkları
+    # burada olmazsa İngilizce cümlenin ortasında Türkçe bir parça kalır
+    # ("Balance on 2026-08-01 · Günlük snapshot" gibi).
+    "Gelir işlemleri": "Income transactions",
+    "Gider işlemleri": "Expense transactions",
+    "Günlük snapshot": "Daily snapshot",
+    "Defter replay": "Ledger replay",
+    # `_secure_operation_error` çağrı yerlerinden gelen sabit başlıklar.
+    "Backup oluşturulamadı": "Backup could not be created",
+    "Restore başarısız; mevcut veri korundu":
+        "Restore failed; your current data was preserved",
+    "Migration geri alındı": "Migration was rolled back",
+    "Kurtarma paketi oluşturulamadı":
+        "Recovery package could not be created",
+    "Kurtarma paketi içe aktarılamadı":
+        "Recovery package could not be imported",
+    "Anahtar rotasyonu başlatılamadı": "Key rotation could not be started",
+    "Anahtar rotasyonu geri alındı": "Key rotation was rolled back",
+    # Tekrarlayan işlem diyaloğunun sabit soru/açıklama çiftleri.
+    "Bu ayki gelir hesaba eklensin mi?":
+        "Should this month's income be added to the account?",
+    "Bu ayki gider hesaptan düşülsün mü?":
+        "Should this month's expense be deducted from the account?",
+    "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gelir hemen, "
+    "gelmediyse seçilen günde eklenir.":
+        "If “INCLUDE THIS MONTH” is selected, the income is added right away "
+        "when this month's day has passed, and on the selected day otherwise.",
+    "“BU AYI DAHİL ET” seçilirse bu ayın günü geçtiyse gider hemen, "
+    "gelmediyse seçilen günde düşülür.":
+        "If “INCLUDE THIS MONTH” is selected, the expense is deducted right "
+        "away when this month's day has passed, and on the selected day "
+        "otherwise.",
+
+# ─── Şablonlar (`trf`) ────────────────────────────────────────────────────
+#
+# Bu bölümdeki anahtarlar YER TUTUCU içerir ve yalnız `trf()` ile kullanılır:
+# önce şablon çevrilir, sonra parametreler yerleştirilir. Parametre değerleri
+# (hesap adı, hedef adı, tutar, tarih) çeviriden GEÇMEZ.
+#
+# Yer tutucu KÜMESİ iki dilde aynı olmak zorundadır; SIRA serbesttir ve
+# İngilizce cümle yapısı bunu zaten gerektirir:
+#     "{name} hesabı eklendi."  ->  "Account added: {name}"
+# `tests/test_i18n_static_gate.py` kümelerin eşitliğini kapıya bağlıyor.
+
+    "\nEle Geçecek: {net} (Tüm Peşin Masraflar Düşülmüş)":
+        "\nNet Proceeds: {net} (All upfront costs deducted)",
+    "   •  Ayın {auto_pay_day}. günü otomatik ödenecek":
+        "   •  Auto-paid on day {auto_pay_day} of the month",
+    " {amount} bakiyenize eklendi.":
+        " {amount} was added to your balance.",
+    "%{percent} arttı": "up %{percent}",
+    "%{percent} azaldı": "down %{percent}",
+    "'{name}' için gereken süre:\n{periods} Ay\n(~{approx})":
+        "Time needed for '{name}':\n{periods} months\n(~{approx})",
+    "'{name}' için gereken süre:\n{periods} Gün\n(~{approx})":
+        "Time needed for '{name}':\n{periods} days\n(~{approx})",
+    "Altın Türü: {label}": "Gold Type: {label}",
+    "Alım: {purchase_price} ₺  ×  {quantity}":
+        "Purchase: {purchase_price} ₺  ×  {quantity}",
+    "Anahtar rotasyonu tamamlandı: {rotated_fields} alan. Backup: {backup_path}":
+        "Key rotation complete: {rotated_fields} fields. Backup: {backup_path}",
+    "Anlık: {current_price} ₺": "Live: {current_price} ₺",
+    "Aylık toplam {amount} tutarında {count} olası abonelik bulundu.":
+        "Found {count} possible subscriptions totalling {amount} per month.",
+    "Aylık: {monthly_payment} ₺": "Monthly: {monthly_payment} ₺",
+    "Backup doğrulandı:\n{path}": "Backup verified:\n{path}",
+    "Bakiye Geçmişi (son {days_back} gün)":
+        "Balance History (last {days_back} days)",
+    "Bakiye Geçmişi ({from_date} → {to_date})":
+        "Balance History ({from_date} → {to_date})",
+    "Bakiye defteri {value} tarihinde başlıyor; {date} için kayıt yok.":
+        "The balance ledger starts on {value}; there is no record for {date}.",
+    "Bakiye defteri {value} tarihinde başlıyor; öncesi için kayıt yok.\n"
+    "Aşağıdaki hareketler defterin başlangıcından bugüne.":
+        "The balance ledger starts on {value}; there is no record before that.\n"
+        "The movements below run from the start of the ledger to today.",
+    "Beklenen gelir: {amount}": "Expected income: {amount}",
+    "Beklenen gider: {amount}": "Expected expense: {amount}",
+    "Birikim hedeflerinde: {amount} değişim":
+        "Change in savings goals: {amount}",
+    "Bu ay harcamalarınız geçen döneme kıyasla {change_text}.\n"
+    "En çok harcama yapılan alan: {highest_cat_name}.\n"
+    "Bu ayki net tasarruf oranınız: %{savings_rate}. Harika birikim dönemi!":
+        "Your spending this month is {change_text} compared with the previous "
+        "period.\nHighest spending area: {highest_cat_name}.\n"
+        "Your net savings rate this month: %{savings_rate}. Great going!",
+    "Bu ay {name} için {amount} kesilmiş. "
+    "Bu tutarı bakiyenize geri eklemek ister misiniz?":
+        "{amount} was charged for {name} this month. "
+        "Would you like to add it back to your balance?",
+    "Bu hedef için şu ana kadar biriktirdiğiniz {amount} ₺ ne yapılsın?":
+        "What should happen to the {amount} ₺ you have saved for this goal?",
+    "Dikkat: Bu karta ait devam eden [b]{count} adet aktif taksit planı[/b] "
+    "bulunmaktadır. Kartı sildiğinizde bu taksit planları ve tüm geçmiş "
+    "işlemler de kalıcı olarak silinecektir. Onaylıyor musunuz?":
+        "Warning: this card has [b]{count} active instalment plan(s)[/b]. "
+        "Deleting the card permanently deletes those plans and all past "
+        "transactions as well. Do you confirm?",
+    "Ekstre okunamadı: {detail}": "Could not read the statement: {detail}",
+    "En yakın tarih: {nearest}": "Nearest date: {nearest}",
+    "Gecikti ({days} gün)": "Overdue ({days} days)",
+    "Hata: {error_msg}": "Error: {error_msg}",
+    "Hedefi Sil: {name}": "Delete Goal: {name}",
+    "Hesap eklendi: {name}": "Account added: {name}",
+    "Hesap: {name}": "Account: {name}",
+    "K/Z: {sign}{amount}": "P/L: {sign}{amount}",
+    "Kalan {remaining_balance} ₺ bakiyeyi kapatmak istediğinize emin misiniz?":
+        "Are you sure you want to clear the remaining {remaining_balance} ₺?",
+    "Kalan: {amount}": "Remaining: {amount}",
+    "Kalan: {count} Taksit": "Remaining: {count} instalments",
+    "Kalan: {remaining}/{total} Taksit":
+        "Remaining: {remaining}/{total} instalments",
+    "Kart silinemedi: {detail}": "Could not delete the card: {detail}",
+    "Kaç taksit ödemek istiyorsunuz? (Maks: {remaining_installments})":
+        "How many instalments do you want to pay? (Max: {remaining_installments})",
+    "Kurtarma paketi doğrulandı:\n{path}": "Recovery package verified:\n{path}",
+    "Migration tamamlandı: {migrated_fields} alan. Backup: {backup_path}":
+        "Migration complete: {migrated_fields} fields. Backup: {backup_path}",
+    "Net Getiri: + {profit}\nVade Sonu: {total}\n(%5 Stopaj düşülmüştür)":
+        "Net Return: + {profit}\nAt Maturity: {total}\n(5% withholding deducted)",
+    "PDF kaydedildi: {filepath}": "PDF saved: {filepath}",
+    "Restore tamamlandı. Güvenlik backup'ı:\n{safety_backup_path}":
+        "Restore complete. Safety backup:\n{safety_backup_path}",
+    "Satış tamamlandı! {sign}₺{value} K/Z":
+        "Sale completed! {sign}₺{value} P/L",
+    "Seçilen: {count} Taksit": "Selected: {count} instalments",
+    "Seçtiğiniz kredi türü için vade en fazla {max_term} ay olabilir!":
+        "For the selected loan type the term can be at most {max_term} months!",
+    "Süre, kredi vadesinden büyük olamaz ({term} ay)!":
+        "The period cannot exceed the loan term ({term} months)!",
+    "Taksit Sayısı: {count}": "Number of Instalments: {count}",
+    "Taksit Sayısı: {selected_installments}":
+        "Number of Instalments: {selected_installments}",
+    "Taksit planları kontrol edilemedi: {detail}":
+        "Could not check the instalment plans: {detail}",
+    "Taksit planları okunamadı: {detail}":
+        "Could not read the instalment plans: {detail}",
+    "Tarih: {date}": "Date: {date}",
+    "Tasarruf oranı %{savings}  ·  Borç/gelir %{debt}  ·  "
+    "Gider oynaklığı %{volatility}":
+        "Savings rate %{savings}  ·  Debt/income %{debt}  ·  "
+        "Spending volatility %{volatility}",
+    "Temel Taksit: {monthly}\nToplam Geri Ödeme: {total}":
+        "Base Instalment: {monthly}\nTotal Repayment: {total}",
+    "Tür Seç: {asset_selected_type}": "Select Type: {asset_selected_type}",
+    "Tür Seç: {asset_type}": "Select Type: {asset_type}",
+    "Tür Seç: {type}": "Select Type: {type}",
+    "Tür: {asset_type}": "Type: {asset_type}",
+    "Yatırım: {invested}\nKazanç: + {profit}\nToplam: {amount}":
+        "Invested: {invested}\nGain: + {profit}\nTotal: {amount}",
+    "Yeni tarih: {new_date}": "New date: {new_date}",
+    "Yeni {asset_selected_type} Ekle": "Add New {asset_selected_type}",
+    "[color=#0277BD]- ₺{amount} Yatırım[/color]":
+        "[color=#0277BD]- ₺{amount} Deposit[/color]",
+    "[color=#2E7D32]+ ₺{amount} Satış[/color]":
+        "[color=#2E7D32]+ ₺{amount} Sale[/color]",
+    "{amount} / ay": "{amount} / month",
+    "{amount} × {occurrences} kez  →  ayda {amount_1}\n"
+    "Kategori: {category}  ·  Son: {last_seen}":
+        "{amount} × {occurrences} times  →  {amount_1} per month\n"
+        "Category: {category}  ·  Last: {last_seen}",
+    "{asset_name} ({asset_code})\n"
+    "Miktar: {quantity}  |  Alım fiyatı: {purchase_price} ₺":
+        "{asset_name} ({asset_code})\n"
+        "Quantity: {quantity}  |  Purchase price: {purchase_price} ₺",
+    "{a} · {b} · {c}": "{a} · {b} · {c}",
+    "{category} · {amount}\n"
+    "Bu kategorideki ortalamanın {amount_1} üzerinde ({date})":
+        "{category} · {amount}\n"
+        "{amount_1} above the average for this category ({date})",
+    "{count} TL dışı varlık • Canlı değer":
+        "{count} non-TRY assets • Live value",
+    "{count} Taksit": "{count} instalments",
+    "{count} işlem bakiyenize henüz yansımadı.":
+        "{count} transactions have not reached your balance yet.",
+    "{count} kayıt dışa aktarıldı:\n{path}":
+        "{count} records exported:\n{path}",
+    "{date} gün sonu\nBirikim hedefleri: {amount}\nKaynak: {value}":
+        "End of day {date}\nSavings goals: {amount}\nSource: {value}",
+    "{date} işlemleri yükleniyor...":
+        "Loading transactions for {date}...",
+    "{date} — {count} işlem": "{date} — {count} transactions",
+    "{date}: işlem yok.": "{date}: no transactions.",
+    "{date}: işlemler okunamadı.":
+        "{date}: transactions could not be read.",
+    "{days_left} gün kaldı": "{days_left} days left",
+    "{days} Gün": "{days} days",
+    "{debt_name} — Otomatik Ödeme": "{debt_name} — Automatic Payment",
+    "{description}\n{signed_amount}  ·  Planlanan: {execution_date}  ·  {timing}":
+        "{description}\n{signed_amount}  ·  Scheduled: {execution_date}  ·  {timing}",
+    "{description} bakiyenize işlendi.":
+        "{description} was applied to your balance.",
+    "{description} iptal edildi.": "{description} was cancelled.",
+    "{legacy_fields} alan / {affected_records} kayıt taşınacak. "
+    "Önce doğrulanmış backup alınır; hata olursa transaction geri alınır.":
+        "{legacy_fields} fields / {affected_records} records will be migrated. "
+        "A verified backup is taken first; on error the transaction is rolled back.",
+    "{message}. Ayrıntılar uygulama loguna kaydedildi.":
+        "{message}. Details were written to the application log.",
+    "{months} Ay": "{months} months",
+    "{months} Ay, {days} Gün": "{months} months, {days} days",
+    "{month} {year}": "{month} {year}",
+    "{name}\n{amount}  ·  Sonraki: {due}":
+        "{name}\n{amount}  ·  Next: {due}",
+    "{name}  ·  {frequency}": "{name}  ·  {frequency}",
+    "{name} (Bakiye: {balance} ₺)": "{name} (Balance: {balance} ₺)",
+    "{name} Borç Ödeme": "{name} Debt Payment",
+    "{name} aboneliği durduruldu.": "{name} subscription stopped.",
+    "{name} aboneliğini nasıl kaldırmak istersiniz?":
+        "How would you like to remove the {name} subscription?",
+    "{name} bu ay için atlandı.": "{name} was skipped for this month.",
+    "{name} eklendi": "{name} added",
+    "{name} kartı, karta bağlı tüm geçmiş işlemler ve otomatik ödemeler "
+    "kalıcı olarak silinecektir. Onaylıyor musunuz?":
+        "The card {name}, along with every past transaction and automatic "
+        "payment linked to it, will be permanently deleted. Do you confirm?",
+    "{name} takibe alındı.": "{name} is now being tracked.",
+    "{name} ücreti güncellendi.": "The price of {name} was updated.",
+    "{name} — Para Yatır": "{name} — Deposit",
+    "{name} — Ücreti Güncelle": "{name} — Update Price",
+    "{name} → {name}": "{name} → {name}",
+    "{paid}/{total} Taksit Ödendi": "{paid}/{total} instalments paid",
+    "{priced}/{total} varlık fiyatlandı": "{priced}/{total} assets priced",
+    "{priced}/{total} varlık • Son bilinen fiyat":
+        "{priced}/{total} assets • Last known price",
+    "{question}\n\n{detail}": "{question}\n\n{detail}",
+    "{remaining} gün sonra": "in {remaining} days",
+    "{selected_date} Tarihindeki Bakiye": "Balance on {selected_date}",
+    "{selected_installments} taksit başarıyla ödendi!":
+        "{selected_installments} instalments paid successfully!",
+    "{sign}{pnl_pct}%  |  {sign}{pnl_amount} ₺  (Toplam: {total_value} ₺)":
+        "{sign}{pnl_pct}%  |  {sign}{pnl_amount} ₺  (Total: {total_value} ₺)",
+    "{sign}{value} ({c_sign}{value_1}%) Bugün":
+        "{sign}{value} ({c_sign}{value_1}%) Today",
+    "{source} ({count})": "{source} ({count})",
+    "{time}  {category}": "{time}  {category}",
+    "{years} Yıl, {months} Ay": "{years} years, {months} months",
+    "Çok fazla hatalı deneme. {seconds} saniye sonra tekrar deneyin.":
+        "Too many failed attempts. Try again in {seconds} seconds.",
+    "Özel Masraflar ({count}/10)": "Custom Costs ({count}/10)",
+    "İşlem {date} tarihine planlandı; bekleyenler listesinde.":
+        "The transaction was scheduled for {date}; it is in the pending list.",
+    "Şu anki hızla ~{months} ay kaldı":
+        "~{months} months left at the current pace",
+    "…ve {count} kayıt daha.": "…and {count} more records.",
+    "₺{amount} eklendi!": "₺{amount} added!",
+    "✔ '{name}' hedefi eklendi!": "✔ Goal '{name}' added!",
+    "✔ {label} eklendi: {name}": "✔ {label} added: {name}",
+    "🎉 %{percent} tamamlandı!": "🎉 %{percent} complete!",
 }
 
 # Bu iki kaynak anahtar, tarihsel olarak çağrı noktalarında İngilizce tutuluyor.
@@ -806,22 +1096,165 @@ def get_language():
 
 
 def tr(text: str | None, language: str | None = None) -> str:
-    """Metni istenen dile çevirir; bilinmeyen metinde kaynağa geri döner."""
+    """Metni istenen dile çevirir — YALNIZ TAM EŞLEŞME ile.
+
+    Bilinmeyen metinde kaynağa geri döner. Alt dize değiştiren "yaklaşık
+    çeviri" KALDIRILDI: kullanıcının kendi verisini (hesap/hedef/abonelik adı,
+    işlem açıklaması) sessizce değiştiriyor ve cümleleri yarı çevrilmiş
+    melezlere dönüştürüyordu. Dinamik cümleler için `trf()` kullanılır.
+    """
     if text is None:
         return ""
     code = language if language in SUPPORTED_LANGUAGES else _language
     source = text
     if code != "en":
         return TR.get(source, source)
-    exact = EN.get(source)
-    if exact is not None:
-        return exact
-    # Dinamik tutar/ad içeren cümlelerde bilinen arayüz parçalarını çevir.
-    # Uzun ifadeler önce işlenir; böylece kısa bir anahtar uzun bir kalıbı
-    # bozmaz. Kullanıcı verisi yalnızca _t ile işaretlenmiş UI cümlelerinde
-    # buraya gelir.
-    translated = source
-    for turkish, english in sorted(EN.items(), key=lambda item: len(item[0]), reverse=True):
-        if turkish and turkish in translated:
-            translated = translated.replace(turkish, english)
-    return translated
+    return EN.get(source, source)
+
+
+#: ŞABLONA GİRMEDEN ÖNCE `tr()`DEN GEÇMESİ ZORUNLU etiket kaynakları.
+#:
+#: `trf()` parametreleri üç sınıfa ayrılır (docs/ARCHITECTURE.md):
+#:   * kullanıcı verisi — ASLA çevrilmez,
+#:   * sayı/tarih/tutar/yol/hata ayrıntısı — biçimlenir ama çevrilmez,
+#:   * kontrollü etiket — tam anahtarla AYRICA çevrilir.
+#:
+#: Üçüncü sınıfı otomatik tespit etmek güvenilir DEĞİL: bir ifadenin
+#: kullanıcı verisi mi etiket mi olduğu kaynağına bakmadan bilinemez. Bu
+#: liste o yüzden TAHMİN değil SÖZLEŞME: buradaki adlardan okunan bir değer
+#: `trf` parametresine girerken `tr()` ile sarılmak zorundadır ve
+#: `tests/test_i18n_static_gate.py` bunu kapıya bağlar.
+#:
+#: KAPSAM DAR VE ÖLÇÜLÜ. Bir girdi ancak GERÇEKTEN bir `trf`/`_tf` KEYWORD
+#: parametresinde okunuyorsa burada durur; kapı bunu AST ile ölçer ve ölü
+#: girdiyi reddeder. Metin üretimi saf yardımcılara (`asset_type_button_text`,
+#: `gold_type_button_text`, `balance_detail_text` …) taşındığında bazı adlar
+#: artık doğrudan parametreye girmiyor — onlar listeden ÇIKARILDI:
+#:
+#:   `_asset_selected_type`, `_GOLD_TYPES`  -> yardımcıya argüman olarak
+#:       geçiyorlar; yardımcının kendi parametresi (`asset_type`, `label`)
+#:       şablona giriyor. `asset_type` listede; `label` BİLEREK değil —
+#:       fazla genel bir ad, yanlış pozitif üretirdi. O yardımcıların
+#:       `_t()` davranışı gerçek üretim-yolu testleriyle korunuyor
+#:       (tests/test_i18n_controlled_values.py).
+#:   `ACCOUNT_TYPE_LABELS`                  -> önce yerel `label`e alınıp
+#:       `label=_t(label)` olarak veriliyor; aynı gerekçe.
+#:   `MONTHS`, `_MONTH_KEYS`, `_WEEKDAY_NAMES` -> düz `_t(...)` çağrılarında
+#:       kullanılıyorlar, şablon parametresinde değil. `tr()` sarmaları
+#:       yerinde; bu sözleşmenin konusu değiller.
+CONTROLLED_LABEL_SOURCES = frozenset({
+    # Varlık türü — `asset_type_button_text` / `asset_type_short_text`
+    # yardımcılarının parametresi doğrudan şablona giriyor.
+    "asset_type",
+    # Defter kaynak etiketleri (mixins/history_mixin.py::ledger_source_text).
+    "_SOURCE_LABELS",
+    # Abonelik sıklığı (mixins/insights_mixin.py::recurring_candidate_title).
+    "_frequency_label",
+    # Takvim başlığındaki ay adı (mixins/calendar_mixin.py).
+    "_MONTH_NAMES",
+})
+
+
+#: KULLANICININ KENDİ YAZDIĞI alanlar — hiçbir koşulda çevrilmez.
+#:
+#: `CONTROLLED_LABEL_SOURCES`in karşı tarafı. Bu adlardan okunan bir değer
+#: çeviri fonksiyonuna geçirilemez (kapı: `tests/test_i18n_static_gate.py`)
+#: ve envanterde ayrı bir sınıf olarak raporlanır.
+#:
+#: `type_label`, `category`, `asset_type` BURADA DEĞİL: onlar uygulamanın
+#: kendi etiket sözlüğü, kullanıcının serbest metni değil.
+USER_DATA_FIELDS = frozenset({
+    "name",
+    "goal_name",
+    "debt_name",
+    "account_name",
+    "card_name",
+    "asset_name",
+    "description",
+})
+
+
+def escape_markup(text) -> str:
+    """Kullanıcı verisini Kivy markup'ına GİRMEDEN önce zararsızlaştırır.
+
+    Kivy'nin `escape_markup`u ile BİREBİR aynı dönüşüm (`&` önce, sonra `[`
+    ve `]`), ama bu modül Kivy'ye bağımlı olmadan çalışabilsin diye burada.
+    Sıra önemlidir: `&` sonra kaçışlansaydı kendi ürettiğimiz `&bl;`
+    dizilerini de bozardık.
+
+    NEDEN: hesap/kart adı gibi kullanıcı verisi `markup=True` etiketlere
+    giriyor. Ham geçtiğinde `[color=...]` yazan bir ad arayüzü biçimlendirir;
+    bu, düzeltilen çeviri kusurunun kardeşi olan bir "kullanıcı verisi
+    yorumlanıyor" kusurudur.
+    """
+    if text is None:
+        return ""
+    return (
+        str(text)
+        .replace("&", "&amp;")
+        .replace("[", "&bl;")
+        .replace("]", "&br;")
+    )
+
+
+def placeholders(template: str) -> frozenset:
+    """Şablondaki yer tutucu adları. Sözlük tutarlılığı kapısı bunu kullanır."""
+    return frozenset(_PLACEHOLDER.findall(template or ""))
+
+
+class TranslationTemplateError(ValueError):
+    """Şablon ile verilen parametreler uyuşmuyor — GELİŞTİRİCİ hatası.
+
+    Veriye değil KODA bağlı olduğu için üretimde ilk kez ortaya çıkması
+    mümkün değil: `tests/test_i18n_static_gate.py` kod tabanındaki her `trf`
+    şablonunu render ediyor.
+    """
+
+
+def trf(template: str, language: str | None = None, **params) -> str:
+    """ÖNCE şablonu çevirir, SONRA parametreleri yerleştirir.
+
+    Sıra sözleşmenin kendisi: parametreler çeviriden SONRA girdiği için
+    kullanıcı verisi çeviri motoruna hiç uğramaz.
+
+    Yerleştirme `str.format` ile DEĞİL, dar bir `{ad}` sözleşmesiyle ve TEK
+    GEÇİŞTE yapılır. Gerekçe:
+
+      * **Dar sözleşme.** Yalnız `{ad}` biçimindeki yer tutucular tanınır.
+        `str.format`ın desteklediği biçim belirteci (`{x:>10}`), öznitelik
+        (`{x.attr}`) ve indeks (`{x[0]}`) erişimi ÇEVRİLEBİLİR bir şablonda
+        istenmiyor: sayı/tarih/para biçimlendirmesi çağrı yerinde kalmalı ve
+        bir çeviri metni nesne grafiğine uzanabilmemeli.
+      * **Doğrulanmış yer tutucu kümesi.** Şablonun beklediği adlarla verilen
+        parametreler karşılaştırılır; uyuşmazlık `TranslationTemplateError`.
+        `str.format` aynı durumda `KeyError`/`IndexError` fırlatır ve hata
+        mesajı hangi ŞABLONUN bozuk olduğunu söylemez.
+      * **Tek geçiş = öngörülebilirlik.** Bir parametrenin içindeki `{başka}`
+        metni ikinci bir parametreyle değiştirilemez; sonuç parametre
+        sırasından bağımsızdır.
+
+    DÜZELTME (önceki gerekçe yanlıştı): `str.format` YERLEŞTİRDİĞİ değeri
+    yeniden şablon olarak yorumlamaz — `"{x}".format(x="{test}")` sonucu
+    `"{test}"`tir, hata değil. Buradaki tercih bir çökme korkusuna değil,
+    yukarıdaki üç özelliğe dayanıyor.
+
+    Değerler hiçbir işleme girmediği için yüzde işareti, süslü parantez,
+    emoji, satır sonu ve RTL karakterleri birebir korunur.
+    """
+    if template is None:
+        return ""
+    translated = tr(template, language)
+
+    expected = placeholders(translated)
+    supplied = frozenset(params)
+    if expected != supplied:
+        missing = sorted(expected - supplied)
+        extra = sorted(supplied - expected)
+        raise TranslationTemplateError(
+            f"şablon parametreleri uyuşmuyor: eksik={missing} fazla={extra} "
+            f"şablon={template!r}"
+        )
+
+    values = {key: "" if value is None else str(value)
+              for key, value in params.items()}
+    return _PLACEHOLDER.sub(lambda match: values[match.group(1)], translated)

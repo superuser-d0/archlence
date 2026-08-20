@@ -16,7 +16,7 @@ Diyalog üslubu için örnek: mixins/savings_mixin.py::add_funds_to_goal
 import sqlite3
 
 from kivy.metrics import dp
-from ui.i18n import tr as _t
+from ui.i18n import escape_markup, tr as _t, trf as _tf
 from kivy.uix.widget import Widget
 from utils.errors import ArchlenceError
 from utils.toast import toast
@@ -62,6 +62,21 @@ from ui.components import (
 def _fmt(value):
     """Tutarı Türkçe biçimde (₺1.234,56) yazar — main.py'deki _fmt ile aynı kural."""
     return f"₺{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def account_display_name(account) -> str:
+    """Kartta gösterilecek hesap adı — KULLANICI VERİSİ, çevrilmez.
+
+    Eskiden burada `_t(acc["name"])` vardı ve "Nakit" adını verdiği hesabı
+    İngilizce arayüzde "Cash" diye gösteriyordu; "Ayarlar" -> "Settings",
+    "Gelir" -> "Income" da aynı yoldan geçiyordu. Kullanıcının yazdığı ad
+    uygulamanın çevireceği bir şey değildir — sözlükte aynı anahtar bulunsa
+    bile değil.
+
+    Fonksiyon olarak duruyor ki sözleşme tek yerde dursun ve testler onu
+    doğrudan çağırabilsin.
+    """
+    return str(account.get("name", "") or "")
 
 
 class AccountMixin:
@@ -357,7 +372,7 @@ class AccountMixin:
             # Ekstre, son hareket özetinin aksine yapay bir kayıt sınırı taşımaz.
             items = TransactionService.get_recent_for_account(account_id, limit=None)
         except _USER_FACING_ERRORS as e:
-            toast(_t(f"Ekstre okunamadı: {e}"))
+            toast(_tf("Ekstre okunamadı: {detail}", detail=e))
             return
 
         body = MDList()
@@ -435,7 +450,8 @@ class AccountMixin:
             if owner is None:
                 return
             if error is not None:
-                toast(_t(f"Taksit planları kontrol edilemedi: {_t(str(error))}"))
+                toast(_tf("Taksit planları kontrol edilemedi: {detail}",
+                          detail=error))
                 return
 
             old_dialog = getattr(owner, "delete_card_dialog", None)
@@ -443,18 +459,22 @@ class AccountMixin:
                 old_dialog.dismiss()
 
             if active_plan_count:
-                message = _t(
-                    "Dikkat: Bu karta ait devam eden "
-                    f"[b]{active_plan_count} adet aktif taksit planı[/b] "
-                    "bulunmaktadır. "
-                    "Kartı sildiğinizde bu taksit planları ve tüm geçmiş "
-                    "işlemler de kalıcı olarak silinecektir. Onaylıyor musunuz?"
+                message = _tf(
+                    "Dikkat: Bu karta ait devam eden [b]{count} adet aktif "
+                    "taksit planı[/b] bulunmaktadır. Kartı sildiğinizde bu "
+                    "taksit planları ve tüm geçmiş işlemler de kalıcı olarak "
+                    "silinecektir. Onaylıyor musunuz?",
+                    count=active_plan_count,
                 )
             else:
-                message = _t(
-                    f"{card['name']} kartı, karta bağlı tüm geçmiş işlemler ve "
+                # Kart adı KULLANICI VERİSİ. Markup'lı bir diyaloğa
+                # giriyor; bu yüzden ham değil, kaçışlanmış hâliyle
+                # yerleştiriliyor (bkz. ui.i18n.escape_markup).
+                message = _tf(
+                    "{name} kartı, karta bağlı tüm geçmiş işlemler ve "
                     "otomatik ödemeler kalıcı olarak silinecektir. "
-                    "Onaylıyor musunuz?"
+                    "Onaylıyor musunuz?",
+                    name=escape_markup(card["name"]),
                 )
 
             dialog_ref = {}
@@ -463,7 +483,7 @@ class AccountMixin:
                 try:
                     AccountService.delete_credit_card(account_id)
                 except _USER_FACING_ERRORS as exc:
-                    toast(_t(f"Kart silinemedi: {_t(str(exc))}"))
+                    toast(_tf("Kart silinemedi: {detail}", detail=exc))
                     return
                 # Kartın ekrandan kalkmasını diyalog kapanış animasyonunun
                 # sonuna bağlama; silme onayında state değişimi anlıktır.
@@ -619,7 +639,7 @@ class AccountMixin:
         try:
             plans = TransactionService.get_installment_plans(account_id)
         except _USER_FACING_ERRORS as e:
-            toast(_t(f"Taksit planları okunamadı: {_t(str(e))}"))
+            toast(_tf("Taksit planları okunamadı: {detail}", detail=e))
             return
 
         body = MDList()
@@ -651,7 +671,7 @@ class AccountMixin:
                     shorten_from="right",
                 )
                 monthly_lbl = MDLabel(
-                    text=_t(f"{_fmt(plan['monthly_amount'])} / ay"),
+                    text=_tf("{amount} / ay", amount=_fmt(plan["monthly_amount"])),
                     font_style="Subtitle2",
                     bold=True,
                     halign="right",
@@ -667,13 +687,14 @@ class AccountMixin:
                                      height=dp(20), spacing=dp(6))
                 # 'Kalan/Toplam Taksit': 3/6 = 3 taksit ödendi, 3 taksit kaldı.
                 progress_lbl = MDLabel(
-                    text=_t(f"{plan['paid_installments']}/{plan['total_installments']}"
-                            f" Taksit Ödendi"),
+                    text=_tf("{paid}/{total} Taksit Ödendi",
+                        paid=plan["paid_installments"],
+                        total=plan["total_installments"]),
                     font_style="Caption",
                     theme_text_color="Secondary",
                 )
                 remaining_lbl = MDLabel(
-                    text=_t(f"Kalan: {_fmt(plan['remaining_amount'])}"),
+                    text=_tf("Kalan: {amount}", amount=_fmt(plan["remaining_amount"])),
                     font_style="Caption",
                     halign="right",
                     theme_text_color="Custom",
@@ -736,11 +757,16 @@ class AccountMixin:
                 card_number_full=card_number_full,
             )
         except ValueError as exc:
+            # Servis metni UYGULAMA metnidir (kullanıcı verisi değil):
+            # tam anahtarla çevrilir, sözlükte yoksa olduğu gibi çıkar.
             toast(_t(str(exc)))
             return False
 
         label = ACCOUNT_TYPE_LABELS.get(account_type, "Hesap")
-        toast(_t(f"✔ {label} eklendi: {str(name).strip()}"))
+        # Etiket bir ENUM: ayrıca ve tam anahtarla çevrilir. Ad KULLANICI
+        # VERİSİ: parametre olarak, hiçbir çeviriden geçmeden girer.
+        toast(_tf("✔ {label} eklendi: {name}",
+                  label=_t(label), name=str(name).strip()))
 
         if getattr(self, "account_dialog", None):
             try:
@@ -970,7 +996,7 @@ class AccountMixin:
                 card = PremiumCreditCardWidget(account_id=acc["id"])
                 container_cards.add_widget(card)
             card.debt_ratio = ratio
-            card.card_name = _t(acc["name"])
+            card.card_name = account_display_name(acc)
             card.masked_number = acc.get("masked_number", "**** **** **** 0000")
             card.network_logo = acc.get("network_logo", "")
             card.available_limit = _fmt(acc["available_limit"])
@@ -990,7 +1016,7 @@ class AccountMixin:
                 card = PremiumDebitCardWidget(account_id=acc["id"])
                 container_cards.add_widget(card)
             card.account_id = acc["id"]
-            card.card_name = _t(acc["name"])
+            card.card_name = account_display_name(acc)
             card.masked_number = acc.get("masked_number", "**** **** **** 0000")
             card.network_logo = acc.get("network_logo", "")
             card.balance = _fmt(acc["balance"])
@@ -1008,7 +1034,7 @@ class AccountMixin:
             if widget is None:
                 widget = BentoAccountWidget()
                 container_accounts.add_widget(widget)
-            widget.account_name = _t(acc["name"])
+            widget.account_name = account_display_name(acc)
             widget.account_type_label = _t(acc["type_label"])
             widget.balance = _fmt(acc["balance"])
             return widget
@@ -1039,11 +1065,13 @@ class AccountMixin:
 
         current.balance = _fmt(total)
         if cached_count:
-            current.status_text = _t(f"{priced_count}/{asset_count} varlık • Son bilinen fiyat")
+            current.status_text = _tf("{priced}/{total} varlık • Son bilinen fiyat",
+                    priced=priced_count, total=asset_count)
         elif priced_count < asset_count:
-            current.status_text = _t(f"{priced_count}/{asset_count} varlık fiyatlandı")
+            current.status_text = _tf("{priced}/{total} varlık fiyatlandı",
+                    priced=priced_count, total=asset_count)
         else:
-            current.status_text = _t(f"{asset_count} TL dışı varlık • Canlı değer")
+            current.status_text = _tf("{count} TL dışı varlık • Canlı değer", count=asset_count)
 
     def stop_active_assets_refresh(self):
         """60 saniyelik arka plan tazeleme döngüsünü açıkça durdurur.

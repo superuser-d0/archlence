@@ -22,7 +22,7 @@ from kivymd.uix.label import MDLabel
 from kivymd.uix.list import MDList
 
 import ui.theme as ftheme
-from ui.i18n import tr as _t
+from ui.i18n import tr as _t, trf as _tf
 
 
 def _fmt(value):
@@ -59,12 +59,14 @@ def pending_row_text(item):
     elif remaining == 1:
         timing = _t("yarın işlenecek")
     else:
-        timing = _t(f"{remaining} gün sonra")
+        timing = _tf("{remaining} gün sonra", remaining=remaining)
 
-    return _t(
-        f"{item['description']}\n"
-        f"{signed_amount}  ·  Planlanan: {item['execution_date']}"
-        f"  ·  {timing}"
+    return _tf(
+        "{description}\n{signed_amount}  ·  Planlanan: {execution_date}  ·  {timing}",
+        description=item['description'],
+        signed_amount=signed_amount,
+        execution_date=item['execution_date'],
+        timing=timing,
     )
 
 
@@ -121,15 +123,13 @@ class PendingMixin:
             default="",
         )
 
-        lines = [_t(
-            f"{len(self._pending_cache)} işlem bakiyenize henüz yansımadı."
-        )]
+        lines = [_tf("{count} işlem bakiyenize henüz yansımadı.", count=len(self._pending_cache))]
         if income:
-            lines.append(_t(f"Beklenen gelir: {_fmt(income)}"))
+            lines.append(_tf("Beklenen gelir: {amount}", amount=_fmt(income)))
         if expense:
-            lines.append(_t(f"Beklenen gider: {_fmt(expense)}"))
+            lines.append(_tf("Beklenen gider: {amount}", amount=_fmt(expense)))
         if nearest:
-            lines.append(_t(f"En yakın tarih: {nearest}"))
+            lines.append(_tf("En yakın tarih: {nearest}", nearest=nearest))
         summary.text = "  ·  ".join(lines)
 
         card.height = dp(180)
@@ -235,7 +235,7 @@ class PendingMixin:
                 return
 
             message = (
-                _t(f"{item['description']} iptal edildi.") if removed
+                _tf("{description} iptal edildi.", description=item['description']) if removed
                 else _t("Bu işlem artık bekleyen durumda değil.")
             )
             Clock.schedule_once(lambda dt: toast(message), 0)
@@ -283,10 +283,10 @@ class PendingMixin:
             elif settled:
                 Clock.schedule_once(
                     lambda dt: toast(
-                        _t(f"{item['description']} bakiyenize işlendi.")), 0)
+                        _tf("{description} bakiyenize işlendi.", description=item['description'])), 0)
             else:
                 Clock.schedule_once(
-                    lambda dt: toast(_t(f"Yeni tarih: {new_date}")), 0)
+                    lambda dt: toast(_tf("Yeni tarih: {new_date}", new_date=new_date)), 0)
             Clock.schedule_once(lambda dt: self._refresh_pending_views(), 0)
 
         threading.Thread(target=work, daemon=True).start()

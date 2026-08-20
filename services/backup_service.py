@@ -41,6 +41,11 @@ ENCRYPTED_FIELDS = {
     "recurring_payments": ("name", "amount"),
     "savings_goals": ("goal_name",),
     "installment_plans": ("description", "total_amount", "monthly_amount"),
+    # Göç karantinası da KİŞİSEL VERİ taşıyor: taşınamayan hedefin adı ve ham
+    # kaydı. Haritaya girmeseydi yedek doğrulaması bu satırları anahtara karşı
+    # hiç sınamaz ve legacy şifreleme taşıması onları atlardı — sessizce
+    # okunamaz hâle gelirlerdi.
+    "savings_migration_quarantine": ("goal_name", "payload"),
 }
 
 
@@ -370,17 +375,34 @@ def _restore_journal_dir(db_path):
     return Path(db_path).parent / _JOURNAL_DIRNAME
 
 
-def _write_journal(journal_dir, state, db_path, config, had_config):
+def _savings_json_path(db_path):
+    """Restore generation'ına dahil olan legacy hedef dosyası.
+
+    Bu dosya artık bir VERİ KAYNAĞI DEĞİL (hedefler finance.db'de), ama
+    diskte durmaya devam edebiliyor. Restore DB'yi bütün olarak değiştirdiği
+    için ondan geriye kalan JSON tanım gereği ÖNCEKİ generation'a aittir;
+    aynı generation içinde ele alınmazsa iki kuşak birbirine karışır.
+    """
+    return Path(db_path).parent / "savings_goals.json"
+
+
+def _write_journal(journal_dir, state, db_path, config, had_config,
+                   had_savings_json=False):
     """Journal'ı ATOMİK yaz: geçici dosya + os.replace.
 
     Doğrudan yazmak, tam bu satırda çökme hâlinde yarım/bozuk bir journal
     bırakırdı ve kurtarma neye güveneceğini bilemezdi.
+
+    `had_savings_json` MEVCUT journal'a eklendi; PARALEL İKİNCİ BİR JOURNAL
+    AÇILMADI. İki journal, iki ayrı kurtarma yolu ve ikisinin birbirine
+    düşebileceği bir durum demekti.
     """
     payload = {
         "state": state,
         "db_path": str(db_path),
         "config_path": str(config) if config else None,
         "had_config": bool(had_config),
+        "had_savings_json": bool(had_savings_json),
     }
     target = journal_dir / _JOURNAL_NAME
     fd, staged = tempfile.mkstemp(dir=str(journal_dir), prefix=".journal-")
@@ -404,6 +426,43 @@ def _rollback_config(config, old_config, had_config):
         os.replace(old_config, config)
     elif not had_config and Path(config).exists():
         Path(config).unlink()
+
+
+def _rollback_savings_json(savings_json, old_savings, had_savings_json):
+    """Legacy hedef dosyasını restore ÖNCESİ hâline döndürür.
+
+    `_rollback_config` ile birebir aynı desen ve aynı gerekçe: restore öncesi
+    dosya YOKSA, restore sırasında ortaya çıkmış bir dosya SİLİNMELİDİR —
+    eski bir kopyayı geri koymak yanlış olurdu.
+    """
+    if had_savings_json and Path(old_savings).exists():
+        os.replace(old_savings, savings_json)
+    elif not had_savings_json and Path(savings_json).exists():
+        Path(savings_json).unlink()
+
+
+def _quarantine_stale_savings_json(savings_json):
+    """Başarılı restore'dan sonra legacy JSON'u KENARA alır — silmez.
+
+    Restore DB'yi bütün olarak değiştirdi; diskte kalan JSON önceki
+    generation'a ait. Yerinde bırakmak, göç motorunun onu bir sonraki açılışta
+    değerlendirmesi demekti ve iki kuşağın karışma ihtimalini açık bırakırdı.
+    Silmek ise veri imha etmek olurdu: dosya `.stale-<zaman>` olarak
+    kullanıcının veri dizininde kalır ve normal çalışmada bir daha okunmaz.
+    """
+    savings_json = Path(savings_json)
+    if not savings_json.exists():
+        return None
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    target = savings_json.with_name(f"{savings_json.name}.stale-{stamp}")
+    counter = 1
+    while target.exists():
+        target = savings_json.with_name(
+            f"{savings_json.name}.stale-{stamp}-{counter}"
+        )
+        counter += 1
+    os.replace(savings_json, target)
+    return target
 
 
 def _discard_journal(journal_dir):
@@ -445,8 +504,11 @@ def recover_interrupted_restore(db_path=DB_NAME, *, key_provider=None,
         Path(config_path) if config_path else None
     )
     had_config = payload.get("had_config", False)
+    had_savings_json = payload.get("had_savings_json", False)
     old_db = journal_dir / "old-finance.db"
     old_config = journal_dir / "old-config.json"
+    old_savings = journal_dir / "old-savings_goals.json"
+    savings_json = _savings_json_path(db_path)
 
     if state in _COMMITTED_STATES:
         # YENİ generation canonical. Restore başarıyla tamamlanmış ve
@@ -461,6 +523,9 @@ def recover_interrupted_restore(db_path=DB_NAME, *, key_provider=None,
                 "Restore tamamlanmış görünüyor ama veritabanı bulunamadı; "
                 "profil elle incelenmeli."
             )
+        # Yarım kalan tek iş bayat JSON'un kenara alınmasıysa onu tamamla.
+        # Restore başarılı, yani diskteki JSON ÖNCEKİ generation'dan kalma.
+        _quarantine_stale_savings_json(savings_json)
         _discard_journal(journal_dir)      # idempotent: rmtree(ignore_errors)
         return {
             "recovered": True,
@@ -475,6 +540,7 @@ def recover_interrupted_restore(db_path=DB_NAME, *, key_provider=None,
             db_path.unlink()
         os.replace(old_db, db_path)
     _rollback_config(config, old_config, had_config)
+    _rollback_savings_json(savings_json, old_savings, had_savings_json)
     _discard_journal(journal_dir)
     return {
         "recovered": True,
@@ -540,6 +606,8 @@ def restore_backup(
         journal_dir = _restore_journal_dir(db_path)
         old_db = journal_dir / "old-finance.db"
         old_config = journal_dir / "old-config.json"
+        old_savings = journal_dir / "old-savings_goals.json"
+        savings_json = _savings_json_path(db_path)
         try:
             journal_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
             # Config'in ESKİ hâli, değiştirilmeden ÖNCE saklanır. Eski kod
@@ -553,19 +621,27 @@ def restore_backup(
             had_config = config is not None and config.exists()
             if config is not None and had_config:
                 shutil.copy2(config, old_config)
-            _write_journal(journal_dir, "STAGED", db_path, config, had_config)
+            # Legacy hedef dosyası da AYNI generation'ın parçası. Restore
+            # başarısız olursa config ve DB ile birlikte geri gelir; başarılı
+            # olursa aşağıda karantinaya alınır.
+            had_savings_json = savings_json.exists()
+            if had_savings_json:
+                shutil.copy2(savings_json, old_savings)
+            _write_journal(journal_dir, "STAGED", db_path, config, had_config,
+                           had_savings_json)
 
             if db_path.exists():
                 os.replace(db_path, old_db)
             _write_journal(
-                journal_dir, "ROLLBACK_GENERATION_READY",
-                db_path, config, had_config,
+                journal_dir, "ROLLBACK_GENERATION_READY", db_path, config,
+                had_config, had_savings_json,
             )
             if _failure_hook:
                 _failure_hook("after_old_files_staged")
             os.replace(staged_db, db_path)
             _write_journal(
-                journal_dir, "DB_REPLACED", db_path, config, had_config
+                journal_dir, "DB_REPLACED", db_path, config,
+                had_config, had_savings_json,
             )
             if _failure_hook:
                 _failure_hook("after_database_replaced")
@@ -577,7 +653,8 @@ def restore_backup(
                     incoming_key, expected_current=current_key
                 )
             _write_journal(
-                journal_dir, "KEY_REPLACED", db_path, config, had_config
+                journal_dir, "KEY_REPLACED", db_path, config,
+                had_config, had_savings_json,
             )
             if _failure_hook:
                 _failure_hook("after_key_replaced")
@@ -585,7 +662,8 @@ def restore_backup(
                 config.parent.mkdir(parents=True, exist_ok=True)
                 config.write_bytes(verification["config"])
             _write_journal(
-                journal_dir, "CONFIG_REPLACED", db_path, config, had_config
+                journal_dir, "CONFIG_REPLACED", db_path, config,
+                had_config, had_savings_json,
             )
             if _failure_hook:
                 _failure_hook("after_config_replaced")
@@ -609,8 +687,11 @@ def restore_backup(
                 )
             elif current_key is None and restored_key is not None:
                 provider.delete_key(expected_current=restored_key)
-            # Config de AYNI generation ile geri alınır.
+            # Config ve legacy hedef dosyası da AYNI generation ile geri
+            # alınır: başarısız restore'dan sonra profil, restore hiç
+            # denenmemiş gibi olmalı.
             _rollback_config(config, old_config, had_config)
+            _rollback_savings_json(savings_json, old_savings, had_savings_json)
             _discard_journal(journal_dir)
             raise DataMigrationError(
                 "Restore başarısız oldu; önceki veriler geri yüklendi."
@@ -623,12 +704,25 @@ def restore_backup(
         # başarıda journal doğrudan siliniyordu, yani bu iki adım arasında
         # çöken bir süreç journal'ı `CONFIG_REPLACED` durumunda bırakıyor ve
         # sonraki açılış BAŞARILI bir restore'u geri alıyordu.
-        _write_journal(journal_dir, "VERIFIED", db_path, config, had_config)
+        _write_journal(
+            journal_dir, "VERIFIED", db_path, config,
+            had_config, had_savings_json,
+        )
         if _failure_hook:
             _failure_hook("before_committed_marker")
-        _write_journal(journal_dir, "COMMITTED", db_path, config, had_config)
+        _write_journal(
+            journal_dir, "COMMITTED", db_path, config,
+            had_config, had_savings_json,
+        )
         if _failure_hook:
             _failure_hook("after_committed_marker")
+        # Bayat JSON kenara alınır. COMMITTED'DEN SONRA, çünkü buradan
+        # itibaren YENİ generation canonical: diskte kalan JSON önceki
+        # generation'a ait ve bir daha etkin kaynak olmamalı. Kesilirse
+        # `recover_interrupted_restore` aynı adımı tamamlar (idempotent).
+        stale_savings = _quarantine_stale_savings_json(savings_json)
+        if _failure_hook:
+            _failure_hook("after_savings_json_quarantined")
         # Eski generation artefaktlarını temizle. Buradaki her adım
         # idempotenttir; kesilirse sonraki açılış tamamlar.
         _discard_journal(journal_dir)
@@ -638,4 +732,5 @@ def restore_backup(
     return {
         "restored": True,
         "safety_backup_path": str(safety_backup_path),
+        "stale_savings_json": str(stale_savings) if stale_savings else None,
     }

@@ -1,5 +1,15 @@
 # Windows donanım doğrulama — kontrol listesi (RC-6 adayı)
 
+> **TAMAMLANMIŞ TUR — TARİHSEL KAYIT.** Bu belge canlı bir yapılacaklar listesi
+> DEĞİL. Anlattığı tur kapandı: #95 ve #97 `main`'e merge edildi, aday dal
+> (`fix/dashboard-scroll-and-empty-cards`) silindi ve o iş v0.0.10'dan itibaren
+> yayınlandı. Aşağıdaki `[ ]` kutuları o turdaki ölçümlerin durumunu gösterir;
+> bugün yapılacak iş listesi olarak okunmamalıdır.
+>
+> Hâlâ geçerli olan iki kısıt (ikinci Windows hesabı ve çoklu monitör) canlı
+> kayıtlarını CHANGELOG'un "Known limitations" bölümünde sürdürüyor — orası
+> güncel kaynaktır.
+
 Kaynak: `HANDOFF_RC_WINDOWS.md` §2 + PR #97 ile gelen arayüz değişiklikleri.
 Amaç, "Windows integration verified" cümlesini kurabilmek için gereken
 ölçümleri tek yerde toplamak.
@@ -607,8 +617,13 @@ turu yüzünden yinelenmiş durumda — test verisi, uygulama hatası değil).
 
 ## 8. Sonuç
 
-- [ ] §2 ve §3 tamamen yeşil → #95 `gh pr ready 95` ile draft'tan çıkarılabilir
-      (karar depo sahibinin).
-- [ ] §4 yeşil → #97 hedefi `main`'e döner, CI kontrolleri orada koşar.
-- [ ] Kalan bulgular `HANDOFF_RC_WINDOWS.md`'ye değil, CHANGELOG'un
-      "Known limitations" bölümüne veya yeni bir issue'ya yazılır.
+**Üçü de yapıldı — 2026-08-17.** Kutular kapatıldı, çünkü işaretsiz bırakmak
+tamamlanmış işi bekleyen iş gibi gösteriyordu.
+
+- [x] §2 ve §3 → #95 draft'tan çıkarıldı, `main` ile güncellendi ve 10/10 yeşil
+      kontrolle merge edildi.
+- [x] §4 → #97'nin hedefi `main`'e çevrildi ve merge edildi. Bu aynı zamanda
+      gerçek bir CI kör noktasını kapattı: PR'ın tabanı `main` olmadığı için
+      workflow'lar hiç tetiklenmiyordu ve koşumlar elle yapılıyordu.
+- [x] Kalan bulgular CHANGELOG'un "Known limitations" bölümüne yazıldı; canlı
+      kayıt orada tutuluyor, bu belgede değil.

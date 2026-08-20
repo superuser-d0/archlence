@@ -18,7 +18,7 @@ from kivymd.uix.button import MDFlatButton, MDIconButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
 import ui.theme as ftheme
-from ui.i18n import get_language, tr as _t
+from ui.i18n import get_language, tr as _t, trf as _tf
 
 
 # Sağlık skoru bandı -> ftheme anlamsal renk adı. Renk doğrudan yazılmaz ki
@@ -130,6 +130,36 @@ def _renewal_description(payment):
 def _fmt(value):
     """Tutarı Türkçe biçimde yazar (main.py::_fmt_tr ile aynı kural)."""
     return f"₺{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def recurring_candidate_title(candidate) -> str:
+    """Abonelik adayı kartının başlık satırı.
+
+    Ad KULLANICI VERİSİ (çevrilmez), sıklık KONTROLLÜ ETİKET (çevrilir).
+    Saf fonksiyon: testler metni ÜRETEN kodun kendisini çağırır; üretim
+    ifadesini kopyalayan bir test, üretim değiştiğinde sessizce yalan
+    söylemeye başlardı.
+    """
+    return _tf("{name}  ·  {frequency}",
+               name=candidate["name"],
+               frequency=_t(_frequency_label(candidate["frequency"])))
+
+
+def recurring_candidate_detail(candidate, format_amount) -> str:
+    """Abonelik adayı kartının ayrıntı satırı.
+
+    Tutar biçimlendirmesi ÇAĞIRANDAN geliyor (`format_amount`); bu yardımcı
+    para biçimlendirme politikasına karışmıyor.
+    """
+    return _tf(
+        "{amount} × {occurrences} kez  →  ayda {amount_1}\n"
+        "Kategori: {category}  ·  Son: {last_seen}",
+        amount=format_amount(candidate["average_amount"]),
+        occurrences=candidate["occurrences"],
+        amount_1=format_amount(candidate["monthly_cost"]),
+        category=_t(candidate["category"]),
+        last_seen=candidate["last_seen"],
+    )
 
 
 class InsightsMixin:
@@ -272,10 +302,11 @@ class InsightsMixin:
             savings = breakdown.get("savings_rate", 0.0) * 100
             debt = breakdown.get("debt_ratio", 0.0) * 100
             volatility = breakdown.get("expense_volatility", 0.0) * 100
-            ids.health_breakdown_text.text = _t(
-                f"Tasarruf oranı %{savings:.0f}  ·  "
-                f"Borç/gelir %{debt:.0f}  ·  "
-                f"Gider oynaklığı %{volatility:.0f}"
+            ids.health_breakdown_text.text = _tf(
+                "Tasarruf oranı %{savings}  ·  Borç/gelir %{debt}  ·  Gider oynaklığı %{volatility}",
+                savings=f"{savings:.0f}",
+                debt=f"{debt:.0f}",
+                volatility=f"{volatility:.0f}",
             )
 
             ids.health_score_bar.value = max(0.0, min(100.0, score))
@@ -416,8 +447,11 @@ class InsightsMixin:
         # Toplam sızıntıyı en üstte özetle — asıl mesaj bu.
         total = sum(c["monthly_cost"] for c in self._recurring_candidates)
         summary = MDLabel(
-            text=_t(f"Aylık toplam {_fmt(total)} tutarında {len(self._recurring_candidates)} "
-                    f"olası abonelik bulundu."),
+            text=_tf(
+                "Aylık toplam {amount} tutarında {count} olası abonelik bulundu.",
+                amount=_fmt(total),
+                count=len(self._recurring_candidates),
+            ),
             font_style="Caption",
             theme_text_color="Secondary",
             size_hint_y=None,
@@ -471,16 +505,14 @@ class InsightsMixin:
             ))
 
         title = MDLabel(
-            text=_t(f"{cand['name']}  ·  {_frequency_label(cand['frequency'])}"),
+            text=recurring_candidate_title(cand),
             font_style="Subtitle2", bold=True,
             size_hint_y=None, height="24dp")
         title_row.add_widget(title)
         card.add_widget(title_row)
 
         detail = MDLabel(
-            text=_t(f"{_fmt(cand['average_amount'])} × {cand['occurrences']} kez  →  "
-                    f"ayda {_fmt(cand['monthly_cost'])}\n"
-                    f"Kategori: {cand['category']}  ·  Son: {cand['last_seen']}"),
+            text=recurring_candidate_detail(cand, _fmt),
             font_style="Caption", theme_text_color="Secondary",
             size_hint_y=None, height="40dp")
         detail.bind(size=detail.setter("text_size"))
@@ -569,7 +601,7 @@ class InsightsMixin:
                 Clock.schedule_once(lambda dt: toast(_t("Abonelik eklenemedi.")), 0)
                 return
 
-            Clock.schedule_once(lambda dt: toast(_t(f"{cand['name']} takibe alındı.")), 0)
+            Clock.schedule_once(lambda dt: toast(_tf("{name} takibe alındı.", name=cand['name'])), 0)
             Clock.schedule_once(lambda dt: self.refresh_insights(), 0)
 
         threading.Thread(target=work, daemon=True).start()
@@ -623,9 +655,16 @@ class InsightsMixin:
         card.add_widget(icon)
 
         text = MDLabel(
-            text=_t(f"{_t(anomaly['category'])} · {_fmt(anomaly['amount'])}\n"
-                    f"Bu kategorideki ortalamanın {_fmt(anomaly['deviation'])} üzerinde "
-                    f"({anomaly['date']})"),
+            text=_tf(
+                "{category} · {amount}\nBu kategorideki ortalamanın {amount_1} üzerinde ({date})",
+                category=# Kategori, uygulamanın KENDİ sözlüğünden gelen bir etikettir
+        # (init_db'deki varsayılan liste), kullanıcının serbest metni
+        # değil; bu yüzden tam anahtarla çevrilir.
+        _t(anomaly['category']),
+                amount=_fmt(anomaly['amount']),
+                amount_1=_fmt(anomaly['deviation']),
+                date=anomaly['date'],
+            ),
             font_style="Caption",
             theme_text_color="Secondary",
         )

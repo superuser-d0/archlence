@@ -11,7 +11,7 @@ from kivymd.uix.progressbar import MDProgressBar
 from kivymd.uix.slider import MDSlider
 import ui.theme as ftheme
 from ui.components import is_read_only_asset_account
-from ui.i18n import tr as _t
+from ui.i18n import tr as _t, trf as _tf
 from utils.formatters import attach_amount_mask, read_amount, set_amount
 
 class DebtMixin:
@@ -89,7 +89,10 @@ class DebtMixin:
                 
                 header = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="24dp")
                 name_lbl = MDLabel(text=f"{debt['debt_name']}", font_style="Subtitle2", bold=True)
-                amount_lbl = MDLabel(text=_t(f"Aylık: {debt['monthly_payment']:,.2f} ₺"), font_style="Caption", theme_text_color="Secondary", halign="right")
+                amount_lbl = MDLabel(text=_tf(
+                    "Aylık: {monthly_payment} ₺",
+                    monthly_payment=f"{debt['monthly_payment']:,.2f}",
+                ), font_style="Caption", theme_text_color="Secondary", halign="right")
                 auto_pay_btn = MDIconButton(
                     icon="calendar-sync" if debt.get("is_auto_pay") else "calendar-sync-outline",
                     theme_text_color="Custom",
@@ -108,9 +111,16 @@ class DebtMixin:
 
                 progress = MDProgressBar(value=debt["paid_installments"], max=debt["total_installments"], size_hint_y=None, height="8dp")
 
-                status_text = _t(f"Kalan: {debt['total_installments'] - debt['paid_installments']}/{debt['total_installments']} Taksit")
+                status_text = _tf(
+                    "Kalan: {remaining}/{total} Taksit",
+                    remaining=debt["total_installments"] - debt["paid_installments"],
+                    total=debt["total_installments"],
+                )
                 if debt.get("is_auto_pay"):
-                    status_text += _t(f"   •  Ayın {debt.get('auto_pay_day', 1)}. günü otomatik ödenecek")
+                    status_text += _tf(
+                        "   •  Ayın {auto_pay_day}. günü otomatik ödenecek",
+                        auto_pay_day=debt.get('auto_pay_day', 1),
+                    )
                 status_lbl = MDLabel(
                     text=status_text, font_style="Caption",
                     theme_text_color="Custom",
@@ -176,7 +186,10 @@ class DebtMixin:
 
         self.dialog = MDDialog(
             title=_t("Borcu Kapat"),
-            text=_t(f"Kalan {remaining_balance:,.2f} ₺ bakiyeyi kapatmak istediğinize emin misiniz?"),
+            text=_tf(
+                "Kalan {remaining_balance} ₺ bakiyeyi kapatmak istediğinize emin misiniz?",
+                remaining_balance=f"{remaining_balance:,.2f}",
+            ),
             buttons=[
                 ftheme.secondary_button(_t("İPTAL"), self.theme_cls, on_release=lambda x: self.dialog.dismiss()),
                 ftheme.danger_button(_t("EVET, KAPAT"), self.theme_cls, on_release=confirm),
@@ -194,12 +207,15 @@ class DebtMixin:
             return
 
         content = MDBoxLayout(orientation="vertical", spacing="10dp", size_hint_y=None, height="120dp")
-        lbl = MDLabel(text=_t(f"Kaç taksit ödemek istiyorsunuz? (Maks: {remaining_installments})"), theme_text_color="Secondary")
+        lbl = MDLabel(text=_tf(
+            "Kaç taksit ödemek istiyorsunuz? (Maks: {remaining_installments})",
+            remaining_installments=remaining_installments,
+        ), theme_text_color="Secondary")
         slider = MDSlider(min=1, max=remaining_installments, value=1, step=1)
         val_lbl = MDLabel(text=_t("Seçilen: 1 Taksit"), halign="center", bold=True)
 
         def on_slider_value(instance, value):
-            val_lbl.text = _t(f"Seçilen: {int(value)} Taksit")
+            val_lbl.text = _tf("Seçilen: {count} Taksit", count=int(value))
             
         slider.bind(value=on_slider_value)
 
@@ -226,7 +242,10 @@ class DebtMixin:
                         category="Kredi Taksiti",
                         description=f"{debt['debt_name']} ({selected_installments} Taksit Ödemesi)"
                     )
-                    Clock.schedule_once(lambda dt: toast(_t(f"{selected_installments} taksit başarıyla ödendi!")), 0)
+                    Clock.schedule_once(lambda dt: toast(_tf(
+                        "{selected_installments} taksit başarıyla ödendi!",
+                        selected_installments=selected_installments,
+                    )), 0)
                     Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
                     Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                     Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
@@ -292,7 +311,7 @@ class DebtMixin:
             threading.Thread(target=process, daemon=True).start()
 
         self.auto_pay_dialog = MDDialog(
-            title=_t(f"{debt['debt_name']} — Otomatik Ödeme"),
+            title=_tf("{debt_name} — Otomatik Ödeme", debt_name=debt['debt_name']),
             type="custom",
             content_cls=content,
             buttons=[
@@ -337,7 +356,11 @@ class DebtMixin:
 
         selected_account_id = checking_accounts[0]["id"]
         account_btn = ftheme.primary_button(
-            _t(f"{checking_accounts[0]['name']} (Bakiye: {checking_accounts[0]['balance']:,.2f} ₺)"),
+            _tf(
+                "{name} (Bakiye: {balance} ₺)",
+                name=checking_accounts[0]['name'],
+                balance=f"{checking_accounts[0]['balance']:,.2f}",
+            ),
             self.theme_cls,
             size_hint_x=1
         )
@@ -351,7 +374,7 @@ class DebtMixin:
         def set_selected_account(acc):
             nonlocal selected_account_id
             selected_account_id = acc["id"]
-            account_btn.text = _t(f"{acc['name']} (Bakiye: {acc['balance']:,.2f} ₺)")
+            account_btn.text = _tf("{name} (Bakiye: {balance} ₺)", name=acc['name'], balance=f"{acc['balance']:,.2f}")
             self.pay_debt_menu.dismiss()
 
         def open_menu(*args):
@@ -364,13 +387,17 @@ class DebtMixin:
             # Ana buton metnini güncel veriyle zorla güncelle (stale state koruması)
             for acc in checking_now:
                 if acc["id"] == selected_account_id:
-                    account_btn.text = _t(f"{acc['name']} (Bakiye: {acc['balance']:,.2f} ₺)")
+                    account_btn.text = _tf(
+                        "{name} (Bakiye: {balance} ₺)",
+                        name=acc['name'],
+                        balance=f"{acc['balance']:,.2f}",
+                    )
                     break
             
             menu_items = []
             for acc in checking_now:
                 menu_items.append({
-                    "text": _t(f"{acc['name']} (Bakiye: {acc['balance']:,.2f} ₺)"),
+                    "text": _tf("{name} (Bakiye: {balance} ₺)", name=acc['name'], balance=f"{acc['balance']:,.2f}"),
                     "viewclass": "OneLineListItem",
                     "on_release": lambda x=acc: set_selected_account(x),
                 })
@@ -424,12 +451,12 @@ class DebtMixin:
                     from utils.logging_config import get_logger
                     get_logger().exception("Error paying credit card debt")
                     error_msg = str(e)
-                    Clock.schedule_once(lambda dt: toast(_t(f"Hata: {_t(error_msg)}")), 0)
+                    Clock.schedule_once(lambda dt: toast(_tf("Hata: {error_msg}", error_msg=_t(error_msg))), 0)
 
             threading.Thread(target=process, daemon=True).start()
 
         self.pay_debt_dialog = MDDialog(
-            title=_t(f"{card['name']} Borç Ödeme"),
+            title=_tf("{name} Borç Ödeme", name=card['name']),
             type="custom",
             content_cls=content,
             buttons=[

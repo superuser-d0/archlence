@@ -19,9 +19,24 @@ class I18nTestCase(unittest.TestCase):
         self.assertEqual(get_language(), "tr")
 
     def test_dynamic_ui_sentences_are_translated(self):
+        """Dinamik cümleler artık ŞABLONDAN kuruluyor.
+
+        Bu test eskiden `tr("Taksit Sayısı: 6")` diyordu ve alt dize
+        değiştiren fallback'e güveniyordu. O fallback kullanıcı verisini de
+        çeviriyordu (bkz. tests/test_i18n_user_data.py); kaldırıldı.
+        Sözleşme artık: şablon çevrilir, sayı sonradan yerleşir.
+        """
+        from ui.i18n import trf
+
         set_language("en")
-        self.assertEqual(tr("Taksit Sayısı: 6"), "Number of Installments: 6")
-        self.assertEqual(tr("Aylık: 1.250 ₺"), "Monthly: 1.250 ₺")
+        self.assertEqual(
+            trf("Taksit Sayısı: {count}", count=6),
+            "Number of Instalments: 6",
+        )
+        self.assertEqual(
+            trf("Aylık: {monthly_payment} ₺", monthly_payment="1.250"),
+            "Monthly: 1.250 ₺",
+        )
         self.assertEqual(tr("Maaş"), "Salary")
 
     def test_what_if_labels_have_real_turkish_translations(self):
@@ -52,10 +67,17 @@ class I18nTestCase(unittest.TestCase):
         self.assertEqual(sorted(set(missing)), [])
 
     def test_account_dashboard_dynamic_phrases_are_translated(self):
+        from ui.i18n import trf
+
         set_language("en")
+        # Sabit etiketler TAM ANAHTAR olarak duruyor.
         self.assertEqual(tr("Değişim (Bugün)"), "Change (Today)")
         self.assertEqual(tr("Nakit / Vadesiz"), "Cash / Checking")
-        self.assertEqual(tr("3 TL dışı varlık • Canlı değer"), "3 non-TRY assets • Live value")
+        # Sayı taşıyan cümle ise şablon + parametre.
+        self.assertEqual(
+            trf("{count} TL dışı varlık • Canlı değer", count=3),
+            "3 non-TRY assets • Live value",
+        )
 
     def test_every_forecast_state_is_a_complete_english_sentence(self):
         """Dinamik tutar eklenirken öngörü metni karma dile dönmemeli."""

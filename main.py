@@ -8,6 +8,7 @@ Archlence KivyMD Application - Main Entry Point
 import os
 import sys
 import logging
+import sqlite3
 import datetime
 import faulthandler
 import traceback as _traceback
@@ -264,7 +265,11 @@ from ui.theme import (
     _refresh,
 )
 import ui.theme as ftheme
-from ui.i18n import tr as translate, set_language as set_active_language
+from ui.i18n import (
+    tr as translate,
+    trf as translate_format,
+    set_language as set_active_language,
+)
 from utils.currency import format_try
 from utils.errors import FinancialDataIntegrityError, SchemaTooNewError
 from utils.version import APP_VERSION
@@ -312,6 +317,14 @@ def _resolve_config_path():
     return target_path
 
 def _resolve_savings_store_path():
+    """Eski `savings_goals.json`'un GÖÇ İÇİN aranacağı yol.
+
+    Bu dosya artık bir veri kaynağı DEĞİL: hedefler SQLite'ta yaşıyor
+    (docs/SAVINGS_SINGLE_SOURCE_PLAN.md). Fonksiyon yalnız duruyor çünkü
+    paketlenmiş eski kurulumlarda dosya hâlâ uygulama dizininde olabilir ve
+    göç motorunun onu bulabilmesi için önce kullanıcı veri dizinine taşınması
+    gerekiyor. Taşıma idempotent; hedefte dosya varsa üzerine yazmaz.
+    """
     legacy_path = os.path.join(_APP_DIR, "savings_goals.json")
     target_path = os.path.join(data_dir(), "savings_goals.json")
     migrate_legacy_path(legacy_path, target_path)
@@ -450,6 +463,89 @@ class ArchlenceApp(
         thread.start()
         return thread
 
+    def _run_savings_migration_at_startup(self):
+        """Eski `savings_goals.json` varsa SQLite'a taşır. Açılışı BLOKLAMAZ.
+
+        Göç kendi içinde fail-closed: karar veremediği kaydı karantinaya alır,
+        anahtar yoksa hiç çalışmaz, doğrulama kırmızıysa JSON'u emekliye
+        ayırmaz. Buradaki `try` o güvenliğin üstüne bir kat daha koyuyor:
+        beklenmedik bir arıza (ör. dosya sistemi hatası) açılışı öldürmemeli,
+        çünkü kullanıcının SQL'deki verisi zaten sağlam ve JSON dokunulmadan
+        duruyor — bir sonraki açılış yeniden dener.
+        """
+        from services.savings_migration import (
+            SavingsMigrationError,
+            run_savings_migration,
+        )
+
+        try:
+            outcome = run_savings_migration(
+                json_path=_resolve_savings_store_path()
+            )
+        except (SavingsMigrationError, sqlite3.Error, OSError, ValueError):
+            from utils.logging_config import get_logger
+            get_logger().exception(
+                "Birikim hedefi göçü tamamlanamadı; veri olduğu gibi korundu")
+            return None
+
+        if outcome.get("status") not in ("no-json", "no-database"):
+            from utils.logging_config import get_logger
+            get_logger().info("Birikim hedefi göçü: %s", outcome)
+        return outcome
+
+    def _present_savings_quarantine(self, *args):
+        """Otomatik taşınamayan hedefleri kullanıcıya AÇIKÇA gösterir.
+
+        Sessiz log YETMEZ: kullanıcının bir hedefi ekranda görünmüyorsa bunu
+        öğrenmesi gerekir. Bildirim tek seferliktir (`acknowledged`), ama kayıt
+        silinmez — hangi hedeflerin taşınamadığı sonradan da incelenebilsin.
+        """
+        from services.savings_migration import (
+            acknowledge_quarantine,
+            pending_quarantine,
+        )
+
+        try:
+            pending = pending_quarantine()
+        except (sqlite3.Error, OSError, ValueError):
+            # Dar sınır: okuma yolunun gerçekten üretebildiği arızalar.
+            # Şifre çözme hataları zaten servisin içinde ele alınıyor
+            # ("Bilinmeyen Hedef"), bir kayıt yüzünden tüm bildirim düşmesin.
+            from utils.logging_config import get_logger
+            get_logger().exception("Karantina kayıtları okunamadı")
+            return
+
+        if not pending:
+            return
+
+        lines = []
+        for item in pending[:10]:
+            name = item.get("goal_name") or "Bilinmeyen Hedef"
+            lines.append(f"• {name} — {item.get('message', '')}".strip())
+        if len(pending) > 10:
+            lines.append(translate_format("…ve {count} kayıt daha.", count=len(pending) - 10))
+
+        body = translate(
+            "Eski hedef dosyanızdaki bazı kayıtlar otomatik olarak "
+            "taşınamadı. Bu kayıtlar SİLİNMEDİ; güvenli bir alanda saklandı "
+            "ve hiçbir bakiyeye dahil edilmedi:"
+        ) + "\n\n" + "\n".join(lines)
+
+        from kivymd.uix.dialog import MDDialog
+
+        dialog = MDDialog(
+            title=translate("Taşınamayan Birikim Hedefleri"),
+            text=body,
+            buttons=[
+                ftheme.primary_button(
+                    translate("ANLADIM"), self.theme_cls,
+                    on_release=lambda *_: dialog.dismiss(),
+                ),
+            ],
+        )
+        dialog.bind(on_dismiss=lambda *_: acknowledge_quarantine())
+        dialog.open()
+
     def build(self):
         try:
             setup_appimage_desktop_integration()
@@ -508,9 +604,19 @@ class ArchlenceApp(
             self._startup_recovery_failure = SCHEMA_TOO_NEW_MESSAGE
             present_schema_too_new_failure(self, SCHEMA_TOO_NEW_MESSAGE)
             raise
-        self.store = JsonStore(_resolve_savings_store_path())
-        if self.store.exists("goals"):
-            self.savings_goals = self.store.get("goals")["data"]
+        # BİRİKİM HEDEFLERİ ARTIK JSON'DAN OKUNMUYOR.
+        #
+        # Eskiden burada `JsonStore(savings_goals.json)` açılıyor ve ekrandaki
+        # kartlar o dosyadan besleniyordu; para ise SQL'deydi. İkisi
+        # ayrışabiliyordu ve restore `sqlite_sequence`i geri sardığında bayat
+        # bir kart BAŞKA bir hedefi fonluyordu
+        # (tests/test_savings_identity_reuse_regression.py). Tek doğruluk
+        # kaynağı artık SQLite.
+        #
+        # Sıra önemli: göç `initialize_database()`'ten SONRA (şema hazır) ve
+        # hedefler okunmadan ÖNCE çalışır.
+        self._run_savings_migration_at_startup()
+        self.load_savings_goals()
 
         self.theme_cls.theme_style_switch_animation = False
         self.config_store = JsonStore(_resolve_config_path())
@@ -612,6 +718,10 @@ class ArchlenceApp(
 
     def on_start(self):
         self._normalize_card_shadows()
+
+        # Karantina bildirimi UI ayağa kalktıktan SONRA: `build()` sırasında
+        # açılan bir diyalog henüz pencere yokken çizilmeye çalışılırdı.
+        Clock.schedule_once(self._present_savings_quarantine, 0)
 
         tool_card_bindings = (
             ("budget_tool_card", self.show_budget_planner),
@@ -1258,8 +1368,12 @@ class ArchlenceApp(
                 )
                 sign = "+" if today_pnl >= 0 else "-"
                 c_sign = "+" if pct >= 0 else "-"
-                pnl.text = translate(
-                    f"{sign}{self._fmt_tr(abs(today_pnl))} ({c_sign}{abs(pct):.2f}%) Bugün"
+                pnl.text = translate_format(
+                    "{sign}{value} ({c_sign}{value_1}%) Bugün",
+                    sign=sign,
+                    value=self._fmt_tr(abs(today_pnl)),
+                    c_sign=c_sign,
+                    value_1=f"{abs(pct):.2f}",
                 )
 
                 if today_pnl > 0:
@@ -1578,12 +1692,14 @@ class ArchlenceApp(
                         icon_name, icon_col = "cart-outline", (0.9, 0.2, 0.2, 1)
 
                     if category == "Varlık Alımı":
-                        amount_text = translate(
-                            f"[color=#0277BD]- ₺{amount:,.2f} Yatırım[/color]"
+                        amount_text = translate_format(
+                            "[color=#0277BD]- ₺{amount} Yatırım[/color]",
+                            amount=f"{amount:,.2f}",
                         )
                     elif category == "Varlık Satışı":
-                        amount_text = translate(
-                            f"[color=#2E7D32]+ ₺{amount:,.2f} Satış[/color]"
+                        amount_text = translate_format(
+                            "[color=#2E7D32]+ ₺{amount} Satış[/color]",
+                            amount=f"{amount:,.2f}",
                         )
                     elif t_type == "income":
                         amount_text = f"[color=#2E7D32]+ ₺{amount:,.2f}[/color]"
@@ -1793,8 +1909,9 @@ class ArchlenceApp(
         )
         remaining = LoginThrottle.seconds_remaining(throttle_state)
         if remaining > 0:
-            self._handle_failed_login(message=translate(
-                f"Çok fazla hatalı deneme. {int(remaining) + 1} saniye sonra tekrar deneyin."
+            self._handle_failed_login(message=translate_format(
+                "Çok fazla hatalı deneme. {seconds} saniye sonra tekrar deneyin.",
+                seconds=int(remaining) + 1,
             ))
             return
 
@@ -1815,8 +1932,9 @@ class ArchlenceApp(
             self.config_store.put("security_throttle", **new_throttle)
             new_remaining = LoginThrottle.seconds_remaining(new_throttle)
             if new_remaining > 0:
-                self._handle_failed_login(message=translate(
-                    f"Çok fazla hatalı deneme. {int(new_remaining) + 1} saniye sonra tekrar deneyin."
+                self._handle_failed_login(message=translate_format(
+                    "Çok fazla hatalı deneme. {seconds} saniye sonra tekrar deneyin.",
+                    seconds=int(new_remaining) + 1,
                 ))
             else:
                 self._handle_failed_login()
@@ -1996,9 +2114,9 @@ class ArchlenceApp(
         if last_month_exp > 0:
             change_percent = ((this_month_exp - last_month_exp) / last_month_exp) * 100
             change_text = (
-                translate(f"%{change_percent:.1f} arttı")
+                translate_format("%{percent} arttı", percent=f"{change_percent:.1f}")
                 if change_percent > 0
-                else translate(f"%{abs(change_percent):.1f} azaldı")
+                else translate_format("%{percent} azaldı", percent=f"{abs(change_percent):.1f}")
             )
         else:
             change_text = translate("karşılaştırılacak veri yok")
@@ -2009,10 +2127,11 @@ class ArchlenceApp(
             else 0
         )
 
-        advice_text = translate(
-            f"Bu ay harcamalarınız geçen döneme kıyasla {change_text}.\n"
-            f"En çok harcama yapılan alan: {translate(highest_cat_name)}.\n"
-            f"Bu ayki net tasarruf oranınız: %{savings_rate:.1f}. Harika birikim dönemi!"
+        advice_text = translate_format(
+            "Bu ay harcamalarınız geçen döneme kıyasla {change_text}.\nEn çok harcama yapılan alan: {highest_cat_name}.\nBu ayki net tasarruf oranınız: %{savings_rate}. Harika birikim dönemi!",
+            change_text=change_text,
+            highest_cat_name=translate(highest_cat_name),
+            savings_rate=f"{savings_rate:.1f}",
         )
 
         forecast_text, forecast_state = self._compute_monthly_forecast_text()
@@ -2184,8 +2303,9 @@ class ArchlenceApp(
             toast(translate("Silme işlemi iptal edildi. Onay için SİL yazmalısınız."))
             return
         try:
-            if hasattr(self, "store"):
-                self.store.clear()
+            # `self.store.clear()` KALDIRILDI: birikim hedefleri artık
+            # JsonStore'da yaşamıyor, aşağıdaki tablo temizliği onları da
+            # kapsıyor (savings_goals, karantina ve göç işareti dahil).
             self.savings_goals = []
 
             with managed_connection() as conn:

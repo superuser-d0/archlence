@@ -1,11 +1,12 @@
 import os
+import sqlite3
 import threading
 from datetime import datetime
 from pathlib import Path
 
 from kivy.clock import Clock
 from utils.toast import toast
-from ui.i18n import tr as _t
+from ui.i18n import tr as _t, trf as _tf
 
 
 def restore_chooser_path():
@@ -43,7 +44,7 @@ class MigrationMixin:
                 from services.migration_service import export_all_to_csv
                 path, count = export_all_to_csv()
                 Clock.schedule_once(
-                    lambda dt: toast(_t(f"{count} kayıt dışa aktarıldı:\n{path}")), 0)
+                    lambda dt: toast(_tf("{count} kayıt dışa aktarıldı:\n{path}", count=count, path=path)), 0)
             except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("CSV export error")
@@ -255,7 +256,7 @@ class MigrationMixin:
             "key-recovery-export",
             work,
             on_success=lambda path: toast(
-                _t(f"Kurtarma paketi doğrulandı:\n{path}")
+                _tf("Kurtarma paketi doğrulandı:\n{path}", path=path)
             ),
             on_error=lambda exc: self._secure_operation_error(
                 "Kurtarma paketi oluşturulamadı", exc
@@ -377,10 +378,10 @@ class MigrationMixin:
         self.background_tasks.submit(
             "key-rotation",
             work,
-            on_success=lambda result: toast(_t(
-                f"Anahtar rotasyonu tamamlandı: "
-                f"{result['rotated_fields']} alan. Backup: "
-                f"{result['backup_path']}"
+            on_success=lambda result: toast(_tf(
+                "Anahtar rotasyonu tamamlandı: {rotated_fields} alan. Backup: {backup_path}",
+                rotated_fields=result['rotated_fields'],
+                backup_path=result['backup_path'],
             )),
             on_error=lambda exc: self._secure_operation_error(
                 "Anahtar rotasyonu geri alındı", exc
@@ -468,7 +469,7 @@ class MigrationMixin:
             "secure-backup",
             work,
             on_success=lambda result: toast(
-                _t(f"Backup doğrulandı:\n{result['path']}")
+                _tf("Backup doğrulandı:\n{path}", path=result['path'])
             ),
             on_error=lambda exc: self._secure_operation_error(
                 "Backup oluşturulamadı", exc
@@ -555,10 +556,24 @@ class MigrationMixin:
             return restore_backup(package, passphrase)
 
         def success(result):
-            toast(_t(
-                "Restore tamamlandı. Güvenlik backup'ı:\n"
-                f"{result['safety_backup_path']}"
+            toast(_tf(
+                "Restore tamamlandı. Güvenlik backup'ı:\n{safety_backup_path}",
+                safety_backup_path=result['safety_backup_path'],
             ))
+            # HEDEFLER SQL'DEN YENİDEN OKUNUR — yeniden başlatma gerekmez.
+            # Restore `finance.db`yi bütün olarak değiştiriyor; bellekteki
+            # `savings_goals` restore ÖNCESİ generation'ı gösteriyor ve
+            # tazelenmezse kullanıcı artık var olmayan hedeflerin kartlarına
+            # bakıyor olurdu. Kart işlemleri `goal_uid` ile doğrulandığı için
+            # böyle bir kart parayı yanlış hedefe yazdıramaz; yine de EKRANIN
+            # doğru olması gerekiyor.
+            try:
+                self.load_savings_goals()
+                self.render_savings_goals(0)
+            except (AttributeError, KeyError, sqlite3.Error) as exc:
+                from utils.logging_config import get_logger
+                get_logger().warning(
+                    "Restore sonrası birikim hedefleri tazelenemedi: %s", exc)
             self.refresh_dashboard_data()
 
         self.background_tasks.submit(
@@ -582,10 +597,10 @@ class MigrationMixin:
             return
         self._password_dialog(
             _t("Legacy Şifreleme Migration'ı"),
-            _t(
-                f"{plan.legacy_fields} alan / {plan.affected_records} kayıt "
-                "taşınacak. Önce doğrulanmış backup alınır; hata olursa "
-                "transaction geri alınır."
+            _tf(
+                "{legacy_fields} alan / {affected_records} kayıt taşınacak. Önce doğrulanmış backup alınır; hata olursa transaction geri alınır.",
+                legacy_fields=plan.legacy_fields,
+                affected_records=plan.affected_records,
             ),
             lambda password: self._run_legacy_migration(password),
         )
@@ -609,9 +624,10 @@ class MigrationMixin:
         self.background_tasks.submit(
             "legacy-migration",
             work,
-            on_success=lambda result: toast(_t(
-                f"Migration tamamlandı: {result['migrated_fields']} alan. "
-                f"Backup: {result['backup_path']}"
+            on_success=lambda result: toast(_tf(
+                "Migration tamamlandı: {migrated_fields} alan. Backup: {backup_path}",
+                migrated_fields=result['migrated_fields'],
+                backup_path=result['backup_path'],
             )),
             on_error=lambda exc: self._secure_operation_error(
                 "Migration geri alındı", exc
@@ -627,4 +643,7 @@ class MigrationMixin:
             "%s", message,
             exc_info=(type(exc), exc, exc.__traceback__),
         )
-        toast(_t(f"{message}. Ayrıntılar uygulama loguna kaydedildi."))
+        # `message` çağrı yerlerinden gelen KONTROLLÜ uygulama metni
+        # ("Backup oluşturulamadı" gibi), kullanıcı verisi değil.
+        toast(_tf("{message}. Ayrıntılar uygulama loguna kaydedildi.",
+                  message=_t(message)))

@@ -13,7 +13,7 @@ from kivymd.uix.textfield import MDTextField
 
 from services.projection_service import simulate_scenario
 from ui.charts import ScenarioComparisonChart
-from ui.i18n import tr as _t
+from ui.i18n import tr as _t, trf as _tf
 import ui.theme as ftheme
 
 
@@ -72,7 +72,7 @@ class ScenarioMixin:
         )
         for days in (30, 90, 365):
             self.scenario_horizon.add_widget(
-                MDSegmentedControlItem(text=_t(f"{days} Gün"))
+                MDSegmentedControlItem(text=_tf("{days} Gün", days=days))
             )
         self._scenario_days = 30
         self.scenario_horizon.bind(on_active=self._on_scenario_horizon)

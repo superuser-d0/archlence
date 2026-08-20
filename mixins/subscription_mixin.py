@@ -21,7 +21,7 @@ from kivymd.uix.label import MDLabel
 from kivymd.uix.list import MDList
 
 import ui.theme as ftheme
-from ui.i18n import tr as _t
+from ui.i18n import tr as _t, trf as _tf
 from utils.formatters import attach_amount_mask, read_amount, set_amount
 
 
@@ -120,8 +120,11 @@ class SubscriptionMixin:
             ))
 
         label = MDLabel(
-            text=_t(f"{payment['name']}\n{_fmt(payment['amount'])}  ·  "
-                    f"Sonraki: {payment['next_due_date']}"),
+            # Abonelik adı KULLANICI VERİSİ; tutar ve tarih kontrollü değer.
+            text=_tf("{name}\n{amount}  ·  Sonraki: {due}",
+                     name=payment["name"],
+                     amount=_fmt(payment["amount"]),
+                     due=payment["next_due_date"]),
             font_style="Caption",
         )
         label.bind(size=label.setter("text_size"))
@@ -166,7 +169,7 @@ class SubscriptionMixin:
 
         self._dismiss_dialog("subscription_price_dialog")
         dialog = MDDialog(
-            title=_t(f"{payment['name']} — Ücreti Güncelle"),
+            title=_tf("{name} — Ücreti Güncelle", name=payment["name"]),
             type="custom",
             content_cls=content,
             buttons=[
@@ -193,7 +196,9 @@ class SubscriptionMixin:
                 # callback'i çalıştırdığında NameError oluşur.
                 message = str(exc)
                 Clock.schedule_once(
-                    lambda dt, value=message: toast(_t(value)), 0,
+                    # Servisten gelen doğrulama metni ÇEVRİLMEZ: sözlükte
+                    # tam karşılığı yoksa olduğu gibi gösterilir.
+                    lambda dt, value=message: toast(value), 0,
                 )
                 return
             except Exception:
@@ -203,7 +208,8 @@ class SubscriptionMixin:
                     lambda dt: toast(_t("Abonelik ücreti güncellenemedi.")), 0)
                 return
             Clock.schedule_once(
-                lambda dt: toast(_t(f"{payment['name']} ücreti güncellendi.")), 0)
+                lambda dt: toast(_tf("{name} ücreti güncellendi.",
+                                     name=payment["name"])), 0)
             Clock.schedule_once(lambda dt: self._refresh_subscription_views(), 0)
 
         threading.Thread(target=work, daemon=True).start()
@@ -213,7 +219,8 @@ class SubscriptionMixin:
     def open_subscription_cancel_dialog(self, payment):
         """'Sadece bu ay' ile 'bu ay ve sonrası' arasında seçim yaptırır."""
         message = MDLabel(
-            text=_t(f"{payment['name']} aboneliğini nasıl kaldırmak istersiniz?"),
+            text=_tf("{name} aboneliğini nasıl kaldırmak istersiniz?",
+                     name=payment["name"]),
             theme_text_color="Secondary",
             size_hint_y=None,
             height=dp(60),
@@ -282,9 +289,10 @@ class SubscriptionMixin:
 
     def _show_refund_prompt(self, payment, permanent, charge):
         message = MDLabel(
-            text=_t(
-                f"Bu ay {payment['name']} için {_fmt(charge['amount'])} kesilmiş. "
-                "Bu tutarı bakiyenize geri eklemek ister misiniz?"
+            text=_tf(
+                "Bu ay {name} için {amount} kesilmiş. "
+                "Bu tutarı bakiyenize geri eklemek ister misiniz?",
+                name=payment["name"], amount=_fmt(charge["amount"]),
             ),
             theme_text_color="Secondary",
             size_hint_y=None,
@@ -343,11 +351,14 @@ class SubscriptionMixin:
                 return
 
             if permanent:
-                message = _t(f"{payment['name']} aboneliği durduruldu.")
+                message = _tf("{name} aboneliği durduruldu.",
+                              name=payment["name"])
             else:
-                message = _t(f"{payment['name']} bu ay için atlandı.")
+                message = _tf("{name} bu ay için atlandı.",
+                              name=payment["name"])
             if refunded:
-                message += _t(f" {_fmt(refunded)} bakiyenize eklendi.")
+                message += _tf(" {amount} bakiyenize eklendi.",
+                               amount=_fmt(refunded))
 
             Clock.schedule_once(lambda dt: toast(message), 0)
             Clock.schedule_once(lambda dt: self._refresh_subscription_views(), 0)

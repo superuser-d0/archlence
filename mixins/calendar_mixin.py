@@ -26,7 +26,7 @@ from kivymd.uix.dialog import MDDialog
 from kivymd.uix.label import MDLabel
 
 import ui.theme as ftheme
-from ui.i18n import tr as _t
+from ui.i18n import tr as _t, trf as _tf
 
 _MONTH_NAMES = [
     "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
@@ -202,8 +202,10 @@ class CalendarMixin:
             get_logger().exception("Takvim ay verisi okunamadı")
             days_with_tx = {}
 
-        self._calendar_month_label.text = _t(
-            f"{_t(_MONTH_NAMES[month - 1])} {year}"
+        self._calendar_month_label.text = _tf(
+            "{month} {year}",
+            month=_t(_MONTH_NAMES[month - 1]),
+            year=year,
         )
 
         weeks = _calendar_module.monthcalendar(year, month)
@@ -320,9 +322,7 @@ class CalendarMixin:
         if new_cell is not None:
             self._style_calendar_day_cell(new_cell, True)
 
-        self._calendar_selected_label.text = _t(
-            f"{date_obj.strftime('%d.%m.%Y')} işlemleri yükleniyor..."
-        )
+        self._calendar_selected_label.text = _tf("{date} işlemleri yükleniyor...", date=date_obj.strftime('%d.%m.%Y'))
         self._calendar_tx_container.clear_widgets()
 
         generation = getattr(self, "_calendar_generation", 0) + 1
@@ -361,19 +361,20 @@ class CalendarMixin:
 
     def _apply_calendar_day(self, date_obj, items):
         if items is None:
-            self._calendar_selected_label.text = _t(
-                f"{date_obj.strftime('%d.%m.%Y')}: işlemler okunamadı."
+            self._calendar_selected_label.text = _tf(
+                "{date}: işlemler okunamadı.",
+                date=date_obj.strftime('%d.%m.%Y'),
             )
             return
 
         if not items:
-            self._calendar_selected_label.text = _t(
-                f"{date_obj.strftime('%d.%m.%Y')}: işlem yok."
-            )
+            self._calendar_selected_label.text = _tf("{date}: işlem yok.", date=date_obj.strftime('%d.%m.%Y'))
             return
 
-        self._calendar_selected_label.text = _t(
-            f"{date_obj.strftime('%d.%m.%Y')} — {len(items)} işlem"
+        self._calendar_selected_label.text = _tf(
+            "{date} — {count} işlem",
+            date=date_obj.strftime('%d.%m.%Y'),
+            count=len(items),
         )
         for item in items:
             self._calendar_tx_container.add_widget(
@@ -386,7 +387,10 @@ class CalendarMixin:
             size_hint_y=None, height=dp(24),
         )
         row.add_widget(MDLabel(
-            text=_t(f"{item['time']}  {_t(item['category'])}"),
+            text=_tf("{time}  {category}", time=item['time'], category=# Kategori, uygulamanın KENDİ sözlüğünden gelen bir etikettir
+        # (init_db'deki varsayılan liste), kullanıcının serbest metni
+        # değil; bu yüzden tam anahtarla çevrilir.
+        _t(item['category'])),
             font_style="Caption",
         ))
         is_income = item["type"] in ("income", "Gelir")
