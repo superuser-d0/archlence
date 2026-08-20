@@ -49,6 +49,17 @@ class _FakeIds(dict):
         return self[name]
 
 
+# PAROLA POLİTİKASI 12 KARAKTER + BÜYÜK/KÜÇÜK/RAKAM/ÖZEL istiyor. Bu dosyanın
+# konusu tembel Argon2id geçişi ve throttle; ikisi de parolanın POLİTİKAYI
+# GEÇTİĞİ durumda anlamlı, çünkü politikayı geçmeyen bir parola bugün zaten
+# zorunlu yenilemeye yönlendiriliyor (bkz.
+# tests/test_password_policy_and_change.py). Eski fixture "2468" kullanıyordu;
+# o PIN artık geçerli bir parola değil, dolayısıyla yükseltme yolunu hiç
+# temsil etmiyor.
+CORRECT_PASSWORD = "Guclu-Parola-2026!"
+WRONG_PASSWORD = "Yanlis-Parola-2026!"
+
+
 def _legacy_hash(pin, salt):
     return hashlib.sha256((salt + pin).encode("utf-8")).hexdigest()
 
@@ -75,10 +86,10 @@ class PinLazyMigrationTest(unittest.TestCase):
         from security.security_service import SecurityService
 
         salt = SecurityService.generate_salt()
-        legacy_hash = _legacy_hash("2468", salt)
+        legacy_hash = _legacy_hash(CORRECT_PASSWORD, salt)
 
         app = self._make_fake_app(
-            {"salt": salt, "pin_hash": legacy_hash, "is_set": True}, "2468",
+            {"salt": salt, "pin_hash": legacy_hash, "is_set": True}, CORRECT_PASSWORD,
         )
 
         self.ArchlenceApp.check_login(app)
@@ -89,7 +100,7 @@ class PinLazyMigrationTest(unittest.TestCase):
         stored = app.config_store.get("security")
         self.assertTrue(stored["pin_hash"].startswith("$argon2id$"))
         self.assertTrue(
-            SecurityService.verify_password("2468", None, stored["pin_hash"])
+            SecurityService.verify_password(CORRECT_PASSWORD, None, stored["pin_hash"])
         )
 
     def test_wrong_pin_on_legacy_hash_does_not_upgrade(self):
@@ -99,10 +110,10 @@ class PinLazyMigrationTest(unittest.TestCase):
         from security.security_service import SecurityService
 
         salt = SecurityService.generate_salt()
-        legacy_hash = _legacy_hash("2468", salt)
+        legacy_hash = _legacy_hash(CORRECT_PASSWORD, salt)
 
         app = self._make_fake_app(
-            {"salt": salt, "pin_hash": legacy_hash, "is_set": True}, "9999",
+            {"salt": salt, "pin_hash": legacy_hash, "is_set": True}, WRONG_PASSWORD,
         )
 
         self.ArchlenceApp.check_login(app)
@@ -117,9 +128,9 @@ class PinLazyMigrationTest(unittest.TestCase):
     def test_correct_pin_on_already_upgraded_hash_does_not_rewrite(self):
         from security.security_service import SecurityService
 
-        pin_hash = SecurityService.hash_password("2468")
+        pin_hash = SecurityService.hash_password(CORRECT_PASSWORD)
         app = self._make_fake_app(
-            {"salt": None, "pin_hash": pin_hash, "is_set": True}, "2468",
+            {"salt": None, "pin_hash": pin_hash, "is_set": True}, CORRECT_PASSWORD,
         )
 
         self.ArchlenceApp.check_login(app)
@@ -135,7 +146,7 @@ class PinThrottleTest(unittest.TestCase):
         import main
         self.ArchlenceApp = main.ArchlenceApp
 
-    def _make_fake_app(self, pin_text, throttle_record=None, correct_pin="2468"):
+    def _make_fake_app(self, pin_text, throttle_record=None, correct_pin=CORRECT_PASSWORD):
         from security.security_service import SecurityService
 
         app = mock.Mock()
@@ -151,7 +162,7 @@ class PinThrottleTest(unittest.TestCase):
     def test_first_wrong_attempts_below_threshold_do_not_lock(self):
         from security.security_service import LoginThrottle
 
-        app = self._make_fake_app("9999")
+        app = self._make_fake_app(WRONG_PASSWORD)
         for _ in range(LoginThrottle.FAILED_ATTEMPT_THRESHOLD - 1):
             self.ArchlenceApp.check_login(app)
 
@@ -169,7 +180,7 @@ class PinThrottleTest(unittest.TestCase):
         PIN hiç doğrulanmaz."""
         from security.security_service import LoginThrottle
 
-        app = self._make_fake_app("9999")
+        app = self._make_fake_app(WRONG_PASSWORD)
         for _ in range(LoginThrottle.FAILED_ATTEMPT_THRESHOLD):
             self.ArchlenceApp.check_login(app)
         app._handle_successful_login.assert_not_called()
@@ -177,7 +188,7 @@ class PinThrottleTest(unittest.TestCase):
         # Şimdi DOĞRU PIN'i dener — ama kilit hâlâ aktif olmalı (0 saniye
         # geçmiş sayılır, gerçek saat kullanılıyor ama lockout süresi en az
         # birkaç saniye).
-        app.root.ids.password_input.text = "2468"
+        app.root.ids.password_input.text = CORRECT_PASSWORD
         self.ArchlenceApp.check_login(app)
 
         app._handle_successful_login.assert_not_called()
@@ -187,7 +198,7 @@ class PinThrottleTest(unittest.TestCase):
     def test_successful_login_resets_throttle_counter(self):
         # Eşiğin altında (henüz kilitli değil) birkaç başarısız deneme.
         throttle_state = {"failed_attempts": 0, "last_failed_at": None}
-        app = self._make_fake_app("2468", throttle_record=throttle_state)
+        app = self._make_fake_app(CORRECT_PASSWORD, throttle_record=throttle_state)
 
         self.ArchlenceApp.check_login(app)
 
@@ -209,7 +220,7 @@ class PinThrottleTest(unittest.TestCase):
         self.assertTrue(LoginThrottle.is_locked(throttle_state))
 
         app = self._make_fake_app(
-            "2468", throttle_record=throttle_state, correct_pin="2468"
+            CORRECT_PASSWORD, throttle_record=throttle_state, correct_pin=CORRECT_PASSWORD
         )
         self.ArchlenceApp.check_login(app)
 

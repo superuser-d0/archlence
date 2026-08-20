@@ -1804,10 +1804,39 @@ class ArchlenceApp(
         Clock.schedule_once(lambda dt: self.render_accounts(), 0)
         Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0.05)
 
+    #: Zorunlu parola yenileme YETKİSİ. Yalnız `check_login` içinde, mevcut
+    #: parola BAŞARIYLA doğrulandıktan sonra True olur ve yenileme kaydedilir
+    #: kaydedilmez temizlenir. Sınıf düzeyinde False: bir örnek bu bayrağı hiç
+    #: set etmemişse yetki YOKTUR.
+    password_renewal_required = False
+
+    def _credential_exists(self):
+        """Kullanılabilir bir parola kaydı var mı?
+
+        `authentication_screen()` YENİDEN KULLANILIYOR, ayrı bir okuma
+        yazılmıyor: o metot zaten "geçerli bir güvenlik kaydı var mı" sorusunun
+        tek cevabı ve okunamayan kaydı `pin_setup`'a düşürüyor. İkinci bir
+        yorum yazmak, iki metodun aynı bozuk kayıt hakkında FARKLI karar
+        verdiği bir durum üretirdi: kullanıcı `pin_setup` ekranına
+        yönlendirilir ama `setup_pin` kaydetmeyi reddederdi — çıkışsız bir
+        ekran.
+        """
+        return self.authentication_screen() == "login"
+
     def setup_pin(self):
-        pin = self.root.ids.pin_setup_input.text.strip()
-        confirmation = self.root.ids.pin_confirm_input.text.strip()
+        pin = self.root.ids.pin_setup_input.text
+        confirmation = self.root.ids.pin_confirm_input.text
         error = self.root.ids.pin_setup_error_label
+
+        # MEVCUT CREDENTIAL'I EZME KAPISI. Bu ekran iki iş yapıyor: ilk kurulum
+        # ve zorunlu yenileme. İkincisi yalnız `check_login`'in verdiği yetkiyle
+        # mümkün — yani kullanıcı MEVCUT parolasını doğru girmiş olmalı. Yetki
+        # yoksa ve sistemde zaten bir parola varsa bu çağrı hiçbir şey yazmaz.
+        # Eskiden böyle bir kapı yoktu: `setup_pin` çağrılabildiği her yerde
+        # mevcut parolayı sessizce eziyordu.
+        if self._credential_exists() and not self.password_renewal_required:
+            error.text = translate("Şifre değiştirmek için mevcut şifrenizi girin.")
+            return
 
         is_valid, policy_error = PasswordPolicy.validate(pin)
         if not is_valid:
@@ -1817,12 +1846,27 @@ class ArchlenceApp(
             error.text = translate("Şifreler eşleşmiyor.")
             return
 
+        renewing = self.password_renewal_required
         salt = SecurityService.generate_salt()
         pin_hash = SecurityService.hash_password(pin, salt)
         self.config_store.put("security", pin_hash=pin_hash, salt=salt, is_set=True)
         error.text = ""
         self.root.ids.pin_setup_input.text = ""
         self.root.ids.pin_confirm_input.text = ""
+
+        if renewing:
+            # Yetki TÜKETİLDİ. Throttle sıfırlanır (kullanıcı kimliğini
+            # kanıtladı) ve yeni parolayla YENİDEN giriş istenir — böylece
+            # oturum, kaydedilen parolanın gerçekten kullanılabildiğini de
+            # kanıtlamış olur.
+            self.password_renewal_required = False
+            self.config_store.put(
+                "security_throttle", **LoginThrottle.record_success()
+            )
+            self.root.ids.password_input.text = ""
+            self.root.ids.screen_manager.current = "login"
+            return
+
         self.root.ids.screen_manager.current = self.route_after_auth()
 
     def open_change_pin_dialog(self):
@@ -1832,23 +1876,34 @@ class ArchlenceApp(
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivy.metrics import dp
         
-        content = MDBoxLayout(orientation="vertical", spacing=dp(12), size_hint_y=None, height=dp(160))
+        content = MDBoxLayout(orientation="vertical", spacing=dp(12), size_hint_y=None, height=dp(230))
+        # MEVCUT ŞİFRE ALANI. Eskiden yoktu ve bu, açık bırakılmış bir
+        # uygulamanın başına oturan herkesin parolayı değiştirip sahibini
+        # kilitleyebilmesi demekti.
+        self._current_pin_input = MDTextField(
+            hint_text=translate("Mevcut Şifre"),
+            password=True,
+            max_text_length=64,
+            multiline=False,
+            write_tab=False,
+        )
         self._new_pin_input = MDTextField(
             hint_text=translate("Yeni Şifre"),
             password=True,
-            max_text_length=32,
+            max_text_length=64,
             multiline=False,
             write_tab=False,
-            helper_text=translate("En az 4 karakter, 1 büyük harf ve 1 özel karakter"),
+            helper_text=translate(PasswordPolicy.REQUIREMENTS),
             helper_text_mode="persistent"
         )
         self._new_pin_confirm = MDTextField(
             hint_text=translate("Yeni Şifre Tekrar"),
             password=True,
-            max_text_length=32,
+            max_text_length=64,
             multiline=False,
             write_tab=False
         )
+        content.add_widget(self._current_pin_input)
         content.add_widget(self._new_pin_input)
         content.add_widget(self._new_pin_confirm)
 
@@ -1859,7 +1914,7 @@ class ArchlenceApp(
             buttons=[
                 MDFlatButton(
                     text=translate("İPTAL"),
-                    on_release=lambda _b: self._change_pin_dialog.dismiss()
+                    on_release=lambda _b: self.close_change_pin_dialog()
                 ),
                 MDRaisedButton(
                     text=translate("KAYDET"),
@@ -1869,36 +1924,96 @@ class ArchlenceApp(
         )
         self._change_pin_dialog.open()
 
-    def _apply_new_pin(self, _button):
-        pin = self._new_pin_input.text.strip()
-        confirmation = self._new_pin_confirm.text.strip()
+    def close_change_pin_dialog(self):
+        """Diyaloğu kapatır ve hassas alan referanslarını bırakır.
 
+        Alan nesneleri düz metin parolayı `text` özelliğinde tutuyor. Referans
+        `self` üzerinde asılı kalırsa parola diyalog kapandıktan sonra da
+        uygulama nesnesinden erişilebilir kalır. Python'da belleği sıfırlamayı
+        garanti edemeyiz; yapabileceğimiz, referansı tutmamak."""
+        dialog = getattr(self, "_change_pin_dialog", None)
+        for name in ("_current_pin_input", "_new_pin_input", "_new_pin_confirm"):
+            field = getattr(self, name, None)
+            if field is not None:
+                field.text = ""
+            setattr(self, name, None)
+        self._change_pin_dialog = None
+        if dialog is not None:
+            dialog.dismiss()
+
+    def _apply_new_pin(self, _button):
         from utils.toast import toast
 
+        current = self._current_pin_input.text
+        pin = self._new_pin_input.text
+        confirmation = self._new_pin_confirm.text
+
+        # 1. KİLİT. Parola değiştirme, giriş ekranındaki throttle'ı atlatmanın
+        #    yolu OLMAMALI: aynı hash'e karşı sınırsız deneme yapılabilseydi
+        #    kilit mekanizması dekoratif olurdu.
+        throttle_state = (
+            self.config_store.get("security_throttle")
+            if self.config_store.exists("security_throttle") else {}
+        )
+        remaining = LoginThrottle.seconds_remaining(throttle_state)
+        if remaining > 0:
+            toast(translate_format(
+                "Çok fazla hatalı deneme. {seconds} saniye sonra tekrar deneyin.",
+                seconds=int(remaining) + 1,
+            ))
+            return
+
+        # 2. MEVCUT PAROLA. Config'e HİÇBİR yazım bu doğrulamadan önce
+        #    yapılmaz. Hata mesajı generic: hangi alanın yanlış olduğunu
+        #    söylemek saldırgana bilgi verirdi.
+        security = (
+            self.config_store.get("security")
+            if self.config_store.exists("security") else {}
+        )
+        stored_hash = security.get("pin_hash")
+        if not stored_hash or not SecurityService.verify_password(
+            current, security.get("salt"), stored_hash
+        ):
+            new_throttle = LoginThrottle.record_failure(throttle_state)
+            self.config_store.put("security_throttle", **new_throttle)
+            toast(translate("Hatalı Şifre!"))
+            return
+
+        # 3. YENİ PAROLA. Buradaki her ret, credential'ı DEĞİŞTİRMEDEN döner.
         is_valid, policy_error = PasswordPolicy.validate(pin)
         if not is_valid:
             toast(translate(policy_error))
             return
-
         if pin != confirmation:
             toast(translate("Şifreler eşleşmiyor."))
             return
+        if pin == current:
+            toast(translate("Yeni şifre mevcut şifreyle aynı olamaz."))
+            return
 
+        # 4. TEK YAZIM. `pin_hash`, `salt` ve `is_set` aynı `put` çağrısında
+        #    gider; yarım güncellenmiş bir güvenlik kaydı hiç oluşmaz.
         salt = SecurityService.generate_salt()
         pin_hash = SecurityService.hash_password(pin, salt)
         self.config_store.put("security", pin_hash=pin_hash, salt=salt, is_set=True)
+        self.config_store.put(
+            "security_throttle", **LoginThrottle.record_success()
+        )
 
-        self._change_pin_dialog.dismiss()
-        self._change_pin_dialog = None
-
+        self.close_change_pin_dialog()
         toast(translate("Şifre başarıyla değiştirildi. Lütfen tekrar giriş yapın."))
-        
+
         # Çıkış yap (logout)
         self.root.ids.password_input.text = ""
         self.root.ids.screen_manager.current = "login"
 
     def check_login(self):
-        pin = self.root.ids.password_input.text.strip()
+        # `.strip()` YOK, bilerek. Eskiden girilen metnin baş/son boşluğu
+        # sessizce atılıyordu, yani kullanıcı bir parola yazıp BAŞKA bir
+        # parolayla doğrulanıyordu. Politika artık boşluğu açıkça reddettiği
+        # için kayıtlı hiçbir parola baş/son boşluk taşıyamaz; ham metni
+        # kullanmak tutarlı olan.
+        pin = self.root.ids.password_input.text
         if self.authentication_screen() != "login":
             self.root.ids.screen_manager.current = "pin_setup"
             return
@@ -1917,15 +2032,38 @@ class ArchlenceApp(
 
         security = self.config_store.get("security")
         if SecurityService.verify_password(pin, security["salt"], security["pin_hash"]):
+            # BURADAN İTİBAREN kullanıcı mevcut parolasını KANITLAMIŞTIR.
+            # Credential'a dokunan her karar bu noktadan sonra alınır.
+            self.config_store.put(
+                "security_throttle", **LoginThrottle.record_success()
+            )
+            if not PasswordPolicy.is_compliant(pin):
+                # ZORUNLU YENİLEME. Parola doğru ama güncel politikayı
+                # karşılamıyor (eski 4 karakterlik politikayla kurulmuş
+                # olabilir). Kullanıcı finansal ekranlara GEÇİRİLMEZ;
+                # yenileme ekranına yönlendirilir ve yetki YALNIZ bu başarılı
+                # doğrulamadan doğar.
+                #
+                # Hash YÜKSELTİLMEZ: zayıf parola zaten değişecek, Argon2id'ye
+                # taşımanın tek etkisi ömrü birkaç saniye olan bir hash yazmak
+                # olurdu.
+                self.password_renewal_required = True
+                self.root.ids.password_input.text = ""
+                self.root.ids.login_error_label.text = ""
+                self.root.ids.pin_setup_input.text = ""
+                self.root.ids.pin_confirm_input.text = ""
+                self.root.ids.pin_setup_error_label.text = translate(
+                    "Şifreniz güncel güvenlik politikasını karşılamıyor. "
+                    "Devam etmek için yeni bir şifre belirleyin."
+                )
+                self.root.ids.screen_manager.current = "pin_setup"
+                return
             if SecurityService.needs_upgrade(security["pin_hash"]):
                 new_hash = SecurityService.hash_password(pin)
                 self.config_store.put(
                     "security", pin_hash=new_hash,
                     salt=security["salt"], is_set=True,
                 )
-            self.config_store.put(
-                "security_throttle", **LoginThrottle.record_success()
-            )
             self._handle_successful_login()
         else:
             new_throttle = LoginThrottle.record_failure(throttle_state)

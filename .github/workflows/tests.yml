@@ -413,6 +413,23 @@ jobs:
         run: >-
           xvfb-run -a python scripts/dev/verify_i18n_user_data.py
           --output visual/i18n-${{ matrix.language }}-${{ matrix.dpi }}
+      - name: Parola değiştirme mevcut parolayı soruyor
+        # NEDEN BURADA: `_apply_new_pin` eskiden mevcut parolayı HİÇ
+        # sormuyordu — açık bırakılmış bir uygulamanın başına oturan herkes
+        # parolayı değiştirip sahibini kilitleyebiliyordu. Düzeltme üç
+        # alanlı bir diyalog getirdi ve birim testleri doğrulama zincirini
+        # tutuyor; ama bir diyaloğun GERÇEKTEN çizildiğini, alanların
+        # maskeli olduğunu ve metinlerin iki dilde de çevrildiğini birim
+        # testi kanıtlayamaz. Bu kapı ekranı ölçüyor.
+        env:
+          KIVY_DPI: ${{ matrix.dpi }}
+          ARCHLENCE_LANGUAGE: ${{ matrix.language }}
+          XDG_DATA_HOME: ${{ runner.temp }}/archlence-pwd-data
+          XDG_CACHE_HOME: ${{ runner.temp }}/archlence-pwd-cache
+          XDG_STATE_HOME: ${{ runner.temp }}/archlence-pwd-state
+        run: >-
+          xvfb-run -a python scripts/dev/verify_password_dialog.py
+          --output visual/password-${{ matrix.language }}-${{ matrix.dpi }}
       - name: Birikim hedefi kartları SQL'den besleniyor
         # NEDEN BURADA: birikim kartları uzun süre savings_goals.json'dan
         # çiziliyordu, para ise SQLite'taydı. Tek kaynak SQL'e taşındıktan

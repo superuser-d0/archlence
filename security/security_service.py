@@ -102,32 +102,76 @@ class SecurityService:
 
 
 class PasswordPolicy:
-    """Salt+Argon2id ve `LoginThrottle` yalnızca HASH'İ ve DENEME HIZINI korur —
-    girdinin kendisi hâlâ 4 haneli, yalnızca-rakam bir PIN olduğu sürece arama
-    uzayı (10.000 kombinasyon) küçük kalır. Bu sınıf girdi tarafını genişletir:
-    en az bir büyük harf ve en az bir noktalama/özel karakter zorunluluğu,
-    karakter kümesini rakamlardan çıkarıp alfasayısal+sembol'e taşıyarak
-    olası kombinasyon sayısını katlarca artırır (çevrimdışı brute-force'u
-    yavaşlatır). `setup_pin`, `_apply_new_pin` (main.py) ve sıfırlama sonrası
-    yeniden kurulum — hepsi `pin_setup` ekranına, dolayısıyla `setup_pin`'e
-    çıktığı için tek bir politika kaynağı üçünü de kapsar.
+    """Girdi tarafının TEK politika kaynağı.
+
+    Argon2id ve `LoginThrottle` yalnızca HASH'İ ve DENEME HIZINI korur. Girdi
+    kendisi kısa ve dar bir karakter kümesindeyse arama uzayı küçük kalır ve
+    ikisi de anlamsızlaşır: eski politika 4 karakter + 1 büyük harf + 1 özel
+    karakter istiyordu, yani `A!!!` geçerli bir parolaydı.
+
+    Politika: en az 12 karakter, büyük harf, küçük harf, rakam ve özel
+    karakterin HEPSİ.
+
+    BAŞ/SON BOŞLUK AÇIKÇA REDDEDİLİR, sessizce kırpılmaz. Eski davranış
+    çağıranlarda `.strip()` idi: kullanıcı bir parola yazıyor, uygulama BAŞKA
+    bir parolayı kaydediyordu ve bunu ona hiç söylemiyordu. İki dürüst seçenek
+    vardı — ham metni tutarlı kullanmak ya da boşluğu reddetmek; ikincisi
+    seçildi, çünkü kullanıcı görünmeyen bir karakterin parolasının parçası
+    olduğunu doğrulayamaz.
+
+    `setup_pin`, `_apply_new_pin` (main.py), zorunlu yenileme ve sıfırlama
+    sonrası yeniden kurulum — hepsi buradan geçer.
     """
 
-    MIN_LENGTH = 4
+    MIN_LENGTH = 12
     SPECIAL_CHARS = ".,;:!?-_@#$%^&*()+=/\\|~`'\"<>[]{}"
+
+    #: Üretilebilecek TÜM hata metinleri. `translate()`'e verilebilecek Türkçe
+    #: kaynak anahtarlarıdır ve i18n kapısı bu listeye bakar; buraya bir metin
+    #: eklenip `ui/i18n.py`'ye eklenmezse kapı kırılır.
+    TOO_SHORT = "Şifre en az 12 karakter olmalıdır."
+    NO_UPPER = "Şifre en az 1 büyük harf içermelidir."
+    NO_LOWER = "Şifre en az 1 küçük harf içermelidir."
+    NO_DIGIT = "Şifre en az 1 rakam içermelidir."
+    NO_SPECIAL = "Şifre en az 1 özel karakter (örn. . veya ,) içermelidir."
+    HAS_EDGE_WHITESPACE = "Şifre başında veya sonunda boşluk içeremez."
+
+    #: Arayüzdeki yardım metni — politikanın kendisiyle aynı kaynaktan.
+    REQUIREMENTS = (
+        "En az 12 karakter, 1 büyük harf, 1 küçük harf, 1 rakam ve 1 özel karakter"
+    )
+
+    MESSAGES = (
+        TOO_SHORT, NO_UPPER, NO_LOWER, NO_DIGIT, NO_SPECIAL,
+        HAS_EDGE_WHITESPACE,
+    )
 
     @staticmethod
     def validate(password):
-        """(is_valid, error_message) döndürür. `error_message`, `translate()`'e
-        verilebilecek Türkçe kaynak metindir; geçerliyse None."""
+        """(is_valid, error_message) döndürür.
+
+        `error_message` geçerliyse None, değilse `MESSAGES` içindeki Türkçe
+        kaynak metinlerden biri.
+        """
         password = password or ""
+        if password != password.strip():
+            return False, PasswordPolicy.HAS_EDGE_WHITESPACE
         if len(password) < PasswordPolicy.MIN_LENGTH:
-            return False, "Şifre en az 4 karakter olmalıdır."
+            return False, PasswordPolicy.TOO_SHORT
         if not any(c.isupper() for c in password):
-            return False, "Şifre en az 1 büyük harf içermelidir."
+            return False, PasswordPolicy.NO_UPPER
+        if not any(c.islower() for c in password):
+            return False, PasswordPolicy.NO_LOWER
+        if not any(c.isdigit() for c in password):
+            return False, PasswordPolicy.NO_DIGIT
         if not any(c in PasswordPolicy.SPECIAL_CHARS for c in password):
-            return False, "Şifre en az 1 özel karakter (örn. . veya ,) içermelidir."
+            return False, PasswordPolicy.NO_SPECIAL
         return True, None
+
+    @staticmethod
+    def is_compliant(password):
+        """Yalnız evet/hayır — zorunlu yenileme kararı için."""
+        return PasswordPolicy.validate(password)[0]
 
 
 class LoginThrottle:
