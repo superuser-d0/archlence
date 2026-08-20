@@ -2310,6 +2310,23 @@ class ArchlenceApp(
 
             with managed_connection() as conn:
                 cursor = conn.cursor()
+                # TAM SİLME, TABLO SIRASI `sqlite_master`'ın sırasıdır ve o
+                # sıra `accounts`'ı `transactions`'tan ÖNCE getirir. Foreign
+                # key zorlaması artık AÇIK olduğu için (bkz.
+                # database/db.py::enable_foreign_keys) ebeveyni önce silmek
+                # `FOREIGN KEY constraint failed` ile düşerdi — ölçüldü.
+                #
+                # `defer_foreign_keys` doğru araç: zorlamayı KAPATMAZ, COMMIT
+                # anına erteler. Commit'te bütün tablolar boş olduğu için ihlal
+                # kalmaz; gerçekten tutarsız bir sonuç oluşsaydı commit yine
+                # reddedilirdi. Ayar transaction bitince kendiliğinden sıfırlanır.
+                # `BEGIN` ÖNCE: `defer_foreign_keys` TRANSACTION KAPSAMLIDIR ve
+                # her COMMIT/ROLLBACK'ta kendiliğinden kapanır. Autocommit
+                # modunda çalıştırılırsa PRAGMA'nın kendi (örtük) transaction'ı
+                # hemen commit olur ve ayar daha ilk DELETE'e varmadan sıfırlanır
+                # — ölçüldü, silme yine `FOREIGN KEY constraint failed` veriyordu.
+                cursor.execute("BEGIN")
+                cursor.execute("PRAGMA defer_foreign_keys = ON")
                 cursor.execute("""
                     SELECT name FROM sqlite_master
                     WHERE type = 'table' AND name NOT LIKE 'sqlite_%'

@@ -394,9 +394,21 @@ def _sqlite_backup(source_path, destination_path):
 def _integrity_check(db_path):
     with closing(sqlite3.connect(db_path)) as conn:
         result = conn.execute("PRAGMA integrity_check").fetchone()[0]
+        # FOREIGN KEY İHLALİ DE BİR BÜTÜNLÜK KUSURU. `integrity_check` sayfa
+        # ve indeks yapısına bakar, referans bütünlüğüne BAKMAZ — ikisi ayrı
+        # PRAGMA. Zorlama bağlantı başına kapalı olduğu için eski profillerde
+        # öksüz satır birikmiş olabilir; böyle bir veritabanını "doğrulanmış
+        # yedek" diye yayımlamak ya da restore etmek, kusuru taşımaktır.
+        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
     if result != "ok":
         raise IntegrityVerificationError(
             "Backup veritabanı SQLite bütünlük kontrolünü geçemedi."
+        )
+    if violations:
+        first = tuple(violations[0])
+        raise IntegrityVerificationError(
+            f"Backup veritabanında {len(violations)} foreign key ihlali var "
+            f"(ilk: {first[0]} rowid={first[1]} -> {first[2]})."
         )
 
 

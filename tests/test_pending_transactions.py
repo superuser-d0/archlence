@@ -273,17 +273,24 @@ class PendingTransactionTestCase(unittest.TestCase):
         hâlâ yakaladığı: `adjust_account_balance` var olmayan hesap için
         ValueError fırlatır ve bu istisna döngüyü ÖLDÜRMEMELİ.
         """
-        from database.db import get_connection
         from services.transaction_service import TransactionService
 
         self._add(500.0, "income", day_offset=1)
 
-        # Vadesi gelmiş ama hesabı olmayan ikinci bir kayıt: doğrudan SQL ile
-        # yazılıyor çünkü servis katmanı böyle bir kaydı zaten reddederdi.
-        from database.db import SECRET_KEY
+        # Vadesi gelmiş ama hesabı olmayan ikinci bir kayıt.
+        #
+        # ÇIPLAK `sqlite3.connect` KULLANILIYOR, `get_connection()` DEĞİL — ve
+        # bu bilinçli. `get_connection()` artık `PRAGMA foreign_keys=ON` ile
+        # geliyor, yani böyle bir satırı bugün YAZAMIYOR (kısıt tam da bunu
+        # engellemek için). Testin konusu ise satırın nasıl oluştuğu değil,
+        # ZATEN VAR OLAN böyle bir satırın döngüyü öldürmemesi: zorlama
+        # kapalıyken yazılmış eski profillerde bu satırlar duruyor olabilir.
+        # Fixture, o eski sürümün yaptığını birebir taklit ediyor.
+        import sqlite3 as _sqlite3
+        from database.db import DB_NAME, SECRET_KEY
         from utils.crypto import encrypt
         when = (date.today() + timedelta(days=1)).isoformat()
-        conn = get_connection()
+        conn = _sqlite3.connect(DB_NAME)
         try:
             conn.execute(
                 "INSERT INTO transactions(amount, type, category, description,"

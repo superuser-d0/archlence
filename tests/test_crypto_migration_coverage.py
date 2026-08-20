@@ -109,6 +109,15 @@ class MigrationCoversEveryEncryptedTableTest(unittest.TestCase):
         """
         expected = {}
         with closing(sqlite3.connect(self.db_path)) as conn:
+            # `transactions` satırları `account_id = 1`'e bağlanıyor, o hesap
+            # da GERÇEKTEN var olmalı. Eskiden yoktu ve test yine geçiyordu,
+            # çünkü foreign key zorlaması bağlantı başına KAPALIYDI — yani
+            # bu fixture, şemanın kendi kısıtını ihlal eden bir veritabanı
+            # üretiyordu (bkz. database/db.py::enable_foreign_keys).
+            conn.execute(
+                "INSERT INTO accounts (id, name, type, balance, account_type)"
+                " VALUES (1, 'Legacy Hesap', 'checking', 1000, 'checking')"
+            )
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS installment_plans ("
                 "id INTEGER PRIMARY KEY AUTOINCREMENT,"

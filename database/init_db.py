@@ -3,7 +3,7 @@ import uuid
 from database.db import get_connection
 from datetime import date
 from database.models import ASSET_PRICE_CACHE_SCHEMA
-from utils.errors import SchemaTooNewError
+from utils.errors import FinancialDataIntegrityError, SchemaTooNewError
 
 # `PRAGMA user_version` — şema kuşağının işareti (denetim bulgusu A-5).
 #
@@ -90,6 +90,44 @@ def initialize_database():
         _initialize_database(conn)
     finally:
         conn.close()
+
+
+def _require_no_foreign_key_violations(conn):
+    """Öksüz satır varsa FAIL-CLOSED durur — hiçbir şeyi onarmadan.
+
+    `PRAGMA foreign_key_check` her ihlal için
+    `(tablo, rowid, ebeveyn_tablo, fkid)` döndürür.
+
+    NEDEN ONARMIYORUZ: seçenekler öksüz satırı SİLMEK, BAŞKA bir hesaba
+    BAĞLAMAK ya da eksik ebeveyni UYDURMAK olurdu. Üçü de kullanıcının
+    finansal geçmişini onun haberi olmadan yeniden yazmak demek — bir hesaba
+    ait olmayan 12.400 TL'lik bir işlem sessizce silinirse kullanıcı parasının
+    nereye gittiğini bir daha asla öğrenemez. Durup NE bulduğumuzu söylemek,
+    tahmin etmekten iyidir.
+
+    Mesaj teşhis edilebilir olmak zorunda: hangi tablo, hangi rowid, hangi
+    ebeveyn. Kullanıcı bunları alıp kararı kendisi verebilsin.
+    """
+    violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+    if not violations:
+        return
+    first = tuple(violations[0])
+    table, rowid, parent = first[0], first[1], first[2]
+    from utils.logging_config import get_logger
+
+    get_logger().error(
+        "[VERİ BÜTÜNLÜĞÜ] %d foreign key ihlali: %s",
+        len(violations),
+        [tuple(row)[:3] for row in violations[:10]],
+    )
+    raise FinancialDataIntegrityError(
+        table, rowid, "account_id",
+        reason=(
+            f"{len(violations)} kayıt bağlı olduğu {parent} satırını "
+            f"kaybetmiş (ilk: {table} rowid={rowid} -> {parent}). "
+            "Hiçbir kayıt değiştirilmedi."
+        ),
+    )
 
 
 def _initialize_database(conn):
@@ -927,6 +965,12 @@ def _initialize_database(conn):
     # `PRAGMA user_version` parametre kabul etmez; değer modül sabiti.
     cursor.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")  # nosec B608
     conn.commit()
+
+    # BÜTÜNLÜK KAPISI EN SONDA — şema bu kuşağa getirildikten ve commit
+    # edildikten sonra. Amaç: zorlama KAPALIYKEN yazılmış eski profillerde
+    # kalmış öksüz satırları görünür kılmak (bkz. database/db.py
+    # ::enable_foreign_keys — kısıt şemada vardı ama motor uygulamıyordu).
+    _require_no_foreign_key_violations(conn)
     # ─────────────────────────────────────────────────────────────────────────
     # Kapatma ARTIK BURADA DEĞİL: sarmalayıcı `initialize_database`'in
     # `finally` bloğu yapıyor, böylece hata yolları da kapsanıyor.

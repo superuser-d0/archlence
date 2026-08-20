@@ -70,7 +70,38 @@ def get_connection():
         os.makedirs(directory, exist_ok=True)
     conn = sqlite3.connect(DB_NAME, check_same_thread=False, timeout=10)
     conn.row_factory = sqlite3.Row
+    enable_foreign_keys(conn)
     return conn
+
+
+def enable_foreign_keys(conn):
+    """`PRAGMA foreign_keys=ON` — bağlantı kurulur kurulmaz, DML'den ÖNCE.
+
+    SQLite'ta foreign key zorlaması BAĞLANTI BAŞINA ve VARSAYILAN OLARAK
+    KAPALIDIR (3.6.19'da eklenirken geriye dönük uyumluluk için alınmış bir
+    karar). Şemada `transactions.account_id REFERENCES accounts(id)` yazıyor
+    olması tek başına HİÇBİR ŞEY zorlamıyordu — ölçüldü: var olmayan bir
+    hesaba işlem yazmak kabul ediliyor, `PRAGMA foreign_key_check` ise
+    ihlali bildiriyordu. Yani şema bir kural olduğunu sanıyor, motor
+    uygulamıyordu.
+
+    SIRA ÖNEMLİ: bu PRAGMA bir transaction'ın İÇİNDE sessiz bir NO-OP'tur.
+    Burada, `connect`'ten hemen sonra ve herhangi bir `BEGIN`/DML'den önce
+    çalışıyor.
+
+    SONUÇ DOĞRULANIYOR: PRAGMA, foreign key desteği olmadan derlenmiş bir
+    SQLite'ta hata VERMEDEN hiçbir şey yapmaz. Sessizce korumasız devam
+    etmek, korumanın var olduğunu sanarak yazılmış her çağrıyı yanıltır;
+    bu yüzden fail-closed.
+    """
+    conn.execute("PRAGMA foreign_keys = ON")
+    row = conn.execute("PRAGMA foreign_keys").fetchone()
+    if not row or not row[0]:
+        conn.close()
+        raise FinancialDataIntegrityError(
+            "sqlite", None, "foreign_keys",
+            reason="PRAGMA foreign_keys=ON etkinleştirilemedi.",
+        )
 
 
 @contextmanager
