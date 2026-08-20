@@ -85,9 +85,9 @@ if ARCHLENCE_HEADLESS:
 # BURADA, aşağıdaki Kivy import'larından ÖNCE olmak ZORUNDA. `kivy.core.window`
 # import edildiği anda SDL penceresi açılıyor; kilit kontrolü daha sonra
 # koşarsa kullanıcı önce boş siyah bir pencere görüyor, uyarı kutusu ancak
-# onun ÜSTÜNE geliyor ve kutu kapatılana kadar orada duruyor. Fiziksel
-# Windows makinesinde ölçüldü (bkz. WINDOWS_RC_CHECKLIST.md §2.4): koddaki
-# "Kivy/SQLite başlangıcından önce" notu paketlenmiş yapıda geçerli değildi,
+# onun ÜSTÜNE geliyor ve kutu kapatılana kadar orada duruyor. Fiziksel bir
+# Windows makinesinde ölçüldü: koddaki "Kivy/SQLite başlangıcından önce"
+# notu paketlenmiş yapıda geçerli değildi,
 # çünkü kontrol modül sonundaki `__main__` bloğunda duruyordu — yani tüm
 # import'lar, pencere dahil, çoktan çalışmış oluyordu.
 #
@@ -320,7 +320,7 @@ def _resolve_savings_store_path():
     """Eski `savings_goals.json`'un GÖÇ İÇİN aranacağı yol.
 
     Bu dosya artık bir veri kaynağı DEĞİL: hedefler SQLite'ta yaşıyor
-    (docs/SAVINGS_SINGLE_SOURCE_PLAN.md). Fonksiyon yalnız duruyor çünkü
+    (sözleşme: docs/ARCHITECTURE.md). Fonksiyon yalnız duruyor çünkü
     paketlenmiş eski kurulumlarda dosya hâlâ uygulama dizininde olabilir ve
     göç motorunun onu bulabilmesi için önce kullanıcı veri dizinine taşınması
     gerekiyor. Taşıma idempotent; hedefte dosya varsa üzerine yazmaz.
