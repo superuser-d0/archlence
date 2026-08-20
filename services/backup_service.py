@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -33,6 +34,210 @@ _NONCE_LEN = 12
 _KEY_LEN = 32
 _AEAD_PREFIX = "AEADv1:"
 _AUTH_CONTEXT = b"archlence-backup-auth-v2"
+
+# ── KURTARMA MATERYALİNİN KDF SINIRLARI ──────────────────────────────────────
+# `iterations` PAKETİN İÇİNDEN gelir, yani paketi veren tarafın kontrolündedir.
+# Eskiden `int(payload["iterations"])` ile alınıp doğrudan PBKDF2'ye
+# veriliyordu; `10**12` yazan bir paket, parola yanlış olsa bile açmayı
+# deneyen makinede süresiz CPU tüketimi başlatıyordu. Sayı bir sınır değil,
+# saldırganın verdiği bir bütçedir — bu yüzden aralık burada sabitlenir.
+#
+# TABAN 100.000: OWASP'ın PBKDF2-HMAC-SHA256 için önerdiği asgari tur sayısı.
+# Bunun altındaki bir paket ya çok eski ya da bilerek zayıflatılmıştır; ikisi
+# de kabul edilmemeli.
+# TAVAN 4.000.000: bugünkü değerin (600.000) yaklaşık 6,6 katı — ileride tur
+# sayısı artırılırsa eski sürümler yeni paketleri hâlâ açabilsin diye geniş
+# bırakıldı, ama sonlu: bu makinede 600.000 tur ~0,2 sn sürüyor, tavan ~1,3 sn
+# demek. Süresiz değil, ölçülebilir.
+SUPPORTED_RECOVERY_KDF = "PBKDF2-HMAC-SHA256"
+MIN_RECOVERY_ITERATIONS = 100_000
+MAX_RECOVERY_ITERATIONS = 4_000_000
+
+# ── PAKET SINIRLARI ──────────────────────────────────────────────────────────
+# Bir backup paketi DIŞARIDAN gelir. Kullanıcı onu bir e-postadan, bir USB
+# bellekten ya da bir yedekleme diskinden getirebilir; içeriğinin bizim
+# ürettiğimiz paket olduğu KANITLANANA KADAR düşmanca varsayılır.
+#
+# Eski davranış ölçüldü: 8.514 baytlık bir paket, `finance.db` üyesini
+# 8.388.608 bayta açıyordu ve ret ancak bu yazımdan SONRA geliyordu. Sınır
+# yoksa paket boyutunun bin katı disk (ve bellek) harcanabilir.
+#
+# SEÇİLEN DEĞERLERİN GEREKÇESİ — hepsi gerçek profillerde ölçüldü:
+#   profil            finance.db açılmış      sıkıştırma oranı
+#   boş profil                114.688              23,2
+#   300 işlem                 204.800               5,0
+#   3.000 işlem               991.232               3,1
+#   20.000 işlem            5.988.352               2,8
+# Şifreli alanlar yüksek entropili olduğu için gerçek profillerde oran DÜŞÜK
+# kalıyor; en yüksek meşru oran boş profilde (23,2) görüldü.
+MAX_PACKAGE_MEMBERS = 4
+
+# 256 MiB — 20.000 işlem 6 MB ettiğine göre kabaca 850.000 işlemlik bir
+# profile karşılık gelir. Kimsenin ulaşmayacağı kadar yüksek, sonsuz olmayacak
+# kadar sonlu.
+MAX_DB_MEMBER_BYTES = 256 * 1024 * 1024
+
+# 4 MiB — `metadata.json` 440 bayt, `key.recovery.json` 234 bayt.
+# `config.json` kullanıcı ayarlarını taşır ve büyüyebilir; yine de bu sınırın
+# yakınına gelmesi için binlerce kat şişmesi gerekir.
+MAX_SMALL_MEMBER_BYTES = 4 * 1024 * 1024
+
+MAX_TOTAL_BYTES = MAX_DB_MEMBER_BYTES + 3 * MAX_SMALL_MEMBER_BYTES
+
+# 200 — ölçülen en yüksek MEŞRU oranın (23,2) yaklaşık 8,6 katı. Yukarıdaki
+# 8 KB -> 8 MB bombasının oranı 1.028'di, yani rahatça yakalanıyor.
+MAX_COMPRESSION_RATIO = 200
+
+_REQUIRED_MEMBERS = ("finance.db", "metadata.json", "key.recovery.json")
+_OPTIONAL_MEMBERS = ("config.json",)
+_ALLOWED_MEMBERS = frozenset(_REQUIRED_MEMBERS + _OPTIONAL_MEMBERS)
+_STAGE_CHUNK = 64 * 1024
+
+
+def _member_byte_limit(name):
+    return MAX_DB_MEMBER_BYTES if name == "finance.db" else MAX_SMALL_MEMBER_BYTES
+
+
+def _require_plain_member_name(name):
+    """Üye adı, staging dizininin İÇİNDE düz bir dosya adı olmak zorunda.
+
+    Ayırıcı olarak hem `/` hem de `\\` sınanıyor: ZIP standardı `/` der ama
+    Windows'ta üretilmiş arşivlerde `\\` de görülür ve `Path(...).parts` onu
+    POSIX'te ayırıcı saymaz — yani yalnız `Path` ile bakmak Linux'ta
+    `..\\finance.db` adını DÜZ BİR AD sanırdı.
+    """
+    if not name or name in (".", ".."):
+        raise IntegrityVerificationError(
+            "Backup paketi güvenli olmayan dosya yolu içeriyor."
+        )
+    if "/" in name or "\\" in name:
+        raise IntegrityVerificationError(
+            "Backup paketi güvenli olmayan dosya yolu içeriyor."
+        )
+    if Path(name).is_absolute() or (len(name) >= 2 and name[1] == ":"):
+        raise IntegrityVerificationError(
+            "Backup paketi güvenli olmayan dosya yolu içeriyor."
+        )
+
+
+def _reject_unsafe_members(infos):
+    """Tek bir bayt açılmadan ÖNCE koşan ön kontrol."""
+    if len(infos) > MAX_PACKAGE_MEMBERS:
+        raise IntegrityVerificationError(
+            "Backup paketi beklenenden fazla dosya içeriyor."
+        )
+    names = [info.filename for info in infos]
+    if len(set(names)) != len(names):
+        raise IntegrityVerificationError(
+            "Backup paketi beklenmeyen veya yinelenen dosya içeriyor."
+        )
+    present = set(names)
+    if not set(_REQUIRED_MEMBERS) <= present:
+        raise IntegrityVerificationError(
+            "Backup paketi gerekli dosyaları içermiyor."
+        )
+    if present - _ALLOWED_MEMBERS:
+        raise IntegrityVerificationError(
+            "Backup paketi beklenmeyen veya yinelenen dosya içeriyor."
+        )
+
+    declared_total = 0
+    for info in infos:
+        name = info.filename
+        if info.is_dir() or name.endswith("/"):
+            raise IntegrityVerificationError(
+                "Backup paketi dizin girdisi içeriyor."
+            )
+        # ZIP'in genel amaç bayrağındaki 0. bit "şifreli". Şifreli bir üyeyi
+        # açmaya çalışmak parola sorar ya da çöp üretir; ikisi de kabul değil.
+        if info.flag_bits & 0x1:
+            raise IntegrityVerificationError(
+                "Backup paketi şifreli üye içeriyor."
+            )
+        # Unix mod bitleri ZIP'te `external_attr`'ın üst 16 bitinde taşınır.
+        # S_IFLNK, üyenin bir sembolik bağ OLDUĞU anlamına gelir: açıldığında
+        # dosya değil, paketi verenin seçtiği bir yola bağ oluşur.
+        if (info.external_attr >> 16) & 0o170000 == 0o120000:
+            raise IntegrityVerificationError(
+                "Backup paketi sembolik bağ içeriyor."
+            )
+        limit = _member_byte_limit(name)
+        if info.file_size > limit:
+            raise IntegrityVerificationError(
+                "Backup paketindeki bir dosya boyut sınırını aşıyor."
+            )
+        declared_total += info.file_size
+        if info.compress_size > 0 and (
+            info.file_size / info.compress_size > MAX_COMPRESSION_RATIO
+        ):
+            raise IntegrityVerificationError(
+                "Backup paketinin sıkıştırma oranı güvenli sınırın üzerinde."
+            )
+    if declared_total > MAX_TOTAL_BYTES:
+        raise IntegrityVerificationError(
+            "Backup paketinin toplam boyutu sınırı aşıyor."
+        )
+
+
+def _stage_member(archive, info, destination, running_total):
+    """Bir üyeyi SINIRLI akışla kopyalar; gerçek okunan baytı sayar.
+
+    `archive.extract` KULLANILMIYOR. İki nedeni var: (1) hedef yolu ZIP'in
+    içindeki isimden türetir, yani yol güvenliğini kütüphaneye devretmiş
+    oluruz; (2) boyutu ölçmeden yazar — başlıktaki `file_size` yalan olabilir
+    ve o yalan ancak diske yazılırken anlaşılır. Bu yüzden burada İKİNCİ bir
+    sayaç var: ön kontrol BEYAN EDİLEN boyuta, bu döngü GERÇEKTEN OKUNAN
+    bayta bakar.
+    """
+    limit = _member_byte_limit(info.filename)
+    written = 0
+    target = destination / info.filename
+    with archive.open(info, "r") as source, io.open(target, "wb") as sink:
+        while True:
+            chunk = source.read(_STAGE_CHUNK)
+            if not chunk:
+                break
+            written += len(chunk)
+            if written > limit:
+                raise IntegrityVerificationError(
+                    "Backup paketindeki bir dosya boyut sınırını aşıyor."
+                )
+            if running_total + written > MAX_TOTAL_BYTES:
+                raise IntegrityVerificationError(
+                    "Backup paketinin toplam boyutu sınırı aşıyor."
+                )
+            sink.write(chunk)
+    return written
+
+
+def _stage_package(package_path, destination):
+    """Paketi TEK KEZ, sınırlı biçimde açar. Staged üye adlarını döndürür.
+
+    Doğrulama ve restore'un ORTAK giriş noktası. Eskiden `restore_backup`
+    paketi kendisi açıyor, sonra `verify_backup` aynı paketi ikinci kez
+    açıyordu — aynı düşmanca girdi iki kez işleniyordu.
+    """
+    destination.mkdir(parents=True, exist_ok=True)
+    staged = []
+    try:
+        with zipfile.ZipFile(package_path, "r") as archive:
+            infos = archive.infolist()
+            _reject_unsafe_members(infos)
+            # Yol güvenliği ön kontrolden AYRI tutuluyor: isim kümesi zaten
+            # `_ALLOWED_MEMBERS` ile sınırlı olduğu için buraya gelen her isim
+            # düz bir dosya adıdır. Yine de açıkça sınanıyor, çünkü bu iddia
+            # kod değiştikçe sessizce yanlışa dönebilecek türden.
+            for info in infos:
+                _require_plain_member_name(info.filename)
+            total = 0
+            for info in infos:
+                total += _stage_member(archive, info, destination, total)
+                staged.append(info.filename)
+    except (zipfile.BadZipFile, zipfile.LargeZipFile, OSError, EOFError) as exc:
+        # Bozuk ZIP ve CRC uyuşmazlığı da buradan geçer: kütüphane
+        # `BadZipFile` fırlatır, sözleşme `IntegrityVerificationError`'dır.
+        raise IntegrityVerificationError("Backup paketi açılamadı.") from exc
+    return staged
 
 ENCRYPTED_FIELDS = {
     "transactions": ("amount", "description"),
@@ -86,7 +291,7 @@ def encrypt_recovery_material(key, passphrase):
     cipher = AES.new(wrapping_key, AES.MODE_GCM, nonce=nonce)
     ciphertext, tag = cipher.encrypt_and_digest(key)
     return {
-        "kdf": "PBKDF2-HMAC-SHA256",
+        "kdf": SUPPORTED_RECOVERY_KDF,
         "iterations": _RECOVERY_ITERATIONS,
         "salt": base64.b64encode(salt).decode("ascii"),
         "nonce": base64.b64encode(nonce).decode("ascii"),
@@ -95,18 +300,57 @@ def encrypt_recovery_material(key, passphrase):
     }
 
 
+def _recovery_iterations(payload):
+    """Paketten gelen tur sayısını PBKDF2'ye VERMEDEN ÖNCE sınırlar.
+
+    `isinstance(value, bool)` ayrıca eleniyor: `bool` Python'da `int`'in alt
+    sınıfıdır, yani `True` bir tip kontrolünü geçip tek turluk bir KDF olarak
+    sessizce kabul edilirdi.
+    """
+    value = payload.get("iterations")
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise IntegrityVerificationError(
+            "Backup kurtarma materyalinin tur sayısı geçersiz."
+        )
+    if not MIN_RECOVERY_ITERATIONS <= value <= MAX_RECOVERY_ITERATIONS:
+        raise IntegrityVerificationError(
+            "Backup kurtarma materyalinin tur sayısı desteklenen aralıkta değil."
+        )
+    return value
+
+
 def decrypt_recovery_material(payload, passphrase):
     _require_passphrase(passphrase)
+    if not isinstance(payload, dict):
+        raise IntegrityVerificationError("Backup kurtarma materyali bozuk.")
+    # KDF ADI ÖNCE. Desteklenmeyen bir isim, hangi algoritmanın çalıştırıldığı
+    # konusunda paketi veren tarafa söz hakkı vermek demektir.
+    if payload.get("kdf") != SUPPORTED_RECOVERY_KDF:
+        raise IntegrityVerificationError(
+            "Backup kurtarma materyalinin KDF'i desteklenmiyor."
+        )
+    iterations = _recovery_iterations(payload)
     try:
         salt = base64.b64decode(payload["salt"], validate=True)
         nonce = base64.b64decode(payload["nonce"], validate=True)
         tag = base64.b64decode(payload["tag"], validate=True)
         ciphertext = base64.b64decode(payload["ciphertext"], validate=True)
-        iterations = int(payload["iterations"])
     except (KeyError, TypeError, ValueError) as exc:
         raise IntegrityVerificationError(
             "Backup kurtarma materyali bozuk."
         ) from exc
+    # UZUNLUKLAR DA PBKDF2'DEN ÖNCE. Yanlış uzunlukta bir nonce/tag zaten
+    # açılamaz; bunu anlamak için önce yüz binlerce tur KDF koşturmanın hiçbir
+    # faydası yok — yalnız maliyeti var.
+    if (
+        len(salt) != _SALT_LEN
+        or len(nonce) != _NONCE_LEN
+        or len(tag) != 16
+        or len(ciphertext) != _KEY_LEN
+    ):
+        raise IntegrityVerificationError(
+            "Backup kurtarma materyalinin alan uzunlukları geçersiz."
+        )
     wrapping_key = PBKDF2(
         passphrase.encode("utf-8"),
         salt,
@@ -264,83 +508,62 @@ def create_backup(
     }
 
 
+def _verify_staged(temp, passphrase):
+    """Staged (açılmış ve sınırları geçmiş) bir paketi doğrular.
+
+    `_stage_package`'tan AYRI: aynı staging'i hem `verify_backup` hem
+    `restore_backup` kullanabilsin diye. Paketin ikinci kez açılmaması bu
+    ayrımın tek amacı.
+    """
+    try:
+        metadata = json.loads(
+            (temp / "metadata.json").read_text(encoding="utf-8")
+        )
+        recovery = json.loads(
+            (temp / "key.recovery.json").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise IntegrityVerificationError(
+            "Backup metadata veya kurtarma materyali bozuk."
+        ) from exc
+    if metadata.get("format_version") != 2:
+        raise IntegrityVerificationError("Backup format sürümü desteklenmiyor.")
+    supplied_tag = metadata.get("authentication_tag")
+    if not isinstance(supplied_tag, str) or not hmac.compare_digest(
+        supplied_tag, _backup_auth_tag(metadata, passphrase)
+    ):
+        raise IntegrityVerificationError("Backup authentication doğrulanamadı.")
+    db_copy = temp / "finance.db"
+    digest = hashlib.sha256(db_copy.read_bytes()).hexdigest()
+    if digest != metadata.get("database_sha256"):
+        raise IntegrityVerificationError("Backup veritabanı hash'i eşleşmiyor.")
+    key = decrypt_recovery_material(recovery, passphrase)
+    if hashlib.sha256(key).hexdigest() != metadata.get("key_fingerprint"):
+        raise IntegrityVerificationError("Backup anahtar parmak izi eşleşmiyor.")
+    _integrity_check(db_copy)
+    checked = verify_database_key(db_copy, key)
+    if checked != int(metadata.get("aead_records_verified", -1)):
+        raise IntegrityVerificationError(
+            "Backup AEAD doğrulama sayısı eşleşmiyor."
+        )
+    return {
+        "key": key,
+        "metadata": metadata,
+        "config": (
+            (temp / "config.json").read_bytes()
+            if (temp / "config.json").exists()
+            else None
+        ),
+    }
+
+
 def verify_backup(package_path, passphrase):
-    """Extract into a temporary directory and prove DB/key compatibility."""
+    """Stage into a bounded temporary directory and prove DB/key compatibility."""
     package_path = Path(package_path)
     with tempfile.TemporaryDirectory(prefix="archlence-verify-") as temp_dir:
         temp = Path(temp_dir)
-        try:
-            with zipfile.ZipFile(package_path, "r") as archive:
-                raw_names = archive.namelist()
-                names = set(raw_names)
-                required = {
-                    "finance.db", "metadata.json", "key.recovery.json",
-                }
-                if not required <= names:
-                    raise IntegrityVerificationError(
-                        "Backup paketi gerekli dosyaları içermiyor."
-                    )
-                allowed = required | {"config.json"}
-                if len(raw_names) != len(names) or names - allowed:
-                    raise IntegrityVerificationError(
-                        "Backup paketi beklenmeyen veya yinelenen dosya içeriyor."
-                    )
-                if any(
-                    Path(name).is_absolute() or ".." in Path(name).parts
-                    or name.startswith(("\\\\", "/"))
-                    or (len(name) >= 2 and name[1] == ":")
-                    for name in names
-                ):
-                    raise IntegrityVerificationError(
-                        "Backup paketi güvenli olmayan dosya yolu içeriyor."
-                    )
-                for name in required | ({"config.json"} & names):
-                    archive.extract(name, temp)
-        except (zipfile.BadZipFile, OSError) as exc:
-            raise IntegrityVerificationError(
-                "Backup paketi açılamadı."
-            ) from exc
-
-        try:
-            metadata = json.loads(
-                (temp / "metadata.json").read_text(encoding="utf-8")
-            )
-            recovery = json.loads(
-                (temp / "key.recovery.json").read_text(encoding="utf-8")
-            )
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-            raise IntegrityVerificationError(
-                "Backup metadata veya kurtarma materyali bozuk."
-            ) from exc
-        if metadata.get("format_version") != 2:
-            raise IntegrityVerificationError("Backup format sürümü desteklenmiyor.")
-        supplied_tag = metadata.get("authentication_tag")
-        if not isinstance(supplied_tag, str) or not hmac.compare_digest(
-            supplied_tag, _backup_auth_tag(metadata, passphrase)
-        ):
-            raise IntegrityVerificationError("Backup authentication doğrulanamadı.")
-        db_copy = temp / "finance.db"
-        digest = hashlib.sha256(db_copy.read_bytes()).hexdigest()
-        if digest != metadata.get("database_sha256"):
-            raise IntegrityVerificationError("Backup veritabanı hash'i eşleşmiyor.")
-        key = decrypt_recovery_material(recovery, passphrase)
-        if hashlib.sha256(key).hexdigest() != metadata.get("key_fingerprint"):
-            raise IntegrityVerificationError("Backup anahtar parmak izi eşleşmiyor.")
-        _integrity_check(db_copy)
-        checked = verify_database_key(db_copy, key)
-        if checked != int(metadata.get("aead_records_verified", -1)):
-            raise IntegrityVerificationError(
-                "Backup AEAD doğrulama sayısı eşleşmiyor."
-            )
-        return {
-            "key": key,
-            "metadata": metadata,
-            "config": (
-                (temp / "config.json").read_bytes()
-                if (temp / "config.json").exists()
-                else None
-            ),
-        }
+        _stage_package(package_path, temp)
+        return _verify_staged(temp, passphrase)
 
 
 _JOURNAL_DIRNAME = ".archlence-restore"
@@ -573,26 +796,32 @@ def restore_backup(
         )
     )
     current_key = provider.load_key()
-    if db_path.exists() and current_key is not None:
-        create_backup(
-            safety_backup_path,
-            passphrase,
-            db_path=db_path,
-            key_provider=provider,
-            config_path=str(config) if config else None,
-        )
 
     with tempfile.TemporaryDirectory(
         prefix="archlence-restore-", dir=str(db_path.parent)
     ) as temp_dir:
         temp = Path(temp_dir)
-        with zipfile.ZipFile(package_path, "r") as archive:
-            archive.extract("finance.db", temp)
-            archive.extract("metadata.json", temp)
-            archive.extract("key.recovery.json", temp)
-            if "config.json" in archive.namelist():
-                archive.extract("config.json", temp)
-        verification = verify_backup(package_path, passphrase)
+        # SIRA DEĞİŞTİ VE BU BİLİNÇLİ. Eskiden burada önce güvenlik yedeği
+        # alınıyor, sonra paket açılıyor, sonra `verify_backup` AYNI paketi
+        # İKİNCİ kez açıyordu. Yani saldırgan kontrollü bir paket, hiç
+        # sınanmadan önce hem tam bir `create_backup` turu tetikliyor hem de
+        # iki kez diske açılıyordu.
+        #
+        # Yeni sıra: gelen paketi ÖNCE tek bir staging'de kanıtla, ancak
+        # ondan sonra mevcut profile dokun. Güvenlik yedeği korunuyor —
+        # yalnızca gelen paket kanıtlandıktan SONRA alınıyor.
+        _stage_package(package_path, temp)
+        verification = _verify_staged(temp, passphrase)
+
+        if db_path.exists() and current_key is not None:
+            create_backup(
+                safety_backup_path,
+                passphrase,
+                db_path=db_path,
+                key_provider=provider,
+                config_path=str(config) if config else None,
+            )
+
         staged_db = temp / "finance.db"
         staged_key = temp / "encryption.key"
         staged_key.write_bytes(verification["key"])

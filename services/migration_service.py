@@ -56,6 +56,61 @@ _DATE_FORMATS = [
 ]
 
 
+# ── CSV FORMÜL ENJEKSİYONU ───────────────────────────────────────────────────
+# Excel ve LibreOffice bir hücrenin İLK karakterine bakıp onu formül sayar.
+# Dosyanın salt veri olması bunu değiştirmez: `=1+1` yazan bir hücre açılışta
+# hesaplanır, `=cmd|'/c calc'!A1` ise DDE üzerinden dış komut çalıştırmayı
+# dener. Kullanıcı bir işlem açıklamasına `=1+1` yazdıysa bu Archlence'ın
+# hatası değildir; o değeri elektronik tabloya FORMÜL olarak teslim etmek
+# Archlence'ın hatasıdır.
+#
+# Sekme ve satır başı da listede: bunlar hücre sınırını kaydırıp değeri komşu
+# hücreye taşıyabiliyor, yani "sadece görüntü" meselesi değil.
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
+
+# Kaçış karakteri. Tek başına apostrof eklemek YETMEZ — geri çözme belirsiz
+# kalır: dosyadaki `'=x` hem kaçırılmış `=x` hem de kullanıcının kendi yazdığı
+# `'=x` olabilir. Bu yüzden apostrofla BAŞLAYAN değerler de kaçırılır. Sonuç
+# tek anlamlı: dosyada apostrofla başlayan her değerin başına tam olarak BİR
+# apostrof eklenmiştir, geri çözme tam olarak BİRİNİ soyar.
+_CSV_ESCAPE_CHAR = "'"
+
+# KOLON SÖZLEŞMESİ — koruma yalnızca kullanıcı kontrollü METİN kolonlarına
+# uygulanır. `tutar` ve `miktar` uygulamanın kendi ürettiği sayılardır;
+# apostrof eklemek onları elektronik tabloda sayı olmaktan çıkarır ve
+# kullanıcının dosyayla yapacağı ilk işi (toplam almak) bozardı. `kayit_turu`
+# ve `tarih` de sabit biçimli, uygulama üretimi değerlerdir.
+_CSV_TEXT_COLUMNS = ("tur", "kategori", "aciklama", "detay")
+_CSV_TEXT_INDEXES = tuple(
+    CSV_HEADER.index(column) for column in _CSV_TEXT_COLUMNS
+)
+
+
+def escape_csv_text(value):
+    """Kullanıcı metnini elektronik tabloya formül olarak teslim etmeyecek
+    hâle getirir. Zararsız metinde KİMLİKTİR — hiçbir hücre boşuna bozulmaz."""
+    text = "" if value is None else str(value)
+    if text.startswith(_FORMULA_PREFIXES) or text.startswith(_CSV_ESCAPE_CHAR):
+        return _CSV_ESCAPE_CHAR + text
+    return text
+
+
+def unescape_csv_text(value):
+    """`escape_csv_text`'in tam tersi: baştaki tek apostrofu soyar."""
+    text = "" if value is None else str(value)
+    if text.startswith(_CSV_ESCAPE_CHAR):
+        return text[1:]
+    return text
+
+
+def _escape_row(row):
+    """Bir dışa aktarım satırının metin kolonlarını kaçırır (sözleşme yukarıda)."""
+    escaped = list(row)
+    for index in _CSV_TEXT_INDEXES:
+        escaped[index] = escape_csv_text(escaped[index])
+    return escaped
+
+
 def get_export_path():
     """Dışa aktarım hedefini döndürür: masaüstü varsa oraya, yoksa kullanıcı-veri dizinine."""
     home = os.path.expanduser("~")
@@ -177,7 +232,7 @@ def export_all_to_csv(path=None):
             fd_handed_off = True
             writer = csv.writer(f)
             writer.writerow(CSV_HEADER)
-            writer.writerows(rows_out)
+            writer.writerows(_escape_row(row) for row in rows_out)
             f.flush(); os.fsync(f.fileno())
         os.replace(staged, target)
         if hasattr(os, "fchmod"):
@@ -234,13 +289,21 @@ def parse_transactions_csv(path):
                 field_map[key] = name
         has_type_col = "kayit_turu" in [(n or "").strip().lower() for n in reader.fieldnames]
 
+        # ARCHLENCE'IN KENDİ FORMATIYSA kaçış geri çözülür. Ayırt edici işaret
+        # `kayit_turu` kolonudur — yalnız bizim export'umuzda vardır. Üçüncü
+        # taraf bir CSV'de apostrofla başlayan bir değer KULLANICININ kendi
+        # verisidir ve dokunulmaz; orada soymak yabancı dosyayı bozardı.
+        def _text(row, key):
+            raw = row.get(field_map.get(key, ""), "") or ""
+            return unescape_csv_text(raw) if has_type_col else raw
+
         for row in reader:
             if has_type_col:
                 kayit_turu = (row.get("kayit_turu") or "").strip().lower()
                 if kayit_turu != "islem":
                     continue  # varlık/borç/tekrarlanan satırları işlem değildir
 
-            raw_tur = (row.get(field_map.get("tur", ""), "") or "").strip().lower()
+            raw_tur = _text(row, "tur").strip().lower()
             if raw_tur in _INCOME_WORDS:
                 tx_type = "income"
             elif raw_tur in _EXPENSE_WORDS:
@@ -282,9 +345,9 @@ def parse_transactions_csv(path):
             records.append({
                 "date": date,
                 "type": tx_type,
-                "category": (row.get(field_map.get("kategori", ""), "") or "").strip() or "Diğer",
+                "category": _text(row, "kategori").strip() or "Diğer",
                 "amount": amount,
-                "description": (row.get(field_map.get("aciklama", ""), "") or "").strip(),
+                "description": _text(row, "aciklama").strip(),
             })
 
     return records, skipped

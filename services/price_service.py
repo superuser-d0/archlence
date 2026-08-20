@@ -15,6 +15,7 @@ from database.models import (
     AssetPriceStatus,
     PriceFreshness,
 )
+from services.price_guard import finite_positive_price
 from utils.financial_decimal import decimal_from
 from utils.ticker_mapper import (
     gold_multiplier,
@@ -108,18 +109,32 @@ def _read_cache(symbols: Iterable[str]) -> dict[str, AssetPriceCache]:
             f"FROM asset_price_cache WHERE symbol IN ({placeholders})",
             tuple(keys),
         ).fetchall()
-        return {
-            row["symbol"]: AssetPriceCache(
+        # OKUMA TARAFI DA SINANIYOR. Yazma kapısı artık sonlu olmayan fiyatı
+        # geçirmiyor, ama BU SÜRÜMDEN ÖNCE yazılmış satırlar diskte duruyor:
+        # eski kapı `float(value) > 0` idi ve `inf` onu geçiyordu. Böyle bir
+        # satır okunup portföy çarpımına girerse toplamın TAMAMI `inf` olur.
+        # Zehirli satır sessizce ATLANIR — silinmez, çünkü bu servis
+        # kullanıcının verisini onarmakla görevli değil; bir sonraki başarılı
+        # fiyat çekimi satırın üzerine yazacaktır.
+        out = {}
+        for row in rows:
+            price = finite_positive_price(row["price"])
+            if price is None:
+                logger.warning(
+                    "[FİYAT] %s için önbellekteki değer sonlu değil; atlandı.",
+                    row["symbol"],
+                )
+                continue
+            out[row["symbol"]] = AssetPriceCache(
                 symbol=row["symbol"],
-                price=float(row["price"]),
+                price=price,
                 asset_type=row["asset_type"],
                 updated_at=_parse_updated_at(row["updated_at"]),
                 # Sütun eklenmeden önce yazılmış satırlarda NULL; o dönemde
                 # tek sağlayıcı yfinance olduğu için varsayılan doğru.
                 source=row["source"] or PRICE_SOURCE,
             )
-            for row in rows
-        }
+        return out
     finally:
         conn.close()
 
@@ -136,6 +151,27 @@ def _store_cache(
     from database.db import get_connection
 
     stamp = (updated_at or _now()).astimezone(ISTANBUL).isoformat()
+    # SON YAZMA KAPISI. Eski koşul `price is not None and float(price) > 0`
+    # idi ve `float("inf") > 0` True olduğu için sonsuzu KALICI hâle
+    # getiriyordu. Tek bozuk sembol tüm batch'i düşürmemeli: yalnız o satır
+    # elenir (bkz. services/price_guard.py).
+    rows = []
+    for symbol, price in prices.items():
+        checked = finite_positive_price(price)
+        if checked is None:
+            if price is not None:
+                logger.warning(
+                    "[FİYAT] %s için sonlu olmayan fiyat reddedildi: %r",
+                    symbol, price,
+                )
+            continue
+        rows.append((
+            symbol, checked,
+            normalize_asset_type(asset_types.get(symbol)), stamp,
+            (sources or {}).get(symbol, PRICE_SOURCE),
+        ))
+    if not rows:
+        return
     conn = get_connection()
     try:
         _ensure_cache(conn)
@@ -148,15 +184,7 @@ def _store_cache(
                    asset_type=excluded.asset_type,
                    updated_at=excluded.updated_at,
                    source=excluded.source""",
-            [
-                (
-                    symbol, float(price),
-                    normalize_asset_type(asset_types.get(symbol)), stamp,
-                    (sources or {}).get(symbol, PRICE_SOURCE),
-                )
-                for symbol, price in prices.items()
-                if price is not None and float(price) > 0
-            ],
+            rows,
         )
         conn.commit()
     finally:

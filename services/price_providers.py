@@ -28,6 +28,7 @@ biriminde döndürülmesi.
 
 import re
 
+from services.price_guard import finite_positive_price
 from utils.logging_config import get_logger
 
 # `asset_service._PRICE_TIMEOUT` ile aynı bütçe; yedek yol birincil yoldan
@@ -91,9 +92,12 @@ def _fetch_crypto_usd(tickers):
         coin_id = ids.get(symbol)
         if not coin_id:
             continue
-        value = payload.get(coin_id, {}).get("usd")
-        if value is not None and float(value) > 0:
-            out[ticker] = float(value)
+        # `float(value) > 0` YETMEZ: `float("inf") > 0` True'dur ve
+        # `json.loads` `Infinity`/`NaN` sabitlerini varsayılan olarak
+        # ayrıştırır (bkz. services/price_guard.py).
+        price = finite_positive_price(payload.get(coin_id, {}).get("usd"))
+        if price is not None:
+            out[ticker] = price
     return out
 
 
@@ -121,9 +125,13 @@ def _fetch_fiat_try(tickers):
 
     out = {}
     for ticker, base in bases.items():
-        rate = rates.get(base)
-        if rate is not None and float(rate) > 0:
-            out[ticker] = 1.0 / float(rate)
+        # Kur ÖNCE sınanır, sonra tersi alınır: sonsuz bir kurun tersi 0,
+        # sıfır bir kurun tersi ZeroDivisionError olurdu.
+        rate = finite_positive_price(rates.get(base))
+        if rate is not None:
+            inverted = finite_positive_price(1.0 / rate)
+            if inverted is not None:
+                out[ticker] = inverted
     return out
 
 

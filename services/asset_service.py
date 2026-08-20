@@ -30,6 +30,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, TypedDict
 
+from services.price_guard import finite_positive_price
 from utils.errors import (
     ArchlenceError,
     DecryptionError,
@@ -1169,9 +1170,12 @@ def _fetch_live_try_prices(assets: list[dict]) -> dict[str, float]:
             response.raise_for_status()
             payload = response.json()
             for full_code, coin_id in crypto_ids.items():
-                value = payload.get(coin_id, {}).get("try")
-                if value is not None and float(value) > 0:
-                    prices[full_code] = float(value)
+                # Sonluluk sınaması: `float("inf") > 0` True'dur
+                # (bkz. services/price_guard.py).
+                price = finite_positive_price(
+                    payload.get(coin_id, {}).get("try"))
+                if price is not None:
+                    prices[full_code] = price
         except (requests.RequestException, ValueError, TypeError) as exc:
             errors.append(exc)
 
@@ -1195,9 +1199,11 @@ def _fetch_live_try_prices(assets: list[dict]) -> dict[str, float]:
             response.raise_for_status()
             rates = response.json().get("rates", {})
             for full_code, base in fiat_bases.items():
-                rate = rates.get(base)
-                if rate is not None and float(rate) > 0:
-                    prices[full_code] = 1.0 / float(rate)
+                rate = finite_positive_price(rates.get(base))
+                if rate is not None:
+                    inverted = finite_positive_price(1.0 / rate)
+                    if inverted is not None:
+                        prices[full_code] = inverted
         except (requests.RequestException, ValueError, TypeError) as exc:
             errors.append(exc)
 
