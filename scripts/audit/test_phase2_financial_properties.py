@@ -84,21 +84,10 @@ class FinancialPropertyAudit(_TemporaryProfile):
         monthly = Decimal(str(plan["monthly_amount"]))
         total = Decimal(str(plan["total_amount"]))
 
-        # Bu assertion GERÇEK: aylık tutarın hangi yöntemle yuvarlandığını
-        # bağımsız olarak sabitliyor. Doğrulandı — `fiat(decimal_from(x)/n)`
-        # yerine `round(float(x)/n, 2)` konulduğunda kırılıyor
-        # (Decimal('0.01') != Decimal('0.00')).
+
         self.assertEqual(monthly, fiat(principal / installments))
         self.assertEqual(total, principal)
 
-        # KALDIRILDI: `final_payment = total - monthly*(n-1)` hesaplanıp
-        # ardından `monthly*(n-1) + final_payment == principal` doğrulanıyordu.
-        # Bu cebirsel olarak `total == principal` ifadesine indirgeniyor, yani
-        # bir üst satırın aynısı; son taksiti TESTİN KENDİSİ ürettiği için
-        # üretim davranışını doğrulamıyordu.
-        #
-        # Gerçek schedule doğrulaması `test_real_installment_schedule_sums_to_
-        # the_principal` içinde: son taksit üretimden okunuyor.
 
     def test_real_installment_schedule_sums_to_the_principal(self):
         """Taksit planı ÜRETİMDEN okunarak anaparaya eşitlenmeli.
@@ -140,7 +129,7 @@ class FinancialPropertyAudit(_TemporaryProfile):
                     account_id
                 )[0]["id"]
 
-                # Her ödeme adımında kalan borcu ÜRETİMDEN oku.
+
                 schedule = []
                 previous = None
                 for paid in range(installments):
@@ -156,7 +145,7 @@ class FinancialPropertyAudit(_TemporaryProfile):
                     if previous is not None:
                         schedule.append(previous - remaining)
                     previous = remaining
-                # Son taksit = son adımda üretimin raporladığı kalan borç.
+
                 schedule.append(previous)
 
                 self.assertEqual(

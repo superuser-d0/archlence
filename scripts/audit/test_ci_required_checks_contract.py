@@ -37,21 +37,7 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 
-# `main` üzerinde ZORUNLU olan status check'ler -> tanımlandıkları workflow.
-# Bu liste uzaktaki branch protection ayarıyla BİREBİR aynı olmalı.
-#
-# `build-linux` NEDEN LİSTEDE: uzun süre değildi ve bunun bedeli v0.0.9'da
-# ölçüldü. Windows paketi zorunluyken AppImage değildi, yani Linux
-# paketlemesini bozan bir PR merge edilebiliyordu — ve `build-linux` bu
-# sürümün 64 commit'inin hiçbirinde koşmamıştı (son koşum bump ÖNCESİ `main`
-# üzerinde). pillow/cryptography/setuptools yükseltmesi AppImage'a
-# doğrulanmadan girecekti; boşluk 11 Ağustos'ta hem elle koşturularak hem de
-# uzaktaki ayara eklenerek kapatıldı.
-#
-# BU LİSTE TEK BAŞINA HİÇBİR ŞEYİ ZORUNLU KILMAZ. Buraya bir isim eklemek
-# yalnızca bu testi hizalar; asıl kapı uzakta:
-#   gh api repos/superuser-d0/archlence/branches/main/protection \
-#     --jq '.required_status_checks.contexts'
+
 REQUIRED_CHECKS = {
     "build-windows": "build-windows.yml",
     "build-linux": "build-linux.yml",
@@ -59,15 +45,12 @@ REQUIRED_CHECKS = {
     "test-windows": "tests.yml",
     "reliability-gates": "tests.yml",
     "lint": "tests.yml",
-    "visual-regression (96, tr)": "tests.yml",
     "visual-regression (96, en)": "tests.yml",
-    "visual-regression (192, tr)": "tests.yml",
     "visual-regression (192, en)": "tests.yml",
 }
 
-# GitHub'ın matris job'ları için ürettiği isim: "<job> (<değer>, <değer>)",
-# değerler matris anahtarlarının TANIMLANMA sırasına göre.
-VISUAL_MATRIX = {"dpi": ["96", "192"], "language": ["tr", "en"]}
+
+VISUAL_MATRIX = {"dpi": ["96", "192"], "language": ["en"]}
 
 
 def _load(workflow):
@@ -75,7 +58,7 @@ def _load(workflow):
 
 
 def _triggers(document):
-    # PyYAML `on:` anahtarını boolean True olarak çözer.
+
     return document.get("on", document.get(True, {}))
 
 

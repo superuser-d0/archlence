@@ -9,11 +9,6 @@
 #:import PassthroughScrollView ui.components.PassthroughScrollView
 #:import PassthroughRecycleView ui.components.PassthroughRecycleView
 
-# --- 0. GLOBAL WIDGET KURALLARI ---
-# Tüm giriş alanları: karanlık temada hint/helper metinleri KivyMD varsayılanıyla
-# siyaha yakın kalıp okunmuyordu. Kural sınıf düzeyinde olduğu için Python'da
-# imperatif kurulan diyalog alanlarına da uygulanır ve tema değişiminde canlı
-# güncellenir.
 <MDTextField>:
     hint_text_color_normal: ftheme.field_color(app.theme_cls.theme_style, 'hint')
     hint_text_color_focus: ftheme.field_color(app.theme_cls.theme_style, 'hint')
@@ -26,11 +21,7 @@
     line_color_normal: ftheme.field_color(app.theme_cls.theme_style, 'line')
 
 <SearchBar>:
-    # KivyMD 1.2 "round" zemini iki yarım Ellipse + kısa Rectangle ile
-    # kuruyor. Sağ yarım elipsin çapı rectangle tarafından örtülmediği için
-    # tam ortasında kesintisiz dikey bir birleşim çizgisi kalıyor. Tek bir
-    # RoundedRectangle ile aynı yüzeyi yeniden kurmak geometriyi gerçekten
-    # birleştirir; DPI/piksel ofseti veya zemin rengiyle örtme değildir.
+
     orientation: "horizontal"
     padding: ["12dp", 0, "12dp", 0]
     spacing: "8dp"
@@ -51,7 +42,6 @@
     elevation: 0
     shadow_softness: 0
 
-# --- 1. ÖZEL LİSTE ELEMANLARI VE KURALLAR ---
 <LegendItem>:
     orientation: "horizontal"
     size_hint_y: None
@@ -63,7 +53,7 @@
     height: "56dp"
     padding: ["15dp", 0, "40dp", 0]
     spacing: "10dp"
-    
+
     MDLabel:
         text: root.cat_name
         theme_text_color: "Primary"
@@ -81,15 +71,12 @@
 <BudgetListItem>:
     text: app.tr("", app.language)
     secondary_text: ""
-    
+
     IconLeftWidget:
         icon: "cash-plus" if "Gelir" in root.secondary_text else "cash-minus"
         theme_text_color: "Custom"
         text_color: ftheme.accent(app.theme_cls.theme_style, 'green' if "Gelir" in root.secondary_text else 'red')
 
-# "Aktif Aboneliklerim" / "Aktif Gelirlerim" RecycleView satırı.
-# Görsel olarak eski imperatif MDCard'ın birebir aynısı; farkı satırların
-# geri dönüştürülmesi (bkz. ui/components.py::SubscriptionRow).
 <SubscriptionRow>:
     orientation: "vertical"
     padding: "12dp"
@@ -98,9 +85,7 @@
     height: "92dp"
     radius: [16]
     elevation: 0
-    # Python'daki ftheme.apply_card_theme(tint="green") ile aynı sonuç;
-    # KV bağlaması sayesinde tema değişiminde kendiliğinden tazelenir
-    # (imperatif kartlar refresh_card_theme taramasına muhtaçtı).
+
     line_color: ftheme.card_line(app.theme_cls.theme_style)
     md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, "green")
 
@@ -110,8 +95,6 @@
         size_hint_y: None
         height: "32dp"
 
-        # Logo mu vektör ikon mu olacağı satır geri dönüştürülürken
-        # değişebildiği için bu slot imperatif doldurulur.
         MDBoxLayout:
             id: icon_slot
             size_hint: None, None
@@ -154,7 +137,6 @@
             text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
             on_release: app.open_subscription_cancel_dialog(root.payment)
 
-# --- 2. ANA ARAYÜZ İSKELETİ ---
 MDScreen:
     md_bg_color: app.theme_cls.bg_normal
 
@@ -162,7 +144,6 @@ MDScreen:
         id: screen_manager
         transition: FadeTransition(duration=0.2)
 
-        # --- İLK AÇILIŞ: YEREL ŞİFRE OLUŞTURMA ---
         MDScreen:
             name: "pin_setup"
             MDFloatLayout:
@@ -197,26 +178,26 @@ MDScreen:
                         id: pin_setup_input
                         hint_text: app.tr("Şifre", app.language)
                         password: True
-                        max_text_length: 32
+                        max_text_length: 64
                         size_hint_x: 0.8
                         pos_hint: {"center_x": .5}
                         multiline: False
                         write_tab: False
                         focus_next: pin_confirm_input
                         on_text_validate: pin_confirm_input.focus = True
-                        helper_text: app.tr("En az 4 karakter, 1 büyük harf ve 1 özel karakter", app.language)
+                        helper_text: app.tr("12-64 karakter, 1 büyük harf, 1 küçük harf, 1 rakam ve 1 özel karakter", app.language)
                         helper_text_mode: "persistent"
 
                     MDTextField:
                         id: pin_confirm_input
                         hint_text: app.tr("Şifre Tekrar", app.language)
                         password: True
-                        max_text_length: 32
+                        max_text_length: 64
                         size_hint_x: 0.8
                         pos_hint: {"center_x": .5}
                         multiline: False
                         write_tab: False
-                        # Son alan: TAB döngüsü başa dönsün, odak kaybolmasın.
+
                         focus_next: pin_setup_input
                         focus_previous: pin_setup_input
                         on_text_validate: app.setup_pin()
@@ -246,11 +227,6 @@ MDScreen:
                         size_hint_y: None
                         height: self.texture_size[1]
 
-        # --- İLK AÇILIŞ: ZORUNLU İLK HESAP OLUŞTURMA ---
-        # Varsayılan hesap seed'i kaldırıldığı için taze kurulumda hiç hesap
-        # yoktur. İşlem yazan her akış bir hesap id'si gerektirdiğinden, hesap
-        # oluşturulmadan dashboard'a geçilmesine izin verilmez (bkz.
-        # app.route_after_auth / app.create_first_account).
         MDScreen:
             name: "account_setup"
             MDFloatLayout:
@@ -318,7 +294,6 @@ MDScreen:
                         pos_hint: {"center_x": .5}
                         on_release: app.create_first_account()
 
-        # --- GİRİŞ EKRANI ---
         MDScreen:
             name: "login"
             MDFloatLayout:
@@ -360,7 +335,7 @@ MDScreen:
                             id: password_input
                             hint_text: app.tr("Şifre", app.language)
                             password: True
-                            max_text_length: 32
+                            max_text_length: 64
                             multiline: False
                             write_tab: False
                             on_text_validate: app.check_login()
@@ -399,7 +374,6 @@ MDScreen:
                         size_hint_y: None
                         height: self.texture_size[1]
 
-        # --- GİRİŞ ÖNCESİ AYARLAR EKRANI ---
         MDScreen:
             name: "pre_login_settings"
             MDBoxLayout:
@@ -408,41 +382,11 @@ MDScreen:
                     title: app.tr("Ayarlar", app.language)
                     left_action_items: [["arrow-left", lambda x: setattr(screen_manager, 'current', app.authentication_screen())]]
                     elevation: 4
-                
+
                 ScrollView:
                     MDBoxLayout:
                         orientation: "vertical"
                         adaptive_height: True
-                        MDSeparator:
-
-                        ClickableSettingsRow:
-                            orientation: "horizontal"
-                            size_hint_y: None
-                            height: "64dp"
-                            padding: ["20dp", 0, "20dp", 0]
-                            spacing: "20dp"
-                            on_release: app.open_language_dialog()
-                            MDIcon:
-                                icon: "translate"
-                                size_hint_x: None
-                                width: "36dp"
-                                halign: "center"
-                                pos_hint: {"center_y": .5}
-                                theme_text_color: "Primary"
-                            MDBoxLayout:
-                                orientation: "vertical"
-                                MDLabel:
-                                    text: app.tr("Dil", app.language)
-                                    theme_text_color: "Primary"
-                                MDLabel:
-                                    text: "English" if app.language == "en" else "Türkçe"
-                                    font_style: "Caption"
-                                    theme_text_color: "Secondary"
-                            MDIcon:
-                                icon: "chevron-right"
-                                pos_hint: {"center_y": .5}
-                                theme_text_color: "Hint"
-
                         MDSeparator:
 
                         MDBoxLayout:
@@ -534,17 +478,16 @@ MDScreen:
                         MDSeparator:
                 Widget:
 
-        # --- ANA UYGULAMA (SABİT ALT SEKMELER - BOTTOM NAVIGATION) ---
         MDScreen:
             name: "home"
 
             MDBottomNavigation:
                 id: bottom_nav
                 transition_duration: 0.4
-                # Aktif sekme: %12 opaklıkta indigo vurgu kartı (Premium Banking)
+
                 selected_color_background: app.theme_cls.primary_color[:3] + [0.12]
                 text_color_active: app.theme_cls.primary_color
-                # Navigasyon paneli açık temada saf beyaz yüzey
+
                 panel_color: (1, 1, 1, 1) if app.theme_cls.theme_style == "Light" else app.theme_cls.bg_normal
 
                 # ==== 1. SEKME: ANA SAYFA ====
@@ -552,40 +495,33 @@ MDScreen:
                     name: "home_tab"
                     text: app.tr("Ana Sayfa", app.language)
                     icon: "home-variant"
-                    
+
                     MDBoxLayout:
                         orientation: "vertical"
-                        
+
                         MDBoxLayout:
                             size_hint_y: None
                             height: "72dp"
                             padding: ["16dp", "10dp", "16dp", "10dp"]
                             spacing: "15dp"
-                            
+
                             MDIconButton:
                                 icon: "account-circle"
                                 icon_size: "36dp"
                                 pos_hint: {"center_y": .5}
                                 theme_text_color: "Primary"
                                 on_release: bottom_nav.switch_tab("settings_tab")
-                                
+
                             SearchBar:
                                 size_hint_y: None
                                 height: "40dp"
                                 pos_hint: {"center_y": .5}
                                 MDIconButton:
-                                    # `MDIcon` DEĞİL. Eskiden öyleydi ve
-                                    # kullanıcının "arama butonu hiçbir şekilde
-                                    # çalışmıyor" demesinin sebebi tam olarak
-                                    # buydu: `MDIcon` `ButtonBehavior`
-                                    # miraslamaz, yani tıklamayı hiç almaz.
-                                    # Artık en azından alanı odaklıyor.
+
                                     icon: "magnify"
                                     icon_size: "20dp"
                                     size_hint: None, None
-                                    # 40dp'lik çubuğa sığması için açık ölçü;
-                                    # MDIconButton varsayılanı 48dp ve çubuğu
-                                    # dikeyde taşırıyordu.
+
                                     size: "32dp", "32dp"
                                     pos_hint: {"center_y": .5}
                                     theme_text_color: "Hint"
@@ -607,19 +543,13 @@ MDScreen:
                                     on_text: app.on_home_search_text(self, self.text)
 
                             MDIconButton:
-                                # Artık bir işleyicisi VAR. Bir tur boyunca
-                                # yoktu ve dokununca dalga animasyonu oynayıp
-                                # hiçbir şey yapmıyordu — arama çubuğuyla aynı
-                                # kusur sınıfı.
+
                                 icon: "bell-outline"
                                 icon_size: "28dp"
                                 pos_hint: {"center_y": .5}
                                 theme_text_color: "Primary"
                                 on_release: app.toggle_notifications()
 
-                        # BİLDİRİM PANELİ — arama sonuçlarıyla aynı desen:
-                        # modal değil, satır içi, boşken sıfır yükseklik.
-                        # İkisi aynı anda açılmıyor (bkz. toggle_notifications).
                         MDBoxLayout:
                             id: home_notifications
                             orientation: "vertical"
@@ -627,17 +557,6 @@ MDScreen:
                             height: 0
                             padding: ["16dp", 0, "16dp", 0]
 
-                        # ARAMA SONUÇLARI — modal değil, satır içi.
-                        # `MDDropdownMenu` KivyMD 1.2'de `ModalView` üzerine
-                        # kuruluyor ve açılınca odağı yakalıyor; her tuş
-                        # vuruşunda yeniden açmak kullanıcının ikinci
-                        # karakteri yazamaması demekti. Normal bir kutu
-                        # olduğu için odak `TextInput`'ta kalıyor.
-                        #
-                        # Yükseklik 0'dan başlıyor ve içeriği mixin
-                        # dolduruyor; sonuç yokken sıfır yer kaplıyor —
-                        # bu turda boş kartlarda düzeltilen kusurun aynısına
-                        # düşmemek için.
                         MDBoxLayout:
                             id: home_search_results
                             orientation: "vertical"
@@ -646,10 +565,7 @@ MDScreen:
                             padding: ["16dp", 0, "16dp", 0]
 
                         ScrollView:
-                            # Bu ekran programatik bir kaydırma göstergesine
-                            # ihtiyaç duymuyor. Kivy'nin varsayılan 2px bar'ı
-                            # pencerenin en sağında bağımsız dikey çizgi gibi
-                            # görünüyordu.
+
                             bar_width: 0
                             MDBoxLayout:
                                 orientation: "vertical"
@@ -665,7 +581,7 @@ MDScreen:
                                     pos_hint: {"center_x": .5}
                                     adaptive_width: True
                                     spacing: "8dp"
-                                    
+
                                     MDIcon:
                                         id: wallet_icon
                                         icon: "wallet"
@@ -725,7 +641,7 @@ MDScreen:
                                             adaptive_size: True
                                             pos_hint: {"center_x": .5}
                                             spacing: "10dp"
-                                            
+
                                             MDLabel:
                                                 id: change_rate_label
                                                 text: app.tr("%0.0", app.language)
@@ -741,7 +657,7 @@ MDScreen:
                                                 size_hint_x: None
                                                 width: "20dp"
                                                 pos_hint: {"center_y": .5}
-                                                
+
                                         MDLabel:
                                             id: home_change_title
                                             text: app.tr("Aylık Gider Değişimi", app.language)
@@ -749,9 +665,6 @@ MDScreen:
                                             font_size: "12sp"
                                             theme_text_color: "Secondary"
 
-                                # NEGATİF BAKİYE UYARISI: toplam nakit bakiye 0'ın altına
-                                # düştüğünde görünür olur, artıya dönünce tekrar gizlenir
-                                # (bkz. main.py update_metrics_and_goals).
                                 MDBoxLayout:
                                     id: negative_balance_warning
                                     orientation: "horizontal"
@@ -777,7 +690,6 @@ MDScreen:
                                         adaptive_width: True
                                         pos_hint: {"center_y": .5}
 
-                                # ZAMAN FİLTRESİ
                                 MDSegmentedControl:
                                     id: home_period_control
                                     pos_hint: {"center_x": .5}
@@ -811,7 +723,7 @@ MDScreen:
                                         radius: [24]
                                         md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
                                         orientation: "vertical"
-                                        
+
                                         MDLabel:
                                             id: today_card_title
                                             text: app.tr("Bugün", app.language)
@@ -830,7 +742,7 @@ MDScreen:
                                         radius: [24]
                                         md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
                                         orientation: "vertical"
-                                        
+
                                         MDLabel:
                                             text: app.tr("Toplam", app.language)
                                             font_size: "14sp"
@@ -841,15 +753,6 @@ MDScreen:
                                             font_style: "Subtitle1"
                                             bold: True
 
-                                # YENİ: MATEMATİKSEL ÖNGÖRÜ KARTI
-                                # DÜZELTME (2026-07-29): kart sabit "90dp" idi — bu, prediction_text
-                                # tek satırlık bir metinken yeterliydi. Metin artık 3 aylık öngörü
-                                # paragrafıyla birlikte 4-5 satıra çıkabiliyor (bkz.
-                                # main.py::_compute_monthly_forecast_text); prediction_text'in
-                                # `size_hint_y`/`text_size` bağlanmamış olması, taşan metnin kendi
-                                # kutusunun DIŞINA, üstündeki başlık etiketiyle ÇAKIŞACAK şekilde
-                                # çizilmesine yol açıyordu ("Şurası da kaymış" ekran görüntüsü).
-                                # Artık kart + iç kutu + etiket üçü de içeriğe göre büyüyor.
                                 MDCard:
                                     elevation: 0
                                     line_color: ftheme.card_line(app.theme_cls.theme_style)
@@ -867,11 +770,7 @@ MDScreen:
                                         theme_text_color: "Custom"
                                         text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
                                         font_size: "36sp"
-                                        # Genişlik AÇIKÇA veriliyor: genişliksiz
-                                        # bırakılan MDIcon'un glifi yanındaki
-                                        # metnin üstüne taşıyor (kart başlıklarında
-                                        # düzeltilen kusurun aynısı). 36sp'lik glif
-                                        # için 44dp ölçüldü.
+
                                         size_hint_x: None
                                         width: "44dp"
                                         size_hint_y: None
@@ -900,10 +799,6 @@ MDScreen:
                                             height: self.texture_size[1]
                                             text_size: self.width, None
 
-                                # FAZ 1: FİNANSAL SAĞLIK SKORU KARTI
-                                # Skor rengi/etiketi InsightsMixin.render_health_score
-                                # tarafından ftheme.accent ile atanır; burada yalnızca
-                                # yerleşim ve tema-duyarlı zemin var.
                                 MDCard:
                                     elevation: 0
                                     line_color: ftheme.card_line(app.theme_cls.theme_style)
@@ -967,7 +862,6 @@ MDScreen:
                                         font_style: "Caption"
                                         theme_text_color: "Secondary"
 
-                                # FAZ 1: ABONELİK RADARI ("sessiz sızıntı")
                                 MDCard:
                                     id: active_subscriptions_card
                                     elevation: 0
@@ -996,13 +890,6 @@ MDScreen:
                                             bold: True
                                             theme_text_color: "Primary"
 
-                                    # Aktif abonelikler: satırlar geri dönüştürülür.
-                                    # YÜKSEKLİK: az abonelikte içeriğe uyar (boş
-                                    # alan bırakmaz), çoğaldığında 400dp'de
-                                    # sabitlenir ve içeride kayar — sanallaştırma
-                                    # ancak sınırlı bir görüntü alanında çalışır,
-                                    # sayfa boyunca uzayan bir liste her satırı
-                                    # yine de oluştururdu.
                                     PassthroughRecycleView:
                                         id: active_subscriptions_rv
                                         viewclass: "SubscriptionRow"
@@ -1018,16 +905,12 @@ MDScreen:
                                             height: self.minimum_height
                                             spacing: "10dp"
 
-                                    # Radar adayları + boş/özet etiketleri
-                                    # (sayı tespit mantığıyla sınırlı, sanallaştırma
-                                    # gerektirecek kadar büyümüyor).
                                     MDBoxLayout:
                                         id: recurring_candidates_container
                                         orientation: "vertical"
                                         adaptive_height: True
                                         spacing: "10dp"
 
-                                # YENİ: AKTİF GELİRLERİM KARTI
                                 MDCard:
                                     id: active_incomes_card
                                     elevation: 0
@@ -1056,9 +939,6 @@ MDScreen:
                                             bold: True
                                             theme_text_color: "Primary"
 
-                                    # Aynı satır bileşeni; gelirler tipik olarak az
-                                    # sayıda olduğu için yükseklik pratikte hep
-                                    # içeriğe uyar, ama üst sınır burada da var.
                                     PassthroughRecycleView:
                                         id: active_incomes_rv
                                         viewclass: "SubscriptionRow"
@@ -1074,14 +954,12 @@ MDScreen:
                                             height: self.minimum_height
                                             spacing: "10dp"
 
-                                    # Boş durum etiketi buraya çizilir.
                                     MDBoxLayout:
                                         id: active_incomes_container
                                         orientation: "vertical"
                                         adaptive_height: True
                                         spacing: "10dp"
 
-                                # FAZ 1: OLAĞANDIŞI HARCAMA UYARILARI
                                 MDCard:
                                     id: unusual_spending_card
                                     elevation: 0
@@ -1110,16 +988,12 @@ MDScreen:
                                             bold: True
                                             theme_text_color: "Primary"
 
-                                    # Kartları InsightsMixin.render_anomalies çizer
                                     MDBoxLayout:
                                         id: anomalies_container
                                         orientation: "vertical"
                                         adaptive_height: True
                                         spacing: "10dp"
 
-
-
-                                # YENİ: AKTİF BORÇLARIM KARTI
                                 MDCard:
                                     id: active_debts_card
                                     elevation: 0
@@ -1128,9 +1002,7 @@ MDScreen:
                                     padding: "16dp"
                                     spacing: "10dp"
                                     size_hint_y: None
-                                    # Kart içeriğe uyar: borç yokken yalnız başlık
-                                    # ve "borcunuz bulunmuyor" satırı kadar yer
-                                    # kaplar, sabit 220dp'lik boşluk bırakmaz.
+
                                     adaptive_height: True
                                     radius: [24, 24, 24, 24]
                                     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
@@ -1151,11 +1023,7 @@ MDScreen:
                                             text: app.tr("Aktif Borçlarım", app.language)
                                             font_style: "H6"
                                             bold: True
-                                            
-                                    # İçerik yüksekliğini alır; iki borç kartında
-                                    # (2 × 140dp + 10dp aralık) sabitlenip içeride
-                                    # kayar. Sınır satır yüksekliğinin katı: kart
-                                    # eskisi gibi bir satırı ortadan kırpmaz.
+
                                     PassthroughScrollView:
                                         size_hint_y: None
                                         height: min(active_debts_container.minimum_height, dp(290))
@@ -1171,13 +1039,10 @@ MDScreen:
                                                 theme_text_color: "Secondary"
                                                 font_style: "Body2"
                                                 halign: "center"
-                                                # size_hint_y varsayılanı 1: kapsayıcının
-                                                # minimum_height'ına 0 katkı verir ve boş
-                                                # kart tamamen kapanırdı.
+
                                                 size_hint_y: None
                                                 height: "40dp"
 
-                                # YENİ: YAKLAŞAN ÖDEMELER KARTI
                                 MDCard:
                                     id: upcoming_payments_card
                                     elevation: 0
@@ -1207,8 +1072,6 @@ MDScreen:
                                             font_style: "H6"
                                             bold: True
 
-                                    # İki ödeme kartı (2 × 100dp + 10dp aralık)
-                                    # sığar, sonrası içeride kayar.
                                     PassthroughScrollView:
                                         size_hint_y: None
                                         height: min(upcoming_payments_container.minimum_height, dp(210))
@@ -1227,11 +1090,6 @@ MDScreen:
                                                 size_hint_y: None
                                                 height: "40dp"
 
-                                # BEKLEYEN (İLERİ TARİHLİ) İŞLEMLER KARTI
-                                # Bekleyen işlem yokken kart tamamen gizlenir
-                                # (height/opacity 0): boş bir "hiç yok" kartı
-                                # dashboard'da yer israfı olurdu. Görünürlüğü
-                                # PendingMixin.render_pending_summary yönetir.
                                 MDCard:
                                     id: pending_tx_card
                                     elevation: 0
@@ -1278,21 +1136,20 @@ MDScreen:
                                         elevation: 0
                                         on_release: app.open_pending_transactions()
 
-                                # YENİ: SON İŞLEMLER LİSTESİ VE FİLTRESİ
                                 MDBoxLayout:
                                     orientation: "vertical"
                                     size_hint_y: None
                                     height: self.minimum_height
                                     spacing: "10dp"
                                     padding: ["0dp", "15dp", "0dp", "0dp"]
-                                    
+
                                     MDLabel:
                                         text: app.tr("Son İşlemler", app.language)
                                         font_style: "H6"
                                         bold: True
                                         size_hint_y: None
                                         height: "30dp"
-                                        
+
                                     MDSegmentedControl:
                                         pos_hint: {"center_x": .5}
                                         size_hint_x: 1
@@ -1305,16 +1162,12 @@ MDScreen:
                                             text: app.tr("Haftalık", app.language)
                                         MDSegmentedControlItem:
                                             text: app.tr("Aylık", app.language)
-                                            
+
                                     PassthroughRecycleView:
                                         id: recent_transactions_list
                                         viewclass: RecycleListRow
                                         size_hint_y: None
-                                        # Doluyken eski 400dp'lik görüntü alanı; dönemde
-                                        # hiç işlem yokken kapanır (eskiden boş bir blok
-                                        # bırakıyordu). Yüksekliği satır sayısıyla
-                                        # ölçeklemek RecycleView'ın kendi yerleşimiyle
-                                        # döngü kuruyor, o yüzden ikili durum kullanılıyor.
+
                                         height: dp(400) if self.data else 0
 
                                         RecycleBoxLayout:
@@ -1325,8 +1178,6 @@ MDScreen:
                                             size_hint_y: None
                                             height: self.minimum_height
 
-                                    # Boş dönem metni; görünürlüğünü
-                                    # _render_recent_transactions yönetir.
                                     MDLabel:
                                         id: recent_tx_empty_label
                                         text: app.tr("Bu dönemde işlem bulunmuyor.", app.language)
@@ -1342,40 +1193,35 @@ MDScreen:
                     name: "assets_tab"
                     text: app.tr("Varlıklarım", app.language)
                     icon: "finance"
-                    # on_tab_press DEĞİL: o event animasyon başlarken tetiklenir ve
-                    # ağır grafik/liste kurulumu kare atlatır. on_enter geçiş
-                    # animasyonu bittikten sonra gelir; handler ayrıca Clock ile
-                    # 0.1s nefes payı bırakır (bkz. TransactionMixin.on_assets_tab_enter).
+
                     on_enter: app.on_assets_tab_enter()
-                    
+
                     MDFloatLayout:
                         MDBoxLayout:
                             orientation: "vertical"
                             MDTopAppBar:
                                 title: app.tr("Varlıklarım", app.language)
                                 elevation: 4
-                            
+
                             AnchorLayout:
                                 anchor_x: "center"
                                 anchor_y: "top"
-                                
+
                                 ScrollView:
                                     size_hint_x: 1
-                                    
+
                                     MDBoxLayout:
                                         orientation: "vertical"
                                         adaptive_height: True
                                         padding: "24dp"
                                         spacing: "24dp"
 
-                                        # --- DÖNEM ÖZET KARTI (3 metrik: Gelir | Gider | Net) ---
                                         MDBoxLayout:
                                             orientation: "horizontal"
                                             size_hint_y: None
                                             height: "96dp"
                                             spacing: "10dp"
 
-                                            # Gelir kartı
                                             MDCard:
                                                 elevation: 0
                                                 line_color: ftheme.card_line(app.theme_cls.theme_style)
@@ -1397,7 +1243,6 @@ MDScreen:
                                                     theme_text_color: "Custom"
                                                     text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
 
-                                            # Gider kartı
                                             MDCard:
                                                 elevation: 0
                                                 line_color: ftheme.card_line(app.theme_cls.theme_style)
@@ -1419,7 +1264,6 @@ MDScreen:
                                                     theme_text_color: "Custom"
                                                     text_color: ftheme.accent(app.theme_cls.theme_style, 'red')
 
-                                            # Net bakiye kartı
                                             MDCard:
                                                 elevation: 0
                                                 line_color: ftheme.card_line(app.theme_cls.theme_style)
@@ -1440,12 +1284,12 @@ MDScreen:
                                                     halign: "center"
                                                     theme_text_color: "Custom"
                                                     text_color: ftheme.accent(app.theme_cls.theme_style, 'blue')
-                                    
+
                                         MDBoxLayout:
                                             orientation: "vertical"
                                             adaptive_height: True
                                             spacing: "16dp"
-                                        
+
                                             MDBoxLayout:
                                                 orientation: "horizontal"
                                                 size_hint_y: None
@@ -1455,13 +1299,12 @@ MDScreen:
                                                     font_style: "H6"
                                                     bold: True
 
-                                            # --- ZAMAN FİLTRESİ ---
                                             MDBoxLayout:
                                                 orientation: "horizontal"
                                                 size_hint_y: None
                                                 height: "30dp"
                                                 spacing: "8dp"
-                                            
+
                                                 MDFillRoundFlatButton:
                                                     id: btn_filter_today
                                                     text: app.tr("Bugün", app.language)
@@ -1469,7 +1312,7 @@ MDScreen:
                                                     md_bg_color: app.theme_cls.primary_color
                                                     text_color: ftheme.on_primary(app.theme_cls.theme_style)
                                                     on_release: app.change_home_filter("Bugün")
-                                                
+
                                                 MDFillRoundFlatButton:
                                                     id: btn_filter_week
                                                     text: app.tr("1 Hafta", app.language)
@@ -1477,7 +1320,7 @@ MDScreen:
                                                     md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
                                                     text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
                                                     on_release: app.change_home_filter("1 Hafta")
-                                                
+
                                                 MDFillRoundFlatButton:
                                                     id: btn_filter_month
                                                     text: app.tr("1 Ay", app.language)
@@ -1485,7 +1328,7 @@ MDScreen:
                                                     md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
                                                     text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
                                                     on_release: app.change_home_filter("1 Ay")
-                                                
+
                                                 MDFillRoundFlatButton:
                                                     id: btn_filter_year
                                                     text: app.tr("1 Yıl", app.language)
@@ -1501,7 +1344,7 @@ MDScreen:
                                                     md_bg_color: ftheme.muted_bg(app.theme_cls.theme_style)
                                                     text_color: ftheme.accent(app.theme_cls.theme_style, 'muted')
                                                     on_release: app.change_home_filter("Hayat Boyu")
-                                            
+
                                             MDBoxLayout:
                                                 orientation: "vertical"
                                                 spacing: "15dp"
@@ -1595,7 +1438,6 @@ MDScreen:
                                                     padding: ["16dp", "8dp", "16dp", "16dp"]
                                                     adaptive_height: True
 
-                                                # AKTİF VARLIKLARIM KARTI
                                                 MDCard:
                                                     elevation: 0
                                                     line_color: ftheme.card_line(app.theme_cls.theme_style)
@@ -1603,10 +1445,7 @@ MDScreen:
                                                     padding: "16dp"
                                                     spacing: "10dp"
                                                     size_hint_y: None
-                                                    # Yükseklik varlık sayısına göre
-                                                    # AssetMixin.render_active_assets içinde
-                                                    # ayarlanır; liste kartı doldurduğu için
-                                                    # boş alan kalmaz.
+
                                                     height: "280dp"
                                                     radius: [24, 24, 24, 24]
                                                     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style) if app.theme_cls.theme_style == "Light" else [0.15, 0.15, 0.15, 1]
@@ -1667,7 +1506,6 @@ MDScreen:
                                                                 size_hint_y: None
                                                                 height: "40dp"
 
-                                                # VARLIK GEÇMİŞİ KARTI
                                                 MDCard:
                                                     elevation: 0
                                                     line_color: ftheme.card_line(app.theme_cls.theme_style)
@@ -1675,10 +1513,7 @@ MDScreen:
                                                     padding: "16dp"
                                                     spacing: "10dp"
                                                     size_hint_y: None
-                                                    # Geçmiş boşken kart yalnız başlık ve
-                                                    # boş durum satırı kadar yer kaplar;
-                                                    # işlem varken eski 320dp'lik liste
-                                                    # yüksekliğini korur.
+
                                                     height: "320dp" if asset_history_list.data else "108dp"
                                                     radius: [24, 24, 24, 24]
                                                     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
@@ -1701,14 +1536,6 @@ MDScreen:
                                                             bold: True
                                                             pos_hint: {"center_y": .5}
 
-                                                    # Liste kartın kalan alanını doldurur.
-                                                    # Yüksekliği İÇERİKTEN türetmek (satır
-                                                    # sayısı ya da RecycleBoxLayout.minimum_height)
-                                                    # denendi ve geri alındı: RecycleView kendi
-                                                    # yerleşimini kendi boyutuna göre yapıyor,
-                                                    # boyutu da içeriğe bağlanınca satırlar kartın
-                                                    # dışına — alttaki kartın üstüne — çiziliyordu.
-                                                    # Boş durum kartın kendi yüksekliğinde çözülür.
                                                     PassthroughRecycleView:
                                                         id: asset_history_list
                                                         viewclass: RecycleListRow
@@ -1755,8 +1582,7 @@ MDScreen:
                                                         size_hint_y: None
                                                         height: "120dp"
                                                         md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'green')
-                                                        # Statik placeholder: kart yerinde ve görünür başlar,
-                                                        # veri gelince yalnız etiket metinleri güncellenir.
+
                                                         MDIcon:
                                                             icon: "trending-up"
                                                             theme_text_color: "Custom"
@@ -1768,7 +1594,7 @@ MDScreen:
                                                             id: metric_val_income
                                                             text: app.tr("0 ₺", app.language)
                                                             bold: True
-                                                
+
                                                     MDCard:
                                                         elevation: 0
                                                         line_color: ftheme.card_line(app.theme_cls.theme_style)
@@ -1833,7 +1659,7 @@ MDScreen:
                                                             text: app.tr("—", app.language)
                                                             font_style: "Subtitle2"
                                                             theme_text_color: "Primary"
-                        
+
                         MDFloatingActionButton:
                             icon: "plus"
                             pos_hint: {"right": 0.95, "y": 0.05}
@@ -1844,36 +1670,33 @@ MDScreen:
                             size_hint: 1, 1
                             pos_hint: {"x": 0, "y": 0}
 
-                # ==== YENİ SEKME: HESAPLARIM / KARTLARIM ====
                 MDBottomNavigationItem:
                     name: "accounts_tab"
                     text: app.tr("Kartlarım", app.language)
                     icon: "credit-card-multiple-outline"
-                    # Animasyon bittikten sonra + 0.1s Clock gecikmesiyle yüklenir
-                    # (bkz. AccountMixin.on_accounts_tab_enter) — geçiş takılmasın.
+
                     on_enter: app.on_accounts_tab_enter()
-                    
+
                     MDFloatLayout:
                         MDBoxLayout:
                             orientation: "vertical"
                             MDTopAppBar:
                                 title: app.tr("Kartlarım", app.language)
                                 elevation: 4
-                            
+
                             AnchorLayout:
                                 anchor_x: "center"
                                 anchor_y: "top"
-                                
+
                                 ScrollView:
                                     size_hint_x: 1
-                                    
+
                                     MDBoxLayout:
                                         orientation: "vertical"
                                         adaptive_height: True
                                         padding: "24dp"
                                         spacing: "24dp"
 
-                                        # --- DÖNEM ÖZET KARTI (3 metrik) ---
                                         MDBoxLayout:
                                             orientation: "horizontal"
                                             size_hint_y: None
@@ -1961,66 +1784,11 @@ MDScreen:
 
                                         PassthroughScrollView:
                                             size_hint_y: None
-                                            # Kart yüksekliği ölçüldü: 3 hareket
-                                            # satırlı kredi kartı 567dp'ye çıkıyor
-                                            # ("Kart Kullanım Özeti" + Son Hareketler
-                                            # eklendikten sonra). 500dp'de kartın
-                                            # alt kısmı kırpılıyordu.
-                                            #
-                                            # SABİT KALIYOR. Yüksekliği içeriğe
-                                            # bağlamak (kart yokken şerit kapansın
-                                            # diye) denendi ve ÖLÇÜLEREK geri alındı:
-                                            # scripts/dev/verify_tab_scrolling.py
-                                            # bu sekmede sürüklemeyi ölü buldu
-                                            # (#95'in koşusunda içerik 1056dp,
-                                            # sürükleme ✓; bu bağlamayla 1031dp,
-                                            # sürükleme ✗). Şerit kısalınca altındaki
-                                            # kartlar sürükleme noktasına geliyor ve
-                                            # MDCard dokunuşu yutuyor — yani boş
-                                            # kartın yerini kazanmak, bu sekmenin
-                                            # kaydırılabilmesine mal oluyordu.
+
                                             height: "620dp"
                                             do_scroll_y: False
                                             do_scroll_x: True
-                                            # SAYFA KAYDIRMASINI YUTMASIN.
-                                            # Bu yatay şerit, sayfanın DİKEY
-                                            # ScrollView'ının içinde duruyor ve
-                                            # 620dp yüksekliğiyle görünür alanın
-                                            # TAMAMINDAN büyük. Kivy iç içe
-                                            # ScrollView'larda dokunuşu ÖNCE
-                                            # çocuğa soruyor (scrollview.py:697,
-                                            # `dispatch_children('on_scroll_start')`)
-                                            # ve sürükleme dalında çocuk, kendi
-                                            # ekseninde kayacak içerik olup
-                                            # olmadığına BAKMADAN sahipleniyor
-                                            # (aynı dosya: `self._touch = touch`
-                                            # ... `return True`). Sonuç ölçüldü:
-                                            # şeridin üzerinde sayfa hiç
-                                            # kaymıyordu — yani "Hesaplarım"
-                                            # bölümüne ulaşmak imkânsızdı;
-                                            # yalnızca en üstteki dar özet
-                                            # bandından kaydırılabiliyordu.
-                                            #
-                                            # `scroll_type: ["bars"]` bu davranışı
-                                            # kaynağın kendi kapısından çeviriyor
-                                            # (scrollview.py:798): dokunuş çubuğun
-                                            # üzerinde DEĞİLSE ScrollView onu
-                                            # sahiplenmiyor, `simulate_touch_down`
-                                            # ile geçiriyor. Kartlar yatayda
-                                            # çubuktan kaydırılır; dikey hareket
-                                            # sayfaya ulaşır.
-                                            #
-                                            # `bar_width` bu yüzden 0 OLAMAZ:
-                                            # 0 genişlikte çubuk hiçbir dokunuşu
-                                            # yakalayamaz ve şerit tamamen
-                                            # kaydırılamaz hâle gelirdi.
-                                            #
-                                            # TEKERLEK ayrı bir yol: `bars` kapısından
-                                            # ÖNCE çalıştığı için `scroll_type` onu
-                                            # etkilemiyor. Onu PassthroughScrollView
-                                            # kapatıyor (ui/components.py) — dikey
-                                            # kaydırma yapmayan bu şerit dikey tekerleği
-                                            # sayfaya bırakır.
+
                                             scroll_type: ["bars"]
                                             bar_width: "6dp"
                                             bar_margin: "2dp"
@@ -2047,25 +1815,24 @@ MDScreen:
                                             cols: 2 if root.width > dp(600) else 1
                                             adaptive_height: True
                                             spacing: "12dp"
-                                            
+
                         MDFloatingActionButton:
                             icon: "credit-card-plus"
                             md_bg_color: app.theme_cls.primary_color
                             pos_hint: {"right": 0.95, "y": 0.05}
                             on_release: app.open_add_account_dialog()
 
-                # ==== 3. SEKME: ARAÇLAR ====
                 MDBottomNavigationItem:
                     name: "tools_tab"
                     text: app.tr("Araçlar", app.language)
                     icon: "tools"
-                    
+
                     MDBoxLayout:
                         orientation: "vertical"
                         MDTopAppBar:
                             title: app.tr("Hesaplama Araçları", app.language)
                             elevation: 4
-                        
+
                         ScrollView:
                             MDBoxLayout:
                                 orientation: 'vertical'
@@ -2079,11 +1846,6 @@ MDScreen:
                                     size_hint_y: None
                                     height: self.minimum_height
 
-                                    # AYLIK BÜTÇE KARESİ — diğer araçlarla birebir
-                                    # aynı 140dp kutu; tıklanınca planlayıcı
-                                    # diyaloğu açılır (app.show_budget_planner).
-                                    # Panel artık ızgaranın üstünde tam genişlikte
-                                    # durmuyor; kullanıcı isteği bu kareydi.
                                     MDCard:
                                         id: budget_tool_card
                                         elevation: 0
@@ -2096,9 +1858,7 @@ MDScreen:
                                         padding: "20dp"
                                         spacing: "10dp"
                                         ripple_behavior: True
-                                        # Gerçek tıklama main.py::on_start'ta bind_card_tap ile kuruluyor —
-                                        # bkz. calendar_tool_card'daki DÜZELTME notu (on_release burada
-                                        # hiç dispatch edilmiyordu, MDCard ButtonBehavior miras almıyor).
+
                                         MDFloatLayout:
                                             size_hint: None, None
                                             size: "48dp", "48dp"
@@ -2133,11 +1893,7 @@ MDScreen:
                                         padding: "20dp"
                                         spacing: "10dp"
                                         ripple_behavior: True
-                                        # DÜZELTME: `on_release:` burada SESSİZCE hiç ateşlenmiyordu —
-                                        # MDCard'ın ripple_behavior'ı yalnızca GÖRSEL efekt, ButtonBehavior'ı
-                                        # miras almıyor (bkz. ui/theme.py::bind_card_tap docstring'i; aynı
-                                        # kökten "Daha fazla seçenek" ve tutar alanı hataları). Gerçek
-                                        # tıklama main.py::on_start içinde bind_card_tap ile kuruluyor.
+
                                         MDFloatLayout:
                                             size_hint: None, None
                                             size: "48dp", "48dp"
@@ -2403,13 +2159,13 @@ MDScreen:
                     name: "settings_tab"
                     text: app.tr("Ayarlar", app.language)
                     icon: "cog-outline"
-                    
+
                     MDBoxLayout:
                         orientation: "vertical"
                         MDTopAppBar:
                             title: app.tr("Ayarlar", app.language)
                             elevation: 4
-                        
+
                         ScrollView:
                             do_scroll_x: False
                             MDBoxLayout:
@@ -2450,36 +2206,6 @@ MDScreen:
 
                                 MDSeparator:
 
-                                ClickableSettingsRow:
-                                    orientation: "horizontal"
-                                    size_hint_y: None
-                                    height: "64dp"
-                                    padding: ["20dp", 0, "20dp", 0]
-                                    spacing: "20dp"
-                                    on_release: app.open_language_dialog()
-                                    MDIcon:
-                                        icon: "translate"
-                                        size_hint_x: None
-                                        width: "36dp"
-                                        halign: "center"
-                                        pos_hint: {"center_y": .5}
-                                        theme_text_color: "Primary"
-                                    MDBoxLayout:
-                                        orientation: "vertical"
-                                        MDLabel:
-                                            text: app.tr("Dil", app.language)
-                                            theme_text_color: "Primary"
-                                        MDLabel:
-                                            text: "English" if app.language == "en" else "Türkçe"
-                                            font_style: "Caption"
-                                            theme_text_color: "Secondary"
-                                    MDIcon:
-                                        icon: "chevron-right"
-                                        pos_hint: {"center_y": .5}
-                                        theme_text_color: "Hint"
-
-                                MDSeparator:
-
                                 MDBoxLayout:
                                     orientation: "horizontal"
                                     size_hint_y: None
@@ -2505,7 +2231,6 @@ MDScreen:
 
                                 MDSeparator:
 
-                                # --- GÖRÜNÜM AYARLARI ---
                                 MDLabel:
                                     text: app.tr("Görünüm Ayarları", app.language)
                                     font_style: "Caption"
@@ -2549,7 +2274,6 @@ MDScreen:
 
                                 MDSeparator:
 
-                                # --- VERİLER VE GİZLİLİK ---
                                 ClickableSettingsRow:
                                     orientation: "horizontal"
                                     size_hint_y: None
@@ -2574,7 +2298,6 @@ MDScreen:
 
                                 MDSeparator:
 
-                                # --- ŞİFRE DEĞİŞTİR ---
                                 ClickableSettingsRow:
                                     orientation: "horizontal"
                                     size_hint_y: None
@@ -2610,7 +2333,6 @@ MDScreen:
 
                                 MDSeparator:
 
-                                # --- BAKİYE GEÇMİŞİ (Faz 2 zaman makinesi) ---
                                 ClickableSettingsRow:
                                     orientation: "horizontal"
                                     size_hint_y: None
@@ -2659,9 +2381,9 @@ MDScreen:
                                         icon_inactive: "close"
                                         active: True if app.theme_cls.theme_style == "Dark" else False
                                         on_active: app.toggle_theme(self.active)
-                                
+
                                 MDSeparator:
-                                
+
                                 ClickableSettingsRow:
                                     orientation: "horizontal"
                                     size_hint_y: None
@@ -2683,7 +2405,7 @@ MDScreen:
                                         icon: "chevron-right"
                                         pos_hint: {"center_y": .5}
                                         theme_text_color: "Hint"
-                                
+
                                 MDSeparator:
 
                                 ClickableSettingsRow:
@@ -2695,11 +2417,7 @@ MDScreen:
                                     on_release: screen_manager.current = "login"
                                     MDIcon:
                                         icon: "logout"
-                                        # Genişlik AÇIKÇA veriliyor: verilmezse
-                                        # kutu 0px kalıyor ve 30px'lik glif
-                                        # "Çıkış Yap" yazısının üstüne biniyor
-                                        # (kart başlıklarında düzeltilen kusurun
-                                        # aynısı; ölçüm dedektörüyle bulundu).
+
                                         size_hint_x: None
                                         width: "24dp"
                                         pos_hint: {"center_y": .5}
@@ -2714,7 +2432,6 @@ MDScreen:
 
                                 MDSeparator:
 
-        # --- KATEGORİ AYARLARI (ALT SAYFA) ---
         MDScreen:
             name: "category_settings"
             on_enter: app.load_categories('income')

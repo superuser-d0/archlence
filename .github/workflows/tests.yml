@@ -1,15 +1,5 @@
 name: Tests
 
-# Windows build (build-windows.yml) packages the app; this workflow verifies
-# it's actually correct. Lint, type-check ve görsel regresyon Linux'ta koşar
-# (ucuz ve hızlı); test paketi HEM Linux HEM Windows'ta koşar.
-#
-# Windows'ta neden ayrıca koşuyoruz: build-windows.yml yalnızca "kuruluyor,
-# açılıyor, kaldırılıyor" diyordu — uygulama MANTIĞININ orada da doğru olduğunu
-# hiçbir şey doğrulamıyordu. Kullanıcı tarafından bildirilen hataların (tutar
-# alanının yazılandan farklı sayı kaydetmesi, hızlı dokunmada kasma) hepsi
-# platformdan bağımsız mantık hatalarıydı ama ilk kez Windows'ta fark edildi;
-# geliştirme Linux'ta yapıldığı için Windows tarafında hiç kanıt üretilmiyordu.
 on:
   push:
     branches: [ main ]
@@ -29,14 +19,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
-          # Test paketi GERÇEK etiket geçmişini okuyor
-          # (`test_real_repository_history_selects_008_for_009` ->
-          # `previous_release.py` -> `git tag`). Varsayılan checkout etiket
-          # çekmiyor ve `fetch-tags: true` BURADA İŞE YARAMIYOR: checkout ref'i
-          # bir SHA olarak fetch ettiğinde komuta `--tags` eklemiyor, ölçtük.
-          # `fetch-depth: 0` etiketleri kesin getiriyor — `reliability-gates`
-          # zaten bu yüzden onu kullanıyor.
-          # Etiketsiz koşup testi atlamak, kapıyı ölçmeden yeşile çevirirdi.
+
           fetch-depth: 0
 
       - name: Set up Python
@@ -46,8 +29,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        # Yalnızca requirements-runtime.txt: bu job uygulamayı (ve dolayısıyla
-        # test suite'ini) çalıştırıyor, lint araçlarına ihtiyacı yok.
+
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-runtime.txt
@@ -59,8 +41,8 @@ jobs:
         # test results, which would have made this check meaningless).
         #
         # ARCHLENCE_HEADLESS: main.py no longer silently falls back to stub
-        # UI classes unless this is explicitly set (docs/ROADMAP.md Faz 1
-        # madde 2 — the old DISPLAY-based guess was actively broken).
+        # UI classes unless this is explicitly set (the old DISPLAY-based
+        # guess was actively broken).
         #
         # SDL_VIDEODRIVER / KIVY_WINDOW: this runner has no display server
         # at all. Without these, Kivy's provider search reaches the raw
@@ -89,39 +71,25 @@ jobs:
       - name: Check out code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
-          # Test paketi GERÇEK etiket geçmişini okuyor
-          # (`test_real_repository_history_selects_008_for_009` ->
-          # `previous_release.py` -> `git tag`). Varsayılan checkout etiket
-          # çekmiyor ve `fetch-tags: true` BURADA İŞE YARAMIYOR: checkout ref'i
-          # bir SHA olarak fetch ettiğinde komuta `--tags` eklemiyor, ölçtük.
-          # `fetch-depth: 0` etiketleri kesin getiriyor — `reliability-gates`
-          # zaten bu yüzden onu kullanıyor.
-          # Etiketsiz koşup testi atlamak, kapıyı ölçmeden yeşile çevirirdi.
+
           fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
-          # Paketlemeyle AYNI sürüm (bkz. build-windows.yml). Testin,
-          # kullanıcıya giden .exe'nin çalıştırdığı yorumlayıcıyı temsil
-          # etmesi gerekiyor.
+
           python-version: "3.12"
           cache: pip
 
       - name: Install dependencies
-        # kivy_deps.*: Kivy'nin Windows'taki SDL2/GLEW/ANGLE DLL'lerini
-        # sağlar. `SDL_VIDEODRIVER=dummy` ile bile SDL2 DLL'i yüklenmek
-        # zorunda — Linux'ta bunlar sistem paketlerinden geliyor, Windows'ta
-        # gelmiyor.
+
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-runtime.txt
           pip install kivy_deps.sdl2 kivy_deps.glew kivy_deps.angle
 
       - name: Run test suite
-        # Linux job'ıyla AYNI headless sözleşmesi (gerekçeler orada ayrıntılı).
-        # run_tests.py bunları kendisi de set eder; burada açıkça tekrar
-        # edilmesi bilinçli.
+
         env:
           KIVY_NO_ARGS: "1"
           ARCHLENCE_HEADLESS: "1"
@@ -130,22 +98,14 @@ jobs:
         run: python run_tests.py
 
   reliability-gates:
-    # AĞIR GÜVENİLİRLİK KAPILARI — normal unit suite'e uygun değiller ama
-    # ZORUNLU. Her biri gerçekten koşuyor; "script dosyası var" diye yeşil
-    # olmuyorlar.
-    #
-    # Neden ayrı job: mutation matrisleri her vaka için ayrı bir git worktree
-    # kurup kapıyı yeniden çalıştırıyor, migration matrisi sekiz sürümün
-    # veritabanını üretip göç ettiriyor. Bunları her PR unit koşumuna eklemek
-    # süreyi katlar; ayrı job olarak koşup yine de merge'ü bloklarlar.
+
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - name: Check out code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
-          # Mutation matrisi `git worktree` kullanıyor ve migration matrisi
-          # eski sürüm etiketlerine ihtiyaç duyuyor.
+
           fetch-depth: 0
 
       - name: Set up Python
@@ -155,15 +115,7 @@ jobs:
           cache: pip
 
       - name: Install the system library Kivy loads at import time
-        # `kivy.input.providers` KOŞULSUZ olarak `mtdev`'i import ediyor ve o
-        # da `libmtdev.so.1`'i `cdll.LoadLibrary` ile yüklüyor. Runner'da bu
-        # kütüphane yok; migration matrisinin alt süreçleri uygulama kodunu
-        # yüklerken `OSError` ile ölüyordu. Headless ortam değişkenleri bunu
-        # ÇÖZMÜYOR — import koşula bağlı değil, eksik olan sistem kütüphanesi.
-        #
-        # `test` job'ında görülmüyor çünkü orası Kivy'nin girdi sağlayıcı
-        # taramasına hiç ulaşmıyor. Geliştirici makinelerinde kütüphane zaten
-        # kurulu; bu yüzden yalnızca CI'da ortaya çıktı.
+
         run: sudo apt-get update && sudo apt-get install -y libmtdev1
 
       - name: Install dependencies
@@ -172,36 +124,17 @@ jobs:
           pip install -r requirements.txt
 
       - name: Version consistency mutation matrix (16 cases)
-        # Sürüm kaynaklarının her birini tek tek bozup kapının yakaladığını
-        # doğrular. Kaçan vaka varsa çıkış kodu 1.
+
         run: python scripts/audit/version_mutation_matrix.py
 
       - name: Schema and migration matrix (v0.0.1 - v0.0.8)
-        # EKRAN GEREKMİYOR — ve bu bilinçli bir tasarım, eksiklik değil.
-        # Worker eskiden `import main` yapıyordu; main Kivy'yi import edince
-        # import ANINDA pencere sağlayıcısı aranıyor, ekransız runner'da
-        # bulunamayınca `sys.exit(1)`. Ortamı yeterli kılmak için beş deneme
-        # harcandı (headless değişkenler, libmtdev, sanal ekran, SDL sürücü
-        # seçimi) ve her biri bir sonraki katmanı açtı.
-        #
-        # `1ffc6f6` yönü çevirdi: o import zaten yerini hak etmiyordu.
-        # `tests/test_startup_import.py` main'in headless import edildiğini
-        # HEM Linux HEM Windows'ta zaten doğruluyor, üstelik main import
-        # sırasında veritabanına dokunmuyor (şema işi `build()` içinde) —
-        # yani "migrate edilmiş veritabanına karşı import" düz bir import'la
-        # aynı şeydi. Bu kapının ölçmesi gereken katman veriye DOKUNAN
-        # katman: services/database/utils, ve onlar hiç Kivy import etmiyor.
-        #
-        # Worker artık o on bir modülü import ediyor ve `sys.modules` içinde
-        # kivy belirirse yüksek sesle patlıyor; bir GUI bağımlılığı geri
-        # sızarsa ekran ihtiyacı sessizce geri gelmesin diye.
+
         run: |
           python scripts/audit/check_schema_consistency.py \
             --output migration-matrix.json
 
       - name: Adversarial financial reproductions
-        # Bu testler v0.0.9 düzeltmelerinden SONRA yeşil olmalı. Kırmızıya
-        # dönmeleri bir düzeltmenin geri gittiği anlamına gelir.
+
         run: |
           python -m unittest \
             scripts.audit.test_adversarial_reproductions \
@@ -216,16 +149,7 @@ jobs:
         run: python -m unittest scripts.audit.test_phase2_financial_properties
 
       - name: Dependency vulnerability scan
-        # PAKETLENEN bağımlılıklar taranıyor (requirements-runtime.txt), lint
-        # araçları değil: kullanıcıya giden .exe'nin içindekiler bunlar.
-        #
-        # BLOKLUYOR. `continue-on-error` bilerek YOK — bu tarama Phase 2'den
-        # v0.0.9'a kadar hiç koşmamıştı ve ilk koşumda 3 pakette 18 benzersiz
-        # bulgu çıktı; bilgilendirici bırakılsaydı aynı sessizlik sürerdi.
-        #
-        # Yeni bir öneri gerçekten düzeltilemiyorsa çözüm `|| true` DEĞİL,
-        # `--ignore-vuln <ID>` ile gerekçesini yazarak tek tek muaf tutmaktır;
-        # böylece muafiyet görünür kalır.
+
         run: python -m pip_audit -r requirements-runtime.txt --strict
 
       - name: Upload matrix artifacts
@@ -250,21 +174,7 @@ jobs:
           cache: pip
 
       - name: Install lint and type-check dependencies
-        # requirements-dev.txt is the single source for the pinned version,
-        # so the finding count can't silently drift from what was verified
-        # locally (2026-07-27: 117 F-code findings) just because this step's
-        # own inline pin fell out of sync with it.
-        #
-        # RUNTIME BAĞIMLILIKLARI DA KURULUYOR — mypy içindir, flake8 için
-        # değil. Yalnız dev bağımlılıklarıyla, üretimde var olan paketler
-        # (Pillow, requests, keyring...) tip denetleyici için YOK sayılıyor ve
-        # `ignore_missing_imports` onları `Any`'ye düşürüyor; o modüllerle
-        # olan sınırımızdaki hatalar sessizce görünmez oluyordu.
-        #
-        # Ölçüldü: aynı ağaçta `mypy services database` dev-only ortamda 8,
-        # runtime+dev ortamında 11 hata veriyordu. Aradaki üçü Pillow sınırı.
-        # Yani "CI'da mypy 0" iddiası, ancak üretim bağımlılık grafiği tip
-        # denetleyici tarafından görülebiliyorsa bir şey ifade ediyor.
+
         run: |
           python -m pip install -r requirements-runtime.txt
           python -m pip install -r requirements-dev.txt
@@ -276,20 +186,6 @@ jobs:
           --exclude=.venv,venv,build,dist,.git,AppDir
           --count
 
-      # ARTIK BLOKLUYOR (docs/ROADMAP.md Faz 0 kapandı).
-      #
-      # Bu adım uzun süre `continue-on-error: true` ile bilgilendiriciydi,
-      # çünkü 122 mevcut ihlal vardı ve zorunlu yapmak her PR'ı ilgisiz
-      # sebeplerle kırardı. v0.0.9'da borç sıfırlandı: 15 F401 ölü import
-      # kaldırıldı, 98 F841 kullanılmayan `except ... as e` bağı temizlendi,
-      # kalan 2 F841 ise servis katmanına taşınmış işin ölü kalıntısıydı
-      # (`AssetSaleService.sell` açıklaması, `DebtPaymentService.pay_auto`
-      # is_active hesabı) — ikisi de silindi.
-      #
-      # Sayı 0 olduğu için kapı artık bedava: yeni bir ihlal ancak o PR'ın
-      # kendi getirdiği ihlaldir. Tekrar `continue-on-error` eklemek yerine
-      # ihlali düzeltin; backlog'un nasıl biriktiğini bu dosyanın geçmişi
-      # zaten gösteriyor.
       - name: Block the full pyflakes set
         run: >-
           python -m flake8 .
@@ -303,17 +199,7 @@ jobs:
           --check .github/exception-baseline.json
 
       - name: Type-check the production core
-        # ARTIK DOSYA LİSTESİ DEĞİL, İKİ PAKET. Elle sayılan on bir dosya
-        # kapsamı, yeni bir servis eklendiğinde onu sessizce dışarıda
-        # bırakıyordu; `services` ve `database` demek, çekirdeğin tamamını
-        # kapsam içinde tutuyor.
-        #
-        # `mypy.ini`'deki `follow_imports = normal` ile birlikte, bu iki
-        # paketin import ettiği `utils` modülleri de denetleniyor. `utils`
-        # AĞACININ TAMAMI kapsamda değil: `services`/`database` tarafından
-        # hiç import edilmeyen UI yardımcıları (toast, single_instance,
-        # calculator) bilerek dışarıda — onlar Kivy tarafıyla birlikte ayrı
-        # bir turda ele alınacak.
+
         run: python -m mypy services database
 
       - name: Sürüm metadata tutarlılığı
@@ -326,7 +212,7 @@ jobs:
       fail-fast: false
       matrix:
         dpi: ["96", "192"]
-        language: ["tr", "en"]
+        language: ["en"]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
@@ -338,14 +224,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb
           python -m pip install -r requirements-runtime.txt
-      # PARKTAN ÇIKARILDI: arama çubuğu geri geldi ve artık gerçekten
-      # çalışıyor (services/search_service.py + mixins/search_mixin.py).
-      #
-      # XDG dizinleri BU ADIMA ÖZEL. Eskiden `archlence-visual-*` idi ve aynı
-      # adı aşağıdaki varlık diyaloğu adımıyla paylaşıyordu; bu adım önce
-      # koştuğu için profili o kuruyor, diğeri hazır bulunuyordu — kimse
-      # yazmamış bir sıra bağımlılığı. Bu adım parka alındığında diğeri soğuk
-      # profille karşılaşıp düştü. Artık her adım kendi dizinini kullanıyor.
+
       - name: Search bar visual contracts
         env:
           KIVY_DPI: ${{ matrix.dpi }}
@@ -356,13 +235,7 @@ jobs:
         run: >-
           xvfb-run -a python scripts/dev/verify_search_bar_visual.py
           --output visual/search-${{ matrix.language }}-${{ matrix.dpi }}
-      # XDG dizinleri BU ADIMA ÖZEL. Eskiden `archlence-visual-*` idi ve o adı
-      # yukarıdaki (artık parktaki) arama çubuğu kapısıyla PAYLAŞIYORDU. Arama
-      # kapısı önce koştuğu için profili o kuruyor, bu adım hazır profil
-      # buluyordu — kimse yazmamış, kimse fark etmemiş bir sıra bağımlılığı.
-      # Arama adımı parka alınınca bu kapı zincirin başı oldu, soğuk profille
-      # karşılaştı ve dörtte ikisi düştü. İkon/kaydırma kapıları zaten kendi
-      # dizinlerini kullanıyor; bu da artık öyle.
+
       - name: Asset dialog geometry contracts
         env:
           KIVY_DPI: ${{ matrix.dpi }}
@@ -374,17 +247,7 @@ jobs:
           xvfb-run -a python scripts/dev/verify_asset_dialog_layout.py
           --output visual/assets-${{ matrix.language }}-${{ matrix.dpi }}
       - name: İkon/yazı binişme sözleşmesi
-        # NEDEN BURADA: bu kusur depoda ÜÇ KEZ çıktı ve üçünde de kullanıcı
-        # bildirdi — kart başlıkları, "Algoritmik Öngörü" robot ikonu ve
-        # Ayarlar'daki "Çıkış Yap" satırı. Sebep her seferinde aynı: yatay
-        # kutudaki `MDIcon`'a genişlik verilmemiş, kutu 0px kalıyor ve glif
-        # yanındaki yazının üstüne taşıyor. Birim testi yakalayamaz: kusur
-        # ancak gerçek yerleşim hesaplandıktan sonra, `texture_size` ile
-        # `width` karşılaştırılınca görünür.
-        #
-        # Matristeki `dpi` değerleri sayesinde ölçek duyarlı hâli de
-        # kapsanıyor — Windows'un %125/%150 ölçeğinin uygulama tarafındaki
-        # karşılığı budur.
+
         env:
           KIVY_DPI: ${{ matrix.dpi }}
           ARCHLENCE_LANGUAGE: ${{ matrix.language }}
@@ -394,16 +257,8 @@ jobs:
         run: >-
           xvfb-run -a python scripts/dev/verify_icon_label_layout.py
           --output visual/icons-${{ matrix.language }}-${{ matrix.dpi }}
-      - name: Kullanıcı verisi çevrilmiyor (TR/EN)
-        # NEDEN BURADA: `tr()` eskiden tam eşleşme bulamayınca sözlükteki
-        # Türkçe parçaları metin içinde değiştiriyordu ve çağıranlar
-        # f-string'i önce kurup çeviriye veriyordu. Kullanıcının "Nakit"
-        # adını verdiği hesap İngilizce arayüzde "Cash" görünüyordu.
-        #
-        # Birim testi ve AST kapısı sözleşmeyi tutuyor; bu kapı EKRANI
-        # ölçüyor — gözden kaçan tek bir çağrı yeri ancak orada görünür.
-        # Dişleri doğrulandı: eski davranış geri konduğunda kartlar
-        # ['Income', 'Settings', 'Cash'] gösterip kapı kırmızı veriyor.
+      - name: User data remains unchanged in the English UI
+
         env:
           KIVY_DPI: ${{ matrix.dpi }}
           ARCHLENCE_LANGUAGE: ${{ matrix.language }}
@@ -413,17 +268,30 @@ jobs:
         run: >-
           xvfb-run -a python scripts/dev/verify_i18n_user_data.py
           --output visual/i18n-${{ matrix.language }}-${{ matrix.dpi }}
+      - name: Parola değiştirme mevcut parolayı soruyor
+
+        env:
+          KIVY_DPI: ${{ matrix.dpi }}
+          ARCHLENCE_LANGUAGE: ${{ matrix.language }}
+          XDG_DATA_HOME: ${{ runner.temp }}/archlence-pwd-data
+          XDG_CACHE_HOME: ${{ runner.temp }}/archlence-pwd-cache
+          XDG_STATE_HOME: ${{ runner.temp }}/archlence-pwd-state
+        run: >-
+          xvfb-run -a python scripts/dev/verify_password_dialog.py
+          --output visual/password-${{ matrix.language }}-${{ matrix.dpi }}
+      - name: Açılış hatası ekranı gerçekten çiziliyor
+
+        env:
+          KIVY_DPI: ${{ matrix.dpi }}
+          ARCHLENCE_LANGUAGE: ${{ matrix.language }}
+          XDG_DATA_HOME: ${{ runner.temp }}/archlence-startup-data
+          XDG_CACHE_HOME: ${{ runner.temp }}/archlence-startup-cache
+          XDG_STATE_HOME: ${{ runner.temp }}/archlence-startup-state
+        run: >-
+          xvfb-run -a python scripts/dev/verify_startup_failure_surface.py
+          --output visual/startup-${{ matrix.language }}-${{ matrix.dpi }}
       - name: Birikim hedefi kartları SQL'den besleniyor
-        # NEDEN BURADA: birikim kartları uzun süre savings_goals.json'dan
-        # çiziliyordu, para ise SQLite'taydı. Tek kaynak SQL'e taşındıktan
-        # sonra kalan risk birim testiyle GÖRÜNMEZ: servis doğru veriyi
-        # döndürse bile ekran boş açılabilir, kart eski tutarı gösterebilir
-        # ya da silinen hedef ekranda kalabilir. Bu kapı gerçek uygulamayı
-        # açıp kabın içindeki kartları okuyor.
-        #
-        # Betiğin kendisi de bir kez yanlış ölçtü ve düzeltildi: kökten
-        # aşağı yürüyen tarama, KivyMD pasif sekmeleri ağaçtan kopardığı
-        # için kartları göremiyordu (container_children=2 iken 0 kart).
+
         env:
           KIVY_DPI: ${{ matrix.dpi }}
           ARCHLENCE_LANGUAGE: ${{ matrix.language }}
@@ -434,14 +302,7 @@ jobs:
           xvfb-run -a python scripts/dev/verify_savings_goal_cards.py
           --output visual/savings-${{ matrix.language }}-${{ matrix.dpi }}
       - name: Sekme kaydırma sözleşmesi
-        # NEDEN BURADA: bu kapı GERÇEK bir olay döngüsüne ve pencereye
-        # ihtiyaç duyuyor — dokunuşu Kivy'nin girdi hattından gönderip
-        # `scroll_y`'nin değişip değişmediğine bakıyor. Birim testi bunu
-        # yakalayamazdı: "Kartlarım" sekmesinin geometrisi KUSURSUZDU
-        # (içerik 1056dp, görünür alan 456dp) ve `scroll_y` programatik
-        # olarak değişiyordu; kırık olan tek şey dokunuşun ScrollView'a
-        # ULAŞMASIYDI. Gerçek Windows makinesinde sayfa tamamen
-        # kaydırılamaz hâldeydi.
+
         env:
           KIVY_DPI: ${{ matrix.dpi }}
           ARCHLENCE_LANGUAGE: ${{ matrix.language }}

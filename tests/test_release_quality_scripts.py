@@ -15,7 +15,7 @@ class ReleaseQualityScriptsTest(unittest.TestCase):
     def test_package_scan_rejects_user_data_and_embedded_secrets(self):
         findings = inspect_files([
             ("finance.db", b""),
-            ("app.bin", b"/home/cem/Documents/archlence"),
+            ("app.bin", b"/home/example-user/Documents/archlence"),
             ("other.bin", b"ghp_" + b"A" * 40),
         ])
         self.assertTrue(any(item.startswith("forbidden-name:") for item in findings))
@@ -27,6 +27,36 @@ class ReleaseQualityScriptsTest(unittest.TestCase):
             inspect_files([("Archlence.exe", b"MZ\\x00ordinary-content")]),
             [],
         )
+
+    def test_package_scan_rejects_project_worktrees_on_both_platforms(self):
+        files = [
+            ("linux.bin", b"/home/example-user/projects/archlence/main.py"),
+            (
+                "windows.bin",
+                b"C:\\Users\\example-user\\Documents\\archlence\\main.py",
+            ),
+            (
+                "escaped-windows.bin",
+                br"C:\\Users\\example-user\\Documents\\archlence\\main.py",
+            ),
+        ]
+        self.assertEqual(
+            [item.split(":", 1)[0] for item in inspect_files(files)],
+            ["developer-home", "developer-home", "developer-home"],
+        )
+
+    def test_package_scan_ignores_dependency_builder_metadata(self):
+        files = [
+            (
+                "_internal/numpy.dist-info/DELVEWHEEL",
+                br"C:\\Users\\runneradmin\\AppData\\Local\\Temp\\built_wheel",
+            ),
+            (
+                "_internal/libpython3.12.so",
+                b"/home/buildbot/worker/cpython/build/libpython3.12.so",
+            ),
+        ]
+        self.assertEqual(inspect_files(files), [])
 
     def test_spec_excludes_kivy_debug_module_data(self):
         spec = Path("archlence.spec").read_text(encoding="utf-8")

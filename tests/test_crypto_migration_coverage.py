@@ -40,7 +40,7 @@ from utils.crypto import DEFAULT_PASSWORD, STATIC_SALT, decrypt
 
 _AEAD_PREFIX = "AEADv1:"
 
-# Taşıma sırasında bozulması muhtemel içerik biçimleri — düz ASCII değil.
+
 _TRICKY_VALUES = [
     "Türkçe karakterli açıklama: şğüöçİ",
     "1234.56",
@@ -109,6 +109,12 @@ class MigrationCoversEveryEncryptedTableTest(unittest.TestCase):
         """
         expected = {}
         with closing(sqlite3.connect(self.db_path)) as conn:
+
+
+            conn.execute(
+                "INSERT INTO accounts (id, name, type, balance, account_type)"
+                " VALUES (1, 'Legacy Hesap', 'checking', 1000, 'checking')"
+            )
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS installment_plans ("
                 "id INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -144,9 +150,8 @@ class MigrationCoversEveryEncryptedTableTest(unittest.TestCase):
                     ("name", "amount"),
                 ),
                 "savings_goals": (
-                    # goal_uid ZORUNLU: her satır kalıcı kimlik taşır.
-                    # `hex(random)` yerine sayaç: iki satır aynı testte
-                    # yazılıyor ve UNIQUE index çakışmamalı.
+
+
                     "INSERT INTO savings_goals (goal_name, target_amount, "
                     "current_amount, status, goal_uid) "
                     "VALUES (?, 1000, 0, 'active', hex(randomblob(16)))",
@@ -176,7 +181,7 @@ class MigrationCoversEveryEncryptedTableTest(unittest.TestCase):
                     tuple(fields), tuple(ENCRYPTED_FIELDS[table]),
                     f"{table}: test alanları ENCRYPTED_FIELDS ile uyuşmuyor",
                 )
-                for index in range(2):   # tablo başına iki satır
+                for index in range(2):
                     values = [
                         _TRICKY_VALUES[
                             (index * len(fields) + position)
@@ -200,7 +205,7 @@ class MigrationCoversEveryEncryptedTableTest(unittest.TestCase):
     def test_inventory_counts_every_legacy_field(self):
         plan = inspect_legacy_encryption(db_path=self.db_path)
         self.assertEqual(plan.legacy_fields, len(self.expected))
-        # Tablo başına iki satır yazıldı, altı tablo var.
+
         self.assertEqual(plan.affected_records, 2 * len(ENCRYPTED_FIELDS))
 
     def test_every_table_migrates_and_plaintext_survives(self):
@@ -223,7 +228,7 @@ class MigrationCoversEveryEncryptedTableTest(unittest.TestCase):
         self.assertEqual(untouched, [], "legacy formatta kalan alanlar")
         self.assertEqual(corrupted, [], "düz metni bozulan alanlar")
 
-        # Kapsamanın tablo bazında da kanıtı: her tablodan en az bir alan.
+
         migrated_tables = {table for table, _, _ in self.expected}
         self.assertEqual(migrated_tables, set(ENCRYPTED_FIELDS))
 

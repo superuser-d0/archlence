@@ -40,7 +40,7 @@ class ResolveConfigPathTest(unittest.TestCase):
         with p1, p2, mock.patch.dict(os.environ, {"ARCHLENCE_CONFIG_PATH": override_path}):
             result = self.main._resolve_config_path()
         self.assertEqual(result, override_path)
-        # Migration atlanmalı: eski dosya yerinde kalmalı.
+
         self.assertTrue(os.path.exists(legacy))
 
     def test_migrates_existing_app_dir_config_to_data_dir(self):
@@ -117,7 +117,7 @@ class ResolveConfigPathTest(unittest.TestCase):
             os.environ.pop("ARCHLENCE_CONFIG_PATH", None)
             result = self.main._resolve_config_path()
         self.assertEqual(result, os.path.join(self.data_dir_path, "archlence_config.json"))
-        self.assertFalse(os.path.exists(result))  # JsonStore ilk put()'ta yaratır
+        self.assertFalse(os.path.exists(result))
 
     def test_never_overwrites_an_already_migrated_config(self):
         legacy = os.path.join(self.app_dir, "archlence_config.json")

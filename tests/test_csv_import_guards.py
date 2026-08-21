@@ -63,9 +63,8 @@ class CsvAmountValidationTest(unittest.TestCase):
         self.assertEqual(records[0]["amount"], 1500.50)
 
     def test_turkish_thousands_format_still_imports(self):
-        # Değerin kendisi virgül içerdiği için CSV'de TIRNAKLI olmak
-        # zorunda; tırnaksız yazılırsa virgül alan ayıracı olur (csv
-        # modülünün kuralı, uygulamanın değil).
+
+
         records, skipped = self._parse('"1.234,56"')
         self.assertEqual(skipped, 0)
         self.assertEqual(records[0]["amount"], 1234.56)

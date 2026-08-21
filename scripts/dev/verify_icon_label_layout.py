@@ -19,8 +19,7 @@ taşan şey gliftir.
 
 Bu ayrım pahalıya öğrenildi: bu betiğin ilk hâli genişliği 0 olan ikonları
 "ölçülemez" diye ATLIYORDU, yani tam da yakalaması gereken durumu eliyordu.
-Bilinen-bozuk duruma karşı koşturulup kırmızıya döndüğü doğrulandı
-(bkz. WINDOWS_RC_CHECKLIST.md §2.3 civarındaki ölçüm notları).
+Bilinen-bozuk duruma karşı koşturulup kırmızıya döndüğü doğrulandı.
 
 Ölçek duyarlı olduğu için birden çok `KIVY_METRICS_DENSITY` değeriyle
 koşturulabilir; %125/%150 Windows ölçeğinin uygulama tarafındaki karşılığı
@@ -35,9 +34,7 @@ import os
 import sys
 from pathlib import Path
 
-# Türkçe çıktı Windows'ta süreci ÖLDÜRMESİN — stdout yönlendirildiğinde kod
-# sayfası cp1252'ye düşüyor ve 'ı' kodlanamıyor. Gerekçenin tamamı
-# run_tests.py'ın tepesinde.
+
 for _stream in (sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8", errors="replace")
@@ -58,8 +55,7 @@ from kivymd.uix.label import MDIcon, MDLabel
 
 from main import ArchlenceApp
 
-#: Her sekme tek tek dolaşılır: ekran yöneticisinde yalnız AKTİF ekranın
-#: widget'ları ağaçta bulunur, hepsini birden taramak mümkün değil.
+
 TABS = ("home_tab", "assets_tab", "accounts_tab", "tools_tab", "settings_tab")
 
 
@@ -144,9 +140,7 @@ class IconLayoutVerifier(ArchlenceApp):
         print(f"incelenen ikon+etiket çifti: {self.pairs_checked} "
               f"(1dp = {dp(1):.2f}px)", flush=True)
 
-        # SIFIR ÇİFT = ÖLÇÜM YAPILMADI demektir, "temiz" demek DEĞİL.
-        # Bu betiğin bir ara sürümü ekran yöneticisi yüzünden hiçbir çift
-        # bulamıyor ve yeşil dönüyordu.
+
         if self.pairs_checked == 0:
             print("::error::Hiç ikon+etiket çifti bulunamadı — ölçüm geçersiz",
                   flush=True)

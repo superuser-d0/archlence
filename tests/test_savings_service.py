@@ -120,14 +120,14 @@ class SavingsServiceTest(unittest.TestCase):
 
     def test_goal_completion_status(self):
         """Hedefe ulaşınca status 'tamamlandi' olmalı; tamamlanana ekleme reddedilmeli."""
-        # Testin ana bakiyeye takılmaması için hedefi küçük tutarla tamamla
+
         small_goal = SavingsService.create_goal("Test Mini Hedef", 200.0)
         try:
             goal = SavingsService.deposit_to_goal(small_goal, 200.0)
             self.assertEqual(goal["status"], STATUS_COMPLETED)
             with self.assertRaises(ValueError):
                 SavingsService.deposit_to_goal(small_goal, 50.0)
-            # Çekim tamamlanmışlığı geri düşürmeli
+
             goal = SavingsService.withdraw_from_goal(small_goal, 50.0)
             self.assertEqual(goal["status"], STATUS_ACTIVE)
         finally:

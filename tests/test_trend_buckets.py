@@ -31,8 +31,8 @@ def _buckets(raw_data, period, opening_events=None, now=None):
 
 class TrendBucketOpeningSeriesTest(unittest.TestCase):
     def setUp(self):
-        # Gerçek sistem saati sabah 06:00'dan önceyse bu regresyon testi
-        # eskiden skip ediliyordu. Sabit akşam saatiyle 24/7 deterministik.
+
+
         self.now = datetime.datetime(2026, 7, 30, 20, 0, 0)
         self.today_ts = self.now.strftime("%Y-%m-%d %H:%M:%S")
 

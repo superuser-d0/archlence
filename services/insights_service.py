@@ -27,15 +27,14 @@ from datetime import datetime, timedelta
 from database.db import COMPLETED_TX, get_connection, managed_connection, SECRET_KEY
 from utils.crypto import decrypt
 
-# ── Ayarlanabilir eşikler ──────────────────────────────────────────────────
-# Tutar toleransı: aynı aboneliğin tutarı zamla/kurla biraz oynayabilir.
+
 AMOUNT_TOLERANCE = 0.10          # %10
-# Bir aday "tekrarlayan" sayılmak için en az kaç kez görülmeli.
+
 MIN_OCCURRENCES = 3
-# Aralık düzenliliği: gün farklarının standart sapması ortalamanın bu oranını
-# aşarsa düzensiz kabul edilir (örn. rastgele market alışverişi elenir).
-MAX_INTERVAL_CV = 0.35           # varyasyon katsayısı
-# Tanınan sıklıklar: (etiket, beklenen gün, tolerans)
+
+
+MAX_INTERVAL_CV = 0.35
+
 _FREQUENCY_BUCKETS = [
     ("weekly", 7, 3),
     ("biweekly", 14, 4),
@@ -44,13 +43,10 @@ _FREQUENCY_BUCKETS = [
     ("yearly", 365, 40),
 ]
 
-# Gelir/gider tür etiketleri veri tabanında iki biçimde de geçebiliyor
-# (eski kayıtlar Türkçe): sorgular ikisini de kapsamalı.
+
 _EXPENSE_TYPES = ("expense", "Gider")
 _INCOME_TYPES = ("income", "Gelir")
 
-
-# ── Ortak yardımcılar ──────────────────────────────────────────────────────
 
 def _safe_decrypt_float(value, record_id=None):
     """Decode an amount or invalidate the complete insight result."""
@@ -107,8 +103,8 @@ def normalize_name(text):
     lowered = str(text).lower()
     cleaned = "".join(ch if ch.isalnum() else " " for ch in lowered)
     tokens = [t for t in cleaned.split() if t and not t.isdigit() and len(t) > 2]
-    # "otomatik" eki process_due_recurring_payment tarafından ekleniyor;
-    # aday adının parçası sayılmamalı.
+
+
     tokens = [t for t in tokens if t not in ("otomatik", "odeme", "ödeme")]
     return " ".join(tokens[:3])
 
@@ -137,8 +133,8 @@ def _load_transactions(lookback_days, types, decrypt_description=True):
     with managed_connection() as conn:
         cursor = conn.cursor()
         placeholders = ",".join("?" for _ in types)
-        # Abonelik radarı ve anomali tespiti gerçekleşmiş harcama davranışına
-        # bakar; ileri tarihli (pending) kayıtlar henüz olmamış harcamalardır.
+
+
         cursor.execute(
             f"""
             SELECT id, amount, type, category, description, transaction_date
@@ -179,10 +175,8 @@ def _dismissed_keys():
         cursor.execute("SELECT candidate_key FROM recurring_candidate_dismissals")
         return {row[0] for row in cursor.fetchall()}
     except sqlite3.Error:
-        # Tablo henüz yoksa (initialize_database çalışmadıysa) radar susmasın.
-        # Eksik tablo `sqlite3.OperationalError` üretir (ölçüldü) — tüm DB
-        # hata ailesi bu sınıfın altında, daha genişini yakalamak buradaki
-        # bir programlama hatasını da yutardı.
+
+
         return set()
     finally:
         conn.close()
@@ -209,9 +203,8 @@ def _tracked_names():
         )
         rows = cursor.fetchall()
     except sqlite3.Error:
-        # "Takip edilen ödeme yok" ile "tablo okunamadı" aynı durum değildir.
-        # Sorgu hatasını üst katmana taşıyarak hatalı abonelik önerilerinin
-        # güvenilir bir sonuç gibi gösterilmesini önleriz.
+
+
         raise
     finally:
         conn.close()
@@ -248,8 +241,6 @@ def _classify_frequency(mean_interval):
     return "irregular"
 
 
-# ── 1. Abonelik radarı ("sessiz sızıntı") ──────────────────────────────────
-
 def detect_recurring_candidates(lookback_days=180):
     """Manuel eklenmemiş, tekrarlayan gider kalıplarını bulur.
 
@@ -266,7 +257,7 @@ def detect_recurring_candidates(lookback_days=180):
     """
     records = _load_transactions(lookback_days, _EXPENSE_TYPES)
 
-    # Kategori + normalize edilmiş ad ile grupla.
+
     groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for rec in records:
         if rec["amount"] <= 0:
@@ -289,7 +280,7 @@ def detect_recurring_candidates(lookback_days=180):
         if mean_amount <= 0:
             continue
 
-        # Tutar tutarlılığı: en uçtaki sapma bile toleransı aşmamalı.
+
         if max(abs(a - mean_amount) for a in amounts) > mean_amount * AMOUNT_TOLERANCE:
             continue
 
@@ -302,7 +293,7 @@ def detect_recurring_candidates(lookback_days=180):
         mean_interval = statistics.fmean(intervals)
         if mean_interval <= 0:
             continue
-        # Düzenlilik: tek elemanlı seride stdev tanımsız, 0 kabul edilir.
+
         spread = statistics.pstdev(intervals) if len(intervals) > 1 else 0.0
         if spread / mean_interval > MAX_INTERVAL_CV:
             continue
@@ -326,15 +317,15 @@ def detect_recurring_candidates(lookback_days=180):
             "occurrences": len(items),
             "last_seen": dates[-1].isoformat(),
             "average_interval_days": round(mean_interval, 1),
-            # Aylık maliyet: "sessiz sızıntı"nın gerçek büyüklüğünü göstermek
-            # için tüm sıklıklar aya normalize edilir.
+
+
             "monthly_cost": round(mean_amount * (30.0 / mean_interval), 2),
-            # Sıradaki tahmini vade: son görülme + ortalama aralık.
+
             "next_due_date": (
                 dates[-1] + timedelta(days=int(round(mean_interval)))
             ).isoformat(),
-            # Radarın tanıdığı tüm periyotlar recurring_payments motorunda da
-            # açıkça desteklenir; düzensiz seriler yukarıda zaten elenir.
+
+
             "can_track": frequency in {
                 "weekly", "biweekly", "monthly", "quarterly", "yearly",
             },
@@ -412,7 +403,7 @@ def detect_anomalies(lookback_days=90, z_threshold=2.0):
         mean = statistics.fmean(amounts)
         stdev = statistics.pstdev(amounts)
         if stdev <= 0:
-            # Tüm tutarlar aynı — sapma yok.
+
             continue
         for rec in items:
             if rec["id"] in dismissed_ids:
@@ -434,8 +425,6 @@ def detect_anomalies(lookback_days=90, z_threshold=2.0):
     return anomalies
 
 
-# ── 3. Finansal sağlık skoru ───────────────────────────────────────────────
-
 def _monthly_expense_series(records):
     """Gider kayıtlarını "YYYY-MM" -> toplam sözlüğüne indirger."""
     buckets: dict[str, float] = {}
@@ -453,7 +442,7 @@ def _score_savings_rate(income, expense):
     (yaygın kişisel finans eşiği), negatif oran 0'a kırpılır.
     """
     if income <= 0:
-        # Gelir yoksa oran tanımsız; nötr puan ver, cezalandırma.
+
         return 50.0, 0.0
     rate = (income - expense) / income
     return max(0.0, min(100.0, (rate / 0.20) * 100.0)), rate
@@ -501,7 +490,7 @@ def compute_financial_health_score(lookback_days=90, persist=True):
 
     Döner: {score, breakdown: {...}, computed_at, insufficient_data}
     """
-    # Skor yalnızca tutar + tarih kullanır; açıklamayı çözmek boşa AES işi.
+
     expenses = _load_transactions(
         lookback_days, _EXPENSE_TYPES, decrypt_description=False)
     incomes = _load_transactions(
@@ -511,9 +500,7 @@ def compute_financial_health_score(lookback_days=90, persist=True):
     total_income = sum(r["amount"] for r in incomes)
     computed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Yalnızca gerçekten hiç gelir/gider verisi olmayan pencereyi ayırıyoruz.
-    # Tek taraflı veya az sayıdaki gerçek işlemi burada reddetmek, gerçek bir
-    # 50 puanı da "veri yok" sanmak olurdu.
+
     if total_income <= 0 and total_expense <= 0:
         return {
             "score": None,
@@ -522,12 +509,7 @@ def compute_financial_health_score(lookback_days=90, persist=True):
             "insufficient_data": True,
         }
 
-    # Aylık borç yükü: active_debts şifreli tutarlar taşıdığı için
-    # get_active_debts zaten çözerek döndürüyor, onu tekrar kullanıyoruz.
-    # Bu, decrypt hatası değil DB hatası kategorisi (bkz. docs/ROADMAP.md
-    # Faz 2 "except ayrımı") — get_active_debts() kendi içindeki decrypt
-    # hatalarını zaten ayrıca ele alıyor; burada asıl korunan bağlantı/sorgu
-    # seviyesindeki hatalar.
+
     monthly_debt_payment = 0.0
     try:
         from database.db import get_active_debts
@@ -537,7 +519,7 @@ def compute_financial_health_score(lookback_days=90, persist=True):
         get_logger().exception("[DB] Aylık borç yükü hesaplanamadı")
         monthly_debt_payment = 0.0
 
-    # Gelir aylığa normalize edilir ki borç oranı elmayla elma karşılaşsın.
+
     months = max(1.0, lookback_days / 30.0)
     monthly_income = total_income / months
 
@@ -612,15 +594,12 @@ def get_health_history(limit=30):
         try:
             breakdown = json.loads(r["breakdown_json"]) if r["breakdown_json"] else {}
         except (ValueError, TypeError):
-            # Bozuk JSON `JSONDecodeError` (ValueError türevi), beklenmedik
-            # tipte sütun `TypeError` verir (ölçüldü). Skor geçmişindeki tek
-            # bozuk satır listenin tamamını düşürmemeli.
+
+
             breakdown = {}
         history.append({"date": r["date"], "score": r["score"], "breakdown": breakdown})
     return history
 
-
-# ── 4. Aylık algoritmik öngörü ─────────────────────────────────────────────
 
 def generate_monthly_forecast(lookback_days=90, min_days=85):
     """En az ~3 aylık nakit-akışı istatistiğine dayanan ay-sonu bakiye öngörüsü.
@@ -636,7 +615,7 @@ def generate_monthly_forecast(lookback_days=90, min_days=85):
     from services.projection_service import project_final_wealth
     from services.queries import DashboardService
 
-    # Öngörü de yalnızca tutar + tarih kullanır (bkz. yukarıdaki skor yolu).
+
     expenses = _load_transactions(
         lookback_days, _EXPENSE_TYPES, decrypt_description=False)
     incomes = _load_transactions(

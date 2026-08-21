@@ -16,7 +16,7 @@
   The gate checks that the names *exist*, not that they do anything — the
   search bar would still have passed it. Behaviour remains the job of the
   service and mixin tests. It is also the prerequisite
-  `docs/MAIN_PY_SPLIT_PLAN.md` names for that refactor, which leans on
+  the architecture notes for that refactor, which lean on
   delegating methods staying reachable from `.kv`.
 
 - The four user-facing error boundaries in the card screens no longer catch
@@ -505,7 +505,7 @@ paragraph did.
   it shipped in every release since, looking like a working control. Reported
   by a user. Rather than leave an inviting control that does nothing, it is
   hidden until search is actually implemented. The `SearchBar` component, its
-  kv rule, its visual gate and `docs/SEARCH_RENDER_ARTIFACT.md` are all kept —
+  KV rule and its visual gate are both kept —
   the seam fix they cover was real work and will be needed when search is
   built, so the gate's CI step is parked rather than deleted and restoring the
   feature means putting the block back and uncommenting the step. What search

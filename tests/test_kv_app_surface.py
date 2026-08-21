@@ -14,11 +14,9 @@ yapmaz. Bu teorik bir incelik değil, bu depoda İKİ KEZ gerçekleşti:
 İkisi de "kontrol duruyor ama ölü" sınıfıydı ve ikisini de bir kapı değil,
 elle bakış yakaladı. Bu dosya o boşluğu kapatır.
 
-AYRICA `docs/MAIN_PY_SPLIT_PLAN.md`'nin ÖNKOŞULU. O plan `main.py`'yi
-controller'lara bölüp `ArchlenceApp`'te ince delege metotları bırakmayı
-öneriyor. `.kv` 344 yerde `app.`'e bağlı; delege metotlarından biri yanlış
-yazılırsa bugün hiçbir şey uyarmaz. Kapı olmadan o ayrıştırmaya
-başlanmamalıdır.
+This is also the prerequisite for safely splitting `main.py` into controllers
+while retaining thin delegates on `ArchlenceApp`. KV files depend on `app.` in
+hundreds of places, so a misspelled delegate would otherwise fail silently.
 
 KAPSAM SINIRI: burada isimlerin VAR OLDUĞU doğrulanır, DOĞRU ÇALIŞTIĞI değil.
 Arama çubuğu vakası tam da bunu hatırlatıyor — `app.on_home_search_text`
@@ -33,12 +31,10 @@ from pathlib import Path
 os.environ.setdefault("KIVY_NO_ARGS", "1")
 os.environ.setdefault("ARCHLENCE_HEADLESS", "1")
 
-#: `app.` sonrası İLK tanımlayıcı — app nesnesi üzerinde aranacak ad.
-#: `app.root.ids.foo` için yalnız `root` sayılır; zincirin gerisi başka
-#: nesnelere ait ve buranın sorumluluğunda değil.
+
 _APP_REFERENCE = re.compile(r"\bapp\.([A-Za-z_][A-Za-z0-9_]*)")
 
-#: Depo kökü. `tests/` bir seviye altta.
+
 _ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -79,9 +75,8 @@ def _references():
 class KvAppSurfaceTest(unittest.TestCase):
 
     def setUp(self):
-        # KivyMD import'u modül düzeyinde YAPILMAZ: import anında `dp()`
-        # çağırıyor ve test discovery'sinde metrikler henüz kurulmamış
-        # oluyor. Bu tuzak bu depoda bir kez 150 alakasız testi düşürdü.
+
+
         from main import ArchlenceApp
         self.app_class = ArchlenceApp
 

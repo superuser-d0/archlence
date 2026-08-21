@@ -34,16 +34,7 @@ class CryptoWarmupTest(unittest.TestCase):
         thread.join(2)
         self.assertFalse(thread.is_alive())
 
-        # Anahtar artık önbellekte olmalı: `_get_key`'i AYNI parametreyle
-        # tekrar çağırmak PBKDF2'yi yeniden ÇALIŞTIRMAMALI (cache_info hit
-        # sayısı artmalı). PR #22 (AEAD entegrasyonu) öncesinde bu,
-        # `decrypt(encrypt(...))` round-trip'iyle dolaylı doğrulanıyordu —
-        # ama `encrypt()` artık HER ZAMAN yeni AEAD şemasını ürettiği için
-        # o round-trip `_get_key`'e hiç uğramaz oldu ve ısıtma sessizce
-        # işlevsiz kalmıştı; bu test tam da o regresyonu yakaladı. Artık
-        # `_get_key`'in kendisi doğrudan çağrılarak doğrulanıyor — var olan
-        # her eski-format kaydın hâlâ bu yoldan geçtiği gerçeğine sadık
-        # kalarak.
+
         before = _get_key.cache_info().hits
         _get_key(DEFAULT_PASSWORD)
         after = _get_key.cache_info().hits
@@ -57,8 +48,8 @@ class CryptoWarmupTest(unittest.TestCase):
         before = time.perf_counter()
         thread = ArchlenceApp._warm_crypto_key_in_background()
         elapsed = time.perf_counter() - before
-        # Isıtma işleminin kendisi (soğuk PBKDF2) onlarca ms sürer; çağıranın
-        # bunu BEKLEMEDEN dönmesi asıl hedef.
+
+
         self.assertLess(elapsed, 0.05)
         thread.join(2)
 
@@ -140,8 +131,8 @@ class FinancialAdvicePerformanceTest(unittest.TestCase):
 
         app = self._make_app()
         text = app._compute_financial_advice_text()
-        self.assertIn("Süpermarket", text)
-        self.assertIn("%50.0", text)  # (1000-500)/1000 tasarruf oranı
+        self.assertIn("Groceries", text)
+        self.assertIn("%50.0", text)
 
 
 class WealthVisibilityTogglePerformanceTest(unittest.TestCase):
@@ -163,11 +154,8 @@ class WealthVisibilityTogglePerformanceTest(unittest.TestCase):
         return app
 
     def test_toggle_does_not_touch_db_when_cache_is_warm(self):
-        # NOT: update_wealth_card, _compute_today_liquid_delta'yı kendi
-        # try/except'i içinde çağırıyor — bir side_effect exception'ı orada
-        # sessizce yutulup testi yanlışlıkla "geçti" gösterebilirdi. Bunun
-        # yerine mock'un GERÇEKTEN çağrılıp çağrılmadığını doğrudan kontrol
-        # ediyoruz (assert_not_called), exception fırlatmaya güvenmiyoruz.
+
+
         app = self._make_app()
         app._today_liquid_delta_cache = 42.0
         app._compute_today_liquid_delta = mock.Mock()
@@ -223,7 +211,7 @@ class VacuumDatabasePerformanceTest(unittest.TestCase):
         thread.join(5)
         self.assertFalse(thread.is_alive())
 
-        # VACUUM veritabanını bozmamalı; olağan bir sorgu hâlâ çalışmalı.
+
         conn = get_connection()
         row = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()
         conn.close()

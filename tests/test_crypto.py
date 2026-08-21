@@ -3,7 +3,7 @@ import os
 import unittest
 from unittest import mock
 
-# Proje kökünü (tests/'in bir üstü) sys.path'e ekle ki utils.crypto bulunsun
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.crypto import DEFAULT_PASSWORD, encrypt, decrypt
@@ -20,17 +20,17 @@ def run_crypto_test():
     print("-" * 50)
     print(f"Original String : {original_text}")
     print(f"Test Password   : {test_password}")
-    
+
     # 2. Encrypt
     encrypted_text = encrypt(original_text, test_password)
     print("\n[ENCRYPTING...]")
     print(f"Encrypted Output (Base64 IV:Ciphertext):\n{encrypted_text}")
-    
+
     # 3. Decrypt
     decrypted_text = decrypt(encrypted_text, test_password)
     print("\n[DECRYPTING...]")
     print(f"Decrypted Output: {decrypted_text}")
-    
+
     # 4. Boolean Check
     print("\n[VERIFICATION]")
     if original_text == decrypted_text:
@@ -103,7 +103,7 @@ class FailClosedHandlingTest(unittest.TestCase):
 
     def test_corrupted_new_format_ciphertext_raises_integrity_error(self):
         token = encrypt("hassas veri")
-        tampered = token[:-4] + "XXXX"  # base64 kuyruğunu boz
+        tampered = token[:-4] + "XXXX"
         with self.assertRaises(IntegrityVerificationError):
             decrypt(tampered)
 

@@ -32,9 +32,7 @@ from utils.financial_decimal import fiat
 STATUS_ACTIVE = "aktif"
 STATUS_COMPLETED = "tamamlandi"
 
-# Kullanıcıya gösterilecek metin: teknik ayrıntı, id, dosya yolu ya da
-# traceback İÇERMEZ (`startup_recovery.USER_MESSAGE` ile aynı gerekçe).
-# Ayrıntı loglanır.
+
 IDENTITY_MISMATCH_MESSAGE = (
     "Bu hedef artık mevcut değil ya da değişmiş görünüyor; işlem güvenlik "
     "için durduruldu ve hiçbir para hareket etmedi. Lütfen ekranı yenileyip "
@@ -107,8 +105,8 @@ class SavingsService:
                   1 if auto_deposit else 0,
                   created_at or date.today().isoformat()))
             goal_id = cursor.lastrowid
-            # [Faz 2 · defter] Hedef 0 birikimle açılır: delta 0, toplamı
-            # etkilemez ama defterde hedefin doğuşu görünür.
+
+
             record_balance_event(cursor, SAVINGS_GOAL, goal_id, current_amount, current_amount,
                                  "savings_goal_created")
             conn.commit()
@@ -135,9 +133,8 @@ class SavingsService:
             try:
                 name = decrypt(r["goal_name"], SECRET_KEY)
             except KeyUnavailableError:
-                # Anahtar yoksa TÜM hedefler etkilenir; satır bazında yutmak
-                # toplam arızayı "hepsi Bilinmeyen Hedef" diye normal veri
-                # gibi gösterirdi.
+
+
                 raise
             except (DecryptionError, ValueError, TypeError):
                 from utils.logging_config import get_logger
@@ -206,14 +203,7 @@ class SavingsService:
                 conn.rollback()
                 raise ValueError("Hedef bulunamadı ya da zaten tamamlanmış")
 
-            # Hedefe ulaşıldıysa durumu aynı commit içinde işaretle.
-            #
-            # ROUND(...,2) ZORUNLU: `current_amount` REAL bir sütun ve
-            # `current_amount + ?` ile birikiyor, yani ikili kayan nokta
-            # artığı taşıyabiliyor. 3000 x 0,10 TL yatırma 300,00 yerine
-            # 299.9999999999997 üretir — ekranda "300,00 TL" yazarken hedef
-            # tamamlanmamış sayılırdı. Para kuruştan ince değildir; karar da
-            # kuruş hassasiyetinde verilmeli.
+
             cursor.execute(
                 f"UPDATE savings_goals SET status = '{STATUS_COMPLETED}' "
                 f"WHERE id = ? AND ROUND(current_amount, 2) "
@@ -221,8 +211,7 @@ class SavingsService:
                 (goal_id,),
             )
 
-            # [Faz 2 · defter 2/6] Para ana hesaptan çıkıp hedefe girdi:
-            # iki ayrı varlık değiştiği için iki olay, ikisi de bu commit'te.
+
             record_balance_event(
                 cursor, ACCOUNT, account_id, -amount,
                 current_account_balance(cursor, account_id),
@@ -258,12 +247,7 @@ class SavingsService:
             cursor = conn.cursor()
             _assert_identity(cursor, goal_id, goal_uid)
 
-            # ROUND(...,2): bu koruma olmadan uygulama, EKRANDA GÖSTERDİĞİ
-            # parayı kullanıcıya vermiyordu. 3000 x 0,10 TL yatıran birinin
-            # birikimi REAL sütunda 299.9999999999997 durur; ekranda
-            # "300,00 TL" yazar; 300,00 TL çekmek isteyince `current_amount
-            # >= ?` sağlanmaz ve "Hedefte bu kadar birikim yok" hatası alır.
-            # Kendi parasına erişemez.
+
             cursor.execute(
                 "UPDATE savings_goals SET current_amount = current_amount - ? "
                 "WHERE id = ? AND ROUND(current_amount, 2) >= ROUND(?, 2)",
@@ -278,16 +262,7 @@ class SavingsService:
                 (amount, account_id),
             )
 
-            # Çekim hedefi tamamlanmışlıktan geri düşürdüyse durumu düzelt.
-            #
-            # ROUND(...,2): bu satır tek başına HAM değerle karar veriyordu,
-            # oysa kardeşleri (tamamlanma işareti ve çekim yeterliliği) kuruş
-            # hassasiyetinde. Aynı ekonomik soru aynı serviste iki farklı
-            # anlam kazanıyordu. `current_amount` `current_amount + ?` ile
-            # birikiyor ve ikili kayan nokta artığı taşıyor; hedefi TAM olarak
-            # tutan bir hedef 10.399999999999999 kalıp "10,40 / 10,40"
-            # gösterirken "aktif"e düşüyordu. On bir sıradan servis çağrısıyla
-            # üretildi (bkz. tests/test_savings_status_rounding.py).
+
             cursor.execute(
                 f"UPDATE savings_goals SET status = '{STATUS_ACTIVE}' "
                 f"WHERE id = ? AND ROUND(current_amount, 2) "
@@ -295,7 +270,7 @@ class SavingsService:
                 (goal_id,),
             )
 
-            # [Faz 2 · defter 3/6] deposit'in tersi: hedeften çıktı, hesaba girdi.
+
             record_balance_event(
                 cursor, SAVINGS_GOAL, goal_id, -amount,
                 current_goal_amount(cursor, goal_id),
@@ -361,14 +336,14 @@ class SavingsService:
                 )
                 if cursor.rowcount != 1:
                     raise ValueError("Seçilen vadesiz hesap bulunamadı")
-                # [Faz 2 · defter 4/6] İade hesaba girdi.
+
                 record_balance_event(
                     cursor, ACCOUNT, account_id, refund_amount,
                     current_account_balance(cursor, account_id),
                     "savings_goal_deleted", goal_id,
                 )
-            # Hedef siliniyor: birikimi 0'a düşen bir olayla kapat ki replay
-            # hedefin bakiyesini sonsuza kadar taşımasın.
+
+
             record_balance_event(
                 cursor, SAVINGS_GOAL, goal_id, -refund_amount, 0.0,
                 "savings_goal_deleted" if refund else "savings_goal_discarded",

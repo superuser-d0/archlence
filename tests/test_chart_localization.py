@@ -13,7 +13,7 @@ from ui.i18n import set_language, tr
 
 class ChartLocalizationTest(unittest.TestCase):
     def tearDown(self):
-        set_language("tr")
+        set_language("en")
 
     def test_english_chart_labels_and_asset_types(self):
         set_language("en")
@@ -25,10 +25,10 @@ class ChartLocalizationTest(unittest.TestCase):
             ["Currency", "Gold", "Stock", "Crypto"],
         )
 
-    def test_turkish_chart_labels_still_work(self):
+    def test_retired_locale_code_falls_back_to_english(self):
         set_language("tr")
-        self.assertEqual(trend_legend_labels(True), ["Gider", "Gelir", "Açılış Bakiyesi"])
-        self.assertEqual(localized_month_abbreviation(8), "Ağu")
+        self.assertEqual(trend_legend_labels(True), ["Expense", "Income", "Opening Balance"])
+        self.assertEqual(localized_month_abbreviation(8), "Aug")
 
 
 if __name__ == "__main__":

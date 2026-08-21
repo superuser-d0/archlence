@@ -17,22 +17,18 @@ LOGO_CACHE_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "logo_cache"
 )
 
-# Kripto sembolü (ör. 'BTC-USD' -> 'BTC') -> CoinCap ikon CDN'inde kullanılan kod.
-# Yalnızca tanınan yaygın coin'ler için; eşleşmeyen semboller ağa hiç gidilmeden
-# fallback ikona düşer (yanlış tahminle boşa istek atılmaz).
+
 _CRYPTO_SYMBOLS = {"BTC", "ETH", "USDT", "BNB", "SOL", "XRP", "DOGE", "ADA", "AVAX", "DOT"}
 
-# Döviz kodu -> bayrak CDN'inde (flagcdn.com) kullanılan ISO ülke kodu.
+
 _FOREX_COUNTRY = {
     "USD": "us", "EUR": "eu", "GBP": "gb", "JPY": "jp",
     "CHF": "ch", "CAD": "ca", "AUD": "au",
 }
 
-# Altın için kod içinde aranan anahtar kelimeler (Yahoo Finance sembolü
-# "GC=F", uluslararası kod "XAU", serbest girilen "ALTIN" metni veya fiziksel
-# altın türleri için dahili "GOLD-*" semboller — bkz. asset_mixin.py _GOLD_TYPES).
+
 _GOLD_KEYWORDS = ("GC=F", "XAU", "ALTIN", "GOLD")
-# Twemoji CDN (jsdelivr) üzerinden sabit bir altın külçe/madeni para görseli.
+
 _GOLD_LOGO_URL = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1fa99.png"
 
 

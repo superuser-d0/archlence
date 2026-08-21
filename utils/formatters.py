@@ -26,31 +26,28 @@ farklı olduğu için birleştirilmedi.
 
 import re
 
-# Türkçe biçim: ondalık virgül, binlik nokta.
+
 DECIMAL_SEPARATOR = ","
 GROUP_SEPARATOR = "."
 
-# En fazla iki ondalık hane tutulur (kuruş).
+
 MAX_DECIMALS = 2
 
-# "1.234", "12.345.678" gibi tam üçerli gruplama; ondalık ayraç YOK.
+
 _GROUPED_PATTERN = re.compile(r"^\d{1,3}(?:\.\d{3})+$")
 
-# Maskelenmiş alanın kanonik değerini taşıdığı attribute.
+
 _CANONICAL_ATTR = "_archlence_amount_value"
 
-# Tutar alanına yazılabilecek en fazla TAM KISIM hanesi (bkz.
-# filter_amount_keystroke). float64'ün tam-sayı kesinlik sınırının
-# (2**53) güvenli tarafında kalır.
+
 MAX_INTEGER_DIGITS = 12
 
 
 def _digits_and_decimal(text):
     """Metni (tamsayı_hane_dizisi, ondalık_hane_dizisi | None) hâline getirir."""
     raw = str(text or "")
-    # Kullanıcı İngilizce alışkanlıkla '.' yazmış olabilir; maskeleme '.'yi
-    # gruplama için kullandığından, ondalık niyeti tek bir ',' ile temsil edilir
-    # (dönüşüm filter_amount_keystroke tarafında yapılır).
+
+
     if DECIMAL_SEPARATOR in raw:
         integer_part, _, decimal_part = raw.partition(DECIMAL_SEPARATOR)
         return (
@@ -74,8 +71,7 @@ def parse_amount(text):
     if not raw:
         raise ValueError("Tutar boş olamaz.")
 
-    # İşaret ve para birimi süslemeleri: eksi kabul EDİLMEZ (yön Gelir/Gider
-    # seçimiyle belirlenir), bu yüzden '-' varsa doğrudan reddediyoruz.
+
     if "-" in raw:
         raise ValueError("Tutar negatif olamaz.")
     cleaned = raw.replace("₺", "").replace(" ", "").replace("+", "").strip()
@@ -84,16 +80,15 @@ def parse_amount(text):
     if not re.fullmatch(r"[\d.,]+", cleaned):
         raise ValueError(f"Geçersiz tutar: {text!r}")
 
-    # 1) Yalnız nokta içeren ve tam üçerli gruplanmış metin -> gruplama.
+
     if _GROUPED_PATTERN.fullmatch(cleaned):
         return float(cleaned.replace(GROUP_SEPARATOR, ""))
 
-    # 2) Aynı kalıp virgülle (İngilizce gruplama) -> gruplama.
+
     if _GROUPED_PATTERN.fullmatch(cleaned.replace(",", ".")) and "." not in cleaned:
         return float(cleaned.replace(",", ""))
 
-    # 3) Genel kural: son geçen ayraç ondalıktır (asset_mixin'deki sezgiyle
-    #    aynı), diğer tüm ayraçlar gruplama sayılır.
+
     last_dot = cleaned.rfind(".")
     last_comma = cleaned.rfind(",")
     if last_dot > last_comma:
@@ -131,7 +126,7 @@ def format_amount_input(text):
     """
     integer_digits, decimal_digits = _digits_and_decimal(text)
 
-    # Baştaki gereksiz sıfırlar temizlenir ama "0" ve "0,xx" korunur.
+
     integer_digits = integer_digits.lstrip("0") or ("0" if integer_digits else "")
 
     grouped = ""
@@ -140,7 +135,7 @@ def format_amount_input(text):
 
     if decimal_digits is None:
         return grouped
-    # Ondalık ayraç yazılmış: tamsayı kısmı boşsa "0," ile başlat.
+
     return f"{grouped or '0'}{DECIMAL_SEPARATOR}{decimal_digits}"
 
 
@@ -158,7 +153,7 @@ def format_amount_value(value):
     if number < 0:
         raise ValueError("Tutar negatif olamaz.")
     formatted = f"{number:,.{MAX_DECIMALS}f}"
-    # "1,500.50" (Python varsayılanı) -> "1.500,50" (Türkçe)
+
     return formatted.replace(",", "X").replace(".", DECIMAL_SEPARATOR).replace(
         "X", GROUP_SEPARATOR)
 
@@ -192,15 +187,7 @@ def filter_amount_keystroke(substring, existing_text=""):
     current = str(existing_text or "")
     already_has_decimal = DECIMAL_SEPARATOR in current
 
-    # Tam kısımdaki hane sayısı ÜST SINIRI. Kullanıcı raporu: alana çok uzun
-    # sayılar girilince uygulama "sapıtıyor" (ekran görüntüsünde
-    # ₺112.955.698.541.615.249.872.910,00 gibi toplamlar). Sebep yalnız görsel
-    # değil: float64 yalnızca 2**53 (~9,007e15) değerine kadar TAM SAYIYI
-    # birebir taşır; ötesinde toplama/çıkarma sessizce yuvarlanır ve bakiye
-    # matematiği anlamını yitirir. MAX_INTEGER_DIGITS bu sınırın güvenli
-    # tarafında kalır (999.999.999.999 = 12 hane) ve kişisel finans için
-    # fazlasıyla yeterlidir. Sınır girdi ANINDA uygulanır: mevcut kayıtlar
-    # etkilenmez, kullanıcı sadece yeni absürt değer yazamaz.
+
     integer_part = current.split(DECIMAL_SEPARATOR)[0]
     integer_digits = sum(1 for char in integer_part if char.isdigit())
 
@@ -208,7 +195,7 @@ def filter_amount_keystroke(substring, existing_text=""):
     for char in text:
         if char.isdigit():
             if not already_has_decimal and integer_digits >= MAX_INTEGER_DIGITS:
-                continue  # tam kısım doldu, yeni hane kabul edilmez
+                continue
             if not already_has_decimal:
                 integer_digits += 1
             result.append(char)
@@ -216,7 +203,7 @@ def filter_amount_keystroke(substring, existing_text=""):
             if not already_has_decimal:
                 result.append(DECIMAL_SEPARATOR)
                 already_has_decimal = True
-        # diğer her şey (harf, '-', '+', boşluk, sembol) sessizce düşer
+
     return "".join(result)
 
 
@@ -265,7 +252,7 @@ def attach_amount_mask(field):
     )
     setattr(field, _CANONICAL_ATTR, canonical_amount_text(field.text))
 
-    # Yeniden giriş koruması: aşağıdaki setter kendi on_text'ini tetikliyor.
+
     state = {"busy": False}
 
     def _sync_canonical(instance, value):
@@ -286,9 +273,7 @@ def attach_amount_mask(field):
         if formatted == value:
             return
 
-        # İmleç, kendisinden ÖNCE kaç ANLAMLI karakter (hane/ondalık ayraç)
-        # olduğuna göre yeniden bulunur; gruplama noktaları sayılmaz, çünkü
-        # onların sayısı biçimlendirmeyle değişiyor.
+
         cursor_index = field.cursor_index()
         significant_before = sum(
             1 for char in value[:cursor_index]
@@ -311,9 +296,7 @@ def attach_amount_mask(field):
                 seen += 1
         field.cursor = field.get_cursor_from_index(new_index)
 
-    # Kivy `self.insert_text(...)` çağırdığı için örnek üzerindeki bu isimler
-    # sınıf metodunun önüne geçer; sınıf metodunu açıkça çağırıp ARDINDAN
-    # biçimlendiriyoruz.
+
     cls = type(field)
 
     def insert_text(substring, from_undo=False):

@@ -65,7 +65,7 @@ class MatrixIsVersionAgnosticTest(unittest.TestCase):
             resolved = case[3].replace("@@VERSION@@", APP_VERSION)
             self.assertIn("${v}", resolved,
                           "kabuk değişkeni bozulmuş — yer tutucu çakışıyor")
-            # `str.format` kullanılsaydı `${v}` -> `$<sürüm>` olurdu.
+
             self.assertNotIn(f"${APP_VERSION}", resolved)
 
     def test_version_is_read_from_the_tree_under_test(self):

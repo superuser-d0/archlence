@@ -33,12 +33,7 @@ class AssetPurchaseFundingTest(AccountFixtureMixin, unittest.TestCase):
         self._patcher.stop()
         os.unlink(self.db_path)
 
-    # `with sqlite3_connection` bağlantıyı KAPATMAZ — yalnızca bir transaction
-    # context manager'ıdır. Linux'ta açık bir dosya silinebildiği için bu fark
-    # görünmezdi; Windows'ta dosya kilitli kalıyor ve tearDown'daki
-    # `os.unlink` "WinError 32: process cannot access the file" ile patlıyordu.
-    # (Windows CI eklendiğinde ampirik olarak yakalandı.) Bu yüzden bağlantı
-    # burada açıkça kapatılıyor.
+
     def _exec(self, sql, params=()):
         from database.db import get_connection
         conn = get_connection()
@@ -82,8 +77,8 @@ class AssetPurchaseFundingTest(AccountFixtureMixin, unittest.TestCase):
 
     def test_missing_default_account_does_not_break_purchases(self):
         """Taze kurulumda id=1 hiç olmayabilir; alım yine de çalışmalı."""
-        # AUTOINCREMENT ilk satıra 1 verir; onu silerek "id=1 yok" durumunu
-        # kurup gerçek hesabı 2. id ile oluşturuyoruz.
+
+
         throwaway = self.create_test_account(name="Silinecek", balance=0.0)
         self._exec("DELETE FROM accounts WHERE id = ?", (throwaway,))
         account_id = self.create_test_account(name="Tek Hesap", balance=900.0)
@@ -91,7 +86,7 @@ class AssetPurchaseFundingTest(AccountFixtureMixin, unittest.TestCase):
         self.assertIsNone(
             self._fetchone("SELECT 1 FROM accounts WHERE id = 1"))
 
-        self._buy(50.0)  # patlamamalı
+        self._buy(50.0)
 
     def test_no_account_affords_it_picks_richest_and_goes_negative(self):
         """Yetersiz bakiye koruması kaldırıldı: hiçbir hesap yetmese bile

@@ -2,16 +2,6 @@
 #:import PassthroughScrollView ui.components.PassthroughScrollView
 #:set AMBER (0.85, 0.62, 0.25, 1)
 
-# ARAÇLAR SEKMESİ BİLEŞENLERİ
-#
-# NEDEN AYRI DOSYA: Aylık Bütçe Planı kartı ui/dashboard.kv içinde ~1640.
-# satırda, altı seviye iç içe bir ağacın ortasında duruyordu. O dosya bu
-# projede iki kez girinti kazasıyla uygulamanın hiç açılmamasına yol açtı;
-# panel kendi dosyasında ve tek bir girinti tabanında çok daha güvenli.
-#
-# DİKKAT — id ERİŞİMİ: Dinamik sınıf kuralı içindeki id'ler bu bileşenin
-# KENDİ `ids` sözlüğünde yaşar, uygulamanın `root.ids`'inde DEĞİL. Python
-# tarafı bu yüzden BudgetMixin._planner_ids() üzerinden erişiyor.
 <BudgetPlannerPanel@MDCard>:
     elevation: 0
     line_color: ftheme.card_line(app.theme_cls.theme_style)
@@ -19,10 +9,7 @@
     padding: "16dp"
     spacing: "10dp"
     size_hint_y: None
-    # max(...) ŞART: panelin içindeki detay listesi `size_hint_y: 1` olan bir
-    # ScrollView'da yaşıyor ve minimum_height'a 0 katkı veriyor. Yalnız
-    # minimum_height kullanılırsa kart 172dp'ye çöküp liste alanı kayboluyor.
-    # Taban 400dp; içerik daha uzunsa kart yine büyüyebilir.
+
     height: max(dp(400), self.minimum_height + dp(40))
     radius: [24, 24, 24, 24]
     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
@@ -62,12 +49,9 @@
             size_hint_x: None
             width: "48dp"
             pos_hint: {"center_y": .5}
-            # Kalem ekleme formu ayrı bir diyalog; show_budget_planner artık bu
-            # paneli AÇAN metod, kalem formunu değil (yoksa panel kendini
-            # sonsuz açardı).
+
             on_release: app.open_budget_item_form()
 
-    # YENİ: Yatay Ay Seçici
     PassthroughScrollView:
         do_scroll_y: False
         do_scroll_x: True
@@ -80,8 +64,6 @@
             adaptive_width: True
             spacing: "10dp"
 
-            # Dinamik Olarak Python Tarafından Doldurulacak
-
     MDLabel:
         id: projection_label
         text: app.tr("Ay seçin ve plan oluşturun...", app.language)
@@ -91,7 +73,6 @@
         valign: "top"
         text_size: self.width, None
 
-    # DETAYLI LİSTE ALANI
     ScrollView:
         size_hint_y: 1
         MDBoxLayout:

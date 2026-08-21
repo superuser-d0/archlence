@@ -27,7 +27,7 @@ from decimal import Decimal
 from pathlib import Path
 from unittest import mock
 
-_MUTATIONS = 10_000          # 10.000 x 0,01 = 100,00 TL; ölçülen sapma ~1.4e-11
+_MUTATIONS = 10_000
 
 
 class RealColumnDriftInvariants(unittest.TestCase):
@@ -98,7 +98,7 @@ class RealColumnDriftInvariants(unittest.TestCase):
 
         card_id = AccountService.create_account(
             "Drift card", "credit_card", credit_limit=100.0)
-        # 5.000 x 0,01 = 50,00 TL borç (kartta gider bakiyeyi negatife iter)
+
         self._drift(
             "UPDATE accounts SET balance = balance - ? WHERE id=?",
             card_id, times=5_000)
@@ -115,7 +115,7 @@ class RealColumnDriftInvariants(unittest.TestCase):
             card_id, 50.01, "expense")
         self.assertFalse(refused, "limitin bir kuruş üstü kabul edildi")
 
-        # Karar yalnız ön-kontrolde değil, gerçek yazma yolunda da tutmalı.
+
         TransactionService.add_transaction(
             card_id, 50.00, "expense", "Audit", "sınır",
             detect_subscription=False)

@@ -35,9 +35,25 @@ from database.db import (
 from utils.crypto import decrypt
 from utils.errors import DecryptionError, KeyUnavailableError
 
-CSV_HEADER = ["kayit_turu", "tarih", "tur", "kategori", "tutar", "miktar", "aciklama", "detay"]
 
-# Jenerik CSV başlıklarını alan adlarına eşleme (küçük harfe indirilmiş halleriyle)
+CSV_VERSION_COLUMN = "_archlence_csv_version"
+
+
+CSV_ESCAPE_VERSION = 2
+
+
+SUPPORTED_CSV_VERSIONS = frozenset({2})
+
+CSV_HEADER = [
+    CSV_VERSION_COLUMN,
+    "kayit_turu", "tarih", "tur", "kategori", "tutar", "miktar", "aciklama",
+    "detay",
+]
+
+
+_RECORD_KINDS = frozenset({"islem", "varlik", "borc", "tekrarlanan"})
+
+
 _COLUMN_ALIASES = {
     "tarih": "tarih", "date": "tarih",
     "tur": "tur", "tür": "tur", "type": "tur",
@@ -56,6 +72,70 @@ _DATE_FORMATS = [
 ]
 
 
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
+
+
+_CSV_ESCAPE_CHAR = "'"
+
+
+_CSV_TEXT_COLUMNS = ("tur", "kategori", "aciklama", "detay")
+_CSV_TEXT_INDEXES = tuple(
+    CSV_HEADER.index(column) for column in _CSV_TEXT_COLUMNS
+)
+
+
+def escape_csv_text(value):
+    """Kullanıcı metnini elektronik tabloya formül olarak teslim etmeyecek
+    hâle getirir. Zararsız metinde KİMLİKTİR — hiçbir hücre boşuna bozulmaz."""
+    text = "" if value is None else str(value)
+    if text.startswith(_FORMULA_PREFIXES) or text.startswith(_CSV_ESCAPE_CHAR):
+        return _CSV_ESCAPE_CHAR + text
+    return text
+
+
+def unescape_csv_text(value):
+    """`escape_csv_text`'in tam tersi: baştaki tek apostrofu soyar."""
+    text = "" if value is None else str(value)
+    if text.startswith(_CSV_ESCAPE_CHAR):
+        return text[1:]
+    return text
+
+
+def _escape_row(row):
+    """Bir satırı dışa aktarıma hazırlar: sürüm işareti + metin kaçışı.
+
+    `row` sürüm kolonunu İÇERMEDEN gelir (çağıranlar veri kolonlarını üretir);
+    işaret burada, tek yerde eklenir ki hiçbir satır işaretsiz çıkmasın.
+    """
+    escaped = [str(CSV_ESCAPE_VERSION)] + list(row)
+    for index in _CSV_TEXT_INDEXES:
+        escaped[index] = escape_csv_text(escaped[index])
+    return escaped
+
+
+_AMBIGUOUS = object()
+
+
+def _row_escape_version(raw):
+    """Satırın sürüm işaretini çözer.
+
+    Döner: desteklenen sürüm numarası, `None` (işaret yok) ya da
+    `_AMBIGUOUS` (işaret var ama okunamıyor/desteklenmiyor).
+    """
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return _AMBIGUOUS
+    try:
+        version = int(text)
+    except ValueError:
+        return _AMBIGUOUS
+    if version not in SUPPORTED_CSV_VERSIONS:
+        return _AMBIGUOUS
+    return version
+
+
 def get_export_path():
     """Dışa aktarım hedefini döndürür: masaüstü varsa oraya, yoksa kullanıcı-veri dizinine."""
     home = os.path.expanduser("~")
@@ -63,10 +143,8 @@ def get_export_path():
         desktop = os.path.join(home, candidate)
         if os.path.isdir(desktop):
             return os.path.join(desktop, "archlence_export.csv")
-    # docs/ROADMAP.md Faz 1 madde 4. Eskiden BASE_DIR'a (uygulamanın kendi
-    # kurulum dizini) düşerdi — paketlenmiş bir Windows kurulumunda bu
-    # genelde salt-okunur, Masaüstü bulunamazsa dışa aktarım burada
-    # sessizce başarısız olurdu.
+
+
     from utils.app_paths import data_dir
     return os.path.join(data_dir(), "archlence_export.csv")
 
@@ -77,9 +155,8 @@ def _dec(value):
     try:
         return decrypt(str(value), SECRET_KEY)
     except KeyUnavailableError:
-        # Anahtar yoksa HİÇBİR alan çözülemez ve kullanıcı BAŞTAN SONA BOŞ
-        # bir CSV indirir — verisini kaybettiğini sanır. Tek bozuk satırı
-        # tolere etmek başka, tüm dışa aktarımın sessizce boşalması başka.
+
+
         raise
     except (DecryptionError, ValueError, TypeError):
         from utils.logging_config import get_logger
@@ -94,13 +171,7 @@ def export_all_to_csv(path=None):
     path = path or get_export_path()
     rows_out = []
 
-    # `managed_connection` ŞART, çıplak `get_connection()` DEĞİL: aşağıdaki
-    # `_dec()` çağrıları anahtar erişilemediğinde KeyUnavailableError
-    # fırlatıyor ve eski kodda `conn.close()` fonksiyonun sonunda tek başına
-    # duruyordu — araya giren her istisnada bağlantı sızıyordu. Windows'ta
-    # sızan bağlantı dosyayı kilitli tutuyor (CI bunu WinError 32 ile
-    # yakaladı); Linux'ta sessizce sızıyordu. Bu, database/db.py'deki
-    # `managed_connection` docstring'inin anlattığı hatanın aynısı.
+
     with managed_connection() as conn:
         cursor = conn.cursor()
 
@@ -160,35 +231,25 @@ def export_all_to_csv(path=None):
     fd, staged = tempfile.mkstemp(prefix=".archlence-export-", dir=target.parent)
     fd_handed_off = False
     try:
-        # `os.fchmod` WINDOWS'TA YOK. Korumasız çağrı orada `AttributeError`
-        # fırlatıyordu, yani CSV dışa aktarma Windows'ta HİÇ çalışmıyordu —
-        # bu koruma (`c2ae4c1`) eklendiğinden beri. Linux'ta test edildiği
-        # için görülmedi.
-        #
-        # DÜRÜST SINIR: POSIX mod bitleri Windows'ta karşılığı olmayan bir
-        # kavram. Orada dosya, üst dizinin ACL'sini devralır ve bu çağrı
-        # atlandığında dosya "yalnız sahibine açık" OLMAZ. Windows tarafında
-        # ACL ile daraltma ayrı bir iş; burada sessizce korunuyormuş gibi
-        # davranmıyoruz (bkz. CHANGELOG "on POSIX systems").
+
+
         if hasattr(os, "fchmod"):
             os.fchmod(fd, 0o600)
         with os.fdopen(fd, "w", newline="", encoding="utf-8-sig") as f:
-            # Bu noktadan sonra fd'nin sahibi `f`; kapatmak ONUN işi.
+
             fd_handed_off = True
             writer = csv.writer(f)
             writer.writerow(CSV_HEADER)
-            writer.writerows(rows_out)
+            writer.writerows(_escape_row(row) for row in rows_out)
             f.flush(); os.fsync(f.fileno())
         os.replace(staged, target)
         if hasattr(os, "fchmod"):
             os.chmod(target, 0o600)
-    # EXCEPTION-AUDIT: bilinçli geniş — staged dosyanın silinmesi HER hata
-    # türünde çalışmalı (şifresi çözülmüş finansal veri diskte kalmasın).
-    # Handler yutmuyor, yeniden fırlatıyor.
+
+
     except Exception:
-        # fd'yi ÖNCE kapat. Windows açık bir dosyayı sildirmez: `fchmod`
-        # patladığında fd hâlâ açıktı ve temizlik `PermissionError [WinError
-        # 32]` ile ikinci kez kırılıyordu — asıl hatayı da gizleyerek.
+
+
         if not fd_handed_off:
             try: os.close(fd)
             except OSError: pass
@@ -227,20 +288,49 @@ def parse_transactions_csv(path):
         reader = csv.DictReader(f)
         if not reader.fieldnames:
             return [], 0
-        field_map = {}
+
+
+        header_map = {}
         for name in reader.fieldnames:
-            key = _COLUMN_ALIASES.get((name or "").strip().lower())
-            if key and key not in field_map:
-                field_map[key] = name
-        has_type_col = "kayit_turu" in [(n or "").strip().lower() for n in reader.fieldnames]
+            key = (name or "").strip().lower()
+            if key and key not in header_map:
+                header_map[key] = name
+        field_map = {}
+        for key, raw_name in header_map.items():
+            alias = _COLUMN_ALIASES.get(key)
+            if alias and alias not in field_map:
+                field_map[alias] = raw_name
+
+        type_col = header_map.get("kayit_turu")
+        version_col = header_map.get(CSV_VERSION_COLUMN)
+
+
+        def _text(row, key, unescape):
+            raw = row.get(field_map.get(key, ""), "") or ""
+            return unescape_csv_text(raw) if unescape else raw
 
         for row in reader:
-            if has_type_col:
-                kayit_turu = (row.get("kayit_turu") or "").strip().lower()
-                if kayit_turu != "islem":
-                    continue  # varlık/borç/tekrarlanan satırları işlem değildir
+            unescape = False
+            if version_col is not None:
+                version = _row_escape_version(row.get(version_col))
+                if version is _AMBIGUOUS:
 
-            raw_tur = (row.get(field_map.get("tur", ""), "") or "").strip().lower()
+
+                    skipped += 1
+                    continue
+                unescape = version is not None
+
+            if type_col is not None:
+                kayit_turu = (row.get(type_col) or "").strip().lower()
+                if kayit_turu not in _RECORD_KINDS:
+
+
+                    skipped += 1
+                    continue
+                if kayit_turu != "islem":
+                    continue
+
+            raw_tur = _text(row, "tur", unescape).strip().lower()
             if raw_tur in _INCOME_WORDS:
                 tx_type = "income"
             elif raw_tur in _EXPENSE_WORDS:
@@ -256,23 +346,12 @@ def parse_transactions_csv(path):
 
             raw_amount = (row.get(field_map.get("tutar", ""), "") or "").strip()
             try:
-                # "1.234,56" Türk biçimini de kabul et
+
                 if "," in raw_amount and raw_amount.count(",") == 1:
                     raw_amount = raw_amount.replace(".", "").replace(",", ".")
                 amount = float(raw_amount)
-                # math.isfinite ŞART: float("inf") ve float("nan") ikisi de
-                # Python'da SORUNSUZ ayrıştırılır ve İKİSİ DE `<= 0`
-                # koşulunu geçmez (IEEE 754: nan ile yapılan her
-                # karşılaştırma False'tur, inf zaten <= 0 değildir). Yani bu
-                # guard tek başına ikisini de KABUL ediyordu. Böyle tek bir
-                # satır içeri alınınca adjust_account_balance'ın
-                # `balance = balance + ?` işlemi hesabı kalıcı olarak
-                # zehirliyor: inf/nan sonraki HER SUM(balance) üzerinden
-                # yayılıyor, yani uygulamadaki her Net Servet rakamı bozuluyor
-                # ve kullanıcı ilgili satırı elle bulup silene kadar düzelmiyor.
-                # Elle giriş yolu bu sınıfa karşı zaten korunuyordu
-                # (utils/formatters.py::read_amount + input_filter); aynı
-                # disiplin CSV yoluna hiç uygulanmamıştı.
+
+
                 if not math.isfinite(amount) or amount <= 0:
                     raise ValueError
             except ValueError:
@@ -282,9 +361,9 @@ def parse_transactions_csv(path):
             records.append({
                 "date": date,
                 "type": tx_type,
-                "category": (row.get(field_map.get("kategori", ""), "") or "").strip() or "Diğer",
+                "category": _text(row, "kategori", unescape).strip() or "Diğer",
                 "amount": amount,
-                "description": (row.get(field_map.get("aciklama", ""), "") or "").strip(),
+                "description": _text(row, "aciklama", unescape).strip(),
             })
 
     return records, skipped
@@ -311,8 +390,8 @@ def import_transactions_from_csv(path, account_id=DEFAULT_ACCOUNT_ID):
             category=rec["category"],
             description=rec["description"] or rec["category"],
             transaction_date=rec["date"],
-            # Geçmişi olduğu gibi yeniden kuruyoruz: gerçekte limiti zorlamış bir
-            # kart harcaması da içeri alınabilmeli, içe aktarım reddedilmemeli.
+
+
             enforce_credit_limit=False,
         )
         net_delta += rec["amount"] if rec["type"] == "income" else -rec["amount"]

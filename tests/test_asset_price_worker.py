@@ -37,8 +37,8 @@ class SubprocessInvocationTest(unittest.TestCase):
 
         import time
         results = []
-        # İzole worker daemon thread'de koşar; mock'lar thread bitene kadar AKTİF
-        # kalmalı, yoksa thread patch kalkınca GERÇEK subprocess'i çalıştırır.
+
+
         with mock.patch.object(asset_service, "_read_cached_portfolio",
                                return_value=None), \
              mock.patch.object(asset_service, "_store_cached_portfolio"), \
@@ -106,7 +106,7 @@ class MultiIndexCloseTest(unittest.TestCase):
     def test_price_service_reads_single_ticker_multiindex(self):
         from services.price_service import _extract_last_close
         frame = self._single_ticker_frame()
-        # single=True olsa bile MultiIndex'ten doğru skaler çıkmalı.
+
         self.assertEqual(
             _extract_last_close(frame, "THYAO.IS", True), 312.0)
 

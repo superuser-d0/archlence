@@ -33,11 +33,10 @@ def _fmt(value):
 class SubscriptionMixin:
     """Abonelik listesi, iptal (iki seçenekli), iade sorusu ve zam düzenleme."""
 
-    # ─── Liste diyaloğu ──────────────────────────────────────────────────────
 
     def open_subscription_management(self, *args):
         """Aktif abonelikleri logolarıyla listeler; her satırda düzenle/iptal."""
-        # Bütçe planlayıcısından çağrıldığında onun diyaloğunu kapat.
+
         planner_dialog = getattr(self, "bp_dialog", None)
         if planner_dialog is not None:
             try:
@@ -110,8 +109,8 @@ class SubscriptionMixin:
             from kivymd.uix.fitimage import FitImage
             row.add_widget(FitImage(
                 source=icon_path,
-                # Yalnızca küçültmeyi düzeltir; ayrıntı için bkz.
-                # mixins/insights_mixin.py'deki aynı çağrı.
+
+
                 mipmap=True,
                 radius=[dp(7)] * 4,
                 size_hint=(None, None),
@@ -120,7 +119,7 @@ class SubscriptionMixin:
             ))
 
         label = MDLabel(
-            # Abonelik adı KULLANICI VERİSİ; tutar ve tarih kontrollü değer.
+
             text=_tf("{name}\n{amount}  ·  Sonraki: {due}",
                      name=payment["name"],
                      amount=_fmt(payment["amount"]),
@@ -144,12 +143,11 @@ class SubscriptionMixin:
         ))
         return row
 
-    # ─── Zam / fiyat düzenleme (spec 5.2) ────────────────────────────────────
 
     def open_subscription_price_dialog(self, payment):
         """Abonelik ücretini silip yeniden kurmadan güncellemeyi sağlar."""
-        # Maskeleme kendi input_filter'ını kurar; mevcut ücret set_amount ile
-        # yazılır çünkü ham "149.99" metni maskede "14.999" olurdu.
+
+
         amount_field = attach_amount_mask(ftheme.make_text_field(
             _t("Yeni Aylık Ücret (₺)"), self.theme_cls,
         ))
@@ -191,13 +189,12 @@ class SubscriptionMixin:
                 from services.recurring_service import update_subscription_amount
                 update_subscription_amount(payment["id"], new_amount)
             except ValueError as exc:
-                # Python except bloğundan çıkarken `exc` adını temizler.
-                # Gecikmeli lambda doğrudan exc'yi kapatırsa Kivy ana thread'i
-                # callback'i çalıştırdığında NameError oluşur.
+
+
                 message = str(exc)
                 Clock.schedule_once(
-                    # Servisten gelen doğrulama metni ÇEVRİLMEZ: sözlükte
-                    # tam karşılığı yoksa olduğu gibi gösterilir.
+
+
                     lambda dt, value=message: toast(value), 0,
                 )
                 return
@@ -214,7 +211,6 @@ class SubscriptionMixin:
 
         threading.Thread(target=work, daemon=True).start()
 
-    # ─── İptal: iki seçenek + iade sorusu (spec 3.2) ─────────────────────────
 
     def open_subscription_cancel_dialog(self, payment):
         """'Sadece bu ay' ile 'bu ay ve sonrası' arasında seçim yaptırır."""
@@ -373,24 +369,24 @@ class SubscriptionMixin:
             try:
                 dialog.dismiss()
             except AttributeError:
-                # `attribute_name` çağrı yerinden gelen serbest bir ad; alan
-                # diyalog dışında bir şey tutuyorsa tek beklenen hata bu.
+
+
                 pass
             setattr(self, attribute_name, None)
 
     def _refresh_subscription_views(self):
         """Abonelik değiştiğinde onu gösteren tüm yüzeyleri tazeler."""
-        # Açık liste diyaloğu varsa yeniden kur; kapalıysa bir şey yapma.
+
         if getattr(self, "subscription_dialog", None) is not None:
             self._dismiss_dialog("subscription_dialog")
             self.open_subscription_management()
 
         for method_name in (
-            "refresh_insights",          # ana sayfa abonelik kartı + radar
-            "load_upcoming_recurring",   # yaklaşan ödemeler
-            "load_recent_transactions",  # iade işlemi listeye düşsün
+            "refresh_insights",
+            "load_upcoming_recurring",
+            "load_recent_transactions",
             "safe_refresh_charts",       # bakiye/grafikler
-            "render_accounts",           # hesap bakiyesi kartları
+            "render_accounts",
         ):
             method = getattr(self, method_name, None)
             if method is None:

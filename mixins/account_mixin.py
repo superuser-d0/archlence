@@ -21,28 +21,7 @@ from kivy.uix.widget import Widget
 from utils.errors import ArchlenceError
 from utils.toast import toast
 
-# Bu dosyadaki dört kullanıcıya-dönük sınırın yakaladığı istisna kümesi.
-#
-# NEDEN AÇIK BİR KÜME: dördü de eskiden `except Exception` idi ve denetim aracı
-# bunları "kullanıcıya gösterilen; daraltılması incelenmeli" diye işaretliyordu
-# (scripts/audit_exception_handlers.py). Daraltma daha önce bilerek
-# ertelenmişti ve gerekçesi kayıtlıydı: GUI koşturulamadığı için daraltılmış
-# bir catch'in ekranı zarifçe bozulmak yerine ÇÖKERTMEDİĞİ doğrulanamıyordu.
-# O engel kalktı; dördü de gerçek uygulamada açılıp doğrulandı.
-#
-# Küme, sarılan servis çağrılarının GERÇEKTEN fırlattıklarından türetildi:
-#   * `ArchlenceError` — kripto/domain hataları bunun alt sınıfı
-#     (KeyUnavailableError, DecryptionError, IntegrityVerificationError).
-#   * `sqlite3.Error` — dördü de DB'ye gidiyor.
-#   * `ValueError`/`TypeError` — `delete_credit_card` "Kredi kartı bulunamadı."
-#     için açıkça `ValueError` fırlatıyor; çözülen tutarların sayıya çevrimi de
-#     bu ikisini üretebilir.
-#
-# DIŞARIDA KALAN BİLİNÇLİ: `KeyError`, `AttributeError` gibi gerçek kodlama
-# hataları. Onlar artık yakalanmıyor ve `main.py::_log_unhandled_exception`'a
-# gidiyor — kullanıcıya anlaşılmaz bir toast göstermek yerine traceback'le
-# loglanıyorlar. Teşhis edilebilirlik kazancı, o durumda zaten bozuk olan bir
-# ekranı ayakta tutma iddiasından değerli.
+
 _USER_FACING_ERRORS = (ArchlenceError, sqlite3.Error, ValueError, TypeError)
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.label import MDLabel
@@ -80,8 +59,8 @@ def account_display_name(account) -> str:
 
 
 class AccountMixin:
-    # Diyaloğu kuran kod bu alana MDDialog örneğini atar; commit başarılı olunca
-    # buradan dismiss edilir.
+
+
     account_dialog = None
     _active_assets_refresh_event = None
     _active_assets_refresh_busy = False
@@ -89,7 +68,7 @@ class AccountMixin:
     _accounts_load_event = None
     _accounts_load_generation = 0
 
-    # ─── Diyalog (UI katmanı burada tamamlanacak) ─────────────────────────────
+
     def open_add_account_dialog(self, *args):
         """'Hesap/Kart Ekle' diyaloğunu açar.
 
@@ -120,23 +99,15 @@ class AccountMixin:
         from kivymd.uix.segmentedcontrol import MDSegmentedControl, MDSegmentedControlItem
         from kivy.metrics import dp
 
-        # ── Yerleşim sabitleri ────────────────────────────────────────────────
-        # TAŞMA DÜZELTMESİ: içerik kutusu eskiden adaptive_height=True idi, yani
-        # tür değişince (1 alan <-> 3 alan) yüksekliği değişiyordu. MDDialog ise
-        # yüksekliğini yalnızca açılışta hesapladığından büyüyen içerik yukarı
-        # taşıp başlığın üzerine biniyordu. Çözüm: içerik kutusunun yüksekliği
-        # SABİT; değişen alanlar sabit yükseklikli `dynamic_container` içine
-        # hapsedildi. Böylece diyalog hiç yeniden ölçülmek zorunda kalmıyor.
+
         PAD = dp(24)
         GAP = dp(16)
-        SEG_H = dp(42)          # MDSegmentedControl.segment_panel_height varsayılanı
-        # MDTextField kendi yüksekliğini içeriden hesaplar (bu sürümde ~32dp) ve
-        # dışarıdan verilen height'i ezer; ayrıca doğrulama hatası gösterince
-        # helper_text için büyür. Bu yüzden alan başına SLOT ayrılır: konteyner
-        # en kötü durumda bile taşmaz, artan boşluk alanların altında kalır.
+        SEG_H = dp(42)
+
+
         FIELD_SLOT = dp(56)
-        # En yüksek durum kredi kartıdır: kart no + borç + limit + kesim günü = 4 alan
-        # (SKT ve CVC kaldırıldı — bkz. docs/ROADMAP.md Faz 1 madde 1)
+
+
         DYNAMIC_H = FIELD_SLOT * 4 + GAP * 3
 
         type_control = MDSegmentedControl(
@@ -161,11 +132,8 @@ class AccountMixin:
         self.acc_debt_field = create_modern_tf(_t("Mevcut Borç (₺)"), "float")
         self.acc_limit_field = create_modern_tf(_t("Toplam Limit (₺)"), "float")
         self.acc_statement_field = create_modern_tf(_t("Hesap Kesim Günü (1-31, opsiyonel)"), "int")
-        # Etikette "opsiyonel" AÇIKÇA yazıyor: alan kod tarafında zaten
-        # opsiyoneldi (boş metin `None`'a düşüyor, servis de `if
-        # card_number_full:` ile atlıyor) ama ipucu bunu söylemediği için
-        # kullanıcı zorunlu sanıyordu. Hesap Kesim Günü alanı aynı kalıbı
-        # zaten kullanıyor.
+
+
         self.acc_card_number_field = create_modern_tf(
             _t("Kart Numarası (opsiyonel — kartsız hesap için boş bırakın)"))
 
@@ -198,22 +166,15 @@ class AccountMixin:
                 dynamic_container.add_widget(self.acc_limit_field)
                 dynamic_container.add_widget(self.acc_statement_field)
             else:
-                # Vadesiz hesabın da fiziksel bir banka kartı olabilir. Kart
-                # numarası girilirse liste PremiumDebitCardWidget çizer, boş
-                # bırakılırsa düz BentoAccountWidget — alanlar OPSİYONEL.
-                # Bu dal eskiden yalnızca bakiye soruyordu; o yüzden banka
-                # kartı widget'ı hiçbir zaman çizilemiyordu (ölü kod).
+
+
                 dynamic_container.add_widget(self.acc_initial_balance_field)
                 dynamic_container.add_widget(self.acc_card_number_field)
-                # Widget() esnektir (size_hint_y=1); sabit yükseklikli
-                # dynamic_container'da kalan boşluğu tek başına doldurur —
-                # kaç sabit alan önce geldiğinden bağımsız.
+
+
                 dynamic_container.add_widget(Widget())
 
-            # TAB zinciri, GÖRÜNEN alanların sırasına göre burada yeniden
-            # kuruluyor. Sabit bir zincir yanlış olurdu: hesap türü
-            # değiştiğinde alanlar değişiyor ve TAB o an ağaçta olmayan bir
-            # alana geçerse odak görünmez bir yere gider.
+
             if account_type_label == _t("Kredi Kartı"):
                 ordered = [
                     self.acc_name_field, self.acc_card_number_field,
@@ -238,11 +199,8 @@ class AccountMixin:
         def do_save(instance):
             is_credit = (self.selected_account_type == _t("Kredi Kartı"))
             acc_type = "credit_card" if is_credit else "checking"
-            
-            # Kart numarası her iki türde de opsiyonel; boş string yerine None
-            # geçiyoruz ki servis "kart yok" durumunu ayırt edebilsin. Servise
-            # yalnızca son-4-hane + kart ağı türetmek için geçer, diske
-            # hiçbir zaman ham hâliyle yazılmaz (bkz. AccountService.create_account).
+
+
             card_number_full = self.acc_card_number_field.text.strip() or None
 
             try:
@@ -257,7 +215,7 @@ class AccountMixin:
                 return
 
             statement_date = self.acc_statement_field.text or None
-            
+
             self.commit_new_account(
                 name=self.acc_name_field.text,
                 account_type=acc_type,
@@ -277,7 +235,7 @@ class AccountMixin:
             theme_text_color="Custom",
             text_color=ftheme.accent(self.theme_cls, 'muted'),
         )
-        
+
         btn_save = MDRaisedButton(
             text=_t("KAYDET"),
             on_release=do_save,
@@ -305,8 +263,8 @@ class AccountMixin:
         try:
             container = card.ids.recent_container
         except (AttributeError, KeyError):
-            # Kart widget'ı beklenen id'yi taşımıyorsa (KV'de ad değişmiş ya da
-            # farklı bir kart tipi geldiyse) satır listesi çizilmez.
+
+
             return
         container.clear_widgets()
 
@@ -342,7 +300,7 @@ class AccountMixin:
                 shorten=True,
                 shorten_from="right",
             )
-            # Gider kırmızı, gelir yeşil — işaret de tutarın önünde.
+
             is_income = it["type"] in ("income", "Gelir", "payment")
             right = MDLabel(
                 text=("+" if is_income else "−") + _fmt(abs(it["amount"])),
@@ -369,7 +327,7 @@ class AccountMixin:
         from services.transaction_service import TransactionService
 
         try:
-            # Ekstre, son hareket özetinin aksine yapay bir kayıt sınırı taşımaz.
+
             items = TransactionService.get_recent_for_account(account_id, limit=None)
         except _USER_FACING_ERRORS as e:
             toast(_tf("Ekstre okunamadı: {detail}", detail=e))
@@ -467,9 +425,8 @@ class AccountMixin:
                     count=active_plan_count,
                 )
             else:
-                # Kart adı KULLANICI VERİSİ. Markup'lı bir diyaloğa
-                # giriyor; bu yüzden ham değil, kaçışlanmış hâliyle
-                # yerleştiriliyor (bkz. ui.i18n.escape_markup).
+
+
                 message = _tf(
                     "{name} kartı, karta bağlı tüm geçmiş işlemler ve "
                     "otomatik ödemeler kalıcı olarak silinecektir. "
@@ -485,8 +442,8 @@ class AccountMixin:
                 except _USER_FACING_ERRORS as exc:
                     toast(_tf("Kart silinemedi: {detail}", detail=exc))
                     return
-                # Kartın ekrandan kalkmasını diyalog kapanış animasyonunun
-                # sonuna bağlama; silme onayında state değişimi anlıktır.
+
+
                 dialog_ref["dialog"].dismiss(animation=False)
                 import services.asset_service as asset_service
                 deleted_debt = float(card.get("debt") or 0)
@@ -495,9 +452,7 @@ class AccountMixin:
                     deleted_card_debt=deleted_debt,
                 )
 
-                # Confirm callback Kivy thread'indedir; state'i callback
-                # dönmeden değiştir, ardından Clock ile lifecycle-sonrası aynı
-                # idempotent güncellemeyi garanti et.
+
                 owner.render_accounts(removed_account_id=account_id)
 
                 def verify_immediate_state(dt):
@@ -552,10 +507,8 @@ class AccountMixin:
         def check_active_plans():
             try:
                 count = AccountService.get_active_installment_plan_count(account_id)
-            # BU BİR ARKA PLAN THREAD'İ (aşağıdaki `threading.Thread`), ama
-            # yakalanan küme yine daraltıldı: hata kullanıcıya diyalogda
-            # gösteriliyor, sessizce yutulmuyor. Beklenmeyen bir tip artık
-            # thread'i düşürüp diyaloğu hiç açmamak yerine loglanacak.
+
+
             except _USER_FACING_ERRORS as exc:
                 Clock.schedule_once(
                     lambda dt, captured_exc=exc: show_dialog(0, captured_exc), 0
@@ -574,21 +527,17 @@ class AccountMixin:
             try:
                 old_menu.dismiss()
             except AttributeError:
-                # Ölçüldü: MDDropdownMenu.dismiss() hiçbir erişilebilir durumda
-                # (hiç açılmamış, iki kez kapatılmış, caller kopmuş) hata
-                # fırlatmıyor. Geriye kalan tek yüzey, alanın menü DIŞINDA bir
-                # nesne tutması.
+
+
                 pass
 
-        # Callback'ler self.card_settings_menu üzerinden gitmemeli: kullanıcı
-        # kapanış animasyonu sürerken başka bir kartın menüsünü açarsa bu alan
-        # artık YENİ menüyü gösterir. Her callback kendi menü örneğini kapatır.
+
         menu_ref = {}
 
         def delete_card(*args):
             menu_ref["menu"].dismiss()
-            # Menü kapanış animasyonu ile onay diyaloğunun üst üste binmesini
-            # önlemek için diyaloğu bir sonraki frame'de aç.
+
+
             from kivy.clock import Clock
             Clock.schedule_once(
                 lambda dt: self.open_delete_card_dialog(account_id), 0
@@ -685,7 +634,7 @@ class AccountMixin:
 
                 bottom = MDBoxLayout(orientation="horizontal", size_hint_y=None,
                                      height=dp(20), spacing=dp(6))
-                # 'Kalan/Toplam Taksit': 3/6 = 3 taksit ödendi, 3 taksit kaldı.
+
                 progress_lbl = MDLabel(
                     text=_tf("{paid}/{total} Taksit Ödendi",
                         paid=plan["paid_installments"],
@@ -737,7 +686,7 @@ class AccountMixin:
         dialog.bind(on_dismiss=clear_dialog_reference)
         dialog.open()
 
-    # ─── İş mantığı (tamamlandı — değiştirmeyin) ──────────────────────────────
+
     def commit_new_account(self, name, account_type, initial_balance=0.0,
                            credit_limit=0.0, statement_date=None,
                            card_number_full=None):
@@ -757,14 +706,14 @@ class AccountMixin:
                 card_number_full=card_number_full,
             )
         except ValueError as exc:
-            # Servis metni UYGULAMA metnidir (kullanıcı verisi değil):
-            # tam anahtarla çevrilir, sözlükte yoksa olduğu gibi çıkar.
+
+
             toast(_t(str(exc)))
             return False
 
         label = ACCOUNT_TYPE_LABELS.get(account_type, "Hesap")
-        # Etiket bir ENUM: ayrıca ve tam anahtarla çevrilir. Ad KULLANICI
-        # VERİSİ: parametre olarak, hiçbir çeviriden geçmeden girer.
+
+
         toast(_tf("✔ {label} eklendi: {name}",
                   label=_t(label), name=str(name).strip()))
 
@@ -775,8 +724,8 @@ class AccountMixin:
                 pass
 
         self.render_accounts()
-        # Net servet kartı işlem verisinden besleniyor; yeni hesap eklemek onu
-        # değiştirmez ama açılış bakiyesi girildiyse özet satırı tazelenmeli.
+
+
         try:
             self.update_metrics_and_goals()
         except Exception:
@@ -796,9 +745,8 @@ class AccountMixin:
 
     def render_accounts(self, *args, removed_account_id=None):
         """Hesap verisini arka planda okumak yerine RAM'den çizer (Instant Render)."""
-        # Bayat snapshot varsa burada tazelenir (bkz. asset_service). DÖNÜŞ
-        # DEĞERİ kullanılmalı: tazeleme modül global'ini yeniden atadığı için
-        # `from ... import _asset_data_cache` ile alınan ad eski sözlükte kalırdı.
+
+
         from services.asset_service import ensure_account_cache_fresh
         _asset_data_cache = ensure_account_cache_fresh()
 
@@ -814,9 +762,8 @@ class AccountMixin:
             for container in (container_cards, container_accounts):
                 for child in list(container.children):
                     if getattr(child, "_archlence_account_id", None) == removed_account_id:
-                        # Premium kartın canvas teardown'u pahalıdır. Görsel ve
-                        # etkileşimsel state'i hemen kapat, fiziksel sökümü
-                        # diyalog kapandıktan sonraki sakin frame'e ertele.
+
+
                         child.opacity = 0
                         child.disabled = True
 
@@ -835,8 +782,8 @@ class AccountMixin:
             return
 
         if not _asset_data_cache or not _asset_data_cache.get("ready"):
-            # Cache invalidation sonrasında silinmiş kart eski widget ağacında
-            # bir frame daha kalmasın. İlk açılışta bu döngüler zaten boştur.
+
+
             for container in (container_cards, container_accounts):
                 for child in list(container.children):
                     if getattr(child, "_archlence_account_id", None) is not None:
@@ -847,7 +794,7 @@ class AccountMixin:
             from kivymd.uix.spinner import MDSpinner
             from kivy.metrics import dp
             from kivy.clock import Clock
-            
+
             loading = MDBoxLayout(
                 orientation="vertical", size_hint_y=None, height=dp(72), spacing=dp(6)
             )
@@ -862,7 +809,7 @@ class AccountMixin:
                        for child in container_accounts.children):
                 loading._archlence_loading = True
                 container_accounts.add_widget(loading)
-            
+
             if getattr(self, "_accounts_cache_poll_event", None) is None:
                 def poll_again(dt):
                     self._accounts_cache_poll_event = None
@@ -892,17 +839,14 @@ class AccountMixin:
             if getattr(child, "_archlence_account_id", None) is not None
         }
         for child in list(container_accounts.children):
-            # `_archlence_empty_state` de temizleniyor: "Henüz hesap
-            # eklenmedi…" etiketi aşağıda ekleniyordu ama HİÇBİR yerde
-            # kaldırılmıyordu — hesap eklendikten sonra kartların altında
-            # asılı kalıyordu. Yükleme göstergesiyle aynı işaretleme
-            # kalıbı kullanılıyor.
+
+
             if (getattr(child, "_archlence_loading", False)
                     or getattr(child, "_archlence_empty_state", False)):
                 container_accounts.remove_widget(child)
 
         self._update_account_summary(summary)
-        
+
         if (self._active_assets_bento is None
                 or self._active_assets_bento.parent is None):
             self._active_assets_bento = ActiveAssetsBentoWidget()
@@ -1054,10 +998,7 @@ class AccountMixin:
             current.status_text = _t("Canlı fiyatlara ulaşılamadı")
             return
 
-        # Açık bir hata sinyali (ağ/işlem istisnası) sessizce ₺0,00 olarak
-        # yutulmasın; kullanıcı fiyatların GELMEDİĞİNİ görmeli. Soğuk önbellekle
-        # gelen geçici 0 (priced_count 0 ama hata yok) yanlış alarm olmasın diye
-        # yalnız gerçek error alanında bu mesaj gösterilir.
+
         if result.get("error"):
             current.balance = _fmt(total)
             current.status_text = _t("Fiyatlar alınamadı")
@@ -1111,21 +1052,21 @@ class AccountMixin:
                 return
             res = _asset_data_cache.get("active_assets_result")
             self._apply_active_assets_result(res)
-            
+
             try:
                 self._update_account_summary(_asset_data_cache["summary"])
             except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Hesap özeti güncellenemedi")
-                
-            # Grafiğin data özelliğini sessizce güncelle (varsa)
+
+
             if hasattr(self, 'active_assets_chart') and hasattr(self.active_assets_chart, 'data'):
                 try:
                     self.active_assets_chart.data = _asset_data_cache.get("some_chart_data")
                 except Exception:
                     from utils.logging_config import get_logger
                     get_logger().exception("Aktif varlık grafiği verisi güncellenemedi")
-                    
+
         start_data_warmup(on_update)
 
     def _update_account_summary(self, summary):

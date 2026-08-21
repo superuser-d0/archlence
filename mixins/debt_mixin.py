@@ -27,7 +27,7 @@ class DebtMixin:
         if not hasattr(self, 'last_calculated_loan'):
             toast(_t("Önce hesaplama yapın!"))
             return
-            
+
         from database.db import insert_debt
 
         def save_debt():
@@ -46,7 +46,7 @@ class DebtMixin:
                 from utils.logging_config import get_logger
                 get_logger().exception("Error adding debt")
                 Clock.schedule_once(lambda dt: toast(_t("Borç eklenirken hata oluştu!")), 0)
-                
+
         threading.Thread(target=save_debt, daemon=True).start()
 
     def load_active_debts(self, *args):
@@ -68,10 +68,8 @@ class DebtMixin:
             container.clear_widgets()
 
             if not debts:
-                # size_hint_y=None + sabit yükseklik: kart artık içeriğe uyuyor
-                # (ui/dashboard.kv, active_debts_card). Varsayılan size_hint_y=1
-                # kapsayıcının minimum_height'ına 0 katkı verir, yani bu metin
-                # sıfır yükseklikli bir alana çizilip görünmez olurdu.
+
+
                 lbl = MDLabel(
                     text=_t("Henüz aktif bir borcunuz bulunmuyor."),
                     theme_text_color="Secondary", font_style="Body2",
@@ -86,7 +84,7 @@ class DebtMixin:
                     MDCard(orientation="vertical", padding="12dp", spacing="8dp",
                            size_hint_y=None, height="140dp", radius=[10]),
                     self.theme_cls)
-                
+
                 header = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="24dp")
                 name_lbl = MDLabel(text=f"{debt['debt_name']}", font_style="Subtitle2", bold=True)
                 amount_lbl = MDLabel(text=_tf(
@@ -157,7 +155,7 @@ class DebtMixin:
 
         remaining_installments = debt['total_installments'] - debt['paid_installments']
         remaining_balance = remaining_installments * debt['monthly_payment']
-        
+
         def confirm(*args):
             self.dialog.dismiss()
             from database.db import update_debt_progress, DEFAULT_ACCOUNT_ID
@@ -216,7 +214,7 @@ class DebtMixin:
 
         def on_slider_value(instance, value):
             val_lbl.text = _tf("Seçilen: {count} Taksit", count=int(value))
-            
+
         slider.bind(value=on_slider_value)
 
         content.add_widget(lbl)
@@ -332,8 +330,8 @@ class DebtMixin:
             return
 
         accounts = AccountService.get_accounts()
-        # Salt okunur 'Aktif Varlıklarım' kartı vadesiz gibi görünse de borç
-        # ödeme kaynağı OLAMAZ; harcama izolasyonu bu pencerede de geçerli.
+
+
         checking_accounts = [
             acc for acc in accounts
             if acc["account_type"] == CHECKING and not is_read_only_asset_account(acc)
@@ -345,8 +343,7 @@ class DebtMixin:
 
         content = MDBoxLayout(orientation="vertical", spacing="14dp", size_hint_y=None, height="120dp")
 
-        # Maskeleme kendi input_filter'ını kurar; mevcut borç set_amount ile
-        # yazılır çünkü ham "3500.0" metni maskede "35.000" olurdu.
+
         amount_input = attach_amount_mask(ftheme.make_text_field(
             _t("Ödenecek Tutar (₺)"), self.theme_cls,
         ))
@@ -383,8 +380,8 @@ class DebtMixin:
                 a for a in accounts_now
                 if a["account_type"] == CHECKING and not is_read_only_asset_account(a)
             ]
-            
-            # Ana buton metnini güncel veriyle zorla güncelle (stale state koruması)
+
+
             for acc in checking_now:
                 if acc["id"] == selected_account_id:
                     account_btn.text = _tf(
@@ -393,7 +390,7 @@ class DebtMixin:
                         balance=f"{acc['balance']:,.2f}",
                     )
                     break
-            
+
             menu_items = []
             for acc in checking_now:
                 menu_items.append({
@@ -411,8 +408,8 @@ class DebtMixin:
                 toast(_t("Lütfen tutar giriniz."))
                 return
             try:
-                # read_amount kanonik değeri okur; maskelenmiş "3.500" metnini
-                # float() 3.5 diye okurdu.
+
+
                 amount = read_amount(amount_input)
             except (ValueError, TypeError):
                 toast(_t("Geçersiz tutar."))
@@ -427,25 +424,8 @@ class DebtMixin:
                     AccountService.pay_credit_card_debt(credit_card_id, selected_account_id, amount)
                     Clock.schedule_once(lambda dt: toast(_t("Borç başarıyla ödendi!")), 0)
                     Clock.schedule_once(lambda dt: self.pay_debt_dialog.dismiss(), 0)
-                    
-                    # Kart bilgilerini tazele. `render_accounts` tek başına
-                    # yeterli: `pay_credit_card_debt` -> `record_balance_event`
-                    # RAM snapshot'ını bayat işaretler, `render_accounts` da
-                    # okumadan önce `ensure_account_cache_fresh()` ile tazeler.
-                    #
-                    # Burada eskiden ek olarak kart ELLE yamanıyordu
-                    # (AccountService.get_account ile taze okuyup
-                    # debt_ratio/available_limit/current_debt alanlarını tek tek
-                    # set ederek). O kod, snapshot'ın bayat kalması yüzünden
-                    # `render_accounts`'ın eski bakiyeyi geri çizmesine karşı bir
-                    # ÇÖZÜM DEĞİL SEMPTOM YAMASIYDI; kök neden giderildiği için
-                    # kaldırıldı. Yaptığı iş zaten
-                    # `_render_account_widget`'ın kredi kartı dalının birebir
-                    # alt kümesiydi (aynı oran formülü, aynı ₺ biçimleyici).
-                    #
-                    # Zamanlama da bozulmuyor: `render_accounts` içindeki
-                    # gecikmeli `add_next` döngüsü yalnızca YENİ widget'lar için;
-                    # hâlihazırda ekranda olan kart aynı karede senkron güncellenir.
+
+
                     Clock.schedule_once(lambda dt: self.render_accounts(), 0)
                 except Exception as e:
                     from utils.logging_config import get_logger

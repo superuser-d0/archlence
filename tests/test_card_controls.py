@@ -70,8 +70,7 @@ class CardControlTest(unittest.TestCase):
         )
         AccountService.set_card_frozen(card_id, True)
 
-        # Yeni bir servis okuması (uygulama yeniden çizimi/yeniden açılışıyla
-        # aynı kalıcı DB yolu) state'i korumalı.
+
         self.assertTrue(AccountService.get_account(card_id)["is_frozen"])
         for transaction_type, installments in (
             ("expense", None),
@@ -122,8 +121,7 @@ class CardControlTest(unittest.TestCase):
             AccountService.get_account(card_id)["online_payments_enabled"]
         )
 
-        # İşlem şemasında online/offline alanı yok: tercih dürüstçe saklanır,
-        # sıradan harcamayı güvenlik kontrolüymüş gibi engellemez.
+
         TransactionService.add_transaction(
             card_id, 100, "expense", "Market", "Fiziksel POS"
         )

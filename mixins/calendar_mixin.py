@@ -32,9 +32,8 @@ _MONTH_NAMES = [
     "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
     "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
 ]
-# Pazartesi başlangıçlı, Türkçe kısaltmalar — calendar.monthcalendar de
-# varsayılan olarak haftayı Pazartesi'den başlatır (calendar.setfirstweekday
-# hiç çağrılmadığı sürece), ikisi aynı sırada.
+
+
 _WEEKDAY_HEADERS = ["Pt", "Sa", "Ça", "Pe", "Cu", "Ct", "Pz"]
 
 
@@ -51,7 +50,6 @@ class CalendarMixin:
     _calendar_month = None
     _calendar_selected_date = None
 
-    # ─── Giriş noktası ───────────────────────────────────────────────────────
 
     def open_calendar_view(self):
         """Takvim diyaloğunu yükleniyor ekranı gösterip ardından açar."""
@@ -62,8 +60,8 @@ class CalendarMixin:
             auto_dismiss=False,
         )
         self._calendar_loading_dialog.open()
-        
-        # UI'ın çizilmesine izin verip takvim oluşturmayı biraz erteliyoruz
+
+
         from kivy.clock import Clock
         Clock.schedule_once(lambda dt: self._build_calendar_view(), 0)
 
@@ -94,11 +92,8 @@ class CalendarMixin:
             orientation="vertical", spacing=dp(2),
             size_hint_y=None, adaptive_height=True,
         )
-        # İşlem sayısı ay ızgarasının yüksekliğini değiştirmemeli. Bu listeyi
-        # doğrudan sabit yükseklikteki ana BoxLayout'a eklemek, çok işlemli
-        # günlerde çocukların diyaloğun dışına taşımasına ve ızgaranın üzerine
-        # binmesine yol açıyordu. ScrollView kalan alanı paylaşır; içindeki
-        # adaptive container yalnızca kendi kaydırma yüksekliğini büyütür.
+
+
         self._calendar_tx_scroll = ScrollView(
             size_hint=(1, 1),
             do_scroll_x=False,
@@ -130,8 +125,7 @@ class CalendarMixin:
                 theme_text_color="Secondary", halign="center",
             ))
 
-        # Diyalog küçük pencerede ekrandan taşmasın, normal masaüstü
-        # penceresinde ise işlem listesine yalnız tek satırlık alan bırakmasın.
+
         root_window = getattr(self, "root_window", None)
         window_height = (
             getattr(root_window, "height", dp(760))
@@ -183,7 +177,6 @@ class CalendarMixin:
         self._calendar_month = month
         self._render_calendar_month()
 
-    # ─── Ay ızgarası ─────────────────────────────────────────────────────────
 
     def _render_calendar_month(self):
         """Seçili ay/yıl için ızgarayı yeniden kurar.
@@ -209,14 +202,12 @@ class CalendarMixin:
         )
 
         weeks = _calendar_module.monthcalendar(year, month)
-        # Altı haftalı aylarda dahi günlük listeye yaklaşık on satırlık alan
-        # kalması için hücreler kompakt tutulur. Sayılar Caption boyutunda
-        # olduğundan 30dp dokunma/görünürlük dengesini koruyor.
+
+
         self._calendar_grid_container.height = dp(32) * len(weeks)
         self._calendar_grid_container.clear_widgets()
-        # Gün hücrelerini tarihe göre sakla: seçim değiştiğinde ızgarayı baştan
-        # kurmak yerine yalnızca ETKİLENEN iki hücre yeniden boyanır
-        # (bkz. _select_calendar_day).
+
+
         self._calendar_day_cells = {}
 
         today = datetime.date.today()
@@ -228,7 +219,7 @@ class CalendarMixin:
             )
             for day in week:
                 if day == 0:
-                    row.add_widget(MDBoxLayout())  # ay dışı boş hücre
+                    row.add_widget(MDBoxLayout())
                     continue
                 cell_date = datetime.date(year, month, day)
                 cell = self._build_calendar_day_cell(
@@ -251,8 +242,8 @@ class CalendarMixin:
             theme_text_color="Custom",
         )
         card.add_widget(label)
-        # Yeniden boyama için gereken sabit bilgiler hücrenin üzerinde taşınır;
-        # aksi halde her seferinde ay sorgusunu tekrar çalıştırmak gerekirdi.
+
+
         card._archlence_label = label
         card._archlence_has_tx = has_tx
         card._archlence_is_today = is_today
@@ -287,7 +278,6 @@ class CalendarMixin:
             label.bold = is_today or is_selected
             label.text_color = text_color
 
-    # ─── Seçili günün işlemleri ──────────────────────────────────────────────
 
     def _select_calendar_day(self, date_obj):
         """Bir gün hücresine dokunulduğunda o günün işlemlerini yükler.
@@ -312,7 +302,7 @@ class CalendarMixin:
         previous = self._calendar_selected_date
         self._calendar_selected_date = date_obj
 
-        # Seçim vurgusu: ızgarayı yeniden kurmadan, yalnız eski ve yeni hücre.
+
         cells = getattr(self, "_calendar_day_cells", None) or {}
         if previous is not None and previous != date_obj:
             old_cell = cells.get(previous)
@@ -344,9 +334,7 @@ class CalendarMixin:
 
             Clock.schedule_once(apply, 0)
 
-        # Debounce: bekleyen okuma varsa iptal et. Aynı kalıp bu codebase'de
-        # zaten kullanılıyor (asset_mixin BIST/kripto araması, budget_mixin
-        # kategori araması); takvime uygulanmamıştı.
+
         pending = getattr(self, "_calendar_load_event", None)
         if pending is not None:
             pending.cancel()
@@ -354,7 +342,7 @@ class CalendarMixin:
         def launch(_dt):
             self._calendar_load_event = None
             if generation != getattr(self, "_calendar_generation", 0):
-                return  # bu istek eskidi, thread'i hiç açma
+                return
             threading.Thread(target=work, daemon=True).start()
 
         self._calendar_load_event = Clock.schedule_once(launch, 0.12)
@@ -387,9 +375,9 @@ class CalendarMixin:
             size_hint_y=None, height=dp(24),
         )
         row.add_widget(MDLabel(
-            text=_tf("{time}  {category}", time=item['time'], category=# Kategori, uygulamanın KENDİ sözlüğünden gelen bir etikettir
-        # (init_db'deki varsayılan liste), kullanıcının serbest metni
-        # değil; bu yüzden tam anahtarla çevrilir.
+            text=_tf("{time}  {category}", time=item['time'], category=
+
+
         _t(item['category'])),
             font_style="Caption",
         ))

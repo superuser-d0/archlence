@@ -30,8 +30,7 @@ from unittest import mock
 
 from utils.errors import FinancialDataIntegrityError, KeyUnavailableError
 
-# `AEADv1:` önekli ama gövdesi bozuk — decrypt() bunu
-# IntegrityVerificationError ile reddeder (ölçüldü).
+
 CORRUPT = "AEADv1:bu-gecerli-bir-zarf-degil"
 
 
@@ -96,15 +95,15 @@ class _ContractTestBase(unittest.TestCase):
 
 
 class DecryptErrorContractTest(_ContractTestBase):
-    # ── 1. Kayıt bazında bozulma: yakala, logla, devam et ────────────────
+
 
     def test_corrupt_savings_goal_is_caught_and_logged(self):
         from services.savings_service import SavingsService
 
         self._corrupt_row(
             "savings_goals", ["goal_name"],
-            # goal_uid ZORUNLU (şema kuşağı 2): kalıcı kimlik opsiyonel
-            # değil. Bozulan şey burada hedefin ADI, kimliği değil.
+
+
             {"target_amount": 100.0, "current_amount": 0.0,
              "goal_uid": "bozuk-satir-uid-1"},
         )
@@ -160,7 +159,6 @@ class DecryptErrorContractTest(_ContractTestBase):
         self.assertTrue(
             any("VERİ BÜTÜNLÜĞÜ" in m for m in self.capture.messages()))
 
-    # ── 2. Anahtar erişilemez: yut DEĞİL, yukarı taşı ────────────────────
 
     def _with_unavailable_key(self, module_path):
         """`decrypt()` anahtara erişemiyormuş gibi davransın.
@@ -181,8 +179,8 @@ class DecryptErrorContractTest(_ContractTestBase):
 
         self._corrupt_row(
             "savings_goals", ["goal_name"],
-            # goal_uid ZORUNLU (şema kuşağı 2): kalıcı kimlik opsiyonel
-            # değil. Bozulan şey burada hedefin ADI, kimliği değil.
+
+
             {"target_amount": 100.0, "current_amount": 0.0,
              "goal_uid": "bozuk-satir-uid-1"},
         )

@@ -30,12 +30,8 @@ class _FakeCard:
             self._touch_up_handler = kwargs["on_touch_up"]
 
     def fire_touch_up(self, pos=(0, 0), touch=None):
-        # `ud` gerçek bir dict olmalı — gerçek Kivy Touch nesnelerinde de
-        # öyledir (bkz. ui/theme.py::bind_card_tap'in touch.ud tabanlı
-        # tekilleştirme notu). Bare bir Mock() burada YANLIŞ olurdu: `touch.ud`
-        # kendiliğinden başka bir Mock üretir, `.get(...)` da o Mock'u döner —
-        # her zaman "truthy" olur ve callback'i hiç çalıştırmadan yanlışlıkla
-        # "zaten işlendi" sanır.
+
+
         if touch is None:
             touch = mock.Mock(pos=pos, ud={})
         return self._touch_up_handler(self, touch)

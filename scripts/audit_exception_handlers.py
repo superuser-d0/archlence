@@ -8,20 +8,11 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-# `AppDir` derleme çıktısıdır (.gitignore'da; build-linux.yml üretir) ve içinde
-# KivyMD'nin KENDİ kaynağının kopyası bulunur. Taranırsa üçüncü parti
-# handler'lar "yeni geniş handler" sayılıp kapıyı KIRAR — CI'da görünmez
-# (temiz checkout), ama yerelde bir kez AppImage üreten geliştiricide kapı
-# kapanır. Aynı gerekçe tests/test_icon_names.py::SKIP_DIRS için de geçerli.
+
+
 SKIP = {".git", ".venv", "venv", "build", "dist", "AppDir"}
 
 
-# Bir handler'ın ÜSTÜNDE ya da İÇİNDE bu işaret geçiyorsa, geniş bırakılması
-# incelenmiş ve bilinçli olarak kabul edilmiş demektir. Gerekçe her zaman
-# aynı satırdaki serbest metinde durur. İşaret CI kapısını GEVŞETMEZ:
-# `--check` yalnızca parmak izi sayımına ve bare `except`'e bakar, sınıfa
-# değil. Amacı, incelenmiş kararların "incelenmemiş borç" listesinde
-# görünmeye devam etmesini önlemek.
 AUDIT_MARKER = "EXCEPTION-AUDIT: bilinçli geniş"
 
 _LOG_METHODS = {"debug", "info", "warning", "error", "exception", "critical"}
@@ -157,19 +148,8 @@ def inventory():
             def visit_ExceptHandler(self, node):
                 broad = _is_broad(node.type, broad_aliases)
                 if broad:
-                    # AST dumps are not a stable interchange format across
-                    # Python minors (local 3.14 vs production CI 3.12 yielded
-                    # different hashes for every existing handler). Identity
-                    # therefore uses source location semantics, while Counter
-                    # cardinality still detects a second broad handler in the
-                    # same function.
-                    #
-                    # `as_posix()` ŞART, `str()` DEĞİL: Windows'ta `str()`
-                    # ters bölü üretiyor (`services\\x.py`), yani ORADA HER
-                    # fingerprint Linux'ta üretilmiş baseline'dan farklı
-                    # çıkıyor ve envanter testi bütünüyle kırılıyor. Linux'ta
-                    # ikisi aynı sonucu verdiği için baseline'ı yeniden
-                    # üretmek GEREKMİYOR.
+
+
                     identity = "|".join(
                         [
                             path.relative_to(ROOT).as_posix(),
@@ -247,16 +227,8 @@ def main():
         current = collections.Counter(
             item["fingerprint"] for item in findings
         )
-        # TAM EŞİTLİK. Eskiden yalnızca `current - baseline` (fazlalık)
-        # kontrol ediliyordu, yani baseline'ın gerçekten FAZLA kayıt taşıması
-        # hiçbir zaman hata üretmiyordu. Bu, v0.0.6'da bulunan 44 boş slotun
-        # mekanizmasıydı ve kendiliğinden tekrar oluşabiliyordu: bir handler
-        # DARALTILDIĞINDA (iyi bir değişiklik) baseline sessizce slack açıyor,
-        # sonra aynı fonksiyona eklenen yeni bir geniş handler o boşluğa
-        # sessizce yerleşiyordu (denetim bulgusu A-2).
-        #
-        # Artık azalma da hata. Handler daraltmak hâlâ doğru bir değişiklik;
-        # yalnızca baseline'ın BİLİNÇLİ olarak yeniden üretilmesini istiyoruz.
+
+
         additions = current - baseline
         removals = baseline - current
         bare = [item for item in findings if item["kind"] == "bare"]

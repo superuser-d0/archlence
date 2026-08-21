@@ -24,7 +24,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# `savings_goals`'ın v0.0.12 kuşağındaki hâli — göç edecek profilin şeması.
+
 LEGACY_SAVINGS_TABLE = """
     CREATE TABLE savings_goals (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -326,8 +326,8 @@ class NotNullEnforcementTest(_Profile):
             rows,
             [(3, 20000.0, 1000.0, "aktif"), (9, 5000.0, 250.0, "tamamlandi")],
         )
-        # UID'ler yeniden yaratımdan sonra da AYNI kalmalı: yedeklerdeki
-        # kimlik bağı buna dayanıyor.
+
+
         initialize_database()
         self.assertEqual(self._uids(), first)
 
@@ -345,10 +345,8 @@ class NotNullEnforcementTest(_Profile):
             (2, "sifreli-2", 1000.0, 0.0, None, "aktif"),
         ])
         with closing(sqlite3.connect(self.db_path)) as conn:
-            # Kullanıcı 7 hedef açıp beşini silmiş: sayaç 7'de kalır.
-            # UPDATE, INSERT DEĞİL — `sqlite_sequence`de tablo adı üzerinde
-            # benzersizlik kısıtı yok, ikinci bir satır eklemek sessizce
-            # ikinci bir sayaç yaratır ve testin ölçtüğü şeyi bozar.
+
+
             conn.execute(
                 "UPDATE sqlite_sequence SET seq = 7 WHERE name = 'savings_goals'"
             )

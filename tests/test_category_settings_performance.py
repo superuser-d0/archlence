@@ -72,8 +72,7 @@ class CategoryIncrementalLoadTest(unittest.TestCase):
         after_first_batch = len(self.added)
         self.assertLess(after_first_batch, 20)
 
-        # Kullanıcı başka bir sekmeye geçti: gerçek load_categories() bunu
-        # yeni bir jenerasyon numarasıyla yapar.
+
         self.app._category_load_generation = 2
 
         for _ in range(10):
@@ -92,7 +91,7 @@ class CategoryIncrementalLoadTest(unittest.TestCase):
         stale_categories = _make_categories(20, "income")
         self.app._add_categories_incrementally(self.settings_list, stale_categories, generation=1)
 
-        # Yeni sekme: yeni jenerasyon + yeni (ayrı) liste/mock.
+
         self.app._category_load_generation = 2
         new_settings_list = mock.Mock()
         new_added = []

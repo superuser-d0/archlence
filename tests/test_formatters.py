@@ -184,16 +184,15 @@ class _FakeField:
         self.input_filter = None
         self._callbacks = []
 
-    # --- TextInput API'sinin maskelemenin dokunduğu kısmı ---
+
     @property
     def text(self):
         return self._text
 
     @text.setter
     def text(self, value):
-        # İmlece DOKUNULMAZ. Gerçek `TextInput.insert_text` de böyle davranır:
-        # ÖNCE metni yazar (bu on_text'i tetikler), imleci ANCAK SONRA
-        # ilerletir. Bu sıralama kritik — bkz. insert_text() aşağıda.
+
+
         self._text = value
         for callback in list(self._callbacks):
             callback(self, value)
@@ -208,7 +207,7 @@ class _FakeField:
     def get_cursor_from_index(self, index):
         return (index, 0)
 
-    # --- Kivy TextInput.insert_text'in GERÇEK sırası ---
+
     def insert_text(self, substring, from_undo=False):
         """filtre -> metni yaz (on_text burada) -> imleci İLERLET.
 
@@ -234,7 +233,7 @@ class _FakeField:
         self.text = self._text[:index - 1] + self._text[index:]
         self.cursor = (index - 1, 0)
 
-    # --- Test yardımcısı: imleci konumlandırıp gerçek giriş yolundan yazar ---
+
     def type_at(self, chars, index=None):
         if index is not None:
             self.cursor = (index, 0)
@@ -265,7 +264,7 @@ class CursorPositionTest(unittest.TestCase):
 
         field.type_at("9", index=1)          # "19.234"
         self.assertEqual(field.text, "19.234")
-        # Anlamlı karakter sayısı: "1", "9" -> imleç 2. indekste
+
         self.assertEqual(field.cursor_index(), 2)
 
     def test_cursor_accounts_for_newly_inserted_group_separator(self):
@@ -273,7 +272,7 @@ class CursorPositionTest(unittest.TestCase):
         field = self._field()
         field.type_at("999")
         self.assertEqual(field.text, "999")
-        field.type_at("9")                   # "9.999" — ayraç doğdu
+        field.type_at("9")
         self.assertEqual(field.text, "9.999")
         self.assertEqual(field.cursor_index(), len(field.text))
 

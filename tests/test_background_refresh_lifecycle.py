@@ -72,7 +72,7 @@ class ExplicitStopTest(unittest.TestCase):
         çağrılır) hata vermemeli."""
         app = mock.Mock()
         app._active_assets_refresh_event = None
-        self.stop(app)  # patlamamalı
+        self.stop(app)
         self.assertIsNone(app._active_assets_refresh_event)
 
 
@@ -88,7 +88,7 @@ class AppShutdownHookTest(unittest.TestCase):
         import main
         app = mock.Mock()
         app.stop_active_assets_refresh.side_effect = RuntimeError("beklenmedik")
-        main.ArchlenceApp.on_stop(app)  # patlamamalı
+        main.ArchlenceApp.on_stop(app)
 
 
 if __name__ == "__main__":

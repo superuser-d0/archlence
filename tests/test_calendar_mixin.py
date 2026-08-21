@@ -191,7 +191,7 @@ class CalendarMonthRenderTest(unittest.TestCase):
         CalendarMixin._render_calendar_month(self.host)
 
         get_days.assert_called_once_with(2026, 3)
-        # calendar.monthcalendar(2026, 3) -> Mart 2026 tam olarak 5 hafta sürer.
+
         import calendar as _cal
         expected_weeks = len(_cal.monthcalendar(2026, 3))
         self.assertEqual(
@@ -208,7 +208,7 @@ class CalendarMonthRenderTest(unittest.TestCase):
         self.host._calendar_month = 3
         self.host._calendar_selected_date = datetime.date(2026, 3, 1)
 
-        CalendarMixin._render_calendar_month(self.host)  # patlamamalı
+        CalendarMixin._render_calendar_month(self.host)
 
         self.assertGreater(len(self.host._calendar_grid_container.children), 0)
 
@@ -222,14 +222,11 @@ class CalendarDaySelectionTest(unittest.TestCase):
         self.host._calendar_selected_label = calendar_module.MDLabel()
         self.host._calendar_tx_container = calendar_module.MDBoxLayout()
         self.host._render_calendar_month = mock.Mock()
-        # self.host bir Mock() — getattr(mock, "_calendar_generation", 0)
-        # varsayılanı hiç DÖNMEZ, Mock her eksik attribute'u kendiliğinden
-        # üretir. Sayaç mantığının gerçek int ile çalışması için baştan set.
+
+
         self.host._calendar_generation = 0
-        # AYNI GEREKÇE: _select_calendar_day içeride self._apply_calendar_day(...)
-        # çağırıyor — self bir Mock() olduğundan bağlanmamış bırakılırsa bu,
-        # gerçek metot yerine sessizce hiçbir şey yapmayan bir sahte Mock'a
-        # gider (tests/test_insights_mixin.py'deki _empty_label ile aynı tuzak).
+
+
         self.host._apply_calendar_day = types.MethodType(
             CalendarMixin._apply_calendar_day, self.host
         )
@@ -303,7 +300,7 @@ class CalendarDaySelectionTest(unittest.TestCase):
 
         self.host._render_calendar_month.assert_not_called()
         self.assertEqual(self.host._calendar_selected_date, new_day)
-        # Eski hücre söndürülür, yeni hücre yakılır — başka hücreye dokunulmaz.
+
         self.host._style_calendar_day_cell.assert_has_calls(
             [mock.call(old_cell, False), mock.call(new_cell, True)],
             any_order=False,

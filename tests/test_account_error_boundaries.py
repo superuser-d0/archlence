@@ -28,8 +28,8 @@ os.environ.setdefault("ARCHLENCE_HEADLESS", "1")
 
 
 def _mixin():
-    # KivyMD import'u modül düzeyinde YAPILMAZ: import anında `dp()` çağırıyor
-    # ve test discovery'sinde metrikler henüz kurulmamış oluyor.
+
+
     from mixins import account_mixin
     return account_mixin
 
@@ -42,8 +42,8 @@ class ErrorSetIsDerivedFromWhatTheServicesRaiseTest(unittest.TestCase):
         errors = _mixin()._USER_FACING_ERRORS
         self.assertIn(ArchlenceError, errors)
         self.assertIn(sqlite3.Error, errors)
-        # `delete_credit_card` "Kredi kartı bulunamadı." için açıkça ValueError
-        # fırlatıyor; çözülen tutarların sayıya çevrimi TypeError üretebilir.
+
+
         self.assertIn(ValueError, errors)
         self.assertIn(TypeError, errors)
 
@@ -94,7 +94,7 @@ class StatementBoundaryTest(unittest.TestCase):
 
         harness = self._call(KeyUnavailableError("anahtar yok"))
         self.assertEqual(len(harness.toasts), 1)
-        self.assertIn("Ekstre okunamadı", harness.toasts[0])
+        self.assertIn("Could not read the statement", harness.toasts[0])
 
     def test_database_error_is_shown_not_raised(self):
         harness = self._call(sqlite3.OperationalError("kilitli"))
@@ -133,7 +133,7 @@ class InstallmentPlansBoundaryTest(unittest.TestCase):
     def test_database_error_is_shown_not_raised(self):
         harness = self._call(sqlite3.OperationalError("kilitli"))
         self.assertEqual(len(harness.toasts), 1)
-        self.assertIn("Taksit planları okunamadı", harness.toasts[0])
+        self.assertIn("Could not read the instalment plans", harness.toasts[0])
 
     def test_domain_error_is_shown_not_raised(self):
         from utils.errors import DecryptionError

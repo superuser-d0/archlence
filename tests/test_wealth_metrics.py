@@ -41,8 +41,7 @@ class WealthMetricsRegressionTest(unittest.TestCase):
         net_after = AccountService.get_net_worth()["net"]
         self.assertAlmostEqual(net_after, net_before - 229.99, places=2)
 
-        # Dashboard metriği işlem geçmişinde gelir - gider kullandığından bu
-        # tek işlemli izole senaryonun sıvı bakiye girdisi tam olarak budur.
+
         liquid_balance = 0.0 - 229.99
         self.assertAlmostEqual(liquid_balance, -229.99, places=2)
         self.assertEqual(format_try(liquid_balance), "-₺229,99")

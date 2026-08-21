@@ -1,23 +1,9 @@
 name: Release
 
-# NEDEN BU DOSYA VAR: build-windows.yml / build-linux.yml yalnızca **artifact**
-# üretir. GitHub Actions artifact'leri son kullanıcıya dağıtım için uygun DEĞİL:
-# indirmek için GitHub hesabıyla oturum açmak gerekir ve varsayılan olarak 90
-# günde silinirler. Kalıcı, herkese açık, doğrudan indirilebilir bir bağlantı
-# ancak bir GitHub **Release** varlığıyla olur — bu workflow onu üretir.
-#
-# Kullanım (sürümü kesmek):
-#   git tag v0.0.2 && git push origin v0.0.2
-# Etiketin `v` ile başlaması yeterli; sürüm numarası etiketten türetilir ve
-# Inno Setup kurulumuna gömülür (bkz. installer/archlence.iss'in #ifndef bloğu).
-#
-# Derleme tarifleri BURADA TEKRARLANMAZ: iki platform workflow'u `workflow_call`
-# ile çağrılır. Kopyalamak, ANGLE arka ucu / xvfb / smoke test gibi zor kazanılmış
-# ayrıntıların zamanla iki yerde birbirinden ayrışması anlamına gelirdi.
 on:
   push:
     tags: [ "v*" ]
-  # Etiket atmadan uçtan uca denemek için (taslak release üretir).
+
   workflow_dispatch:
     inputs:
       version:
@@ -45,8 +31,7 @@ jobs:
       - name: Sürümü belirle
         id: derive
         shell: bash
-        # Etiketle tetiklendiyse `refs/tags/v1.2.3` -> `1.2.3`; elle
-        # tetiklendiyse girdideki değer kullanılır.
+
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
             version="${GITHUB_REF#refs/tags/}"
@@ -64,11 +49,6 @@ jobs:
             exit 1
           fi
 
-          # Ön-sürüm mü? İki kural:
-          #   * `0.` ile başlıyorsa (0.x = henüz 1.0 değil, semver kuralı)
-          #   * `-` içeriyorsa (0.9.0-rc1, 1.0.0-beta gibi semver ön-sürüm eki)
-          # Bu işaret olmadan 0.9.0 GitHub'da "Latest release" olarak tam
-          # prominence ile görünür ve kararlı bir sürümmüş gibi durur.
           case "$version" in
             0.*|*-*) prerelease=true ;;
             *)       prerelease=false ;;
@@ -109,10 +89,7 @@ jobs:
 
       - name: Varlıkları sürümlü adlarla hazırla
         shell: bash
-        # Derleme tarafındaki dosya adları bilerek sabit (Archlence-x86_64.
-        # AppImage / ArchlenceSetup.exe). Sürümü yalnızca burada, yayınlanacak
-        # kopyaya ekliyoruz: kullanıcı birkaç sürümü aynı klasöre indirdiğinde
-        # dosyalar birbirini ezmesin.
+
         run: |
           set -euo pipefail
           v="${{ needs.version.outputs.version }}"
@@ -153,16 +130,7 @@ jobs:
 
       - name: Draft release oluştur ve varlıkları ekle
         shell: bash
-        # `gh` runner'da hazır kurulu geliyor. Üçüncü taraf bir release action'ı
-        # yerine bilinçli olarak bu tercih edildi: bu iş `contents: write`
-        # yetkisiyle koşuyor ve o yetkiyi repo dışı bir action'a açmak gereksiz
-        # bir tedarik zinciri yüzeyi olurdu.
-        #
-        # --repo ZORUNLU: bu iş yalnızca artifact indiriyor, kaynak ağacı
-        # checkout ETMİYOR. `gh` hedef repoyu normalde git remote'undan
-        # çıkarır; checkout olmadığı için `fatal: not a git repository` ile
-        # düşüyordu (ilk deneme koşusunda böyle yakalandı). Sadece bu bayrak
-        # için koca bir checkout eklemek gereksiz olurdu.
+
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -206,18 +174,12 @@ jobs:
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # DÜZELTME: bu adım eskiden KOŞULSUZ `--prerelease=false --latest`
-        # yapıyordu. `version` job'ı 0.x ve `-rc` gibi etiketleri doğru biçimde
-        # ön-sürüm olarak işaretliyor ve taslak da öyle oluşturuluyordu — ama
-        # burası hemen ardından o kararı eziyordu. Sonuç: bir 0.0.1 etiketi
-        # GitHub'da "Latest release" olarak, kararlı bir sürüm görünümüyle
-        # yayımlanırdı. Tam olarak kaçınılmak istenen şey buydu (bkz. version
-        # job'ındaki gerekçe yorumu).
+
         run: |
           set -euo pipefail
           tag="${{ github.ref_name }}"
           if [ "${{ needs.version.outputs.prerelease }}" = "true" ]; then
-            # Ön-sürüm: taslaktan çıkar ama "Latest" yapma.
+
             gh release edit "$tag" \
               --repo "${{ github.repository }}" \
               --draft=false \

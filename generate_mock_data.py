@@ -33,7 +33,7 @@ TODAY = date(2026, 7, 19)
 START = TODAY - timedelta(days=365)
 ACCOUNT_ID = 1
 
-MOCK_TAG = "[MOCK]"  # açıklamalara gömülür; gerekirse tek DELETE ile temizlenebilir
+MOCK_TAG = "[MOCK]"
 
 
 def format_price_tl(price):
@@ -98,7 +98,7 @@ def _main(conn):
     cursor = conn.cursor()
     n_tx = 0
 
-    # ── 1. MAAŞ: her ayın 1'i; Ocak 2026'da %30 zam ────────────────────────────
+
     for d in iter_monthly(START, TODAY, 1):
         salary = 85_000.0 if d < date(2026, 1, 1) else 110_500.0
         add_tx(cursor, salary, "income", "Maaş", "Aylık maaş", d, hour=8, minute=30)
@@ -112,8 +112,7 @@ def _main(conn):
         add_tx(cursor, amt, "income", cat, desc, d)
         n_tx += 1
 
-    # ── 2. GÜNLÜK HARCAMALAR: kategori havuzundan rastgele ─────────────────────
-    # (kategori adları categories tablosundaki gerçek adlarla eşleşiyor)
+
     daily_pool = [
         ("Süpermarket", 250, 2200, 0.75),
         ("Dışarıda Yemek", 180, 950, 0.35),
@@ -136,13 +135,13 @@ def _main(conn):
                 n_tx += 1
         d += timedelta(days=1)
 
-    # Aylık faturalar (5-12'si arası): elektrik, su, doğalgaz, internet, telefon
+
     for cat, lo, hi, day in [
         ("Elektrik", 800, 2400, 5), ("Su", 250, 700, 7), ("Doğalgaz", 300, 4500, 9),
         ("İnternet", 549.9, 549.9, 11), ("Cep Telefonu", 420, 420, 12),
     ]:
         for md in iter_monthly(START, TODAY, day):
-            # Doğalgaz kışın pahalı: Kas-Mar arası üst bant, yazın alt bant
+
             if cat == "Doğalgaz":
                 amt = random.uniform(2500, 4500) if md.month in (11, 12, 1, 2, 3) else random.uniform(300, 700)
             else:
@@ -150,16 +149,14 @@ def _main(conn):
             add_tx(cursor, round(amt, 2), "expense", cat, f"{cat} faturası", md)
             n_tx += 1
 
-    # Eksi bakiye ayları: Aralık 2025 (yılbaşı + elektronik) ve Haziran 2026 (tatil)
+
     add_tx(cursor, 64_990.0, "expense", "Ev Eşyası", "Yeni TV ve süpürge", date(2025, 12, 20))
     add_tx(cursor, 38_500.0, "expense", "Hobiler", "Yılbaşı alışverişi", date(2025, 12, 27))
     add_tx(cursor, 72_000.0, "expense", "Tatil/Konaklama", "Bodrum yazlık tatili", date(2026, 6, 12))
     add_tx(cursor, 21_400.0, "expense", "Dışarıda Yemek", "Tatil yeme-içme", date(2026, 6, 18))
     n_tx += 4
 
-    # ── 3. TEKRARLAYAN ÖDEMELER: geçmiş 12 ay backfill + aktif tanımlar ────────
-    # db.py fonksiyonları kendi bağlantılarını açar; bu bağlantıdaki bekleyen
-    # INSERT'ler SQLite'ı kilitlemesin diye önce commit edilir.
+
     conn.commit()
     recurring_defs = [
         ("Kira", 18_000.0, "Ev Kirası", 1, "2026-08-01"),
@@ -175,12 +172,12 @@ def _main(conn):
         insert_recurring_payment(name, amount, category, "monthly", next_due,
                                  auto_deduct=True, account_id=ACCOUNT_ID)
 
-    # ── 4. BORÇLAR ─────────────────────────────────────────────────────────────
+
     def last_debt_id():
         cursor.execute("SELECT MAX(id) m FROM active_debts")
         return cursor.fetchone()["m"]
 
-    # 4a. Bitmiş borç: 12 taksitlik telefon, son 5 taksiti pencere içinde
+
     conn.commit()
     insert_debt(f"Telefon Taksiti {MOCK_TAG}", 24_000.0, 2_000.0, 12)
     finished_id = last_debt_id()
@@ -190,21 +187,21 @@ def _main(conn):
                "Telefon Taksiti (1 Taksit Ödemesi)", md)
         n_tx += 1
 
-    # 4b. Aktif borç: 24 taksitlik taşıt kredisi, 11'i ödendi, otomatik ödeme açık
+
     conn.commit()
     insert_debt(f"Taşıt Kredisi {MOCK_TAG}", 480_000.0, 20_000.0, 24)
     active_id = last_debt_id()
     update_debt_progress(active_id, 11, is_active=1)
     update_debt_auto_pay(active_id, True, 5)
-    update_debt_last_auto_pay(active_id, "2026-07")  # bu ayki taksit çekildi
+    update_debt_last_auto_pay(active_id, "2026-07")
     for md in iter_monthly(date(2025, 9, 1), TODAY, 5):
         add_tx(cursor, 20_000.0, "expense", "Kredi Taksiti",
                "Taşıt Kredisi (Otomatik Taksit Ödemesi)", md, hour=7, minute=15)
         n_tx += 1
 
-    # ── 5. VARLIKLAR: alım tarihine yayılmış portföy + alım işlemleri ──────────
+
     assets = [
-        # (isim, kod, tür, birim alım ₺, adet, tarih)
+
         ("Türk Hava Yolları", "THYAO", "Hisse", 285.50, 100, date(2025, 9, 12)),
         ("Aselsan", "ASELS", "Hisse", 62.30, 150, date(2025, 11, 3)),
         ("Şişecam", "SISE", "Hisse", 39.80, 500, date(2026, 2, 18)),
@@ -223,9 +220,9 @@ def _main(conn):
                 f"birim fiyat {format_price_tl(price)}")
         add_tx(cursor, round(price * qty, 2), "expense", "Varlık Alımı", desc, buy_d, hour=11)
         n_tx += 1
-        conn.commit()  # bir sonraki insert_asset'in (ayrı bağlantı) kilitlenmemesi için
+        conn.commit()
 
-    # 5a. Bir satış örneği (pozisyon kapanmış, sadece geçmişte iz): KOZAA
+
     buy_d, sell_d = date(2025, 8, 25), date(2026, 5, 8)
     add_tx(cursor, 5_100.0, "expense", "Varlık Alımı",
            f"Koza Altın (KOZAA) alındı — 200 adet, birim fiyat {format_price_tl(25.50)}",
@@ -238,7 +235,7 @@ def _main(conn):
 
     conn.commit()
 
-    # ── 6. DOĞRULAMA ÖZETİ ─────────────────────────────────────────────────────
+
     from utils.crypto import decrypt
     cursor.execute("""
         SELECT strftime('%Y-%m', transaction_date) ym, type, amount
@@ -249,11 +246,8 @@ def _main(conn):
         try:
             amt = float(decrypt(enc_amt, SECRET_KEY))
         except (ArchlenceError, TypeError, ValueError):
-            # Ölçüldü: `decrypt` fail-closed ve TİPLİ — bozuk AEAD zarfı
-            # IntegrityVerificationError, base64 olmayan legacy veri
-            # DecryptionError, anahtar sorunu KeyUnavailableError; üçü de
-            # ArchlenceError türevi. `float()` tarafı: None -> TypeError,
-            # boş/sayı olmayan düz metin -> ValueError.
+
+
             continue
         monthly.setdefault(ym, [0.0, 0.0])
         monthly[ym][0 if t == "income" else 1] += amt
@@ -271,7 +265,6 @@ def _main(conn):
         net = inc - exp
         flag = "  << EKSİ" if net < 0 else ""
         print(f"  {ym}:  +{inc:>12,.2f}  -{exp:>12,.2f}  net {net:>12,.2f}{flag}")
-    # Kapatma sarmalayıcı `main()`'in `finally` bloğunda.
 
 
 if __name__ == "__main__":

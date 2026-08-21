@@ -1,5 +1,5 @@
 import os, sys
-# ui/dashboard.kv göreli yolla yüklendiği için proje köküne geçilir
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _ROOT)
 os.chdir(_ROOT)
@@ -35,18 +35,16 @@ def main():
             return "pin_setup"
 
         def build(self):
-            # tools.kv ÖNCE: <BudgetPlannerPanel@MDCard> kuralı orada tanımlı ve
-            # show_budget_planner tarafından Factory ile örnekleniyor; kural
-            # dashboard.kv'den önce yüklenmeli (main.py::build ile aynı sıra).
+
+
             Builder.load_file("ui/tools.kv")
             return Builder.load_file("ui/dashboard.kv")
 
         def on_start(self):
             from kivy.clock import Clock
             print("IDS:", list(self.root.ids.keys()))
-            # KivyMD toolbar aynı ilk kareye overflow kurulumu planlar. App'i
-            # senkron durdurmak bu callback'i appsiz bırakır; bir sonraki kısa
-            # frame penceresi gerçek KV kurulumunu tamamlayıp temiz kapatır.
+
+
             Clock.schedule_once(lambda _dt: self.stop(), 0.5)
 
     IdsApp().run()

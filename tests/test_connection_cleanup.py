@@ -42,8 +42,8 @@ def _fd_count():
     "file descriptor sayımı /proc gerektirir (Linux)",
 )
 class ConnectionCleanupTest(unittest.TestCase):
-    # Ortam gürültüsüne dayanıklı, belgelenmiş tolerans. Asıl aranan şey
-    # "onlarca bağlantı birikiyor mu"; tam sayı değil.
+
+
     TOLERANCE = 5
 
     def setUp(self):
@@ -166,7 +166,7 @@ class ConnectionOwnershipTest(unittest.TestCase):
         conn = sqlite3.connect(self.db_path)
         with conn:
             conn.execute("SELECT 1")
-        # Hâlâ AÇIK — kapanmış olsaydı bu satır ProgrammingError verirdi.
+
         conn.execute("SELECT 1")
         conn.close()
         with self.assertRaises(sqlite3.ProgrammingError):
@@ -206,7 +206,7 @@ class ConnectionOwnershipTest(unittest.TestCase):
         with managed_connection() as conn:
             cursor = conn.cursor()
             adjust_account_balance(cursor, account_id, "income", 50.0)
-            # Bağlantı hâlâ kullanılabilir olmalı.
+
             balance = cursor.execute(
                 "SELECT balance FROM accounts WHERE id=?", (account_id,)
             ).fetchone()[0]

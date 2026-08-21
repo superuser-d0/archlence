@@ -4,21 +4,7 @@ import os
 import sys
 from pathlib import Path
 
-# Kilit dosyasının BİRİNCİ baytı saf bir nöbetçidir: kilit hep bu tek bayt
-# üzerine konur ve o bayt bir daha ASLA yeniden yazılmaz/kırpılmaz. Teşhis
-# için yazdığımız PID, 1. bayttan itibaren SABİT genişlikte bir alana yazılır.
-#
-# NEDEN BU DÜZEN (Windows CI'da ampirik olarak yakalandı): eski kod baytı
-# kilitledikten SONRA `truncate()` çağırıyordu. `msvcrt.locking` bayt ARALIĞI
-# kilitler; dosyayı kırpmak kilitli aralığı geçersizleştiriyor ve sonraki
-# `LK_UNLCK` şu hatayla düşüyordu:
-#
-#     PermissionError: [Errno 13] Permission denied   (release() içinde)
-#
-# Sonucu yalnız gürültü değildi: istisna `__exit__`ten dışarı sızıyor, kilidi
-# tutan süreç çıkarken patlıyor ve testlerde kilit bir daha alınamıyordu
-# (test_lock_is_recoverable_after_owner_exits). POSIX'te `flock` bayt aralığı
-# değil dosyanın tamamını kilitlediği için aynı hata orada hiç görünmüyordu.
+
 _SENTINEL_BYTE = b"\0"
 _PID_OFFSET = 1
 _PID_FIELD_WIDTH = 32
@@ -63,14 +49,12 @@ class SingleInstanceLock:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-        # "a+b" KULLANILMAZ: append modunda yazmalar seek'ten bağımsız olarak
-        # hep dosya SONUNA gider, yani PID'i sabit bir ofsete yazmak mümkün
-        # olmaz ve nöbetçi bayt farkında olmadan kaydırılabilir.
+
         descriptor = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o600)
         stream = os.fdopen(descriptor, "r+b")
         try:
-            # Nöbetçi bayt yoksa oluştur — kilit konabilmesi için dosyanın en
-            # az 1 bayt olması gerekir.
+
+
             stream.seek(0, os.SEEK_END)
             if stream.tell() == 0:
                 stream.write(_SENTINEL_BYTE)
@@ -83,9 +67,7 @@ class SingleInstanceLock:
                 "Archlence bu kullanıcı profili için zaten çalışıyor."
             ) from exc
 
-        # PID yalnız teşhis içindir. Nöbetçi bayta DOKUNULMAZ ve `truncate`
-        # ÇAĞRILMAZ; sabit genişlikli alan sayesinde eski, daha uzun bir PID'in
-        # artığı geride kalmaz.
+
         stream.seek(_PID_OFFSET)
         stream.write(
             str(os.getpid()).encode("ascii").ljust(_PID_FIELD_WIDTH, b" ")
@@ -102,11 +84,8 @@ class SingleInstanceLock:
             try:
                 self._unlock_sentinel(stream)
             except OSError:
-                # Handle'ı KAPATMAK kilidi hem Windows'ta hem POSIX'te işletim
-                # sistemi düzeyinde zaten bırakır. Açma hatasını yukarı
-                # sızdırmak `__exit__` içinde asıl istisnayı maskeler ve
-                # uygulamayı çıkışta çökertir — bu yol bir kez tam olarak böyle
-                # kırılmıştı, bir daha kırılmasın.
+
+
                 pass
         finally:
             stream.close()

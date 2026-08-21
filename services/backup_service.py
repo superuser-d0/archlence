@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -34,6 +35,246 @@ _KEY_LEN = 32
 _AEAD_PREFIX = "AEADv1:"
 _AUTH_CONTEXT = b"archlence-backup-auth-v2"
 
+
+SUPPORTED_RECOVERY_KDF = "PBKDF2-HMAC-SHA256"
+MIN_RECOVERY_ITERATIONS = 100_000
+MAX_RECOVERY_ITERATIONS = 4_000_000
+
+
+MAX_PACKAGE_MEMBERS = 4
+
+
+MAX_DB_MEMBER_BYTES = 256 * 1024 * 1024
+
+
+MAX_SMALL_MEMBER_BYTES = 4 * 1024 * 1024
+
+MAX_TOTAL_BYTES = MAX_DB_MEMBER_BYTES + 3 * MAX_SMALL_MEMBER_BYTES
+
+
+MAX_COMPRESSION_RATIO = 200
+
+_REQUIRED_MEMBERS = ("finance.db", "metadata.json", "key.recovery.json")
+_OPTIONAL_MEMBERS = ("config.json",)
+_ALLOWED_MEMBERS = frozenset(_REQUIRED_MEMBERS + _OPTIONAL_MEMBERS)
+_STAGE_CHUNK = 64 * 1024
+
+
+_HASH_CHUNK = 1024 * 1024
+
+
+def _sha256_file(path):
+    """Dosyanın SHA-256'sını SABİT bellekle hesaplar.
+
+    Eskiden `hashlib.sha256(path.read_bytes()).hexdigest()` yazıyordu.
+    `read_bytes()` dosyanın TAMAMINI ek bir `bytes` nesnesi olarak belleğe
+    alır ve paket sınırı 256 MiB olduğuna göre bu, tek bir hash için çeyrek
+    gigabaytlık bir tahsis demekti. Ölçüldü (64 MiB dosya):
+
+        read_bytes : tepe tahsis ~67.109.000 bayt  (dosya boyutunun 1,00x'i)
+        streaming  : tepe tahsis ~1.049.000 bayt   (0,02x)
+
+    Özet BİREBİR AYNI kalır; değişen yalnız belleğe alma biçimi.
+
+    Dosya tanıtıcısı `with` ile kapanır, yani hata yollarında da bırakılmaz —
+    Windows'ta açık kalan bir handle sonraki `os.replace`/silme adımını
+    bloklardı.
+    """
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(_HASH_CHUNK), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _member_byte_limit(name):
+    return MAX_DB_MEMBER_BYTES if name == "finance.db" else MAX_SMALL_MEMBER_BYTES
+
+
+def _require_plain_member_name(name):
+    """Üye adı, staging dizininin İÇİNDE düz bir dosya adı olmak zorunda.
+
+    Ayırıcı olarak hem `/` hem de `\\` sınanıyor: ZIP standardı `/` der ama
+    Windows'ta üretilmiş arşivlerde `\\` de görülür ve `Path(...).parts` onu
+    POSIX'te ayırıcı saymaz — yani yalnız `Path` ile bakmak Linux'ta
+    `..\\finance.db` adını DÜZ BİR AD sanırdı.
+    """
+    if not name or name in (".", ".."):
+        raise IntegrityVerificationError(
+            "Backup paketi güvenli olmayan dosya yolu içeriyor."
+        )
+    if "/" in name or "\\" in name:
+        raise IntegrityVerificationError(
+            "Backup paketi güvenli olmayan dosya yolu içeriyor."
+        )
+    if Path(name).is_absolute() or (len(name) >= 2 and name[1] == ":"):
+        raise IntegrityVerificationError(
+            "Backup paketi güvenli olmayan dosya yolu içeriyor."
+        )
+
+
+def _reject_unsafe_members(infos):
+    """Tek bir bayt açılmadan ÖNCE koşan ön kontrol."""
+    if len(infos) > MAX_PACKAGE_MEMBERS:
+        raise IntegrityVerificationError(
+            "Backup paketi beklenenden fazla dosya içeriyor."
+        )
+    names = [info.filename for info in infos]
+    if len(set(names)) != len(names):
+        raise IntegrityVerificationError(
+            "Backup paketi beklenmeyen veya yinelenen dosya içeriyor."
+        )
+    present = set(names)
+    if not set(_REQUIRED_MEMBERS) <= present:
+        raise IntegrityVerificationError(
+            "Backup paketi gerekli dosyaları içermiyor."
+        )
+    if present - _ALLOWED_MEMBERS:
+        raise IntegrityVerificationError(
+            "Backup paketi beklenmeyen veya yinelenen dosya içeriyor."
+        )
+
+    declared_total = 0
+    for info in infos:
+        name = info.filename
+        if info.is_dir() or name.endswith("/"):
+            raise IntegrityVerificationError(
+                "Backup paketi dizin girdisi içeriyor."
+            )
+
+
+        if info.flag_bits & 0x1:
+            raise IntegrityVerificationError(
+                "Backup paketi şifreli üye içeriyor."
+            )
+
+
+        if (info.external_attr >> 16) & 0o170000 == 0o120000:
+            raise IntegrityVerificationError(
+                "Backup paketi sembolik bağ içeriyor."
+            )
+        limit = _member_byte_limit(name)
+        if info.file_size > limit:
+            raise IntegrityVerificationError(
+                "Backup paketindeki bir dosya boyut sınırını aşıyor."
+            )
+        declared_total += info.file_size
+        if info.compress_size > 0 and (
+            info.file_size / info.compress_size > MAX_COMPRESSION_RATIO
+        ):
+            raise IntegrityVerificationError(
+                "Backup paketinin sıkıştırma oranı güvenli sınırın üzerinde."
+            )
+    if declared_total > MAX_TOTAL_BYTES:
+        raise IntegrityVerificationError(
+            "Backup paketinin toplam boyutu sınırı aşıyor."
+        )
+
+
+def _stage_member(archive, info, destination, running_total):
+    """Bir üyeyi SINIRLI akışla kopyalar; gerçek okunan baytı sayar.
+
+    `archive.extract` KULLANILMIYOR. İki nedeni var: (1) hedef yolu ZIP'in
+    içindeki isimden türetir, yani yol güvenliğini kütüphaneye devretmiş
+    oluruz; (2) boyutu ölçmeden yazar — başlıktaki `file_size` yalan olabilir
+    ve o yalan ancak diske yazılırken anlaşılır. Bu yüzden burada İKİNCİ bir
+    sayaç var: ön kontrol BEYAN EDİLEN boyuta, bu döngü GERÇEKTEN OKUNAN
+    bayta bakar.
+    """
+    limit = _member_byte_limit(info.filename)
+    written = 0
+    target = destination / info.filename
+    with archive.open(info, "r") as source, io.open(target, "wb") as sink:
+        while True:
+            chunk = source.read(_STAGE_CHUNK)
+            if not chunk:
+                break
+            written += len(chunk)
+            if written > limit:
+                raise IntegrityVerificationError(
+                    "Backup paketindeki bir dosya boyut sınırını aşıyor."
+                )
+            if running_total + written > MAX_TOTAL_BYTES:
+                raise IntegrityVerificationError(
+                    "Backup paketinin toplam boyutu sınırı aşıyor."
+                )
+            sink.write(chunk)
+    return written
+
+
+def _stage_package(package_path, destination):
+    """Paketi TEK KEZ, sınırlı biçimde açar. Staged üye adlarını döndürür.
+
+    Doğrulama ve restore'un ORTAK giriş noktası. Eskiden `restore_backup`
+    paketi kendisi açıyor, sonra `verify_backup` aynı paketi ikinci kez
+    açıyordu — aynı düşmanca girdi iki kez işleniyordu.
+    """
+    destination.mkdir(parents=True, exist_ok=True)
+    staged = []
+    try:
+        with zipfile.ZipFile(package_path, "r") as archive:
+            infos = archive.infolist()
+            _reject_unsafe_members(infos)
+
+
+            for info in infos:
+                _require_plain_member_name(info.filename)
+            total = 0
+            for info in infos:
+                total += _stage_member(archive, info, destination, total)
+                staged.append(info.filename)
+    except (
+        zipfile.BadZipFile, zipfile.LargeZipFile, OSError, EOFError,
+        ValueError,
+
+
+        NotImplementedError, RuntimeError,
+    ) as exc:
+
+
+        raise IntegrityVerificationError("Backup paketi açılamadı.") from exc
+    return staged
+
+
+_HEX64 = frozenset("0123456789abcdef")
+
+
+def _require_mapping(payload, label):
+    """JSON kökünün gerçekten bir nesne olduğunu doğrular.
+
+    `metadata.json` içeriği `[]` olan bir paket `metadata.get(...)` çağrısında
+    `AttributeError` fırlatıyordu — ölçüldü. Sözleşme
+    `IntegrityVerificationError` diyor; kök tipi ilk sınanan şey olmalı."""
+    if not isinstance(payload, dict):
+        raise IntegrityVerificationError(f"Backup {label} bozuk.")
+    return payload
+
+
+def _require_hex_digest(value, label):
+    """64 karakterlik küçük harf hex — SHA-256'nın tek geçerli gösterimi."""
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or not set(value).issubset(_HEX64)
+    ):
+        raise IntegrityVerificationError(f"Backup {label} biçimi geçersiz.")
+    return value
+
+
+def _require_record_count(value):
+    """`aead_records_verified` GERÇEK, negatif olmayan bir `int` olmalı.
+
+    Eskiden `int(metadata.get("aead_records_verified", -1))` yazıyordu ve
+    ölçüldü: `"abc"` `ValueError`, `None` `TypeError` fırlatıyordu — ikisi de
+    sözleşme dışı. `bool` ayrıca eleniyor çünkü `int`'in alt sınıfı: `True`
+    sessizce 1 sayısına dönüşürdü.
+    """
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise IntegrityVerificationError(
+            "Backup AEAD doğrulama sayısı geçersiz."
+        )
+    return value
+
 ENCRYPTED_FIELDS = {
     "transactions": ("amount", "description"),
     "active_debts": ("debt_name", "total_amount", "monthly_payment"),
@@ -41,10 +282,8 @@ ENCRYPTED_FIELDS = {
     "recurring_payments": ("name", "amount"),
     "savings_goals": ("goal_name",),
     "installment_plans": ("description", "total_amount", "monthly_amount"),
-    # Göç karantinası da KİŞİSEL VERİ taşıyor: taşınamayan hedefin adı ve ham
-    # kaydı. Haritaya girmeseydi yedek doğrulaması bu satırları anahtara karşı
-    # hiç sınamaz ve legacy şifreleme taşıması onları atlardı — sessizce
-    # okunamaz hâle gelirlerdi.
+
+
     "savings_migration_quarantine": ("goal_name", "payload"),
 }
 
@@ -86,7 +325,7 @@ def encrypt_recovery_material(key, passphrase):
     cipher = AES.new(wrapping_key, AES.MODE_GCM, nonce=nonce)
     ciphertext, tag = cipher.encrypt_and_digest(key)
     return {
-        "kdf": "PBKDF2-HMAC-SHA256",
+        "kdf": SUPPORTED_RECOVERY_KDF,
         "iterations": _RECOVERY_ITERATIONS,
         "salt": base64.b64encode(salt).decode("ascii"),
         "nonce": base64.b64encode(nonce).decode("ascii"),
@@ -95,18 +334,56 @@ def encrypt_recovery_material(key, passphrase):
     }
 
 
+def _recovery_iterations(payload):
+    """Paketten gelen tur sayısını PBKDF2'ye VERMEDEN ÖNCE sınırlar.
+
+    `isinstance(value, bool)` ayrıca eleniyor: `bool` Python'da `int`'in alt
+    sınıfıdır, yani `True` bir tip kontrolünü geçip tek turluk bir KDF olarak
+    sessizce kabul edilirdi.
+    """
+    value = payload.get("iterations")
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise IntegrityVerificationError(
+            "Backup kurtarma materyalinin tur sayısı geçersiz."
+        )
+    if not MIN_RECOVERY_ITERATIONS <= value <= MAX_RECOVERY_ITERATIONS:
+        raise IntegrityVerificationError(
+            "Backup kurtarma materyalinin tur sayısı desteklenen aralıkta değil."
+        )
+    return value
+
+
 def decrypt_recovery_material(payload, passphrase):
     _require_passphrase(passphrase)
+    if not isinstance(payload, dict):
+        raise IntegrityVerificationError("Backup kurtarma materyali bozuk.")
+
+
+    if payload.get("kdf") != SUPPORTED_RECOVERY_KDF:
+        raise IntegrityVerificationError(
+            "Backup kurtarma materyalinin KDF'i desteklenmiyor."
+        )
+    iterations = _recovery_iterations(payload)
     try:
         salt = base64.b64decode(payload["salt"], validate=True)
         nonce = base64.b64decode(payload["nonce"], validate=True)
         tag = base64.b64decode(payload["tag"], validate=True)
         ciphertext = base64.b64decode(payload["ciphertext"], validate=True)
-        iterations = int(payload["iterations"])
     except (KeyError, TypeError, ValueError) as exc:
         raise IntegrityVerificationError(
             "Backup kurtarma materyali bozuk."
         ) from exc
+
+
+    if (
+        len(salt) != _SALT_LEN
+        or len(nonce) != _NONCE_LEN
+        or len(tag) != 16
+        or len(ciphertext) != _KEY_LEN
+    ):
+        raise IntegrityVerificationError(
+            "Backup kurtarma materyalinin alan uzunlukları geçersiz."
+        )
     wrapping_key = PBKDF2(
         passphrase.encode("utf-8"),
         salt,
@@ -150,9 +427,22 @@ def _sqlite_backup(source_path, destination_path):
 def _integrity_check(db_path):
     with closing(sqlite3.connect(db_path)) as conn:
         result = conn.execute("PRAGMA integrity_check").fetchone()[0]
+
+
+        cursor = conn.execute("PRAGMA foreign_key_check")
+        try:
+            violations = [tuple(row)[:3] for row in cursor.fetchmany(1)]
+        finally:
+            cursor.close()
     if result != "ok":
         raise IntegrityVerificationError(
             "Backup veritabanı SQLite bütünlük kontrolünü geçemedi."
+        )
+    if violations:
+        table, rowid, parent = violations[0]
+        raise IntegrityVerificationError(
+            "Backup veritabanında foreign key ihlali var "
+            f"(ilk: {table} rowid={rowid} -> {parent})."
         )
 
 
@@ -233,7 +523,7 @@ def create_backup(
         metadata = {
             "format_version": 2,
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "database_sha256": hashlib.sha256(db_copy.read_bytes()).hexdigest(),
+            "database_sha256": _sha256_file(db_copy),
             "key_fingerprint": hashlib.sha256(key).hexdigest(),
             "aead_records_verified": aead_checked,
             "authentication_salt": base64.b64encode(os.urandom(16)).decode("ascii"),
@@ -264,96 +554,87 @@ def create_backup(
     }
 
 
+def _verify_staged(temp, passphrase):
+    """Staged (açılmış ve sınırları geçmiş) bir paketi doğrular.
+
+    `_stage_package`'tan AYRI: aynı staging'i hem `verify_backup` hem
+    `restore_backup` kullanabilsin diye. Paketin ikinci kez açılmaması bu
+    ayrımın tek amacı.
+    """
+    try:
+        metadata = json.loads(
+            (temp / "metadata.json").read_text(encoding="utf-8")
+        )
+        recovery = json.loads(
+            (temp / "key.recovery.json").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise IntegrityVerificationError(
+            "Backup metadata veya kurtarma materyali bozuk."
+        ) from exc
+
+
+    metadata = _require_mapping(metadata, "metadata")
+    recovery = _require_mapping(recovery, "kurtarma materyali")
+
+
+    version = metadata.get("format_version")
+    if (
+        isinstance(version, bool)
+        or not isinstance(version, int)
+        or version != 2
+    ):
+        raise IntegrityVerificationError("Backup format sürümü desteklenmiyor.")
+    if not isinstance(metadata.get("authentication_salt"), str):
+        raise IntegrityVerificationError("Backup authentication metadata bozuk.")
+    expected_digest = _require_hex_digest(
+        metadata.get("database_sha256"), "veritabanı hash'i")
+    expected_fingerprint = _require_hex_digest(
+        metadata.get("key_fingerprint"), "anahtar parmak izi")
+    expected_records = _require_record_count(
+        metadata.get("aead_records_verified"))
+
+    supplied_tag = metadata.get("authentication_tag")
+    if not isinstance(supplied_tag, str) or not hmac.compare_digest(
+        supplied_tag, _backup_auth_tag(metadata, passphrase)
+    ):
+        raise IntegrityVerificationError("Backup authentication doğrulanamadı.")
+    db_copy = temp / "finance.db"
+    if _sha256_file(db_copy) != expected_digest:
+        raise IntegrityVerificationError("Backup veritabanı hash'i eşleşmiyor.")
+    key = decrypt_recovery_material(recovery, passphrase)
+    if hashlib.sha256(key).hexdigest() != expected_fingerprint:
+        raise IntegrityVerificationError("Backup anahtar parmak izi eşleşmiyor.")
+    _integrity_check(db_copy)
+    checked = verify_database_key(db_copy, key)
+    if checked != expected_records:
+        raise IntegrityVerificationError(
+            "Backup AEAD doğrulama sayısı eşleşmiyor."
+        )
+    return {
+        "key": key,
+        "metadata": metadata,
+        "config": (
+            (temp / "config.json").read_bytes()
+            if (temp / "config.json").exists()
+            else None
+        ),
+    }
+
+
 def verify_backup(package_path, passphrase):
-    """Extract into a temporary directory and prove DB/key compatibility."""
+    """Stage into a bounded temporary directory and prove DB/key compatibility."""
     package_path = Path(package_path)
     with tempfile.TemporaryDirectory(prefix="archlence-verify-") as temp_dir:
         temp = Path(temp_dir)
-        try:
-            with zipfile.ZipFile(package_path, "r") as archive:
-                raw_names = archive.namelist()
-                names = set(raw_names)
-                required = {
-                    "finance.db", "metadata.json", "key.recovery.json",
-                }
-                if not required <= names:
-                    raise IntegrityVerificationError(
-                        "Backup paketi gerekli dosyaları içermiyor."
-                    )
-                allowed = required | {"config.json"}
-                if len(raw_names) != len(names) or names - allowed:
-                    raise IntegrityVerificationError(
-                        "Backup paketi beklenmeyen veya yinelenen dosya içeriyor."
-                    )
-                if any(
-                    Path(name).is_absolute() or ".." in Path(name).parts
-                    or name.startswith(("\\\\", "/"))
-                    or (len(name) >= 2 and name[1] == ":")
-                    for name in names
-                ):
-                    raise IntegrityVerificationError(
-                        "Backup paketi güvenli olmayan dosya yolu içeriyor."
-                    )
-                for name in required | ({"config.json"} & names):
-                    archive.extract(name, temp)
-        except (zipfile.BadZipFile, OSError) as exc:
-            raise IntegrityVerificationError(
-                "Backup paketi açılamadı."
-            ) from exc
-
-        try:
-            metadata = json.loads(
-                (temp / "metadata.json").read_text(encoding="utf-8")
-            )
-            recovery = json.loads(
-                (temp / "key.recovery.json").read_text(encoding="utf-8")
-            )
-        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-            raise IntegrityVerificationError(
-                "Backup metadata veya kurtarma materyali bozuk."
-            ) from exc
-        if metadata.get("format_version") != 2:
-            raise IntegrityVerificationError("Backup format sürümü desteklenmiyor.")
-        supplied_tag = metadata.get("authentication_tag")
-        if not isinstance(supplied_tag, str) or not hmac.compare_digest(
-            supplied_tag, _backup_auth_tag(metadata, passphrase)
-        ):
-            raise IntegrityVerificationError("Backup authentication doğrulanamadı.")
-        db_copy = temp / "finance.db"
-        digest = hashlib.sha256(db_copy.read_bytes()).hexdigest()
-        if digest != metadata.get("database_sha256"):
-            raise IntegrityVerificationError("Backup veritabanı hash'i eşleşmiyor.")
-        key = decrypt_recovery_material(recovery, passphrase)
-        if hashlib.sha256(key).hexdigest() != metadata.get("key_fingerprint"):
-            raise IntegrityVerificationError("Backup anahtar parmak izi eşleşmiyor.")
-        _integrity_check(db_copy)
-        checked = verify_database_key(db_copy, key)
-        if checked != int(metadata.get("aead_records_verified", -1)):
-            raise IntegrityVerificationError(
-                "Backup AEAD doğrulama sayısı eşleşmiyor."
-            )
-        return {
-            "key": key,
-            "metadata": metadata,
-            "config": (
-                (temp / "config.json").read_bytes()
-                if (temp / "config.json").exists()
-                else None
-            ),
-        }
+        _stage_package(package_path, temp)
+        return _verify_staged(temp, passphrase)
 
 
 _JOURNAL_DIRNAME = ".archlence-restore"
 _JOURNAL_NAME = "journal.json"
 
-# Journal'ın kaydettiği state'ler. Sıra önemli: ROLLBACK_GENERATION_READY'den
-# ÖNCE kesilen bir restore hedefe hiç dokunmamıştır, sonrasında kesilen ise
-# yarım bir generation bırakmıştır ve geri alınması gerekir.
 
-# COMMITTED'DEN ÖNCE eski generation canonical'dır; sonrasında YENİ generation
-# canonical'dır. Bu ayrım olmadan, post-verification ile journal silme arasında
-# çöken bir süreç BAŞARILI bir restore'u geri aldırırdı: startup journal'ı
-# görüp "yarım restore" sanıyordu.
 _ROLLBACK_STATES = (
     "STAGED",
     "ROLLBACK_GENERATION_READY",
@@ -362,8 +643,8 @@ _ROLLBACK_STATES = (
     "CONFIG_REPLACED",
     "VERIFIED",
 )
-# Bu state'lerde geri alma YAPILMAZ; yalnızca eski generation artefaktları
-# temizlenir ve temizlik idempotenttir.
+
+
 _COMMITTED_STATES = (
     "COMMITTED",
     "CLEANUP_COMPLETE",
@@ -511,20 +792,15 @@ def recover_interrupted_restore(db_path=DB_NAME, *, key_provider=None,
     savings_json = _savings_json_path(db_path)
 
     if state in _COMMITTED_STATES:
-        # YENİ generation canonical. Restore başarıyla tamamlanmış ve
-        # doğrulanmıştı; süreç yalnızca temizlik sırasında çökmüş. Geri almak
-        # BAŞARILI bir restore'u iptal etmek olurdu.
-        #
-        # FAIL-CLOSED: COMMITTED deniyor ama yeni veritabanı ortada yoksa
-        # ortada anlayamadığımız bir durum var. Sessizce eski generation'a
-        # dönmek de, boş bir profille açmak da yanlış olur.
+
+
         if not db_path.exists():
             raise DataMigrationError(
                 "Restore tamamlanmış görünüyor ama veritabanı bulunamadı; "
                 "profil elle incelenmeli."
             )
-        # Yarım kalan tek iş bayat JSON'un kenara alınmasıysa onu tamamla.
-        # Restore başarılı, yani diskteki JSON ÖNCEKİ generation'dan kalma.
+
+
         _quarantine_stale_savings_json(savings_json)
         _discard_journal(journal_dir)      # idempotent: rmtree(ignore_errors)
         return {
@@ -534,7 +810,7 @@ def recover_interrupted_restore(db_path=DB_NAME, *, key_provider=None,
             "db_path": str(db_path),
         }
 
-    # COMMITTED'den önce: eski generation canonical, geri al.
+
     if old_db.exists():
         if db_path.exists():
             db_path.unlink()
@@ -573,36 +849,31 @@ def restore_backup(
         )
     )
     current_key = provider.load_key()
-    if db_path.exists() and current_key is not None:
-        create_backup(
-            safety_backup_path,
-            passphrase,
-            db_path=db_path,
-            key_provider=provider,
-            config_path=str(config) if config else None,
-        )
 
     with tempfile.TemporaryDirectory(
         prefix="archlence-restore-", dir=str(db_path.parent)
     ) as temp_dir:
         temp = Path(temp_dir)
-        with zipfile.ZipFile(package_path, "r") as archive:
-            archive.extract("finance.db", temp)
-            archive.extract("metadata.json", temp)
-            archive.extract("key.recovery.json", temp)
-            if "config.json" in archive.namelist():
-                archive.extract("config.json", temp)
-        verification = verify_backup(package_path, passphrase)
+
+
+        _stage_package(package_path, temp)
+        verification = _verify_staged(temp, passphrase)
+
+        if db_path.exists() and current_key is not None:
+            create_backup(
+                safety_backup_path,
+                passphrase,
+                db_path=db_path,
+                key_provider=provider,
+                config_path=str(config) if config else None,
+            )
+
         staged_db = temp / "finance.db"
         staged_key = temp / "encryption.key"
         staged_key.write_bytes(verification["key"])
         os.chmod(staged_key, 0o600)
 
-        # ROLLBACK GENERATION DAYANIKLI BİR DİZİNDE tutulur, geçici dizinde
-        # DEĞİL. Eskiden `old-finance.db` `TemporaryDirectory` içindeydi:
-        # süreç replacement ile doğrulama arasında ÇÖKERSE o dizin silinir ve
-        # geri dönülecek hiçbir şey kalmazdı. Journal ve eski dosyalar artık
-        # profil dizininde yaşıyor, böylece bir sonraki açılış toparlayabilir.
+
         journal_dir = _restore_journal_dir(db_path)
         old_db = journal_dir / "old-finance.db"
         old_config = journal_dir / "old-config.json"
@@ -610,20 +881,13 @@ def restore_backup(
         savings_json = _savings_json_path(db_path)
         try:
             journal_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-            # Config'in ESKİ hâli, değiştirilmeden ÖNCE saklanır. Eski kod
-            # config'i yazıyor ama rollback yolunda hiç geri almıyordu:
-            # başarısız restore'da DB eski, config yeni kalıyordu — karma
-            # profil (denetim bulgusu P1-1).
-            # `config is not None` AYRI yazılıyor: `had_config` bir bool
-            # olduğu için tip daraltması onun üzerinden taşınmıyor ve
-            # `copy2(Path | None, ...)` type-check'te hata veriyordu. Davranış
-            # aynı — config yoksa ya da dosya mevcut değilse kopyalanmaz.
+
+
             had_config = config is not None and config.exists()
             if config is not None and had_config:
                 shutil.copy2(config, old_config)
-            # Legacy hedef dosyası da AYNI generation'ın parçası. Restore
-            # başarısız olursa config ve DB ile birlikte geri gelir; başarılı
-            # olursa aşağıda karantinaya alınır.
+
+
             had_savings_json = savings_json.exists()
             if had_savings_json:
                 shutil.copy2(savings_json, old_savings)
@@ -687,9 +951,8 @@ def restore_backup(
                 )
             elif current_key is None and restored_key is not None:
                 provider.delete_key(expected_current=restored_key)
-            # Config ve legacy hedef dosyası da AYNI generation ile geri
-            # alınır: başarısız restore'dan sonra profil, restore hiç
-            # denenmemiş gibi olmalı.
+
+
             _rollback_config(config, old_config, had_config)
             _rollback_savings_json(savings_json, old_savings, had_savings_json)
             _discard_journal(journal_dir)
@@ -697,13 +960,7 @@ def restore_backup(
                 "Restore başarısız oldu; önceki veriler geri yüklendi."
             ) from exc
 
-        # POST-VERIFICATION BAŞARILI. Buradan itibaren YENİ generation
-        # canonical'dır ve geri alınmamalıdır.
-        #
-        # COMMITTED işareti TEMİZLİKTEN ÖNCE yazılır. Sıra kritik: eskiden
-        # başarıda journal doğrudan siliniyordu, yani bu iki adım arasında
-        # çöken bir süreç journal'ı `CONFIG_REPLACED` durumunda bırakıyor ve
-        # sonraki açılış BAŞARILI bir restore'u geri alıyordu.
+
         _write_journal(
             journal_dir, "VERIFIED", db_path, config,
             had_config, had_savings_json,
@@ -716,15 +973,13 @@ def restore_backup(
         )
         if _failure_hook:
             _failure_hook("after_committed_marker")
-        # Bayat JSON kenara alınır. COMMITTED'DEN SONRA, çünkü buradan
-        # itibaren YENİ generation canonical: diskte kalan JSON önceki
-        # generation'a ait ve bir daha etkin kaynak olmamalı. Kesilirse
-        # `recover_interrupted_restore` aynı adımı tamamlar (idempotent).
+
+
         stale_savings = _quarantine_stale_savings_json(savings_json)
         if _failure_hook:
             _failure_hook("after_savings_json_quarantined")
-        # Eski generation artefaktlarını temizle. Buradaki her adım
-        # idempotenttir; kesilirse sonraki açılış tamamlar.
+
+
         _discard_journal(journal_dir)
 
     from utils.crypto import _get_aead_key

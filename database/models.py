@@ -18,8 +18,8 @@ class AssetPriceCache:
     price: float
     asset_type: str
     updated_at: datetime
-    # Fiyatı hangi sağlayıcı verdi. Varsayılan, sütun eklenmeden önce yazılmış
-    # satırlar için doğru olan değer: o dönemde tek sağlayıcı yfinance'ti.
+
+
     source: str = "Yahoo Finance"
 
 

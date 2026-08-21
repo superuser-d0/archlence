@@ -33,7 +33,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SKIP_DIRS = {".venv", "venv", "build", "dist", ".git", "AppDir", "__pycache__",
              ".mypy_cache", ".hypothesis"}
-#: Üretim evreninin dışında kalan üst dizinler.
+
 NON_PRODUCTION = ("tests/", "scripts/")
 
 TRANSLATOR_NAMES = {"tr", "translate", "_t"}
@@ -167,8 +167,8 @@ def parameter_rows():
                               and _is_translator(keyword.value))
                 formatted = expr.startswith(('f"', "f'"))
                 user_field = _user_field_name(keyword.value)
-                # SIRA ÖNEMLİ ve kümeler AYRIK: çevrilmiş etiket > tanınan
-                # kullanıcı alanı > biçimlenmiş değer > belirlenemedi.
+
+
                 if translated:
                     bucket = "controlled-label-translated"
                 elif user_field:
@@ -247,7 +247,7 @@ def main():
     print(f"  {'-' * 5}")
     print(f"  {sum(param_buckets.values()):5}  (toplam — kümeler ayrık)")
 
-    # Dinamik çağrı kalmamalı: kapı zaten yasaklıyor, envanter de doğrular.
+
     leftover = buckets.get("dynamic-fstring", 0) + buckets.get("dynamic-concat", 0)
     if leftover:
         print(f"\n::error::{leftover} dinamik çeviri çağrısı kaldı")

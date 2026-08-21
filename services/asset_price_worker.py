@@ -9,11 +9,7 @@ import sys
 import threading
 from typing import Any
 
-# Proje kökünü sys.path'e ekle: bu modül `-m services.asset_price_worker` ile
-# ayrı bir süreç olarak çalışıyor ve `from services...` importları proje
-# kökünün path'te olmasını gerektiriyor. Çağıran cwd=proje_kökü veriyor
-# (services/asset_service.py) ama paketlenmiş çalıştırmada cwd farklı olabilir;
-# tests/*.py'deki aynı guard deseniyle bunu garantiye alıyoruz.
+
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)

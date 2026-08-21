@@ -23,10 +23,6 @@ from ui.chart_localization import (
 from ui.components import LegendWidget
 
 
-# Metin dokuları çizim animasyonu boyunca her karede yeniden üretilmesin diye
-# önbelleklenir. Renk dokuya (texture) pişirilir; kaybolma/belirme efektleri
-# dokuyu değil, önüne konan Color komutunun alfasını değiştirir — böylece aynı
-# metin animasyon boyunca tek doku kullanır.
 _LABEL_TEXTURE_CACHE = {}
 
 
@@ -61,20 +57,15 @@ class CurvedTrendChart(Widget):
 
     anim_progress = NumericProperty(0.0)
 
-    # Seri renkleri ui.theme'den TEMA-DUYARLI okunur (bkz. ftheme._CHART_SERIES);
-    # burada sabit tutulamazlar çünkü açık ve koyu temada farklı basamaklar
-    # kullanılır. Pastadaki 'Ana Gelir' / 'Temel Gider' / 'Açılış Bakiyesi'
-    # dilimleriyle aynı rolleri paylaşır — tek kaynak olduğu için artık
-    # birbirinden ayrışamazlar.
+
     FILL_ALPHA = 0.16
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.chart_data = []
         self._translate = None
-        # pos değişimi (kaydırma, sekme geçiş animasyonu) canvas'ı YENİDEN
-        # KURMAZ; yalnızca Translate güncellenir. Tam yeniden çizim sadece
-        # boyut/animasyon değişiminde ve aynı kare içinde tek sefer yapılır.
+
+
         self._redraw_trigger = Clock.create_trigger(self._redraw, 0)
         self.bind(size=self._redraw_trigger, anim_progress=self._redraw_trigger)
         self.bind(pos=self._sync_translate)
@@ -162,9 +153,7 @@ class CurvedTrendChart(Widget):
         PAD_TOP   = dp(14)
         PAD_BOT   = dp(28)   # X-axis label gutter
 
-        # Çizim (0,0) tabanlıdır; widget konumu Translate ile uygulanır. Böylece
-        # kaydırma/sekme geçişi gibi yalnız pos'un değiştiği karelerde canvas
-        # yeniden kurulmaz (layout thrashing'in ana kaynağıydı).
+
         cx0 = PAD_LEFT
         cx1 = self.width - PAD_RIGHT
         cy0 = PAD_BOT
@@ -176,9 +165,7 @@ class CurvedTrendChart(Widget):
             PushMatrix()
             self._translate = Translate(self.x, self.y)
 
-            # ── No-data state ─────────────────────────────────────────────
-            # Yalnız eksen iskeleti çizilir; "Veri Yok" metnini tutucudaki
-            # empty_label gösterir (ikisi birden çizilince üst üste biniyordu).
+
             if not data:
                 Color(*axis_color)
                 Line(points=[cx0, cy0, cx1, cy0], width=dp(1))
@@ -191,8 +178,8 @@ class CurvedTrendChart(Widget):
             # ── Nice Y-axis range ───────────────────────────────────────────
             all_inc = [d['income']  for d in data]
             all_exp = [d['expense'] for d in data]
-            # 'opening' eski çağıranların sözlüklerinde bulunmayabilir; .get ile
-            # okunur ki üçüncü seri opsiyonel kalsın.
+
+
             all_opn = [d.get('opening', 0) or 0 for d in data]
             has_opening = any(v > 0 for v in all_opn)
             raw_max = max(max(all_inc), max(all_exp), max(all_opn), 1.0)
@@ -306,8 +293,8 @@ class CurvedTrendChart(Widget):
             # Draw expense first (below income)
             draw_series('expense', expense_line, expense_fill)
             draw_series('income',  income_line,  income_fill)
-            # Açılış bakiyesi yalnızca gerçekten varsa çizilir; yoksa her
-            # kullanıcıya kalıcı bir sıfır çizgisi göstermiş olurduk.
+
+
             if has_opening:
                 draw_series('opening', opening_line, opening_fill)
 
@@ -402,7 +389,7 @@ class HealthScoreSparkline(Widget):
             PushMatrix()
             self._translate = Translate(self.x, self.y)
 
-            # Sabit 0-100 ölçeğinin sınır ve orta çizgileri.
+
             for value in (0, 50, 100):
                 y = bottom + height * value / 100.0
                 Color(*(axis_color if value in (0, 100) else grid_color))
@@ -580,7 +567,6 @@ class ScenarioComparisonChart(Widget):
             PopMatrix()
 
 
-
 # ---------------------------------------------------------------------------
 # DashboardChartManager — Persistent layout manager (instances created ONCE)
 # ---------------------------------------------------------------------------
@@ -605,10 +591,7 @@ class DashboardChartManager(MDBoxLayout):
                 pie_box  = kids[0]
                 comp_box = kids[1]
 
-        # Her grafik, kendi FloatLayout tutucusuna sarılır; böylece grafiğin TAM
-        # ORTASINA bir MDSpinner bindirebiliyoruz. Yükleme sırasında grafik
-        # opacity=0 (ham 'mavi halka' görünmez), spinner döner; veri gelince
-        # spinner kalkar ve grafik fade-in ile pürüzsüzce belirir.
+
         if pie_box:
             pie_holder = self._make_chart_holder(self.pie_widget, _t("₺0\nVeri Yok"))
             self._pie_spinner = pie_holder._chart_spinner
@@ -627,10 +610,8 @@ class DashboardChartManager(MDBoxLayout):
         from kivymd.uix.spinner import MDSpinner
 
         holder = FloatLayout(size_hint=(1, 1))
-        # DİKKAT: FloatLayout, pos_hint VERİLMEYEN çocuğun konumuna dokunmaz —
-        # grafik pencerenin (0,0) köşesinde kalıp öteki kartların arkasında
-        # çizilir (Varlıklarım'daki kayma/overlap hatasının kök nedeni buydu).
-        # pos_hint ile grafik tutucusuna sabitlenir.
+
+
         chart_widget.size_hint = (1, 1)
         chart_widget.pos_hint = {"x": 0, "y": 0}
         holder.add_widget(chart_widget)
@@ -669,8 +650,8 @@ class DashboardChartManager(MDBoxLayout):
         spinners = [s for s in (getattr(self, "_pie_spinner", None),
                                 getattr(self, "_trend_spinner", None)) if s is not None]
         if loading:
-            # Veri gelmese bile boş grafik şablonu görünür kalsın. Önceki
-            # opacity=0 yaklaşımı worker hata verdiğinde büyük boş alan bırakıyordu.
+
+
             for w in charts:
                 Animation.cancel_all(w, "opacity")
                 w.opacity = 1
@@ -683,7 +664,7 @@ class DashboardChartManager(MDBoxLayout):
                 s.opacity = 0
             for w in charts:
                 Animation.cancel_all(w, "opacity")
-                # Ham çizim görünmesin diye 0'dan başlatıp pürüzsüz belirt.
+
                 w.opacity = 0
                 Animation(opacity=1, duration=0.35, t="out_quad").start(w)
 
@@ -703,14 +684,11 @@ class DashboardChartManager(MDBoxLayout):
         if not force and getattr(self, "_rendered_cache_key", None) == cache_key:
             return False
 
-        # Üst üste binen tazelemelerde yalnız en son istek arayüze yazar; eski
-        # thread'lerin geciken sonuçları grafikleri geri saramaz.
+
         self._refresh_generation = getattr(self, "_refresh_generation", 0) + 1
         generation = self._refresh_generation
 
-        # İlk karede güvenli 0 şablonunu ANİMASYONSUZ çiz; spinner bunun
-        # üzerinde döner. (Eski request_redraw çağrıları iskelet için bile
-        # ~1 sn'lik kare-başına yeniden çizim animasyonu başlatıyordu.)
+
         empty_totals = {
             'Ana Gelir': 0, 'Ek Gelir': 0,
             'Temel Gider': 0, 'Ekstra Gider': 0, 'Açılış Bakiyesi': 0,
@@ -731,18 +709,14 @@ class DashboardChartManager(MDBoxLayout):
                 get_logger().exception("Dashboard grafik verisi okunamadı")
                 raw_data = []
             try:
-                # Açılış bakiyesi `transactions`'a hiç yazılmaz (bkz.
-                # get_opening_events_by_period docstring'i) — yeni açılan
-                # tek hesaplı bir kullanıcı hiç işlem girmeden HEM pastayı HEM
-                # zaman grafiğini "Veri Yok" olarak görürdü. Her iki grafikte de
-                # ayrı bir seri olarak çizilir; tasarruf oranı/sağlık skoru gibi
-                # diğer hesaplara katılmaz.
+
+
                 opening_events = TransactionService.get_opening_events_by_period(period)
             except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Açılış bakiyesi okunamadı")
                 opening_events = []
-            # Başarılı veya hatalı her yol ana thread'de loading'i sonlandırır.
+
             Clock.schedule_once(
                 lambda dt: self._apply_data_safely(
                     raw_data, period, generation, opening_events,
@@ -759,9 +733,8 @@ class DashboardChartManager(MDBoxLayout):
             self.pie_widget.draw_immediate()
         if self.trend_chart is not None:
             self.trend_chart.draw_immediate()
-        # Lejant noktaları canvas değil widget: yeniden çizimle tazelenmez,
-        # açıkça güncellenmezse pasta koyu basamağa geçerken lejant açık
-        # basamakta kalırdı.
+
+
         if self.legend_widget is not None:
             self.legend_widget.refresh_theme()
 
@@ -775,12 +748,12 @@ class DashboardChartManager(MDBoxLayout):
             self, raw_data, period, generation=None, opening_events=None,
             requested_cache_key=None):
         if generation is not None and generation != getattr(self, "_refresh_generation", 0):
-            return  # bayat sonuç — daha yeni bir tazeleme başladı
+            return
         if requested_cache_key is not None:
             from services.asset_service import financial_chart_cache_key
             if requested_cache_key != financial_chart_cache_key(period):
-                # Okuma sürerken finansal yazım oldu; karışık/bayat snapshot'ı
-                # bir kare bile göstermeden yeni sürümü yükle.
+
+
                 self.refresh_dashboard(period)
                 return
         try:
@@ -790,7 +763,7 @@ class DashboardChartManager(MDBoxLayout):
         except Exception:
             from utils.logging_config import get_logger
             get_logger().exception("Dashboard grafikleri çizilemedi")
-            # Canvas/veri biçimi hatası dahi spinner ve opacity'yi kilitlemez.
+
             self._set_charts_loading(False)
 
     def _apply_data(self, raw_data, period, opening_events=None):
@@ -848,9 +821,7 @@ class DashboardChartManager(MDBoxLayout):
         )
         self._set_chart_empty_state(not has_chart_data)
 
-        # Çizim işlemi tamamlandı: bir sonraki karede (gerçek veri opacity=0
-        # iken çizildikten sonra) spinnerları kaldır ve grafiği fade-in ile
-        # getir — kullanıcı ham/boş grafiği hiç görmez.
+
         Clock.schedule_once(lambda dt: self._set_charts_loading(False), 0)
 
     @staticmethod
@@ -971,7 +942,7 @@ class DashboardChartManager(MDBoxLayout):
             for r in result
         )
         if not any_data:
-            return []   # empty → chart shows "Bu dönemde veri yok"
+            return []
         return result
 
 
@@ -987,8 +958,8 @@ class HorizontalBarChart(Widget):
         super().__init__(**kwargs)
         self.bind(pos=self.update_chart, size=self.update_chart, anim_progress=self.update_chart)
         self.data = {"Veri Bekleniyor": 1.0}
-        # Gerçek renk update_chart'ta aktif temadan alınır (standart: Teal,
-        # premium: Indigo); bu yalnızca tema yüklenmeden önceki geçici değer.
+
+
         self.colors = [tuple(ftheme.chart_empty("Light"))]
 
     def highlight_bar(self, targets):
@@ -1001,8 +972,7 @@ class HorizontalBarChart(Widget):
         total = sum(self.data.values())
         if total == 0: return
 
-        # Çubuk rengi aktif temanın primary'sinden gelir: standart temada Teal,
-        # premium temada Indigo (#5444E5) — tema değişince otomatik uyar.
+
         _app = MDApp.get_running_app()
         if _app is not None:
             self.colors = [tuple(_app.theme_cls.primary_color)]
@@ -1011,33 +981,31 @@ class HorizontalBarChart(Widget):
             max_val = max(self.data.values())
             y_offset = self.y + 10
             bar_height = max(10, (self.height - 20) / max(1, len(self.data)) - 10)
-            
+
             for i, (label, value) in reversed(list(enumerate(self.data.items()))):
                 if value == 0: continue
-                
+
                 alpha = 1.0 if not getattr(self, 'selected_targets', []) or label in self.selected_targets else 0.3
                 Color(*self.colors[i % len(self.colors)][:3], alpha)
-                
+
                 bar_width = (value / max_val) * self.width * self.anim_progress if max_val > 0 else 0
                 RoundedRectangle(pos=(self.x, y_offset), size=(bar_width, bar_height), radius=[bar_height/2])
-                
+
                 if self.anim_progress > 0.8:
                     pct = (value / total) * 100
                     txt_alpha = min(1.0, max(0.0, (self.anim_progress - 0.8) * 5))
                     app = MDApp.get_running_app()
                     text_color = app.theme_cls.text_color if app else (0, 0, 0, 1)
-                    
+
                     from kivy.core.text import Label as CoreLabel  # type: ignore
                     lbl = CoreLabel(text=f"%{pct:.1f}", font_size=14, color=(*text_color[:3], txt_alpha), bold=True)  # type: ignore
                     lbl.refresh()
                     tex = lbl.texture
-                    
-                    Color(1, 1, 1, 1) 
+
+                    Color(1, 1, 1, 1)
                     Rectangle(texture=tex, pos=(self.x + bar_width + 15, y_offset + (bar_height - tex.size[1]) / 2), size=tex.size)
-                
+
                 y_offset += bar_height + 10
-
-
 
 
 class ConfettiWidget(Widget):
@@ -1121,7 +1089,7 @@ class PieChart(Widget):
     """
     anim_progress = NumericProperty(0)
     selected_targets = []
-    
+
     def highlight_slice(self, targets):
         self.selected_targets = targets
         self.update_chart()
@@ -1129,8 +1097,8 @@ class PieChart(Widget):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._translate = None
-        # pos değişimi Translate ile uygulanır; tam yeniden çizim yalnızca
-        # boyut/animasyon değişiminde ve kare başına tek sefer olur.
+
+
         self._redraw_trigger = Clock.create_trigger(self.update_chart, 0)
         self.bind(size=self._redraw_trigger, anim_progress=self._redraw_trigger)
         self.bind(pos=self._sync_translate)
@@ -1144,11 +1112,8 @@ class PieChart(Widget):
     def update_chart(self, *args):
         if not self.canvas: return
         self.canvas.clear()
-        
-        # Dilim renkleri ve ÇİZİM SIRASI tek kaynaktan gelir (ui.theme). Sıra
-        # renk körlüğü güvenliğinin parçasıdır: 'Açılış Bakiyesi' gelir ve gider
-        # dilimlerinin arasına düşer, böylece yeşil-kırmızı aileleri komşu
-        # olmaz (halka kapandığı için sarma çifti de doğrulandı).
+
+
         app = MDApp.get_running_app()
         style = app.theme_cls.theme_style if app is not None else "Light"
         self.category_colors = ftheme.chart_category_colors(style)
@@ -1158,8 +1123,7 @@ class PieChart(Widget):
         # Calculate total
         total = sum(self.data.get(k, 0) for k in self.category_colors.keys()) if isinstance(self.data, dict) else 0
 
-        # Çizim (0,0) tabanlı; widget konumu Translate ile uygulanır (bkz.
-        # CurvedTrendChart._redraw'daki açıklama).
+
         local_cx = self.width / 2
         local_cy = self.height / 2
 
@@ -1173,30 +1137,30 @@ class PieChart(Widget):
             y = local_cy - r
 
             texts = []
-            
+
             if total > 0:
                 valid_slices = len([k for k in self.category_colors.keys() if self.data.get(k, 0) > 0])
-                
-                # 1. Dilimlerin Çizimi (Slices)
+
+
                 for label, hex_color in self.category_colors.items():
                     value = self.data.get(label, 0)
                     if value == 0: continue
-                    
+
                     slice_angle = (value / total) * 360
                     draw_angle = max(0, slice_angle - 2) if total > 1 and valid_slices > 1 else slice_angle
                     angle_end = angle_start + (draw_angle * self.anim_progress)
                     mid_angle = angle_start + (slice_angle / 2)
-                    
+
                     slice_color = get_color_from_hex(hex_color)
                     alpha = 1.0 if not getattr(self, 'selected_targets', []) or label in self.selected_targets else 0.3
                     Color(*slice_color[:3], alpha)
-                    
+
                     Ellipse(pos=(x, y), size=(d, d), angle_start=angle_start, angle_end=angle_end)
-                    
+
                     texts.append((value, mid_angle))
                     angle_start += slice_angle
             else:
-                # Verisiz halka aktif yüzey temasına göre nötrleşir.
+
                 Color(*ftheme.chart_empty(style))
                 Ellipse(pos=(x, y), size=(d, d), angle_start=0, angle_end=360 * self.anim_progress)
                 texts.append((0, 0)) # Placeholder for 0%
@@ -1206,12 +1170,12 @@ class PieChart(Widget):
                 Color(*app.theme_cls.bg_normal)
             else:
                 Color(1, 1, 1, 1)
-            
+
             inner_d = d * 0.65
             inner_r = inner_d / 2
             Ellipse(pos=(local_cx - inner_r, local_cy - inner_r), size=(inner_d, inner_d))
 
-            # 3. Yüzdelik Metinler
+
             if total > 0:
                 for value, mid_angle in texts:
                     percentage = (value / total) * 100
@@ -1222,21 +1186,20 @@ class PieChart(Widget):
 
                         label_x = local_cx + (r * 0.85) * cos(radians(mid_angle))
                         label_y = local_cy + (r * 0.85) * sin(radians(mid_angle))
-                        
+
                         tw, th = texture.size
                         pad_x, pad_y = 6, 4
-                        
+
                         Color(0, 0, 0, alpha * 0.6)
                         RoundedRectangle(
-                            pos=(label_x - tw/2 - pad_x, label_y - th/2 - pad_y), 
-                            size=(tw + pad_x*2, th + pad_y*2), 
+                            pos=(label_x - tw/2 - pad_x, label_y - th/2 - pad_y),
+                            size=(tw + pad_x*2, th + pad_y*2),
                             radius=[(th + pad_y*2) / 2]
                         )
-                        
+
                         Color(1, 1, 1, alpha)
                         Rectangle(texture=texture, pos=(label_x - tw/2, label_y - th/2), size=texture.size)
-            # total == 0 durumunda gri halka yeterli; "₺0 / Veri Yok" metnini
-            # tutucudaki empty_label gösterir (çift metin üst üste biniyordu).
+
 
             # 4. Legend rendering is now handled in set_data to avoid animating widgets 60fps
 

@@ -33,9 +33,8 @@ class InsightsServiceTestCase(AccountFixtureMixin, unittest.TestCase):
 
         from database.init_db import initialize_database
         initialize_database()
-        # initialize_database varsayılan hesap açmıyor. Tekrarlanan ödemenin
-        # gerçekten yazıldığını doğrulayan test bakiyeye dokunduğu için
-        # DEFAULT_ACCOUNT_ID'ye karşılık gelen bir hesap kurulmalı.
+
+
         from database.db import DEFAULT_ACCOUNT_ID
         self.account_id = self.create_test_account(
             name="İçgörü Testi Vadesiz", balance=100_000.0)
@@ -49,7 +48,6 @@ class InsightsServiceTestCase(AccountFixtureMixin, unittest.TestCase):
         self._patcher.stop()
         os.unlink(self.db_path)
 
-    # ─── Yardımcılar ─────────────────────────────────────────────────────────
 
     def _add_tx(self, amount, tx_type, category, description, days_ago):
         """Şifreli bir işlem satırı yazar (tutar + açıklama encrypt edilir)."""
@@ -77,7 +75,6 @@ class InsightsServiceTestCase(AccountFixtureMixin, unittest.TestCase):
             value = amount + (jitter if i % 2 else -jitter)
             self._add_tx(value, "expense", category, name, days_ago=30 * i + 1)
 
-    # ─── 1. Abonelik radarı ──────────────────────────────────────────────────
 
     def test_detects_monthly_subscription(self):
         """Sabit tutarlı, 30 gün aralıklı gider abonelik adayı olmalı."""
@@ -137,7 +134,7 @@ class InsightsServiceTestCase(AccountFixtureMixin, unittest.TestCase):
         """%10 tolerans içindeki zam adayı elemez (kur/zam oynaması normal)."""
         from services.insights_service import detect_recurring_candidates
 
-        # 200 +/- 8  => sapma %4, tolerans içinde
+
         self._add_monthly_series("Spotify", 200.0, jitter=8.0)
         self.assertEqual(len(detect_recurring_candidates(lookback_days=200)), 1)
 
@@ -379,19 +376,18 @@ class InsightsServiceTestCase(AccountFixtureMixin, unittest.TestCase):
         conn.close()
         self.assertEqual(count, 1)
 
-    # ─── 3. Finansal sağlık skoru ────────────────────────────────────────────
 
     def test_healthy_profile_scores_higher_than_unhealthy(self):
         """Yüksek tasarruf + borçsuz profil, açık veren profilden iyi olmalı."""
         from services.insights_service import compute_financial_health_score
 
-        # Sağlıklı: 10.000 gelir, 5.000 gider (istikrarlı), borç yok
+
         for month in range(3):
             self._add_tx(10000.0, "income", "Maaş", "Maas", days_ago=30 * month + 5)
             self._add_tx(5000.0, "expense", "Ev Kirası", "Kira", days_ago=30 * month + 6)
         healthy = compute_financial_health_score(lookback_days=90, persist=False)
 
-        # Aynı DB'yi temizleyip açık veren profili kur
+
         conn = sqlite3.connect(self.db_path)
         conn.execute("DELETE FROM transactions")
         conn.commit()
@@ -410,7 +406,7 @@ class InsightsServiceTestCase(AccountFixtureMixin, unittest.TestCase):
         """Uç girdilerde bile skor 0-100 aralığında kalmalı."""
         from services.insights_service import compute_financial_health_score
 
-        # Aşırı açık: gelir 1, gider 100.000
+
         self._add_tx(1.0, "income", "Maaş", "Maas", days_ago=5)
         for i in range(4):
             self._add_tx(25000.0, "expense", "Kıyafet", f"Harcama {i}", days_ago=10 + i)
@@ -492,7 +488,6 @@ class InsightsServiceTestCase(AccountFixtureMixin, unittest.TestCase):
         self.assertGreaterEqual(result["score"], 0.0)
         self.assertLessEqual(result["score"], 100.0)
 
-    # ─── 4. Kalıcılık ────────────────────────────────────────────────────────
 
     def test_score_is_persisted_with_timestamp(self):
         """persist=True skoru breakdown'ıyla birlikte tabloya yazmalı."""
@@ -560,7 +555,6 @@ class InsightsServiceTestCase(AccountFixtureMixin, unittest.TestCase):
         self.assertEqual(score_label(20), "Zayıf")
         self.assertEqual(score_label(0), "Kritik")
 
-    # ─── 5. Aylık algoritmik öngörü ──────────────────────────────────────────
 
     def test_no_history_is_insufficient_data(self):
         from services.insights_service import generate_monthly_forecast
@@ -572,8 +566,7 @@ class InsightsServiceTestCase(AccountFixtureMixin, unittest.TestCase):
     def test_less_than_three_months_of_history_is_insufficient_data(self):
         from services.insights_service import generate_monthly_forecast
 
-        # Yalnızca son birkaç günün verisi var — "en az 3 aylık" koşulunu
-        # sağlamıyor, yanıltıcı bir öngörü üretilmemeli.
+
         self._add_tx(5000, "income", "Maaş", "maaş", days_ago=2)
         self._add_tx(1000, "expense", "Süpermarket", "market", days_ago=1)
 
@@ -593,14 +586,11 @@ class InsightsServiceTestCase(AccountFixtureMixin, unittest.TestCase):
 
         self.assertFalse(result["insufficient_data"])
         self.assertGreaterEqual(result["days_available"], 85)
-        # _add_tx ham SQL insert yapar, accounts.balance'a dokunmaz — bu yüzden
-        # fixture bakiyesi (100.000) aynen DashboardService.get_total_balance
-        # üzerinden geri gelmeli.
+
+
         self.assertEqual(result["current_balance"], 100_000.0)
-        # >= değil > kullanmıyoruz: bulunulan ayın SON gününde days_remaining=0
-        # olur ve projeksiyon o durumda taban bakiyeyle eşleşir (RK4 hiç
-        # adım atmaz) — testin ayın hangi gününde çalıştığından etkilenmemesi
-        # gerekiyor.
+
+
         self.assertGreaterEqual(result["projected_surplus"], 0)
         self.assertGreaterEqual(result["projected_month_end_balance"], 100_000.0)
         self.assertGreater(result["savings_rate"], 0.10)

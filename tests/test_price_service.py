@@ -63,8 +63,8 @@ class PriceServiceTest(unittest.TestCase):
             ) as download,
         ):
             price_service.get_price("SISE", "STOCK")
-            # fetch_prices_async arka plan thread'i başlatır; sonucun
-            # cache'e yazılmasını bekle.
+
+
             for _ in range(20):
                 if price_service.get_cached_price("SISE") is not None:
                     break

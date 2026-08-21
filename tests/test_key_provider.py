@@ -94,7 +94,7 @@ class FileKeyProviderTest(unittest.TestCase):
         barrier = threading.Barrier(8)
 
         def create():
-            barrier.wait()  # sekiz thread'i de aynı ana hizala
+            barrier.wait()
             return FileKeyProvider(self.key_path).get_or_create_key()
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:

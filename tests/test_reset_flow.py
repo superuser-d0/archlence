@@ -6,9 +6,8 @@ from types import SimpleNamespace
 from unittest import mock
 
 os.environ.setdefault("KIVY_NO_ARGS", "1")
-# "KIVY_WINDOW=mock" was never a real Kivy provider (bkz. docs/ROADMAP.md
-# Faz 1 madde 2) — main.py artık gerçek pencere kurulamadığında yalnızca
-# ARCHLENCE_HEADLESS=1 açıkça set edildiyse sessizce stub sınıflara düşüyor.
+
+
 os.environ.setdefault("ARCHLENCE_HEADLESS", "1")
 os.environ.setdefault("KIVY_METRICS_DENSITY", "1")
 os.environ.setdefault("KIVY_DPI", "96")
@@ -68,9 +67,7 @@ class ResetFlowTest(unittest.TestCase):
             {"Yapıkredi", "İş Bankası"},
         )
 
-        # MDApp.__init__ gerçek Window ister; bu test yalnız reset metodunun
-        # veri/cache sözleşmesini çalıştırdığı için EventDispatcher nesnesini
-        # pencere oluşturmadan kurmak yeterlidir.
+
         app = ArchlenceApp.__new__(ArchlenceApp)
         app.language = "tr"
         app.store = _Store()
@@ -87,14 +84,8 @@ class ResetFlowTest(unittest.TestCase):
         ))
         app.refresh_dashboard_data = mock.Mock()
         app.render_accounts = mock.Mock()
-        # Bu ikisi de `delete_all_data` içinden çağrılıyor ve HER BİRİ kendi
-        # daemon thread'ini açıp DB okuyor. Gerçek hâlleriyle bırakılırlarsa
-        # thread, `tearDown`'ın geçici dosyayı silmesiyle YARIŞIR: Windows
-        # açık tutulan dosyayı sildirmez ve test WinError 32 ile düşer
-        # (Linux açık dosyanın unlink'ine izin verdiği için orada sessizce
-        # geçiyordu). Bu test zaten warm-up/cache geçersiz kılmayı ölçüyor;
-        # türetilmiş görünümlerin tazelenmesi ayrı bir testin konusu
-        # (tests/test_reset_clears_derived_views.py).
+
+
         app.generate_financial_advice = mock.Mock()
         app.load_asset_history = mock.Mock()
         app._assets_cache = [{"id": 99}]
@@ -136,10 +127,8 @@ class ResetFlowTest(unittest.TestCase):
 
         self.assertEqual(ready_states, [False])
         self.assertTrue(asset_service._asset_data_cache["ready"])
-        # Sıfırlama artık TEMİZ SAYFA bırakır: initialize_database varsayılan
-        # hesap seed'lemediği için ("kullanıcının eklemediği 2500 TL nakit"
-        # şikayeti) yeniden ısıtılan cache boş gelmelidir. İlk hesabı kullanıcı
-        # onboarding ekranında oluşturur (bkz. main.py::route_after_auth).
+
+
         self.assertEqual(
             {row["name"] for row in asset_service._asset_data_cache["accounts"]},
             set(),

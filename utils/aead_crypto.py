@@ -24,7 +24,7 @@ from Crypto.Cipher import AES
 _VERSION = 1
 _ALGO_AES_256_GCM = 1
 _HEADER_LEN = 2  # version + algo id
-_NONCE_LEN = 12  # GCM için NIST SP 800-38D önerisi
+_NONCE_LEN = 12
 _TAG_LEN = 16
 _KEY_LEN = 32  # AES-256
 
@@ -81,10 +81,8 @@ def decrypt(token: str, key: bytes) -> str:
     try:
         plaintext_bytes = cipher.decrypt_and_verify(ciphertext, tag)
     except ValueError as e:
-        # pycryptodome'un GCM MAC doğrulaması başarısız olduğunda fırlattığı
-        # tip — yanlış anahtar veya kurcalanmış ciphertext/tag/nonce ile
-        # ayırt edilemez (bu, AEAD'in amaçladığı şey: saldırgana hangisi
-        # olduğuna dair bilgi sızdırmamak).
+
+
         raise DecryptionError(
             f"Kimlik doğrulama başarısız — yanlış anahtar ya da kurcalanmış veri: {e}"
         ) from e

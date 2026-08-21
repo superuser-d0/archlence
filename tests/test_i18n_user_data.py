@@ -34,8 +34,7 @@ from unittest import mock
 os.environ.setdefault("KIVY_NO_ARGS", "1")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-#: Sözlükte ANAHTAR olarak da geçen, ama kullanıcının kendi verisi olabilen
-#: adlar. Kusurun tam olarak vurduğu küme bu.
+
 COLLIDING_NAMES = ("Nakit", "Ayarlar", "Gelir", "Maaş", "Banka", "Kripto")
 
 
@@ -101,11 +100,11 @@ class ExactMatchOnlyTest(unittest.TestCase):
         unknown = "Bu cümle sözlükte yok — 42 ₺"
         self.assertEqual(tr(unknown, "en"), unknown)
 
-    def test_turkish_mode_leaves_user_text_untouched(self):
+    def test_retired_locale_code_uses_the_english_catalog(self):
         from ui.i18n import tr
 
         for name in COLLIDING_NAMES:
-            self.assertEqual(tr(name, "tr"), name)
+            self.assertEqual(tr(name, "tr"), tr(name, "en"))
 
 
 class TemplateFormattingTest(unittest.TestCase):
@@ -116,11 +115,11 @@ class TemplateFormattingTest(unittest.TestCase):
 
         self.assertEqual(
             trf("{name} aboneliği durduruldu.", language="tr", name="Ayarlar"),
-            "Ayarlar aboneliği durduruldu.",
+            "Ayarlar subscription stopped.",
         )
         self.assertEqual(
             trf("Kalan: {count} Taksit", language="tr", count=3),
-            "Kalan: 3 Taksit",
+            "Remaining: 3 instalments",
         )
         self.assertEqual(
             trf("{a} · {b} · {c}", language="tr", a="1", b="2", c="3"),
@@ -142,7 +141,7 @@ class TemplateFormattingTest(unittest.TestCase):
         hostile = "{test} %s %% {name} 🎉 çğışüö\nikinci satır"
         self.assertEqual(
             trf("Hesap: {name}", language="tr", name=hostile),
-            f"Hesap: {hostile}",
+            f"Account: {hostile}",
         )
 
     def test_a_value_that_looks_like_a_placeholder_is_not_substituted(self):
@@ -157,7 +156,7 @@ class TemplateFormattingTest(unittest.TestCase):
 
         self.assertEqual(
             trf("{name} eklendi", language="tr", name="{name}"),
-            "{name} eklendi",
+            "{name} added",
         )
 
     def test_the_template_is_translated_before_substitution(self):

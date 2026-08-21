@@ -12,8 +12,7 @@ from services.search_service import matches
 import ui.theme as ftheme
 from ui.i18n import tr as _t, trf as _tf
 
-# ─── Varlık / Hisse Simgeleri ─────────────────────────────────────────────────
-# Varlık türü → Material Design ikon adı
+
 ASSET_TYPE_ICONS = {
     "Hisse": "chart-line",
     "Altın": "gold",
@@ -23,10 +22,10 @@ ASSET_TYPE_ICONS = {
     "Diğer": "wallet-outline",
 }
 
-# Altın ikonuna özel vurgu rengi (portföy kartı ve diyaloglarda kullanılır)
+
 GOLD_ICON_COLOR = (0.85, 0.65, 0.13, 1)
 
-# BIST hissesi → sektör ikonu (eşleşmeyenler "chart-line" alır)
+
 _SECTOR_ICON_GROUPS = {
     "bank": ["AKBNK", "ALBRK", "GARAN", "HALKB", "ISCTR", "SKBNK", "TSKB", "VAKBN", "YKBNK"],
     "finance": ["ISFIN", "ISMEN", "TURSG"],
@@ -68,7 +67,6 @@ def get_stock_icon(code):
     return STOCK_SECTOR_ICONS.get(code.upper(), "chart-line")
 
 
-# Gerçek şirket logoları (assets/stock_logos/{KOD}.png); yoksa sektör ikonuna düşülür
 STOCK_LOGO_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "stock_logos"
 )
@@ -201,10 +199,9 @@ def resolve_history_logo_source(description):
     if cached:
         return cached, None
 
-    return None, code  # bulunamadı; code doluysa arka planda denenebilir
+    return None, code
 
 
-# Tür seçim dropdown'ında ikon gösterebilen menü öğesi
 from kivy.lang import Builder as _Builder
 from kivy.factory import Factory as _Factory
 from kivy.properties import StringProperty as _StringProperty
@@ -378,7 +375,7 @@ class AssetMixin:
             height="48dp",
         )
 
-        # Kaydırılabilir liste
+
         scroll = MDScrollView(size_hint=(1, 1))
         self._bist_list_widget = MDList()
         scroll.add_widget(self._bist_list_widget)
@@ -390,10 +387,8 @@ class AssetMixin:
             self._bist_list_widget.clear_widgets()
             prices = getattr(self, "_bist_prices", {})
             for code, name in BIST100_STOCKS:
-                # `.lower()` DEĞİL: BIST adlarının çoğu Türkçe ve orada
-                # yanlış sonuç veriyordu — "is bankasi" yazan kullanıcı
-                # "İŞ BANKASI"nı bulamıyordu (`"İ".lower()` "i" + birleşen
-                # nokta üretir, "ı"/"i" ayrımı da çözülmez).
+
+
                 if not matches(query, code, name):
                     continue
                 price = prices.get(code)
@@ -411,14 +406,13 @@ class AssetMixin:
                         theme_text_color="Custom",
                         text_color=(0.08, 0.72, 0.42, 1),
                     ))
-                # markup için. KivyMD 1.2.0'da `_lbl_primary` bu satır
-                # sınıfının KV'sinden gelir; sürüm değişip ad kalkarsa
-                # `ids.<yok>` ölçülmüş biçimde AttributeError verir.
+
+
                 try:
                     item.ids._lbl_primary.markup = True
                 except AttributeError:
                     pass
-                # Yeniden çizimde mevcut seçimi vurgulu tut
+
                 if code == self._bist_selected_code:
                     try:
                         item.bg_color = (0.08, 0.72, 0.42, 0.15)
@@ -428,7 +422,7 @@ class AssetMixin:
                 def _on_select(inst, c=code, n=name):
                     self._bist_selected_code = c
                     self._bist_selected_name = n
-                    # Seçimi görsel olarak vurgula
+
                     for child in self._bist_list_widget.children:
                         try:
                             child.bg_color = (0, 0, 0, 0)
@@ -447,9 +441,8 @@ class AssetMixin:
         self._bist_search_event = None
 
         def _on_search(instance, value):
-            # Her tuş vuruşunda listeyi yeniden çizmek 100 kalemlik listede
-            # arama kutusunun kasmasına yol açıyordu; kullanıcı yazmayı
-            # bitirene kadar (300ms sessizlik) yeniden çizimi ertele.
+
+
             if self._bist_search_event:
                 self._bist_search_event.cancel()
             self._bist_search_event = Clock.schedule_once(
@@ -458,7 +451,7 @@ class AssetMixin:
 
         search_field.bind(text=_on_search)
 
-        # ── Anlık fiyatları arka planda çek (5 dk önbellekli) ────────────────
+
         cache_age = time.time() - getattr(self, "_bist_price_time", 0)
         if cache_age > 300:
             def _on_prices(prices):
@@ -642,12 +635,10 @@ class AssetMixin:
                 name = c["name"]
                 price = c["price"]
 
-                # BIST listesiyle aynı gerekçe; kripto adları çoğunlukla
-                # İngilizce ama tek bir katlama kullanmak üç arama kutusunun
-                # aynı şekilde davranmasını da garanti ediyor.
+
                 if not matches(query, code, name):
                     continue
-                
+
                 price_text = f"   [color=#14B85F]${price:,.2f}[/color]" if price else ""
                 item = TwoLineAvatarIconListItem(
                     text=f"[b]{code}[/b]{price_text}",
@@ -699,8 +690,8 @@ class AssetMixin:
         self._crypto_search_event = None
 
         def _on_search(instance, value):
-            # BIST picker'daki ile aynı sebep: 100 kalemi her tuş vuruşunda
-            # yeniden çizmek yerine 300ms sessizlik sonrası tek seferde çiz.
+
+
             if self._crypto_search_event:
                 self._crypto_search_event.cancel()
             self._crypto_search_event = Clock.schedule_once(
@@ -719,7 +710,7 @@ class AssetMixin:
                     get_logger().exception("Kripto liste yenileme hatası")
             Clock.schedule_once(_refresh, 0)
 
-        # Arka planda CoinGecko API verisini çek
+
         fetch_top_100_cryptos(_on_cryptos_fetched)
 
         def _confirm_crypto(instance):
@@ -727,7 +718,7 @@ class AssetMixin:
                 toast(_t("Lütfen bir kripto para seçin!"))
                 return
             self._crypto_dialog.dismiss()
-            # yfinance sembol uyumluluğu için -USD ekle (sadece yfinance isteğinde kullanılacak)
+
             yf_symbol = f"{self._crypto_selected_code}-USD"
             Clock.schedule_once(
                 lambda dt: self._show_crypto_price_dialog(
@@ -875,29 +866,15 @@ class AssetMixin:
 
         is_gold = self._asset_selected_type == "Altın"
         quick_picks = self._get_quick_picks(self._asset_selected_type)
-        # DÜZELTME (Aşama 2, madde 1.3): önceden burada elle hesaplanmış sabit
-        # bir yükseklik ("320 + extra_row_height"dp) veriliyordu. MDTextField
-        # kendi yüksekliğini `minimum_height`'a göre belirler (bkz.
-        # kivymd/textfield.kv) — özellikle sembol alanının
-        # `helper_text_mode="persistent"` olması onu tek satırlık bir alandan
-        # daha uzun yapar. Döviz/Kripto'da ayrıca hızlı seçim satırı da
-        # eklenince gerçek toplam yükseklik sabit tahminden fazla oluyor;
-        # BoxLayout çocukları kutunun sınırlarını taşıp diyaloğun altına
-        # kayıyordu (bildirilen "resim/düzen saçma sapan kayıyor" hatası).
-        # `adaptive_height` zaten `open_budget_item_form`'da kullanılan aynı
-        # deseni burada da uygular: kutu, içindeki alanların GERÇEK toplam
-        # yüksekliğine göre büyür.
+
+
         content = MDBoxLayout(
             orientation="vertical",
             spacing="12dp",
             size_hint_y=None,
             adaptive_height=True,
-            # DÜZELTME (Aşama 2, madde 1.3 — "resim kayması"): üst dolgu
-            # eskiden 8dp'ydi; logo/bayrak görseli diyaloğun başlık metnine
-            # neredeyse yapışık duruyordu (statik MDI ikonuyla göze
-            # batmıyordu, ama Döviz/Kripto'da uzaktan çekilen renkli
-            # FitImage ile başlığın üstüne bindiği görülüyordu). 24dp net
-            # bir ayrım bırakır.
+
+
             padding=["0dp", "24dp", "0dp", "8dp"]
         )
 
@@ -1124,16 +1101,13 @@ class AssetMixin:
         slot.add_widget(self._make_type_fallback_icon())
         self._refresh_asset_dialog_height()
 
-    # Tür başına hızlı seçim çipleri: (buton metni, yfinance sembolü, dostane isim)
+
     _QUICK_PICKS = {
         "Döviz":  [("Dolar", "USDTRY=X", "Amerikan Doları"), ("Euro", "EURTRY=X", "Euro")],
         "Kripto": [("Bitcoin", "BTC-USD", "Bitcoin"), ("Ethereum", "ETH-USD", "Ethereum")],
     }
 
-    # Altın için fiziksel tür seçimi: (buton metni, dahili/yfinance sembolü, dostane isim).
-    # Gram Altın gerçek bir yfinance sembolü (GC=F) kullanır; diğerleri gram
-    # fiyatının piyasa çarpanıyla türetildiği dahili "GOLD-*" sembolleridir
-    # (bkz. services/asset_service.py GOLD_TYPE_MULTIPLIERS).
+
     _GOLD_TYPES = [
         ("Gram Altın", "GC=F", "Gram Altın"),
         ("Ons Altın", "GOLD-ONS", "Ons Altın"),
@@ -1309,9 +1283,8 @@ class AssetMixin:
         def success(_result):
             self._asset_purchase_inflight = False
             toast(success_message)
-            # Her yenileme ayrı Clock olayıdır. Bir widget yaşam-döngüsü
-            # hatası diğer yenilemeleri veya DB sonucunu geriye dönük olarak
-            # "kayıt başarısız" durumuna çeviremez.
+
+
             refreshes = (
                 lambda: self.load_active_assets(force_refresh=True),
                 self.load_asset_history,
@@ -1333,14 +1306,8 @@ class AssetMixin:
                 "Asset purchase failed",
                 exc_info=(type(exc), exc, exc.__traceback__),
             )
-            # ValueError, servis katmanının KULLANICIYA YÖNELİK doğrulama
-            # mesajıdır ("Yetersiz Bakiye! Bu hesap eksiye düşemez.",
-            # "Fiyat ve miktar sıfırdan büyük olmalıdır." gibi). Eskiden bu
-            # mesaj yutulup yerine genel "Varlık eklenirken hata oluştu!"
-            # gösteriliyordu — kullanıcı NEDEN eklenemediğini asla öğrenemiyor,
-            # ağ/fiyat sorunu sanıyordu. Gerçek sebep yalnızca log dosyasında
-            # kalıyordu. Beklenmedik hata türlerinde genel mesaj korunur:
-            # ham traceback metnini arayüze basmak doğru olmaz.
+
+
             if isinstance(exc, ValueError) and str(exc).strip():
                 toast(_t(str(exc)))
             else:
@@ -1396,15 +1363,12 @@ class AssetMixin:
         try:
             container = self.root.ids.active_assets_container
         except (AttributeError, KeyError):
-            # KV henüz yüklenmemiş/ekran kurulmamışken: `self.root` None ise
-            # AttributeError, `ids` içinde ad yoksa AttributeError (nokta
-            # erişimi) ya da KeyError (abonelik erişimi). Aynı aile diğer
-            # mixin'lerde de bu çiftle daraltıldı.
+
+
             self._asset_load_inflight = False
             return
 
-        # İskelet yalnızca liste gerçekten boşken gösterilir; mevcut kartlar
-        # yeni veri gelene dek YERİNDE kalır (temizle/yeniden-kur titremesi yok).
+
         has_cards = any(
             getattr(child, "_archlence_asset_id", None) is not None
             for child in container.children
@@ -1426,7 +1390,7 @@ class AssetMixin:
         def _apply(enriched, today_delta, final=False):
             def _on_ui(dt):
                 if generation != self._asset_load_generation:
-                    return  # bayat sonuç — daha yeni bir yükleme başladı
+                    return
                 self.render_active_assets_chunked(
                     enriched,
                     on_complete=lambda: (
@@ -1452,18 +1416,12 @@ class AssetMixin:
             try:
                 today_delta = self._compute_today_liquid_delta()
             except (sqlite3.Error, OSError, ArchlenceError):
-                # `_compute_today_liquid_delta` (main.py) yalnızca bugünün
-                # işlemlerini okur ve tutarları çözer. Ölçüldü: eksik tablo /
-                # bozuk sorgu -> sqlite3.OperationalError; erişilemez veri
-                # dizini -> FileNotFoundError (OSError); çözülemeyen satır ->
-                # FinancialDataIntegrityError (ArchlenceError). sqlite3.Error
-                # OSError'ın ALT SINIFI DEĞİL — ikisi de ayrıca gerekli.
-                # `None` bilinçli: bu değer yalnızca "bugünkü değişim"
-                # rozetini besliyor, varlık listesinin kendisini değil.
+
+
                 today_delta = None
 
             try:
-                # İlk sonuç yalnız SQLite'tan gelir; hiçbir ağ çağrısını beklemez.
+
                 cached = enrich_assets_from_cache(assets)
                 _apply(cached, today_delta, final=False)
 
@@ -1474,20 +1432,10 @@ class AssetMixin:
                     ),
                     force_refresh=force_refresh,
                 )
-            # EXCEPTION-AUDIT: bilinçli geniş — garantili tamamlanma sınırı.
+
             except Exception:
-                # Bu iki çağrı KORUMASIZDI. Buradan kaçan bir istisna daemon
-                # thread'i öldürüyor, dolayısıyla `_apply(..., final=True)` HİÇ
-                # çalışmıyor: `_finish_active_asset_load` çağrılmadığı için
-                # `_asset_load_inflight` True'da kalıyor ve sonraki her
-                # `load_active_assets()` en baştaki koruma ile geri dönüyor.
-                # Sonuç: "Varlıklar hazırlanıyor…" iskeleti KALICI olarak
-                # ekranda kalıyor ve liste bir daha hiç yenilenmiyor.
-                #
-                # Yukarıdaki `get_all_assets()` dalı bu güvenceyi zaten
-                # veriyordu; eksik olan tek yer burasıydı. Daraltmıyoruz:
-                # buradan kaçan HER tip aynı kalıcı sonucu üretir, yani
-                # tip listesini eksik yazmak sessizce aynı hatayı geri getirir.
+
+
                 from utils.logging_config import get_logger
                 get_logger().exception(
                     "Varlık listesi zenginleştirilemedi; yükleme kapatılıyor")
@@ -1511,7 +1459,7 @@ class AssetMixin:
         try:
             label = self.root.ids.asset_prices_updated_label
         except (AttributeError, KeyError):
-            # Kök widget kurulmadıysa AttributeError, id yoksa KeyError.
+
             return
         from services.price_service import get_last_updated_at
 
@@ -1538,7 +1486,7 @@ class AssetMixin:
         try:
             container = self.root.ids.active_assets_container
         except (AttributeError, KeyError):
-            # Kök widget kurulmadıysa AttributeError, id yoksa KeyError.
+
             return
         wanted_ids = {asset.get("id") for asset in assets}
         existing_cards = [
@@ -1597,7 +1545,7 @@ class AssetMixin:
                 size_hint_y=None,
                 height="220dp",
             )
-            
+
             icon = MDIcon(
                 icon="wallet-plus-outline",
                 font_size="64sp",
@@ -1605,7 +1553,7 @@ class AssetMixin:
                 halign="center",
                 pos_hint={"center_x": .5}
             )
-            
+
             lbl = MDLabel(
                 text=_t("Portföyünüz şu an boş.\nİlk yatırımınızı ekleyerek değerini canlı takip edin!"),
                 theme_text_color="Secondary",
@@ -1615,7 +1563,7 @@ class AssetMixin:
                 size_hint_y=None,
                 height="40dp"
             )
-            
+
             btn = MDRoundFlatIconButton(
                 icon="plus",
                 text=_t("İLK VARLIĞINI EKLE"),
@@ -1625,11 +1573,11 @@ class AssetMixin:
                 icon_color=self.theme_cls.primary_color,
                 line_color=self.theme_cls.primary_color
             )
-            
+
             empty_layout.add_widget(icon)
             empty_layout.add_widget(lbl)
             empty_layout.add_widget(btn)
-            
+
             container.add_widget(empty_layout)
             self._assets_cache = []
             return
@@ -1698,7 +1646,7 @@ class AssetMixin:
             ), self.theme_cls)
             card._archlence_asset_id = asset.get("id")
 
-            # Üst satır: İsim + Sil butonu
+
             top_row = MDBoxLayout(
                 orientation="horizontal",
                 size_hint_y=None,
@@ -1739,7 +1687,7 @@ class AssetMixin:
             top_row.add_widget(type_lbl)
             top_row.add_widget(del_btn)
 
-            # Orta satır: Alım fiyatı / Miktar
+
             mid_row = MDBoxLayout(
                 orientation="horizontal",
                 size_hint_y=None,
@@ -1778,7 +1726,7 @@ class AssetMixin:
             mid_row.add_widget(buy_lbl)
             mid_row.add_widget(cur_lbl)
 
-            # Alt satır: K/Z
+
             if asset.get("pnl_pct") is not None:
                 sign = "+" if asset["pnl_pct"] >= 0 else ""
                 pnl_text = _tf(
@@ -1812,7 +1760,7 @@ class AssetMixin:
             card._archlence_type_lbl = type_lbl
             container.add_widget(card)
 
-        # Kart yüksekliğini dinamik güncelle
+
         try:
             card_count = len([
                 child for child in container.children
@@ -1826,8 +1774,7 @@ class AssetMixin:
             from utils.logging_config import get_logger
             get_logger().exception("Aktif varlıklar kartının yüksekliği ayarlanamadı")
 
-        # Zenginleştirilmiş listeyi önbelleğe al; Toplam Varlık kartı çağıran
-        # tarafından (load_active_assets._apply) hazır delta ile güncellenir.
+
         if append:
             self._assets_cache.extend(assets)
         else:
@@ -1912,15 +1859,8 @@ class AssetMixin:
 
         def _do_sell():
             try:
-                # Alım tarafındaki (asset_purchase_service.create_purchase)
-                # yuvarlamanın simetriği: cüzdana GİREN para da kuruşa
-                # yuvarlanır. Ham çarpım hem bakiyeye yazılıyor hem işlem
-                # tutarı olarak saklanıyordu, yani ikili kayan nokta artığı
-                # deftere kalıcı giriyordu.
-                #
-                # K/Z, yuvarlanmış iki nakit tutarın FARKI olarak
-                # hesaplanıyor — açıklamada ve bildirimde gösterilen kâr,
-                # cüzdanın gerçekten gördüğü değişimle birebir tutsun diye.
+
+
                 total_proceeds = fiat(
                     decimal_from(sell_price_per_unit)
                     * decimal_from(asset["quantity"])
@@ -1932,10 +1872,7 @@ class AssetMixin:
                 pnl            = total_proceeds - cost_basis
                 sign           = "+" if pnl >= 0 else "-"
 
-                # Açıklama ARTIK BURADA KURULMUYOR: `8b1744e`'den beri
-                # `AssetSaleService.sell` miktar/birim fiyat/K-Z taşıyan
-                # açıklamayı kendisi yazıyor. Buradaki kopya hiçbir yere
-                # gitmiyordu; iki yerde kurmak da ikisinin ayrışması demekti.
+
                 AssetSaleService.sell(
                     asset["id"], sell_price_per_unit, DEFAULT_ACCOUNT_ID,
                     quantity=asset["quantity"],
@@ -1957,7 +1894,7 @@ class AssetMixin:
 
         threading.Thread(target=_do_sell, daemon=True).start()
 
-    # ─── Varlık Geçmişi (Ledger) ────────────────────────────────────────────
+
     def load_asset_history(self, *args):
         """Varlık alım/satış geçmişini arka planda çeker ve UI'a render eder.
         Geçmişteki tüm işlemlerin logudur.
@@ -2037,14 +1974,14 @@ class AssetMixin:
         if codes_to_prefetch:
             self._prefetch_asset_logos(codes_to_prefetch, history)
 
-        # Kart yüksekliğini dinamik güncelle (boşlukları yok et)
+
         try:
             item_count = len(history)
-            parent_card = rv.parent  # RecycleView artık doğrudan MDCard'ın çocuğu
+            parent_card = rv.parent
             from kivy.metrics import dp as _dp
             # Base height ~80dp (padding + header), each item ~73dp
             new_height = max(120, 80 + item_count * 73)
-            # Eğer liste çok uzunsa maksimum 320dp'de kısıtla ki scroll aktif olsun
+
             new_height = min(320, new_height)
             parent_card.height = _dp(new_height)
         except Exception:

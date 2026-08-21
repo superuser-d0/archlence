@@ -102,9 +102,8 @@ class InputBoundaryReproduction(_TemporaryProfile):
                 "NaN service boundary",
                 detect_subscription=False,
             )
-        # Denetim sondası: uygulamanın hangi tipi fırlattığını ölçüyor.
-        # Geniş `except Exception` yerine daraltıldı — istisna kapısını
-        # denetim kodunun kendisi kırmamalı.
+
+
         except (ValueError, TypeError, ArithmeticError, sqlite3.Error, ArchlenceError) as exc:
             caught = exc
 
@@ -219,8 +218,7 @@ class NonFiniteCorruptionReproduction(_TemporaryProfile):
 
         after_balance, after_total, after_events = state()
 
-        # İkinci bir infinity bakiyeyi NULL'a çeviriyor; NULL hesap
-        # SUM(balance) toplamından sessizce düşüyor.
+
         try:
             TransactionService.add_transaction(
                 victim, float("inf"), "income", "T", "sonsuz2",

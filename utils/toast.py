@@ -5,11 +5,8 @@ _ARCHLENCE_HEADLESS = os.environ.get("ARCHLENCE_HEADLESS", "").strip().lower() i
 )
 
 if _ARCHLENCE_HEADLESS:
-    # Headless sözleşmesi açıksa KivyMD'yi hiç import etme. Kivy kurulu olsa
-    # bile pencere sağlayıcısı olmayan bir süreçte snackbar importu, normal
-    # ImportError yerine Kivy'nin `SystemExit` yolunu tetikleyebilir. Test
-    # sırasına/stub kurulmasına bağlı davranmamak için no-op kararı importtan
-    # önce verilir.
+
+
     def toast(*args, **kwargs):
         return None
 else:

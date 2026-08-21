@@ -16,7 +16,7 @@ import stat
 import shutil
 from pathlib import Path
 
-# ── Konsol kodlaması: Türkçe metin Windows'ta süreci ÖLDÜRMESİN ─────────────
+# Keep diagnostic output valid on Windows consoles with legacy encodings.
 for _stream in (sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8", errors="replace")
@@ -54,12 +54,8 @@ def _log_unhandled_exception(exc_type, exc_value, exc_tb):
             )
             _traceback.print_exception(exc_type, exc_value, exc_tb, file=f)
     except Exception:
-        # EXCEPTION-AUDIT: bilinçli geniş — crash günlüğünü YAZAN yol.
-        # BİLEREK sessiz: burası crash günlüğünü YAZAN yol. `get_logger()`
-        # çağırmak, log altyapısının kendisi bozuksa (disk dolu, izin hatası)
-        # aynı hatayı yeniden tetikleyip özyinelemeye ya da ikinci bir
-        # istisnaya yol açar. Aşağıdaki `sys.__excepthook__` zaten asıl
-        # istisnayı stderr'e basar — tek iz kaybı olmaz.
+
+
         pass
     sys.__excepthook__(exc_type, exc_value, exc_tb)
 
@@ -79,21 +75,7 @@ if ARCHLENCE_HEADLESS:
     os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
     os.environ.setdefault("KIVY_WINDOW", "sdl2")
 
-# =========================================================================
-# 2.5 TEK ÖRNEK KİLİDİ — KIVY IMPORT'LARINDAN ÖNCE
-# =========================================================================
-# BURADA, aşağıdaki Kivy import'larından ÖNCE olmak ZORUNDA. `kivy.core.window`
-# import edildiği anda SDL penceresi açılıyor; kilit kontrolü daha sonra
-# koşarsa kullanıcı önce boş siyah bir pencere görüyor, uyarı kutusu ancak
-# onun ÜSTÜNE geliyor ve kutu kapatılana kadar orada duruyor. Fiziksel
-# Windows makinesinde ölçüldü (bkz. WINDOWS_RC_CHECKLIST.md §2.4): koddaki
-# "Kivy/SQLite başlangıcından önce" notu paketlenmiş yapıda geçerli değildi,
-# çünkü kontrol modül sonundaki `__main__` bloğunda duruyordu — yani tüm
-# import'lar, pencere dahil, çoktan çalışmış oluyordu.
-#
-# `__main__` koşulu: main.py testlerden `import main` ile de yükleniyor
-# (bkz. tests/test_startup_import.py). Kilit yalnız uygulama gerçekten
-# çalıştırılırken alınır, import edilirken değil.
+
 _instance_lock = None
 
 if __name__ == "__main__":
@@ -114,9 +96,7 @@ if __name__ == "__main__":
         notify_already_running(str(exc))
         raise SystemExit(2) from exc
 
-    # `atexit`, aşağıdaki erken `SystemExit` yollarını da (ör. headless'ta
-    # pencere sağlayıcısı yokken) kapsıyor; `release()` yeniden çağrılmaya
-    # dayanıklı olduğu için çift bırakma sorun değil.
+
     atexit.register(_instance_lock.release)
 
 # =========================================================================
@@ -239,6 +219,7 @@ except (ImportError, AttributeError) as exc:
 # =========================================================================
 from utils.crypto import decrypt, key_protection_status
 from database.init_db import (
+    DATA_INTEGRITY_MESSAGE,
     SCHEMA_TOO_NEW_MESSAGE,
     initialize_database,
 )
@@ -274,9 +255,9 @@ from utils.currency import format_try
 from utils.errors import FinancialDataIntegrityError, SchemaTooNewError
 from utils.version import APP_VERSION
 
-# Destek/geri bildirim kanalı. README, PKGBUILD ve release notlarındaki
-# adresle aynı; tek yerde durur ki depo taşınırsa burada da güncellensin.
+# Public project and private contact channels.
 ARCHLENCE_GITHUB_URL = "https://github.com/superuser-d0/archlence"
+ARCHLENCE_CONTACT_EMAIL = "Superkullaniciyapiyor@proton.me"
 
 from mixins.asset_mixin import AssetMixin
 from mixins.debt_mixin import DebtMixin
@@ -320,7 +301,7 @@ def _resolve_savings_store_path():
     """Eski `savings_goals.json`'un GÖÇ İÇİN aranacağı yol.
 
     Bu dosya artık bir veri kaynağı DEĞİL: hedefler SQLite'ta yaşıyor
-    (docs/SAVINGS_SINGLE_SOURCE_PLAN.md). Fonksiyon yalnız duruyor çünkü
+    (contract: docs/ARCHITECTURE.md). Fonksiyon yalnız duruyor çünkü
     paketlenmiş eski kurulumlarda dosya hâlâ uygulama dizininde olabilir ve
     göç motorunun onu bulabilmesi için önce kullanıcı veri dizinine taşınması
     gerekiyor. Taşıma idempotent; hedefte dosya varsa üzerine yazmaz.
@@ -353,7 +334,7 @@ def setup_appimage_desktop_integration():
     applications_dir.mkdir(parents=True, exist_ok=True)
     icons_dir.mkdir(parents=True, exist_ok=True)
 
-    # İkon Kopyalama Adımı (shutil entegre edildi)
+
     source_icon = Path(resource_dir()) / "assets" / "icon.png"
     target_icon = icons_dir / "archlence.png"
 
@@ -435,7 +416,7 @@ class ArchlenceApp(
     home_circle_color = ColorProperty((0.5, 0.5, 0.5, 0.2))
     savings_goals = []
     theme_name = StringProperty("standard")
-    language = StringProperty("tr")
+    language = StringProperty("en")
     key_protection_text = StringProperty("Anahtar koruması denetleniyor…")
     version = StringProperty(APP_VERSION)
 
@@ -508,9 +489,8 @@ class ArchlenceApp(
         try:
             pending = pending_quarantine()
         except (sqlite3.Error, OSError, ValueError):
-            # Dar sınır: okuma yolunun gerçekten üretebildiği arızalar.
-            # Şifre çözme hataları zaten servisin içinde ele alınıyor
-            # ("Bilinmeyen Hedef"), bir kayıt yüzünden tüm bildirim düşmesin.
+
+
             from utils.logging_config import get_logger
             get_logger().exception("Karantina kayıtları okunamadı")
             return
@@ -561,13 +541,8 @@ class ArchlenceApp(
                 lambda _dt: callback(), 0
             )
         )
-        # YARIM RESTORE KURTARMASI — anahtar, DB ve config'e dokunan HER
-        # ŞEYDEN ÖNCE. Sıra kritik: kurtarma bunlardan sonra çalışırsa
-        # uygulama yarım bir generation üzerinde açılmış olur (DB bir
-        # yedekten, config başka bir generation'dan).
-        #
-        # FAIL-CLOSED: kurtarma güvenle tamamlanamazsa açılış DURUR. Bozuk
-        # bir journal'a rağmen devam etmek, karma profille çalışmak demektir.
+
+
         from services.startup_recovery import (
             USER_MESSAGE as _RECOVERY_USER_MESSAGE,
             StartupRecoveryError,
@@ -578,43 +553,41 @@ class ArchlenceApp(
             run_startup_recovery(config_path=_resolve_config_path())
         except StartupRecoveryError as exc:
             from utils.logging_config import get_logger
-            # Log'a outcome girer, kullanıcı metnine DEĞİL exception'ın
-            # kendisi de girmez — sabit `USER_MESSAGE` gösterilir.
+
+
             get_logger().critical("Açılış kurtarması başarısız: %s", exc.outcome)
-            self._startup_recovery_failure = _RECOVERY_USER_MESSAGE
-            present_startup_recovery_failure(self, _RECOVERY_USER_MESSAGE)
-            raise
+
+
+            return present_startup_recovery_failure(self, _RECOVERY_USER_MESSAGE)
 
         self._warm_crypto_key_in_background()
         migrate_legacy_database_location()
-        # FAIL-CLOSED, kurtarma ile aynı gerekçe (denetim bulgusu A-5): daha
-        # yeni bir yapının yazdığı veritabanına eski bir yapı DOKUNMAMALI.
-        # Devam etmek, tanınmayan sütunları görmezden gelerek üzerine yazmak
-        # demekti — sessiz veri kaybı.
+
+
         try:
             initialize_database()
         except SchemaTooNewError as exc:
             from services.startup_recovery import present_schema_too_new_failure
             from utils.logging_config import get_logger
-            # Sürüm numaraları LOG'a girer, kullanıcı metnine değil.
+
             get_logger().critical(
                 "Veritabanı şeması bu yapıdan yeni: bulunan=%s desteklenen=%s",
                 exc.found, exc.supported,
             )
-            self._startup_recovery_failure = SCHEMA_TOO_NEW_MESSAGE
-            present_schema_too_new_failure(self, SCHEMA_TOO_NEW_MESSAGE)
-            raise
-        # BİRİKİM HEDEFLERİ ARTIK JSON'DAN OKUNMUYOR.
-        #
-        # Eskiden burada `JsonStore(savings_goals.json)` açılıyor ve ekrandaki
-        # kartlar o dosyadan besleniyordu; para ise SQL'deydi. İkisi
-        # ayrışabiliyordu ve restore `sqlite_sequence`i geri sardığında bayat
-        # bir kart BAŞKA bir hedefi fonluyordu
-        # (tests/test_savings_identity_reuse_regression.py). Tek doğruluk
-        # kaynağı artık SQLite.
-        #
-        # Sıra önemli: göç `initialize_database()`'ten SONRA (şema hazır) ve
-        # hedefler okunmadan ÖNCE çalışır.
+            return present_schema_too_new_failure(self, SCHEMA_TOO_NEW_MESSAGE)
+        except FinancialDataIntegrityError as exc:
+
+
+            from services.startup_recovery import present_data_integrity_failure
+            from utils.logging_config import get_logger
+            get_logger().critical(
+                "Veritabanı bütünlük kapısı açılışı durdurdu: "
+                "table=%s id=%s field=%s reason=%s",
+                exc.table, exc.record_id, exc.field, exc.reason,
+            )
+            return present_data_integrity_failure(self, DATA_INTEGRITY_MESSAGE)
+
+
         self._run_savings_migration_at_startup()
         self.load_savings_goals()
 
@@ -627,10 +600,9 @@ class ArchlenceApp(
             saved_style if saved_style in ("Light", "Dark") else "Light"
         )
 
-        language = "tr"
-        if self.config_store.exists("language"):
-            language = self.config_store.get("language").get("code", "tr")
-        self.language = set_active_language(language)
+        # Retired locale preferences are intentionally ignored. The public UI
+        # is English-only, while legacy stored data remains readable.
+        self.language = set_active_language("en")
         protection = key_protection_status()
         self.key_protection_text = (
             protection.method
@@ -652,7 +624,7 @@ class ArchlenceApp(
         return translate(text, language or self.language)
 
     def set_language(self, code, persist=True):
-        self.language = set_active_language(code)
+        self.language = set_active_language("en")
         from ui.charts import invalidate_localized_chart_cache
         invalidate_localized_chart_cache()
         if persist:
@@ -700,27 +672,20 @@ class ArchlenceApp(
                     pass
         self._refresh_text_textures()
 
-    def open_language_dialog(self):
-        dialog = MDDialog(
-            title=self.tr("Uygulama Dili"),
-            buttons=[
-                MDFlatButton(
-                    text=translate("TÜRKÇE"),
-                    on_release=lambda _btn: (self.set_language("tr"), dialog.dismiss()),
-                ),
-                MDRaisedButton(
-                    text=translate("ENGLISH"),
-                    on_release=lambda _btn: (self.set_language("en"), dialog.dismiss()),
-                ),
-            ],
-        )
-        dialog.open()
-
     def on_start(self):
+
+
+        if getattr(self, "_startup_recovery_failure", None):
+            from utils.logging_config import get_logger
+            get_logger().critical(
+                "Açılış hata yüzeyi etkin; normal başlangıç adımları "
+                "çalıştırılmıyor."
+            )
+            return
+
         self._normalize_card_shadows()
 
-        # Karantina bildirimi UI ayağa kalktıktan SONRA: `build()` sırasında
-        # açılan bir diyalog henüz pencere yokken çizilmeye çalışılırdı.
+
         Clock.schedule_once(self._present_savings_quarantine, 0)
 
         tool_card_bindings = (
@@ -835,20 +800,14 @@ class ArchlenceApp(
             get_logger().exception("Tema sonrası yüzey renkleri tazelenemedi")
         self._normalize_card_shadows()
         self._resync_text_fields()
-        # EXCEPTION-AUDIT: bilinçli geniş — canlı widget ağacı, açık
-        # gözlemci yüzeyi; kozmetik kazanç, çökme riski.
-        # BİLEREK geniş: bu döngü CANLI widget ağacının tamamını gezer; içinde
-        # KV'de tanımlı ve üçüncü parti widget'lar da var. Kivy'de özellik
-        # ataması gözlemcileri EŞZAMANLI çalıştırdığı için tip kümesi kapalı
-        # değil. Buradan kaçan bir istisna tema geçişini komple çökertir,
-        # kazancı ise yalnızca kozmetik. Sessiz `pass` yerine sayaçla
-        # loglanıyor: etiket başına spam üretmeden görünür oluyor.
+
+
         failures = []
         for widget in self._all_widgets():
             if isinstance(widget, MDLabel):
                 try:
                     widget.on_theme_text_color(widget, widget.theme_text_color)
-                # EXCEPTION-AUDIT: bilinçli geniş — yukarıdaki gerekçe.
+
                 except Exception as exc:
                     failures.append(exc)
         if failures:
@@ -890,19 +849,15 @@ class ArchlenceApp(
         Clock.schedule_once(self._refresh_text_textures, 0.05)
 
     def _refresh_text_textures(self, *args):
-        # EXCEPTION-AUDIT: bilinçli geniş — gerekçe
-        # `_after_theme_switch`'teki döngüyle aynı.
-        # Ölçülen gerçek hata: `font_name` diskte yoksa `texture_update()`
-        # OSError veriyor ("Label: File '...' not found"). Eskiden bu tamamen
-        # sessizdi; paketlenmiş derlemede eksik bir font, hiçbir iz bırakmadan
-        # tüm metinlerin yeniden çizilmemesine yol açardı.
+
+
         failures = []
         for widget in self._all_widgets():
             if isinstance(widget, MDLabel):
                 try:
                     widget.texture_update()
                     widget.canvas.ask_update()
-                # EXCEPTION-AUDIT: bilinçli geniş — yukarıdaki gerekçe.
+
                 except Exception as exc:
                     failures.append(exc)
         if failures:
@@ -917,8 +872,7 @@ class ArchlenceApp(
 
         from kivymd.uix.card import MDCard
 
-        # EXCEPTION-AUDIT: bilinçli geniş — gerekçe
-        # `_after_theme_switch`'teki döngüyle aynı.
+
         failures = []
         for widget in self._all_widgets():
             if isinstance(widget, MDCard):
@@ -930,7 +884,7 @@ class ArchlenceApp(
                         widget.shadow_softness = 0
                     if hasattr(widget, "shadow_color"):
                         widget.shadow_color = (0, 0, 0, 0)
-                # EXCEPTION-AUDIT: bilinçli geniş — yukarıdaki gerekçe.
+
                 except Exception as exc:
                     failures.append(exc)
         if failures:
@@ -1037,19 +991,8 @@ class ArchlenceApp(
         )
 
     def _compute_dashboard_metrics(self):
-        # ÖNBELLEK. Bu fonksiyonun maliyetinin ~%99'u AES-GCM şifre çözme
-        # (10.000 işlemli bir profilde 10.800 `decrypt` çağrısı, ~318 ms).
-        # Tutarlar şifreli TEXT olduğu için SQL'de toplanamıyor; tek çare
-        # her satırı Python'da çözmek. Dolayısıyla asıl kazanç çözmeyi
-        # hızlandırmak değil, GEREKMEDİKÇE HİÇ YAPMAMAK.
-        #
-        # Anahtardaki üç bileşenin her biri gerekli:
-        #   * revision — bakiyeye dokunan her yazım `record_balance_event`
-        #     üzerinden artırır (defter değişmezi), ayrıca kategori
-        #     `importance` değişimi (bkz. mark_financial_data_changed).
-        #   * filtre   — "Bugün/1 Hafta/…" dönem toplamlarını değiştirir.
-        #   * tarih    — gün dönünce "Bugün" penceresi kayar, veri
-        #     değişmemiş olsa bile sonuç eskir.
+
+
         from services.asset_service import get_financial_data_revision
 
         cache_key = (
@@ -1147,10 +1090,8 @@ class ArchlenceApp(
             "projection_daily_expense": daily_expense,
             "change_rate": period_change["percentage"],
         }
-        # Yalnızca HATASIZ tamamlanan hesap önbelleğe alınır: yukarıdaki
-        # `summarize_transactions` bozuk bir kayıtta
-        # `FinancialDataIntegrityError` fırlatıyor ve o durumda buraya hiç
-        # gelinmiyor — yani hatalı bir sonuç asla önbelleğe girmez.
+
+
         self._dashboard_metrics_cache = (cache_key, metrics)
         return metrics
 
@@ -1573,9 +1514,7 @@ class ArchlenceApp(
         self._dashboard_rendered_cache_key = dashboard_key
         return True
 
-    # -------------------------------------------------------------------------
-    # [ MADDE 1 DÜZELTMESİ ]: Bozuk İşlemlerin Yakalanması ve UI'a İletilmesi
-    # -------------------------------------------------------------------------
+
     def _refresh_recent_transactions(self, list_filter=None):
         import threading
 
@@ -1613,7 +1552,7 @@ class ArchlenceApp(
                 for t_type, category, amount_enc, desc_enc, t_date in transactions_raw:
                     is_corrupted = False
 
-                    # Şifre çözme denemesi
+
                     try:
                         dec_amt = float(decrypt(str(amount_enc), SECRET_KEY))
                     except (ValueError, TypeError):
@@ -1717,9 +1656,8 @@ class ArchlenceApp(
                 )
 
             recent_list.data = data
-            # Liste yüksekliği artık içeriğe bağlı (ui/dashboard.kv): işlem
-            # yokken alan tamamen kapanır, o yüzden boş durum metni bu etikete
-            # düşer — varlık geçmişindeki kalıbın aynısı.
+
+
             empty_label = self.root.ids.get("recent_tx_empty_label")
             if empty_label is not None:
                 empty_label.height = 0 if data else dp(40)
@@ -1804,10 +1742,31 @@ class ArchlenceApp(
         Clock.schedule_once(lambda dt: self.render_accounts(), 0)
         Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0.05)
 
+
+    password_renewal_required = False
+
+    def _credential_exists(self):
+        """Kullanılabilir bir parola kaydı var mı?
+
+        `authentication_screen()` YENİDEN KULLANILIYOR, ayrı bir okuma
+        yazılmıyor: o metot zaten "geçerli bir güvenlik kaydı var mı" sorusunun
+        tek cevabı ve okunamayan kaydı `pin_setup`'a düşürüyor. İkinci bir
+        yorum yazmak, iki metodun aynı bozuk kayıt hakkında FARKLI karar
+        verdiği bir durum üretirdi: kullanıcı `pin_setup` ekranına
+        yönlendirilir ama `setup_pin` kaydetmeyi reddederdi — çıkışsız bir
+        ekran.
+        """
+        return self.authentication_screen() == "login"
+
     def setup_pin(self):
-        pin = self.root.ids.pin_setup_input.text.strip()
-        confirmation = self.root.ids.pin_confirm_input.text.strip()
+        pin = self.root.ids.pin_setup_input.text
+        confirmation = self.root.ids.pin_confirm_input.text
         error = self.root.ids.pin_setup_error_label
+
+
+        if self._credential_exists() and not self.password_renewal_required:
+            error.text = translate("Şifre değiştirmek için mevcut şifrenizi girin.")
+            return
 
         is_valid, policy_error = PasswordPolicy.validate(pin)
         if not is_valid:
@@ -1817,12 +1776,25 @@ class ArchlenceApp(
             error.text = translate("Şifreler eşleşmiyor.")
             return
 
+        renewing = self.password_renewal_required
         salt = SecurityService.generate_salt()
         pin_hash = SecurityService.hash_password(pin, salt)
         self.config_store.put("security", pin_hash=pin_hash, salt=salt, is_set=True)
         error.text = ""
         self.root.ids.pin_setup_input.text = ""
         self.root.ids.pin_confirm_input.text = ""
+
+        if renewing:
+
+
+            self.password_renewal_required = False
+            self.config_store.put(
+                "security_throttle", **LoginThrottle.record_success()
+            )
+            self.root.ids.password_input.text = ""
+            self.root.ids.screen_manager.current = "login"
+            return
+
         self.root.ids.screen_manager.current = self.route_after_auth()
 
     def open_change_pin_dialog(self):
@@ -1831,24 +1803,34 @@ class ArchlenceApp(
         from kivymd.uix.textfield import MDTextField
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivy.metrics import dp
-        
-        content = MDBoxLayout(orientation="vertical", spacing=dp(12), size_hint_y=None, height=dp(160))
+
+        content = MDBoxLayout(orientation="vertical", spacing=dp(12), size_hint_y=None, height=dp(230))
+
+
+        self._current_pin_input = MDTextField(
+            hint_text=translate("Mevcut Şifre"),
+            password=True,
+            max_text_length=PasswordPolicy.MAX_LENGTH,
+            multiline=False,
+            write_tab=False,
+        )
         self._new_pin_input = MDTextField(
             hint_text=translate("Yeni Şifre"),
             password=True,
-            max_text_length=32,
+            max_text_length=PasswordPolicy.MAX_LENGTH,
             multiline=False,
             write_tab=False,
-            helper_text=translate("En az 4 karakter, 1 büyük harf ve 1 özel karakter"),
+            helper_text=translate(PasswordPolicy.REQUIREMENTS),
             helper_text_mode="persistent"
         )
         self._new_pin_confirm = MDTextField(
             hint_text=translate("Yeni Şifre Tekrar"),
             password=True,
-            max_text_length=32,
+            max_text_length=PasswordPolicy.MAX_LENGTH,
             multiline=False,
             write_tab=False
         )
+        content.add_widget(self._current_pin_input)
         content.add_widget(self._new_pin_input)
         content.add_widget(self._new_pin_confirm)
 
@@ -1859,7 +1841,7 @@ class ArchlenceApp(
             buttons=[
                 MDFlatButton(
                     text=translate("İPTAL"),
-                    on_release=lambda _b: self._change_pin_dialog.dismiss()
+                    on_release=lambda _b: self.close_change_pin_dialog()
                 ),
                 MDRaisedButton(
                     text=translate("KAYDET"),
@@ -1869,36 +1851,88 @@ class ArchlenceApp(
         )
         self._change_pin_dialog.open()
 
-    def _apply_new_pin(self, _button):
-        pin = self._new_pin_input.text.strip()
-        confirmation = self._new_pin_confirm.text.strip()
+    def close_change_pin_dialog(self):
+        """Diyaloğu kapatır ve hassas alan referanslarını bırakır.
 
+        Alan nesneleri düz metin parolayı `text` özelliğinde tutuyor. Referans
+        `self` üzerinde asılı kalırsa parola diyalog kapandıktan sonra da
+        uygulama nesnesinden erişilebilir kalır. Python'da belleği sıfırlamayı
+        garanti edemeyiz; yapabileceğimiz, referansı tutmamak."""
+        dialog = getattr(self, "_change_pin_dialog", None)
+        for name in ("_current_pin_input", "_new_pin_input", "_new_pin_confirm"):
+            field = getattr(self, name, None)
+            if field is not None:
+                field.text = ""
+            setattr(self, name, None)
+        self._change_pin_dialog = None
+        if dialog is not None:
+            dialog.dismiss()
+
+    def _apply_new_pin(self, _button):
         from utils.toast import toast
+
+        current = self._current_pin_input.text
+        pin = self._new_pin_input.text
+        confirmation = self._new_pin_confirm.text
+
+
+        throttle_state = (
+            self.config_store.get("security_throttle")
+            if self.config_store.exists("security_throttle") else {}
+        )
+        remaining = LoginThrottle.seconds_remaining(throttle_state)
+        if remaining > 0:
+            toast(translate_format(
+                "Çok fazla hatalı deneme. {seconds} saniye sonra tekrar deneyin.",
+                seconds=int(remaining) + 1,
+            ))
+            return
+
+
+        security = (
+            self.config_store.get("security")
+            if self.config_store.exists("security") else {}
+        )
+        stored_hash = security.get("pin_hash")
+        if not stored_hash or not SecurityService.verify_password(
+            current, security.get("salt"), stored_hash
+        ):
+            new_throttle = LoginThrottle.record_failure(throttle_state)
+            self.config_store.put("security_throttle", **new_throttle)
+            toast(translate("Hatalı Şifre!"))
+            return
+
 
         is_valid, policy_error = PasswordPolicy.validate(pin)
         if not is_valid:
             toast(translate(policy_error))
             return
-
         if pin != confirmation:
             toast(translate("Şifreler eşleşmiyor."))
             return
+        if pin == current:
+            toast(translate("Yeni şifre mevcut şifreyle aynı olamaz."))
+            return
+
 
         salt = SecurityService.generate_salt()
         pin_hash = SecurityService.hash_password(pin, salt)
         self.config_store.put("security", pin_hash=pin_hash, salt=salt, is_set=True)
+        self.config_store.put(
+            "security_throttle", **LoginThrottle.record_success()
+        )
 
-        self._change_pin_dialog.dismiss()
-        self._change_pin_dialog = None
-
+        self.close_change_pin_dialog()
         toast(translate("Şifre başarıyla değiştirildi. Lütfen tekrar giriş yapın."))
-        
-        # Çıkış yap (logout)
+
+
         self.root.ids.password_input.text = ""
         self.root.ids.screen_manager.current = "login"
 
     def check_login(self):
-        pin = self.root.ids.password_input.text.strip()
+
+
+        pin = self.root.ids.password_input.text
         if self.authentication_screen() != "login":
             self.root.ids.screen_manager.current = "pin_setup"
             return
@@ -1917,15 +1951,31 @@ class ArchlenceApp(
 
         security = self.config_store.get("security")
         if SecurityService.verify_password(pin, security["salt"], security["pin_hash"]):
+
+
+            self.config_store.put(
+                "security_throttle", **LoginThrottle.record_success()
+            )
+            if not PasswordPolicy.is_compliant(pin):
+
+
+                self.password_renewal_required = True
+                self.root.ids.password_input.text = ""
+                self.root.ids.login_error_label.text = ""
+                self.root.ids.pin_setup_input.text = ""
+                self.root.ids.pin_confirm_input.text = ""
+                self.root.ids.pin_setup_error_label.text = translate(
+                    "Şifreniz güncel güvenlik politikasını karşılamıyor. "
+                    "Devam etmek için yeni bir şifre belirleyin."
+                )
+                self.root.ids.screen_manager.current = "pin_setup"
+                return
             if SecurityService.needs_upgrade(security["pin_hash"]):
                 new_hash = SecurityService.hash_password(pin)
                 self.config_store.put(
                     "security", pin_hash=new_hash,
                     salt=security["salt"], is_set=True,
                 )
-            self.config_store.put(
-                "security_throttle", **LoginThrottle.record_success()
-            )
             self._handle_successful_login()
         else:
             new_throttle = LoginThrottle.record_failure(throttle_state)
@@ -2031,9 +2081,7 @@ class ArchlenceApp(
             )
             conn.commit()
 
-        # `importance`, `summarize_transactions`'ın main/extra kovalarını
-        # belirliyor — yani bakiye hiç değişmese de dashboard ÖZETİ değişir.
-        # Sürüm artmazsa `_compute_dashboard_metrics` önbelleği bayat kalır.
+
         from services.asset_service import mark_financial_data_changed
         mark_financial_data_changed()
 
@@ -2185,12 +2233,8 @@ class ArchlenceApp(
                 "positive",
             )
         return (
-            # `f` ÖNEKİ YOK, bilerek: `{month_end}` çeviriden SONRA
-            # doldurulmalı. Tutar önce enterpole edilirse ortaya her seferinde
-            # farklı bir dize çıkar, sözlükteki statik şablonla eşleşmez ve
-            # İngilizce arayüzde Türkçe metin görünür (v0.0.4'te düzeltilen
-            # hata buydu). Eski `f` öneki etkisizdi — bu parçada hiç
-            # placeholder yok — ama yanıltıcıydı.
+
+
             translate(
                 "Son 3 ayın istatistiğine göre bu ay sonunda bakiyenizin yaklaşık "
                 "{month_end} olması bekleniyor."
@@ -2229,35 +2273,27 @@ class ArchlenceApp(
     # Dialogs & Reset Functionality
     # -------------------------------------------------------------------------
     def contact_us(self):
-        """Destek/geri bildirim kanalını açar.
-
-        E-posta yerine GitHub: proje zaten herkese açık geliştiriliyor, sorunlar
-        orada izleniyor ve bir issue hem yanıtlanabilir hem başkalarına görünür
-        olur — support@ kutusuna giden mesaj ikisini de sağlamıyordu.
-        """
+        """Open the private project contact channel."""
         import webbrowser
 
-        def open_github(_button):
-            webbrowser.open(ARCHLENCE_GITHUB_URL)
+        def open_email(_button):
+            webbrowser.open(f"mailto:{ARCHLENCE_CONTACT_EMAIL}")
             if hasattr(self, "contact_dialog"):
                 self.contact_dialog.dismiss()
 
         self.contact_dialog = MDDialog(
-            title=translate("Bize Ulaşın"),
-            text=translate(
-                "Soru, öneri ve hata bildirimleri için GitHub sayfamızı "
-                "kullanabilirsiniz:\n\n[b]github.com/superuser-d0/archlence[/b]"
-            ),
+            title="Contact",
+            text=f"Email us at:\n\n[b]{ARCHLENCE_CONTACT_EMAIL}[/b]",
             buttons=[
                 ftheme.secondary_button(
-                    translate("KAPAT"),
+                    "CLOSE",
                     self.theme_cls,
                     on_release=lambda x: self.contact_dialog.dismiss(),
                 ),
                 ftheme.primary_button(
-                    translate("GITHUB'DA AÇ"),
+                    "SEND EMAIL",
                     self.theme_cls,
-                    on_release=open_github,
+                    on_release=open_email,
                 ),
             ],
         )
@@ -2303,13 +2339,16 @@ class ArchlenceApp(
             toast(translate("Silme işlemi iptal edildi. Onay için SİL yazmalısınız."))
             return
         try:
-            # `self.store.clear()` KALDIRILDI: birikim hedefleri artık
-            # JsonStore'da yaşamıyor, aşağıdaki tablo temizliği onları da
-            # kapsıyor (savings_goals, karantina ve göç işareti dahil).
+
+
             self.savings_goals = []
 
             with managed_connection() as conn:
                 cursor = conn.cursor()
+
+
+                cursor.execute("BEGIN")
+                cursor.execute("PRAGMA defer_foreign_keys = ON")
                 cursor.execute("""
                     SELECT name FROM sqlite_master
                     WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
@@ -2357,12 +2396,7 @@ class ArchlenceApp(
 
             self.refresh_dashboard_data()
 
-            # `refresh_dashboard_data` bu İKİSİNİ KAPSAMIYOR — ikisi de
-            # yalnızca açılışta (on_start) ve kendi tetikleyicilerinde
-            # (işlem ekleme / varlık satışı) çalışıyor. Sıfırlamadan sonra
-            # çağrılmadıkları için ekranda SİLİNMİŞ verinin sonucu kalıyordu:
-            # "Algoritmik Öngörü" eski harcama yorumunu, "Varlık Geçmişi"
-            # eski satırları göstermeye devam ediyordu (ölçüldü).
+
             self.generate_financial_advice()
             if hasattr(self, "load_asset_history"):
                 self.load_asset_history()
@@ -2390,9 +2424,7 @@ if __name__ == "__main__":
         print("ARCHLENCE_HEADLESS=1: GUI başlatılmadı, çıkılıyor.")
         raise SystemExit(0)
 
-    # Kilit burada DEĞİL, dosyanın başında alınıyor (bkz. bölüm 2.5): Kivy
-    # import'ları pencereyi açtığı için kontrolün onlardan önce koşması
-    # gerekiyor. Bırakma işini `atexit` üstleniyor.
+
     try:
         ArchlenceApp().run()
     finally:

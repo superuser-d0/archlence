@@ -44,9 +44,8 @@ class _Profile(unittest.TestCase):
 
     def _export_dir(self):
         directory = tempfile.mkdtemp()
-        # `ignore_errors`: Windows'ta hâlâ açık bir handle kalırsa silme
-        # patlar ve ASIL test hatasını gizler. Geçici dizinin kalması
-        # zararsız; hatayı gizlemek değil.
+
+
         self.addCleanup(shutil.rmtree, directory, ignore_errors=True)
         return Path(directory)
 
@@ -61,7 +60,7 @@ class ExportWorksWithoutFchmodTest(_Profile):
 
         target = self._export_dir() / "disari.csv"
         saved = os.fchmod
-        del os.fchmod          # Windows'u simüle et
+        del os.fchmod
         try:
             self.assertFalse(hasattr(os, "fchmod"), "simülasyon kurulmadı")
             path, count = export_all_to_csv(target)
@@ -94,10 +93,7 @@ class CleanupClosesTheDescriptorTest(_Profile):
         class _Boom(Exception):
             pass
 
-        # `os.fdopen` PATLIYOR: fd hiç devredilmiyor, dolayısıyla temizliğin
-        # onu kendisi kapatması gerekiyor. Windows'ta kapatılmazsa `unlink`
-        # `PermissionError` verir ve staging dosyası — şifresi çözülmüş
-        # finansal veriyle — diskte kalır.
+
         with mock.patch.object(migration_service.os, "fdopen",
                                side_effect=_Boom("yazma açılamadı")):
             with self.assertRaises(_Boom):

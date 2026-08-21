@@ -38,7 +38,7 @@
 - [ ] `python run_tests.py` passes.
 - [ ] Regression tests cover new behavior and relevant failure paths.
 - [ ] Financial-integrity and migration risks are explained.
-- [ ] Turkish and English were checked where relevant.
+- [ ] English UI text and relevant states were checked.
 - [ ] UI evidence uses generated sample data only.
 - [ ] No credentials, keys, recovery material, or real financial data are included.
 - [ ] Documentation and changelog impact were considered.

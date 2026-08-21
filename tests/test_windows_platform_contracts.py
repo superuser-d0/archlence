@@ -33,11 +33,7 @@ from unittest import mock
 
 from utils.key_provider import DpapiKeyProvider, FileKeyProvider
 
-# ASCII dışı ama GERÇEKÇİ bir kullanıcı adı. Türkçe karakterler bilinçli:
-# hedef kitle Türkçe ve `C:\Users\Çağrı\AppData\Local\Archlence` günlük bir
-# yol. `ğ`/`ı`/`ş` cp1254 ile UTF-8 arasında farklı kodlanır, yani yanlış
-# kodlama varsayan her katman (SQLite yolu, PyInstaller, ctypes) burada
-# kırılır.
+
 NON_ASCII_PROFILE = "Çağrı Şıkğüöİ"
 
 
@@ -152,8 +148,8 @@ class NonAsciiAndLongProfilePaths(unittest.TestCase):
             self.assertAlmostEqual(balance, 1000.0 - 249.99, places=2)
             self.assertEqual(len(rows), 1)
             self.assertAlmostEqual(rows[0]["amount"], 249.99, places=2)
-            # Açıklama da şifreli yazılıp çözülüyor; Türkçe karakter kaybı
-            # burada görünür.
+
+
             self.assertEqual(rows[0]["description"], "Şırınga & çilek")
 
     def test_deep_profile_directory_round_trips(self):
@@ -164,7 +160,7 @@ class NonAsciiAndLongProfilePaths(unittest.TestCase):
         """
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            # Her biri 40 karakterlik dört seviye + temp kökü.
+
             for _ in range(4):
                 root = root / ("u" * 40)
             db_path, _key, balance, rows = self._round_trip(root / "Archlence")
@@ -220,7 +216,7 @@ class BackupSurvivesAnOpenDatabase(unittest.TestCase):
                       key_path=self.key_path)
         self.assertTrue(package.is_file())
 
-        # Yedekten SONRA veri değişiyor; geri yükleme onu geri almalı.
+
         TransactionService.add_transaction(
             account_id, 250.0, "expense", "Market", "y",
             detect_subscription=False)
@@ -230,15 +226,11 @@ class BackupSurvivesAnOpenDatabase(unittest.TestCase):
         restore_backup(package, "cok-guclu-yedek-parolasi-2026", db_path=self.db_path,
                        key_path=self.key_path)
 
-        # Geri yüklenen dosya AÇILABİLİR olmalı: Windows'ta kilitli bir hedefe
-        # yazılmaya çalışılsaydı buraya hiç gelinemezdi.
+
         self.assertAlmostEqual(
             AccountService.get_account(account_id)["balance"], 4900.0, places=2)
-        # `with sqlite3.connect(...)` bağlantıyı KAPATMAZ — yalnız
-        # transaction'ı commit/rollback eder. Windows'ta açık kalan handle
-        # dosyanın silinmesini engelliyor; bu test ilk koşusunda tam olarak
-        # ona takıldı (`WinError 32`, geçici dizin temizlenirken). Testin
-        # ölçmek istediği şeyin ta kendisi, bu yüzden burada `closing` şart.
+
+
         with closing(sqlite3.connect(self.db_path)) as conn:
             count = conn.execute(
                 "SELECT COUNT(*) FROM transactions").fetchone()[0]
@@ -261,10 +253,7 @@ class RealWindowsDpapi(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.path = os.path.join(self.temp.name, "encryption.key.dpapi")
 
-    #: `CryptProtectData`'nın kapsam bayrağı. Verilirse blob MAKİNEYE bağlanır
-    #: ve o makinedeki HERHANGİ bir Windows kullanıcısı çözebilir. Verilmezse
-    #: (0) blob çağıran KULLANICIYA bağlanır — kullanıcılar arası izolasyon
-    #: iddiasının dayandığı tek mekanizma budur.
+
     CRYPTPROTECT_LOCAL_MACHINE = 0x4
 
     def test_key_is_never_protected_with_machine_scope(self):
@@ -293,8 +282,8 @@ class RealWindowsDpapi(unittest.TestCase):
         captured = {}
 
         def _spy(*args):
-            # İmza: (pDataIn, szDataDescr, pOptionalEntropy, pvReserved,
-            #        pPromptStruct, dwFlags, pDataOut) -> dwFlags 6. sırada.
+
+
             captured["flags"] = args[5]
             return real(*args)
 
@@ -378,8 +367,8 @@ class RealWindowsDpapi(unittest.TestCase):
         self.assertEqual(provider.status.method, "Windows DPAPI")
         self.assertTrue(provider.status.secure_store)
         self.assertIsNone(provider.status.warning)
-        # Gerçek DPAPI ile uçtan uca: fabrika üzerinden anahtar üret ve
-        # aynı anahtarın geri okunduğunu doğrula.
+
+
         key = provider.get_or_create_key()
         self.assertEqual(len(key), 32)
         self.assertEqual(

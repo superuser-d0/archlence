@@ -57,13 +57,12 @@ def get_day_transactions(date_obj):
         try:
             amount = float(decrypt(str(row["amount"]), SECRET_KEY))
         except KeyUnavailableError:
-            # Anahtar yoksa HİÇBİR satır çözülemez. Bunu satır bazında yutmak,
-            # toplam bir arızayı "hepsi 0,00 TL" diye normal veri gibi
-            # gösterirdi; yukarı taşınır.
+
+
             raise
         except (DecryptionError, ValueError, TypeError):
-            # Sorgu `id` seçmiyor (ay ızgarası için gerekmiyor), o yüzden
-            # kayıt kimliği yerine tarih/saat ile işaretleniyor.
+
+
             from utils.logging_config import get_logger
             get_logger().exception(
                 "[VERİ BÜTÜNLÜĞÜ] takvim işlemi (%s %s) tutarı çözülemedi",

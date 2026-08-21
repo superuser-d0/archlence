@@ -25,9 +25,8 @@ class BrandIconServiceTest(unittest.TestCase):
             "Aylık NETFLIX.COM üyelik ödemesi"
         )
         self.assertEqual(key, "netflix")
-        # logo.clearbit.com artık hiçbir DNS sunucusundan çözülmüyor (Clearbit
-        # ücretsiz logo API'sini kapattı). Google Favicon'a (sz=128) geçilmişti,
-        # ama o da 16x16'yı gererek pikselleştiriyordu — icon.horse'a geçirildi.
+
+
         self.assertNotIn("clearbit.com", url)
         self.assertIn("netflix.com", url)
         self.assertEqual(
@@ -82,8 +81,8 @@ class BrandIconServiceTest(unittest.TestCase):
             brand_icon_service.resolve_cached_brand_icon_path("Disney Plus"),
             destination,
         )
-        # İlk aday zaten TARGET_ICON_PX'i geçtiği için kalan sağlayıcılar
-        # denenmemeli (erken çıkış) — aksi halde her ikon 3 istek ederdi.
+
+
         request.assert_called_once()
 
     def test_network_and_invalid_content_fail_silently(self):
@@ -218,9 +217,8 @@ class BrandIconServiceTest(unittest.TestCase):
     def test_largest_provider_result_wins_when_none_hit_the_target(self):
         """Hiçbir aday TARGET'ı geçmezse en büyüğü seçilmeli — tek sağlayıcıya
         bağlanmanın markadan markaya kalite kaybettirmesinin çözümü budur."""
-        # Boyut, seçimi kanıtlamaya yetmez: hiçbiri hedefe ulaşmadığı için
-        # kazanan zaten TARGET'a büyütülüyor. Adaylar RENKLE ayırt ediliyor,
-        # böylece diske hangisinin yazıldığı kesin doğrulanıyor.
+
+
         winner = (200, 30, 40, 255)
         responses = [
             mock.Mock(status_code=200, headers={},
@@ -415,11 +413,11 @@ class BrandIconServiceTest(unittest.TestCase):
                 payment = payments[0]
                 self.assertEqual(payment["name"], "Instagram")
 
-                # _build_subscription_row'daki BİREBİR satır:
+
                 icon_path = brand_icon_service.resolve_cached_brand_icon_path(
                     payment.get("name", "")
                 )
-                self.assertIsNone(icon_path)  # önbellek boş — ilk kez görülüyor
+                self.assertIsNone(icon_path)
                 self.assertEqual(
                     brand_icon_service.classify_brand(payment["name"])[0],
                     "instagram",

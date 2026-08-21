@@ -24,10 +24,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-# Türkçe çıktı Windows'ta süreci ÖLDÜRMESİN — stdout yönlendirildiğinde kod
-# sayfası cp1252'ye düşüyor ve "yakalandı"nın 'ı'sı kodlanamıyor. Gerekçenin
-# tamamı run_tests.py'ın tepesinde; ölçüldü: koruma olmadan 16/16 YAKALAYAN
-# matris, yalnızca sonucu yazdırırken exit 1 ile kırmızı raporlanıyordu.
+
 for _stream in (sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8", errors="replace")
@@ -60,11 +57,6 @@ def _version_of(tree):
     return match.group(1)
 
 
-# (id, açıklama, dosya, aranan, yerine konan)
-# `None` yerine-konan => satırın tamamı silinir (kontrolün kaldırılması).
-# `@@VERSION@@` sınanan ağacın sürümüyle değiştirilir (bkz. `_version_of`).
-# Yer tutucu bilerek `{v}` DEĞİL: iki vaka workflow'daki gerçek `${v}`
-# kabuk değişkenini arıyor ve `str.format` onları bozardı.
 CASES = [
     ("01-app-version", "Uygulama sürümü",
      "utils/version.py", 'APP_VERSION = "', 'APP_VERSION = "9.9.9"  #'),
@@ -133,10 +125,8 @@ def _apply(worktree, relative, needle, replacement):
     text = path.read_text(encoding="utf-8")
     if text.count(needle) < 1:
         return False
-    # HEPSİNİ değiştir. Yalnızca ilk eşleşmeyi değiştirmek yanlış "yakalandı"
-    # sonucu üretir: dosyada aynı adın başka kopyaları kalırsa kapı onları
-    # bulup yeşil kalır, oysa gerçek bir yeniden adlandırma hepsini
-    # değiştirirdi.
+
+
     path.write_text(text.replace(needle, replacement), encoding="utf-8")
     return True
 
@@ -150,7 +140,7 @@ def run_matrix(verbose=True):
         cwd=ROOT, check=True, capture_output=True,
     )
     try:
-        # Mutation UYGULANMADAN kapı yeşil olmalı; değilse matris anlamsız.
+
         code, output = _run_gate(worktree)
         if code != 0:
             raise SystemExit(

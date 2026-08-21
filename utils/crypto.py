@@ -39,9 +39,7 @@ from utils.errors import (
     KeyUnavailableError,
 )
 
-# PBKDF2 için sabit tuz (salt). YALNIZCA eski verinin çözülmesi için hâlâ
-# gerekli — yeni hiçbir veri artık bu yolla şifrelenmiyor. Bit düzeyinde
-# değişmemeleri gerekir, aksi hâlde var olan hiçbir eski kayıt çözülemez.
+
 STATIC_SALT = b"fi" + b"nora_secure_salt_2026"
 DEFAULT_PASSWORD = "fi" + "nora_secure_2026"
 

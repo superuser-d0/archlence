@@ -81,10 +81,8 @@ class NonFiniteServiceMatrix(_TemporaryProfile):
         from database.db import get_active_recurring_payments, insert_recurring_payment, process_due_recurring_payment
         account_id = self.create_account()
         insert_recurring_payment("Inf recurring", 10.0, "Inf", "monthly", date.today().isoformat(), False, account_id=account_id, recurrence_day=date.today().day)
-        # Tahsilat yolu artık geçerli bir satırdan sonsuz tutar OKUYAMAZ;
-        # sınandığı şey, sonsuz tutar taşıyan bir ödeme nesnesi (eski bir
-        # yapının bıraktığı satır ya da yeni bir çağıran) elinde olduğunda
-        # HİÇBİR etki üretmeden durması.
+
+
         payment = dict(get_active_recurring_payments()[0], amount=float("inf"))
         before = self._counts()
         caught = None

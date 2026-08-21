@@ -23,15 +23,14 @@ class AccountServiceTestCase(AccountFixtureMixin, unittest.TestCase):
         fd, self.db_path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
 
-        # db.DB_NAME modül seviyesinde okunuyor; get_connection çağrı anında
-        # okuduğu için patch yeterli.
+
         self._patcher = mock.patch("database.db.DB_NAME", self.db_path)
         self._patcher.start()
 
         from database.init_db import initialize_database
         initialize_database()
-        # initialize_database varsayılan hesap açmıyor; bu paket eskiden onun
-        # seed'ine bel bağlıyordu, artık kendi hesaplarını kuruyor.
+
+
         self.seed_account_ids = self.create_legacy_seed_accounts()
 
     def tearDown(self):
@@ -45,12 +44,10 @@ class AccountServiceTestCase(AccountFixtureMixin, unittest.TestCase):
         conn.close()
         return rows
 
-    # ─── Şema / migration ────────────────────────────────────────────────────
 
     def test_schema_has_new_columns(self):
-        # Şemayı satır üzerinden değil PRAGMA ile okur: bu bir şema testi,
-        # tabloda veri bulunmasına bağlı olmamalı (eskiden seed hesabın
-        # varlığına bel bağlıyordu ve seed kalkınca çökmüştü).
+
+
         conn = sqlite3.connect(self.db_path)
         try:
             cols = {row[1] for row in conn.execute("PRAGMA table_info(accounts)")}
@@ -87,11 +84,10 @@ class AccountServiceTestCase(AccountFixtureMixin, unittest.TestCase):
         by_name = {a["name"]: a for a in AccountService.get_accounts()}
         self.assertEqual(by_name["Eski Nakit"]["account_type"], "checking")
         self.assertEqual(by_name["Eski Kart"]["account_type"], "credit_card")
-        # Bakiyeler migration sırasında bozulmamalı
+
         self.assertEqual(by_name["Eski Nakit"]["balance"], 1000.0)
         self.assertEqual(by_name["Eski Kart"]["debt"], 750.0)
 
-    # ─── Hesap oluşturma ─────────────────────────────────────────────────────
 
     def test_create_credit_card_stores_debt_as_negative_balance(self):
         from services.account_service import AccountService
@@ -146,7 +142,7 @@ class AccountServiceTestCase(AccountFixtureMixin, unittest.TestCase):
             initial_balance=0, credit_limit=10000, statement_date=15,
         )
 
-        # Yeni kartın borcu 0 olduğu için net servet değişmemeli
+
         after_add = AccountService.get_net_worth()
         self.assertEqual(after_add["net"], before["net"])
 
@@ -283,11 +279,8 @@ class AccountServiceTestCase(AccountFixtureMixin, unittest.TestCase):
         before = snapshot()
         for amount in (float("nan"), float("inf"), float("-inf"), "nan"):
             with self.subTest(amount=amount):
-                # Mesaj bilerek kontrol ediliyor: reddin GEREKÇESİ "bu bir
-                # sayı değil" olmalı. Eskiden NaN "borcu aşamaz", ∞ ise
-                # "mevcut borcu aşamaz" diyordu — yani karar tutar sınırında
-                # değil, borç karşılaştırmasında (ve NaN için ilk SQL
-                # yazımından SONRA) veriliyordu.
+
+
                 with self.assertRaisesRegex(ValueError, "geçerli bir sayı"):
                     AccountService.pay_credit_card_debt(card_id, source_id, amount)
                 self.assertEqual(snapshot(), before,
@@ -345,7 +338,6 @@ class AccountServiceTestCase(AccountFixtureMixin, unittest.TestCase):
         self.assertIsNone(recurring)
         self.assertEqual(events, 0)
 
-    # ─── Limit kontrolü ──────────────────────────────────────────────────────
 
     def test_expense_over_limit_is_rejected(self):
         from services.account_service import AccountService
@@ -359,7 +351,7 @@ class AccountServiceTestCase(AccountFixtureMixin, unittest.TestCase):
                 account_id=card_id, amount=250.0, transaction_type="expense",
                 category="Süpermarket", description="Limit aşan harcama",
             )
-        # Reddedilen işlem borcu değiştirmemeli
+
         self.assertEqual(AccountService.get_account(card_id)["debt"], 900.0)
 
     def test_import_bypasses_limit_check(self):
@@ -490,9 +482,7 @@ class CardDataNotPersistedTest(unittest.TestCase):
         from database.db import SECRET_KEY
         from utils.crypto import encrypt
 
-        # setUp'taki initialize_database() taze bir dosyada çalıştığından
-        # `accounts` bu noktada boştur (varsayılan hesap seed'i yok) — eski
-        # sürümden kalma bir satırı koşulsuz INSERT ile taklit ediyoruz.
+
         conn = sqlite3.connect(self.db_path)
         conn.execute(
             "INSERT INTO accounts (name, type, balance, account_type, "
@@ -522,7 +512,7 @@ class CardDataNotPersistedTest(unittest.TestCase):
         self.assertIsNone(row["expiry_date"])
         self.assertIsNone(row["cvc_code"])
 
-        # İdempotentlik: ikinci çalıştırma sonucu değiştirmemeli, hata da atmamalı.
+
         initialize_database()
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row

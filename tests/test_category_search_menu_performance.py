@@ -63,7 +63,7 @@ class CategorySearchIncrementalLoadTest(unittest.TestCase):
         after_first_batch = len(self.added)
         self.assertLess(after_first_batch, 20)
 
-        # Kullanıcı bir karakter daha yazdı: gerçek populate() jenerasyonu artırır.
+
         self.app._category_populate_generation = 2
 
         for _ in range(10):
@@ -80,10 +80,10 @@ class CategorySearchIncrementalLoadTest(unittest.TestCase):
         from kivy.clock import Clock
 
         self.app._add_category_items_incrementally(_names(20), generation=1)
-        self.app._category_list = None  # diyalog kapandı / yeniden açıldı
+        self.app._category_list = None
 
         for _ in range(10):
-            Clock.tick()  # patlamamalı
+            Clock.tick()
 
 
 if __name__ == "__main__":

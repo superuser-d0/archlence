@@ -82,7 +82,6 @@ class TransactionStatementTestCase(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "negatif"):
             TransactionService.get_recent_for_account(self.card_id, limit=-1)
 
-    # ─── Taksitli işlem (installment) testleri ───────────────────────────────
 
     def test_six_installments_divides_total_and_lists_plan(self):
         from services.transaction_service import TransactionService
@@ -132,11 +131,10 @@ class TransactionStatementTestCase(unittest.TestCase):
                 )
                 plan = TransactionService.get_installment_plans(account_id)[0]
 
-                # Hiç ödeme yapılmamışken kalan borç TAM anapara olmalı.
+
                 self.assertEqual(plan["remaining_amount"], round(principal, 2))
 
-                # Ve tüm taksitlerin toplamı da anaparayı tutmalı: son taksit
-                # farkı emiyor, yani kalan borç aylık tutarın katı OLMAYABİLİR.
+
                 monthly = Decimal(str(plan["monthly_amount"]))
                 last = Decimal(str(plan["remaining_amount"])) - monthly * (count - 1)
                 total_paid = monthly * (count - 1) + last
@@ -203,7 +201,7 @@ class TransactionStatementTestCase(unittest.TestCase):
                     self.card_id, 100, "expense", "Market", "x",
                     transaction_date="2026-07-22 10:00:00", installments=bad,
                 )
-        # Reddedilen işlem karta borç yazmamalı ve plan bırakmamalı.
+
         self.assertEqual(TransactionService.get_installment_plans(self.card_id), [])
         self.assertEqual(
             TransactionService.get_recent_for_account(self.card_id, limit=None), []
@@ -225,9 +223,9 @@ class TransactionStatementTestCase(unittest.TestCase):
             ).fetchone()
         finally:
             conn.close()
-        # DB'de düz metin durmamalı (savings goal_name ile aynı kural)…
+
         self.assertNotIn("Gizli", str(row["description"]))
-        # …ama servis okurken çözmeli.
+
         plans = TransactionService.get_installment_plans(self.card_id)
         self.assertEqual(plans[0]["description"], "Gizli Alışveriş (3 Taksit)")
 
@@ -240,7 +238,7 @@ class TransactionStatementTestCase(unittest.TestCase):
             transaction_date="2026-07-22 10:00:00", installments=6,
         )
         card = AccountService.get_account(self.card_id)
-        # Banka limiti toplam tutar kadar bloke eder: borç 6000, tek işlem.
+
         self.assertEqual(card["debt"], 6000.0)
         items = TransactionService.get_recent_for_account(self.card_id, limit=None)
         self.assertEqual(len(items), 1)

@@ -76,8 +76,7 @@ class RunnerReportingContractTest(unittest.TestCase):
             "logger'ına düşer ve hangi testin neden battığı görünmez olur.",
         )
 
-        # Yakalama, discovery'den (dolayısıyla her türlü kivy importundan) ÖNCE
-        # olmalı — sonra yakalanırsa zaten ele geçirilmiş akışı yakalar.
+
         discover = source.index("discover(")
         self.assertLess(
             capture.start(), discover,

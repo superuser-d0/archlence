@@ -264,10 +264,8 @@ class EmptyStateDisappearsAfterAddingAnAccountTest(unittest.TestCase):
         class _App(AccountMixin):
             def __init__(self):
                 self.root = root
-                # Doldurulmazsa `render_accounts` `ActiveAssetsBentoWidget()`
-                # kurmaya çalışır; o widget dashboard.kv kurallarına bağlı ve
-                # headless ortam KV YÜKLEMEZ. Parent'ı dolu bir yer tutucu
-                # vererek o dal atlanıyor.
+
+
                 placeholder = outer._Box()
                 accounts.add_widget(placeholder)
                 self._active_assets_bento = placeholder

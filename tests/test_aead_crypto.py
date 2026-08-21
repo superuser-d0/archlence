@@ -77,15 +77,15 @@ class TamperDetectionTest(unittest.TestCase):
 
     def test_tampered_tag_raises(self):
         token = encrypt("hassas veri", _KEY)
-        # Zarf: version(1) + algo(1) + nonce(12) + tag(16) + ciphertext
-        # Tag'in ortasına dokun (byte 10 tag içinde kalır).
+
+
         tampered = self._tamper_byte_at(token, 2 + 12 + 10)
         with self.assertRaises(DecryptionError):
             decrypt(tampered, _KEY)
 
     def test_tampered_nonce_raises(self):
         token = encrypt("hassas veri", _KEY)
-        tampered = self._tamper_byte_at(token, 3)  # nonce içinde bir byte
+        tampered = self._tamper_byte_at(token, 3)
         with self.assertRaises(DecryptionError):
             decrypt(tampered, _KEY)
 

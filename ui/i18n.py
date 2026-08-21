@@ -26,21 +26,15 @@ yaklaşımında sıra tamamen çeviriye ait: "{name} hesabı eklendi." karşıl�
 
 import re
 
-SUPPORTED_LANGUAGES = {"tr": "Türkçe", "en": "English"}
-_language = "tr"
+SUPPORTED_LANGUAGES = {"en": "English"}
+_language = "en"
 
-#: Şablonlarda izin verilen tek yer tutucu biçimi: `{ad}`.
-#:
-#: Biçim belirteci (`{amount:,.2f}`) BİLEREK desteklenmiyor. Sayı/tarih/para
-#: biçimlendirmesi çağıran tarafta, bugünkü davranışıyla yapılır ve sonucu
-#: hazır METİN olarak parametreye geçer; böylece bu katman biçimlendirme
-#: politikasına hiç karışmaz ve şablonların çevirmen tarafında okunması kolay
-#: kalır.
+
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
 
 
 EN = {
-    # Araçlar ızgarasındaki bütçe karesi (iki satır, diğer kareler gibi).
+
     "Aylık\nBütçe": "Monthly\nBudget",
     "Güvenli Giriş": "Secure Sign In",
     "Yerel Şifreni Belirle": "Set Your Local Password",
@@ -48,9 +42,13 @@ EN = {
     "Şifre Tekrar": "Confirm Password",
     "ŞİFRE OLUŞTUR": "CREATE PASSWORD",
     "Şifre yalnızca bu cihazda saklanır; Archlence verilerinizi bir sunucuya göndermez.": "Your password is stored only on this device; Archlence does not send your data to a server.",
-    "Şifre en az 4 karakter olmalıdır.": "Password must be at least 4 characters long.",
+    "Şifre en az 12 karakter olmalıdır.": "Password must be at least 12 characters long.",
+    "Şifre en fazla 64 karakter olabilir.": "Password can be at most 64 characters long.",
     "Şifre en az 1 büyük harf içermelidir.": "Password must contain at least 1 uppercase letter.",
+    "Şifre en az 1 küçük harf içermelidir.": "Password must contain at least 1 lowercase letter.",
+    "Şifre en az 1 rakam içermelidir.": "Password must contain at least 1 digit.",
     "Şifre en az 1 özel karakter (örn. . veya ,) içermelidir.": "Password must contain at least 1 special character (e.g. . or ,).",
+    "Şifre başında veya sonunda boşluk içeremez.": "Password cannot start or end with a space.",
     "Şifreler eşleşmiyor.": "Passwords do not match.",
     "Hatalı Şifre!": "Incorrect password!",
     "Şifreni mi unuttun? Sağ üstteki Ayarlar > Şifre ve Verileri Sıfırla yolunu kullanabilirsin. Tüm yerel finans verilerin silinir.": "Forgot your password? Use Settings > Reset Password and Data in the top-right corner. All local financial data will be deleted.",
@@ -58,18 +56,21 @@ EN = {
     "Şifre dahil tüm yerel finans verilerini kalıcı olarak siler": "Permanently deletes the password and all local financial data",
     "Şifre Değiştir": "Change Password",
     "Şifrenizi buradan yenileyebilirsiniz.": "You can renew your password here.",
+    "Mevcut Şifre": "Current Password",
     "Yeni Şifre": "New Password",
     "Yeni Şifre Tekrar": "Confirm New Password",
+    "Yeni şifre mevcut şifreyle aynı olamaz.": "The new password cannot be the same as the current one.",
+    "Şifre değiştirmek için mevcut şifrenizi girin.": "Enter your current password to change it.",
+    "Şifreniz güncel güvenlik politikasını karşılamıyor. Devam etmek için yeni bir şifre belirleyin.": "Your password does not meet the current security policy. Set a new password to continue.",
     "Şifre başarıyla değiştirildi. Lütfen tekrar giriş yapın.": "Password successfully changed. Please log in again.",
-    "En az 4 karakter, 1 büyük harf ve 1 özel karakter": "At least 4 chars, 1 uppercase and 1 special char",
+    "12-64 karakter, 1 büyük harf, 1 küçük harf, 1 rakam ve 1 özel karakter": "12-64 chars with an uppercase, a lowercase, a digit and a special char",
     "GİRİŞ YAP": "SIGN IN",
     "Ayarlar": "Settings",
     "Karanlık Mod": "Dark Mode",
     "Ana Sayfa": "Home",
     "Archlence'ta ara...": "Search in Archlence...",
-    # Arama çubuğu — kapsam bilerek dar olduğu için ipucu metni de ne
-    # aradığını açıkça söylüyor ("Archlence'ta ara" her şeyi arıyormuş gibi
-    # duruyordu ve hiçbir şey aramıyordu).
+
+
     "Hesap, kategori veya işlem ara...": "Search accounts, categories or transactions...",
     "Sonuç bulunamadı": "No results found",
     "Hesap, kategori ve son işlemlerde arandı": "Searched accounts, categories and recent transactions",
@@ -87,8 +88,8 @@ EN = {
     "Dikkat: Bakiye Negatif!": "Warning: Negative Balance!",
     "Bugün": "Today",
     "Değişim": "Change",
-    # Eskiden "Değişim" + "Bugün" parçalarının ayrı ayrı
-    # değiştirilmesiyle oluşuyordu; artık tam anahtar.
+
+
     "Değişim (Bugün)": "Change (Today)",
     "1 Hafta": "1 Week",
     "1 Ay": "1 Month",
@@ -636,14 +637,14 @@ EN = {
     "Dikkat: Gelir ve gideriniz başa baş. Bütçenizde hiç esneme payı yok.": "Warning: Your income and expenses break even. Your budget has no buffer.",
     "Geçersiz tutar": "Invalid amount",
 
-    # --- İşlem tarihi seçici (ileri/geçmiş tarihli işlem) ---
+
     "Tarih: Bugün": "Date: Today",
     "Tarih:": "Date:",
     "Bu işlem bekleyenler listesine eklenecek; tarihi geldiğinde bakiyeye yansıyacak.": "This transaction goes to the pending list and will hit your balance on its date.",
     "İşlem": "Transaction",
     "tarihine planlandı; bekleyenler listesinde.": "— scheduled; it is in the pending list.",
 
-    # --- Bekleyen (ileri tarihli) işlemler paneli ---
+
     "Bekleyen İşlemler": "Pending Transactions",
     "BEKLEYENLERİ YÖNET": "MANAGE PENDING",
     "Bekleyen işlem bulunmuyor.": "No pending transactions.",
@@ -664,7 +665,7 @@ EN = {
     "bakiyenize işlendi.": "posted to your balance.",
     "Yeni tarih:": "New date:",
 
-    # --- Abonelik yönetimi (iptal / iade / zam) ---
+
     "Aboneliklerim": "My Subscriptions",
     "Aboneliği Kaldır": "Remove Subscription",
     "DÜZENLE": "EDIT",
@@ -690,14 +691,14 @@ EN = {
     "Sonraki:": "Next:",
     "Skor hesaplamak için henüz yeterli veri yok. ": "Not enough data yet to compute a score. ",
 
-    # --- Onboarding: zorunlu ilk hesap oluşturma ekranı ---
+
     "İlk Hesabını Oluştur": "Create Your First Account",
     "Gelir ve giderlerin bir hesaba işlenmesi gerekir. Dilediğin zaman Kartlarım sekmesinden yeni hesap veya kart ekleyebilirsin.": "Income and expenses must post to an account. You can add more accounts or cards any time from the My Cards tab.",
     "Hesap Adı (Örn: Nakit Cüzdanım)": "Account Name (e.g. My Cash Wallet)",
     "Nakit Cüzdanım": "My Cash Wallet",
     "HESABI OLUŞTUR": "CREATE ACCOUNT",
 
-    # --- 2026-07-23: çeviri katmanından geçmeyen dizeler taraması ---
+
     "Anapara": "Principal",
     "Ay": "Month",
     "Ek Masraf": "Extra Cost",
@@ -796,9 +797,8 @@ EN = {
     "Yukarıdan tür seçin veya elle girin (Gram: GC=F)": "Select a type above or enter manually (Gram: GC=F)",
     "Yahoo Finance sembolü girin": "Enter the Yahoo Finance symbol",
     "Hisse": "Stock",
-    # Varlık türü listesinde uzun yazımı da geçiyor; kısa anahtarın
-    # alt dize olarak eşleşmesine güvenmek "Stock Senedi" gibi yarı
-    # çevrilmiş melezler üretiyordu.
+
+
     "Hisse Senedi": "Stock",
     "Altın": "Gold",
     "Tahvil": "Bond",
@@ -821,17 +821,12 @@ EN = {
     "Kasım": "November",
     "Aralık": "December",
 
-    # ── Şablona PARAMETRE olarak giren kontrollü etiketler ───────────────
-    #
-    # Bunlar kullanıcı verisi DEĞİL, uygulamanın kendi sözlüğü. Şablonun
-    # içine girmeden ÖNCE `tr()` ile ayrıca çevrilirler; karşılıkları
-    # burada olmazsa İngilizce cümlenin ortasında Türkçe bir parça kalır
-    # ("Balance on 2026-08-01 · Günlük snapshot" gibi).
+
     "Gelir işlemleri": "Income transactions",
     "Gider işlemleri": "Expense transactions",
     "Günlük snapshot": "Daily snapshot",
     "Defter replay": "Ledger replay",
-    # `_secure_operation_error` çağrı yerlerinden gelen sabit başlıklar.
+
     "Backup oluşturulamadı": "Backup could not be created",
     "Restore başarısız; mevcut veri korundu":
         "Restore failed; your current data was preserved",
@@ -842,7 +837,7 @@ EN = {
         "Recovery package could not be imported",
     "Anahtar rotasyonu başlatılamadı": "Key rotation could not be started",
     "Anahtar rotasyonu geri alındı": "Key rotation was rolled back",
-    # Tekrarlayan işlem diyaloğunun sabit soru/açıklama çiftleri.
+
     "Bu ayki gelir hesaba eklensin mi?":
         "Should this month's income be added to the account?",
     "Bu ayki gider hesaptan düşülsün mü?":
@@ -857,16 +852,6 @@ EN = {
         "away when this month's day has passed, and on the selected day "
         "otherwise.",
 
-# ─── Şablonlar (`trf`) ────────────────────────────────────────────────────
-#
-# Bu bölümdeki anahtarlar YER TUTUCU içerir ve yalnız `trf()` ile kullanılır:
-# önce şablon çevrilir, sonra parametreler yerleştirilir. Parametre değerleri
-# (hesap adı, hedef adı, tutar, tarih) çeviriden GEÇMEZ.
-#
-# Yer tutucu KÜMESİ iki dilde aynı olmak zorundadır; SIRA serbesttir ve
-# İngilizce cümle yapısı bunu zaten gerektirir:
-#     "{name} hesabı eklendi."  ->  "Account added: {name}"
-# `tests/test_i18n_static_gate.py` kümelerin eşitliğini kapıya bağlıyor.
 
     "\nEle Geçecek: {net} (Tüm Peşin Masraflar Düşülmüş)":
         "\nNet Proceeds: {net} (All upfront costs deducted)",
@@ -1075,19 +1060,11 @@ EN = {
     "🎉 %{percent} tamamlandı!": "🎉 %{percent} complete!",
 }
 
-# Bu iki kaynak anahtar, tarihsel olarak çağrı noktalarında İngilizce tutuluyor.
-# KV/Python literal eşleşmesini bozmadan Türkçe arayüzde gerçek karşılıklarını
-# göstermek için dar kapsamlı bir kaynak-dil override tablosu kullanılır.
-TR = {
-    "What-If\nSandbox": "Varsayım\nAlanı",
-    "What-If Sandbox": "Varsayım Alanı",
-}
-
 
 def set_language(code):
-    """Aktif dili ayarlar ve normalize edilmiş kodu döndürür."""
+    """Select the supported UI language and return its normalized code."""
     global _language
-    _language = code if code in SUPPORTED_LANGUAGES else "tr"
+    _language = code if code in SUPPORTED_LANGUAGES else "en"
     return _language
 
 
@@ -1096,73 +1073,25 @@ def get_language():
 
 
 def tr(text: str | None, language: str | None = None) -> str:
-    """Metni istenen dile çevirir — YALNIZ TAM EŞLEŞME ile.
-
-    Bilinmeyen metinde kaynağa geri döner. Alt dize değiştiren "yaklaşık
-    çeviri" KALDIRILDI: kullanıcının kendi verisini (hesap/hedef/abonelik adı,
-    işlem açıklaması) sessizce değiştiriyor ve cümleleri yarı çevrilmiş
-    melezlere dönüştürüyordu. Dinamik cümleler için `trf()` kullanılır.
-    """
+    """Return the English catalog entry for an exact source-text match."""
     if text is None:
         return ""
-    code = language if language in SUPPORTED_LANGUAGES else _language
-    source = text
-    if code != "en":
-        return TR.get(source, source)
-    return EN.get(source, source)
+    return EN.get(text, text)
 
 
-#: ŞABLONA GİRMEDEN ÖNCE `tr()`DEN GEÇMESİ ZORUNLU etiket kaynakları.
-#:
-#: `trf()` parametreleri üç sınıfa ayrılır (docs/ARCHITECTURE.md):
-#:   * kullanıcı verisi — ASLA çevrilmez,
-#:   * sayı/tarih/tutar/yol/hata ayrıntısı — biçimlenir ama çevrilmez,
-#:   * kontrollü etiket — tam anahtarla AYRICA çevrilir.
-#:
-#: Üçüncü sınıfı otomatik tespit etmek güvenilir DEĞİL: bir ifadenin
-#: kullanıcı verisi mi etiket mi olduğu kaynağına bakmadan bilinemez. Bu
-#: liste o yüzden TAHMİN değil SÖZLEŞME: buradaki adlardan okunan bir değer
-#: `trf` parametresine girerken `tr()` ile sarılmak zorundadır ve
-#: `tests/test_i18n_static_gate.py` bunu kapıya bağlar.
-#:
-#: KAPSAM DAR VE ÖLÇÜLÜ. Bir girdi ancak GERÇEKTEN bir `trf`/`_tf` KEYWORD
-#: parametresinde okunuyorsa burada durur; kapı bunu AST ile ölçer ve ölü
-#: girdiyi reddeder. Metin üretimi saf yardımcılara (`asset_type_button_text`,
-#: `gold_type_button_text`, `balance_detail_text` …) taşındığında bazı adlar
-#: artık doğrudan parametreye girmiyor — onlar listeden ÇIKARILDI:
-#:
-#:   `_asset_selected_type`, `_GOLD_TYPES`  -> yardımcıya argüman olarak
-#:       geçiyorlar; yardımcının kendi parametresi (`asset_type`, `label`)
-#:       şablona giriyor. `asset_type` listede; `label` BİLEREK değil —
-#:       fazla genel bir ad, yanlış pozitif üretirdi. O yardımcıların
-#:       `_t()` davranışı gerçek üretim-yolu testleriyle korunuyor
-#:       (tests/test_i18n_controlled_values.py).
-#:   `ACCOUNT_TYPE_LABELS`                  -> önce yerel `label`e alınıp
-#:       `label=_t(label)` olarak veriliyor; aynı gerekçe.
-#:   `MONTHS`, `_MONTH_KEYS`, `_WEEKDAY_NAMES` -> düz `_t(...)` çağrılarında
-#:       kullanılıyorlar, şablon parametresinde değil. `tr()` sarmaları
-#:       yerinde; bu sözleşmenin konusu değiller.
 CONTROLLED_LABEL_SOURCES = frozenset({
-    # Varlık türü — `asset_type_button_text` / `asset_type_short_text`
-    # yardımcılarının parametresi doğrudan şablona giriyor.
+
+
     "asset_type",
     # Defter kaynak etiketleri (mixins/history_mixin.py::ledger_source_text).
     "_SOURCE_LABELS",
-    # Abonelik sıklığı (mixins/insights_mixin.py::recurring_candidate_title).
+
     "_frequency_label",
-    # Takvim başlığındaki ay adı (mixins/calendar_mixin.py).
+
     "_MONTH_NAMES",
 })
 
 
-#: KULLANICININ KENDİ YAZDIĞI alanlar — hiçbir koşulda çevrilmez.
-#:
-#: `CONTROLLED_LABEL_SOURCES`in karşı tarafı. Bu adlardan okunan bir değer
-#: çeviri fonksiyonuna geçirilemez (kapı: `tests/test_i18n_static_gate.py`)
-#: ve envanterde ayrı bir sınıf olarak raporlanır.
-#:
-#: `type_label`, `category`, `asset_type` BURADA DEĞİL: onlar uygulamanın
-#: kendi etiket sözlüğü, kullanıcının serbest metni değil.
 USER_DATA_FIELDS = frozenset({
     "name",
     "goal_name",

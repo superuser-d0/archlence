@@ -53,10 +53,8 @@ class PathResolutionTest(unittest.TestCase):
                 self._home_override(tmp),
             ):
                 d, c, log = data_dir(), cache_dir(), log_dir()
-            # SÖZLEŞME: üç dizin birbirinden AYRI olmalı ve hepsi platformun
-            # kendi "kullanıcı dizini" değişkeniyle yönlendirilebilmeli.
-            # Yönlendirilebilirlik kritik: test paketi izolasyonu (run_tests.py)
-            # tam olarak buna dayanıyor.
+
+
             self.assertNotEqual(d, c)
             self.assertNotEqual(d, log)
             self.assertNotEqual(c, log)
@@ -115,7 +113,7 @@ class ResourceDirTest(unittest.TestCase):
     def test_dev_mode_resolves_to_the_repo_root(self):
         repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.assertEqual(resource_dir(), repo_root)
-        # Gerçek bir işaret: repo kökünde ui/ ve assets/ var mı?
+
         self.assertTrue(os.path.isdir(os.path.join(resource_dir(), "ui")))
 
     def test_frozen_mode_resolves_to_sys_meipass_not_cwd_or_file(self):
@@ -182,7 +180,7 @@ class MigrateLegacyPathTest(unittest.TestCase):
         self.assertFalse(moved)
         with open(self.new_path, encoding="utf-8") as f:
             self.assertEqual(f.read(), "guncel veri")
-        # Eski dosya da yerinde kalmalı — sessizce silinmemeli.
+
         self.assertTrue(os.path.exists(self.old_path))
 
     def test_survives_a_read_only_source_directory(self):
@@ -214,7 +212,7 @@ class MigrateLegacyPathTest(unittest.TestCase):
         self.addCleanup(os.chmod, old_dir, 0o755)
 
         self.assertTrue(migrate_legacy_path(self.old_path, self.new_path))
-        # Kullanıcı yeni konumdaki veriyi değiştirir (uygulamayı kullanır).
+
         with open(self.new_path, "w", encoding="utf-8") as f:
             f.write("kullanicinin guncel verisi")
 

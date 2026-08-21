@@ -1,4 +1,4 @@
-# Çalışma zamanı verileri — kullanıcının kişisel finans verisi repoya girmemeli
+# Runtime data must never be committed.
 finance.db
 finance.db.bak*
 savings_goals.json
@@ -7,48 +7,40 @@ legacy_config_backup.json
 crash.log
 db_backups/
 
-# Şifreleme anahtarı — asla commit edilmemeli
+# Encryption keys must never be committed.
 security/secret.key
 
-# Python / araç artıkları
+# Python and development-tool artifacts
 __pycache__/
 *.pyc
 .venv/
 venv/
 .vscode/
+.claude/
 
-# PyInstaller çıktıları — CI her seferinde yeniden üretir, repoya girmemeli
+# Build outputs
 build/
 dist/
 *.build/
 
-# AppImage paketleme için CI'nin (ve yerel test derlemesinin) topladığı
-# geçici AppDir — build-linux.yml her seferinde yeniden oluşturur
+# Linux packaging outputs
 AppDir/
 *.AppImage
-
-# makepkg (PKGBUILD) çıktıları. Bunlar izlenmediği hâlde ağaçta kaldıklarında
-# TARAYAN ARAÇLARI yanıltıyorlar: `src/` altına açılan AppImage, KivyMD'nin
-# kendi kaynağının bir kopyasını taşıyor ve hem tests/test_icon_names.py hem
-# scripts/audit_exception_handlers.py bunu PROJE KAYNAĞI sanıp yanlış pozitif
-# üretti (ikisi de ayrıca `AppDir` hariç tutacak şekilde düzeltildi).
 pkg/
 src/
 *.pkg.tar.zst
 
-# Inno Setup çıktısı — installer/archlence.iss'ten CI her seferinde üretir
+# Windows packaging outputs
 installer_output/
 
-# IDE ajanlarının (Antigravity vb.) bıraktığı tek seferlik test çıktıları
+# Test and audit artifacts
 test_output*.txt
 test_exit*.txt
 discover_output*.txt
 
-# graphify çıktısı — makineye özgü mutlak yollar ve üretilmiş graf verisi içerir
+# Machine-specific generated graphs
 graphify-out/
 
-# Varlık Geçmişi için çalışma zamanında indirilen kripto/döviz logoları
+# Runtime-downloaded images
 assets/logo_cache/
-
-# Abonelik kartları için çalışma zamanında indirilen marka logoları
 assets/brand_icon_cache/

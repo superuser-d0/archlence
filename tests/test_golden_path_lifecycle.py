@@ -32,13 +32,6 @@ from decimal import Decimal
 
 from scripts.audit.test_adversarial_reproductions import _TemporaryProfile
 
-# NOT (temizlik adayı, bu PR'ın konusu değil): `_TemporaryProfile` bir denetim
-# script'inin içinde yaşıyor ve buradan import ediliyor. `tests/` altındaki iki
-# test (`test_debt_payment_atomicity`, `test_asset_sale_atomicity`) aynı şeyi
-# zaten yapıyor, yani kalıp yeni değil — ama üretim regresyon testlerinin bir
-# audit dosyasına bağlı olması ideal değil. Taşımak sekiz dosyaya dokunur ve
-# bu PR'ı fixture refactor'üne çevirirdi.
-
 
 def _money(value):
     """Snapshot'taki parasal alanları kuruşa normalize eder.
@@ -87,7 +80,7 @@ def _financial_snapshot(db_path):
             )
         ]
 
-        # İşlemler: tam döküm değil, ama MÜKERRER kaydı görebilecek kadar.
+
         transactions = [
             {
                 "type": row["type"],
@@ -181,21 +174,20 @@ def _build_golden_financial_state(case):
         detect_subscription=False)
     cash = Decimal("5000.00")
 
-    # 4 · varlık alımı: 3 adet x 250,50 = 751,50
+
     AssetPurchaseService.create_purchase(
         asset_name="Külçe", asset_code="XAU-GOLD", asset_type="Altın",
         purchase_price=250.50, quantity=3, account_id=cash_id,
         deduct_from_balance=True)
     cash -= Decimal("751.50")
 
-    # 5 · kısmi satış: 1 adet x 300,25. Fiyat PARAMETRE olarak veriliyor, yani
-    # fiyat servisi ve ağ bu akışa hiç girmiyor — sahtelenecek bir sınır yok.
+
     asset_id = _asset_id_by_code(case.db_path, "XAU-GOLD")
     AssetSaleService.sell(asset_id, 300.25, cash_id, quantity=1)
     cash += Decimal("300.25")
     expected["asset_quantity"] = Decimal("2")
 
-    # 6 · kredi kartı + harcama -> borç
+
     card_id = AccountService.create_account(
         "Seyahat Kartı", "credit_card", credit_limit=10000.0)
     TransactionService.add_transaction(
@@ -203,12 +195,12 @@ def _build_golden_financial_state(case):
         detect_subscription=False)
     debt = Decimal("1200.00")
 
-    # 7 · kart borcunun bir kısmını nakitten öde
+
     AccountService.pay_credit_card_debt(card_id, cash_id, 400.00)
     debt -= Decimal("400.00")
     cash -= Decimal("400.00")
 
-    # 8 · tekrarlı ödeme (gider) — bugüne vadeli
+
     from database.db import get_active_recurring_payments, insert_recurring_payment
 
     insert_recurring_payment(
@@ -261,7 +253,7 @@ class FinancialLifecycleGoldenPath(_TemporaryProfile):
         cash_id = expected["cash_account_id"]
         card_id = expected["card_account_id"]
 
-        # --- Nakit: gelir - alım + satış - kart ödemesi - birikim
+
         cash_account = self._balance_of(cash_id)
         self.assertEqual(
             _money(cash_account["balance"]),
@@ -273,7 +265,7 @@ class FinancialLifecycleGoldenPath(_TemporaryProfile):
         card_account = self._balance_of(card_id)
         self.assertEqual(_money(card_account["debt"]), _money(expected["debt"]))
 
-        # --- Portföy: 3 alındı, 1 satıldı
+
         snapshot = _financial_snapshot(self.db_path)
         self.assertEqual(len(snapshot["assets"]), 1)
         self.assertEqual(snapshot["assets"][0]["code"], "XAU-GOLD")
@@ -288,7 +280,7 @@ class FinancialLifecycleGoldenPath(_TemporaryProfile):
         self.assertEqual(snapshot["savings"][0]["current"], _money(250.00))
         self.assertEqual(snapshot["savings"][0]["target"], _money(1000.00))
 
-        # --- Tekrarlı ödeme: ilk işleme
+
         before = _financial_snapshot(self.db_path)
         process_due_recurring_payment(expected["recurring_payment"])
         after_first = _financial_snapshot(self.db_path)
@@ -303,7 +295,7 @@ class FinancialLifecycleGoldenPath(_TemporaryProfile):
             _money(cash_after_charge),
         )
 
-        # --- AYNI DÖNEM İKİNCİ KEZ: hiçbir finansal mutasyon olmamalı
+
         process_due_recurring_payment(expected["recurring_payment"])
         after_second = _financial_snapshot(self.db_path)
 
@@ -335,7 +327,7 @@ class GoldenBackupRestoreRoundTrip(_TemporaryProfile):
         )
         self.assertTrue(package.is_file())
 
-        # --- Yedekten SONRA anlamlı değişiklik: yeni işlem + birikim hareketi
+
         from services.savings_service import SavingsService
 
         TransactionService.add_transaction(
@@ -350,7 +342,7 @@ class GoldenBackupRestoreRoundTrip(_TemporaryProfile):
             "yedek sonrası değişiklik snapshot'a yansımadı; test bir şey ölçmüyor",
         )
 
-        # --- Geri yükleme
+
         result = restore_backup(
             package, self.PASSPHRASE,
             db_path=self.db_path, key_path=self.key_path,
@@ -364,15 +356,12 @@ class GoldenBackupRestoreRoundTrip(_TemporaryProfile):
             "geri yükleme aynı finansal durumu döndürmedi",
         )
 
-        # --- Bütünlük ve şema kuşağı
+
         with closing(sqlite3.connect(self.db_path)) as conn:
             self.assertEqual(
                 conn.execute("PRAGMA integrity_check").fetchone()[0], "ok")
-            # SABİT SAYI DEĞİL, MODÜL SABİTİ: kuşak numarası her ileri-uyumsuz
-            # şema değişikliğinde artıyor (v0.0.12'de 1, birikim hedefleri
-            # SQL'e taşınırken 2). Burada literal tutmak, kapının ölçtüğü şeyi
-            # ("yedek kuşak işaretini taşıyor mu") her bump'ta alakasız biçimde
-            # kırardı.
+
+
             from database.init_db import SCHEMA_VERSION
 
             self.assertEqual(
@@ -411,7 +400,7 @@ class GoldenBackupRestoreRoundTrip(_TemporaryProfile):
             safety_backup_path=self.root / "safety.arcbak",
         )
 
-        # Üretimin açılış yolu yeniden koşuyor; okumalar yeni bağlantılardan.
+
         initialize_database()
         self.assertEqual(
             _financial_snapshot(self.db_path), snapshot_a,

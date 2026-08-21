@@ -16,21 +16,16 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-# `AppDir` derleme çıktısıdır (.gitignore'da; build-linux.yml her seferinde
-# yeniden üretir) ve içinde KivyMD'nin KENDİ kaynağının bir kopyası bulunur —
-# 206 .py/.kv dosyası. Taranırsa KivyMD'nin kendi örnek ikon adları ("discord")
-# bizim kaynağımızmış gibi raporlanır ve test YANLIŞ yere kırılır. CI'da
-# görünmez (temiz checkout, testler build'den önce koşar), ama yerelde bir kez
-# AppImage üreten geliştiricide suite kırmızıya döner.
+
+
 SKIP_DIRS = {
     ".git", ".venv", "venv", "build", "dist", "__pycache__", "AppDir",
 }
 
-# KV'de her özellik kendi satırında durur, bu yüzden bir `icon:` satırındaki
-# TÜM düz metinler ikon adayıdır (ör. `icon: "check" if x else "close"`).
+
 _KV_ICON_LINE = re.compile(r"\bicon(?:_active|_inactive)?\s*:")
-# Python'da yapıcı çağrısında başka kwarg'lar da bulunur (`halign="center"`),
-# bu yüzden yalnızca `icon=` hemen ardındaki düz metin alınır.
+
+
 _PY_ICON_VALUE = re.compile(r"\bicon(?:_active|_inactive)?\s*=\s*[\"']([a-z][a-z0-9-]*)[\"']")
 _QUOTED = re.compile(r"[\"']([a-z][a-z0-9-]*)[\"']")
 

@@ -15,6 +15,7 @@ from database.models import (
     AssetPriceStatus,
     PriceFreshness,
 )
+from services.price_guard import finite_positive_price
 from utils.financial_decimal import decimal_from
 from utils.ticker_mapper import (
     gold_multiplier,
@@ -47,7 +48,7 @@ def get_ttl_minutes(
 ) -> float:
     """Varlık türü ve İstanbul piyasa saatine göre cache ömrü."""
 
-    del symbol  # Gelecekte sembol-bazlı seans takvimleri için API'yi sabit tutar.
+    del symbol
     kind = normalize_asset_type(asset_type)
     current = now or _now()
     if current.tzinfo is None:
@@ -80,11 +81,8 @@ def _parse_updated_at(value) -> datetime:
 
 def _ensure_cache(conn) -> None:
     conn.execute(ASSET_PRICE_CACHE_SCHEMA)
-    # `source` sütunu sonradan eklendi. Migration'ı BURAYA koymak gerekiyor,
-    # yalnızca init_db'ye değil: `CREATE TABLE IF NOT EXISTS` mevcut bir
-    # tabloda hiçbir şey yapmaz, dolayısıyla eski bir profilde aşağıdaki
-    # SELECT `source` yüzünden OperationalError verirdi. Fiyat cache'ine her
-    # erişim bu fonksiyondan geçtiği için tek güvenli kapı burası.
+
+
     columns = {
         row[1]
         for row in conn.execute("PRAGMA table_info(asset_price_cache)")
@@ -108,18 +106,27 @@ def _read_cache(symbols: Iterable[str]) -> dict[str, AssetPriceCache]:
             f"FROM asset_price_cache WHERE symbol IN ({placeholders})",
             tuple(keys),
         ).fetchall()
-        return {
-            row["symbol"]: AssetPriceCache(
+
+
+        out = {}
+        for row in rows:
+            price = finite_positive_price(row["price"])
+            if price is None:
+                logger.warning(
+                    "[FİYAT] %s için önbellekteki değer sonlu değil; atlandı.",
+                    row["symbol"],
+                )
+                continue
+            out[row["symbol"]] = AssetPriceCache(
                 symbol=row["symbol"],
-                price=float(row["price"]),
+                price=price,
                 asset_type=row["asset_type"],
                 updated_at=_parse_updated_at(row["updated_at"]),
-                # Sütun eklenmeden önce yazılmış satırlarda NULL; o dönemde
-                # tek sağlayıcı yfinance olduğu için varsayılan doğru.
+
+
                 source=row["source"] or PRICE_SOURCE,
             )
-            for row in rows
-        }
+        return out
     finally:
         conn.close()
 
@@ -136,6 +143,25 @@ def _store_cache(
     from database.db import get_connection
 
     stamp = (updated_at or _now()).astimezone(ISTANBUL).isoformat()
+
+
+    rows = []
+    for symbol, price in prices.items():
+        checked = finite_positive_price(price)
+        if checked is None:
+            if price is not None:
+                logger.warning(
+                    "[FİYAT] %s için sonlu olmayan fiyat reddedildi: %r",
+                    symbol, price,
+                )
+            continue
+        rows.append((
+            symbol, checked,
+            normalize_asset_type(asset_types.get(symbol)), stamp,
+            (sources or {}).get(symbol, PRICE_SOURCE),
+        ))
+    if not rows:
+        return
     conn = get_connection()
     try:
         _ensure_cache(conn)
@@ -148,15 +174,7 @@ def _store_cache(
                    asset_type=excluded.asset_type,
                    updated_at=excluded.updated_at,
                    source=excluded.source""",
-            [
-                (
-                    symbol, float(price),
-                    normalize_asset_type(asset_types.get(symbol)), stamp,
-                    (sources or {}).get(symbol, PRICE_SOURCE),
-                )
-                for symbol, price in prices.items()
-                if price is not None and float(price) > 0
-            ],
+            rows,
         )
         conn.commit()
     finally:
@@ -216,9 +234,8 @@ def get_price_status(
             if freshness is not PriceFreshness.UNAVAILABLE
             else None
         ),
-        # Sabit PRICE_SOURCE DEĞİL: bu fiyat yedek bir sağlayıcıdan gelmiş
-        # olabilir ve o durumda "Yahoo Finance" demek kullanıcıya yanlış
-        # kaynak göstermek olurdu.
+
+
         source=row.source,
         updated_at=row.updated_at,
         cache_age_seconds=age,
@@ -238,18 +255,7 @@ def get_price(
     if cached is not None and ttl != INFINITE_TTL:
         stale = (_now() - cached.updated_at).total_seconds() >= ttl * 60
 
-    # Sonsuz TTL piyasa kapalı anlamına gelir; force bile kapalı piyasaya istek
-    # attırmaz. Son bilinen değer (varsa) aynen kullanılır.
-    #
-    # AMA bu kural hiç cache'i olmayan (`cached is None`) bir sembole
-    # UYGULANMAZ: uygulanırsa, piyasa kapalıyken eklenen bir varlık piyasa
-    # açılana kadar SONSUZA KADAR fiyatsız kalırdı. `fetch_prices_async`
-    # bu istisnayı zaten kendi içinde uyguluyor (bkz. o fonksiyondaki
-    # `if row is None: due[symbol] = asset_type` dalı) — buradaki eski
-    # kapı ise `ttl != INFINITE_TTL` şartını `fetch_prices_async`'ı hiç
-    # ÇAĞIRMADAN önce uyguluyordu, yani o fonksiyonun zaten doğru olan
-    # mantığına asla ulaşamıyordu. `cached is None` durumunu tamamen
-    # `fetch_prices_async`'a devretmek iki fonksiyonu tekrar tutarlı kılıyor.
+
     if cached is None or (ttl != INFINITE_TTL and (force_refresh or stale)):
         fetch_prices_async(
             [(key, asset_type)], callback=None, force_refresh=force_refresh
@@ -260,11 +266,8 @@ def get_price(
 def _extract_last_close(data, ticker: str, single: bool) -> float | None:
     try:
         close = data["Close"]
-        # yfinance 1.4.x TEK sembolde de MultiIndex sütun döndürüyor, yani
-        # data["Close"] bir Series değil DataFrame olabilir. `single` olsa bile
-        # sütunlu ise ticker'ı (yoksa ilk sütunu) seç; float(DataFrame) aksi
-        # halde TypeError verip fiyatı sessizce düşürüyordu (tek varlıklı
-        # portföyde "Aktif Varlıklarım ₺0,00" kalmasının kök nedeni).
+
+
         if hasattr(close, "columns"):
             series = close[ticker] if ticker in close.columns else close.iloc[:, 0]
         else:
@@ -304,9 +307,9 @@ def _schedule_callback(callback, prices) -> None:
     try:
         from kivy.clock import Clock
         Clock.schedule_once(lambda _dt: callback(prices), 0)
-    # EXCEPTION-AUDIT: bilinçli geniş — garantili teslim sınırı.
+
     except Exception:
-        # Kivy başlatılmamış unit-test/CLI ortamında sonucu yine teslim et.
+
         callback(prices)
 
 
@@ -340,14 +343,8 @@ def fetch_prices_async(
         row = cached.get(symbol)
         ttl = get_ttl_minutes(asset_type, symbol, now=now)
         if ttl == INFINITE_TTL:
-            # Sonsuz TTL "piyasa kapalı" demek — normalde gereksiz isteği
-            # önlemek için atlanır. AMA hiç cache'i olmayan (row is None) bir
-            # varlık için bu atlama, kullanıcıyı "Canlı veri bekleniyor…"
-            # durumunda SONSUZA KADAR bırakırdı (hafta sonu eklenen bir
-            # hisse/altın/döviz asla ilk fiyatını alamaz, oysa kripto TTL'i
-            # hep sonlu olduğundan bu sorunu hiç yaşamaz). Piyasa kapalıyken
-            # bile son kapanış fiyatı, hiç fiyat olmamasından iyidir — bu
-            # yüzden İLK çekim için istisna tanınır.
+
+
             if row is None:
                 due[symbol] = asset_type
             continue
@@ -394,11 +391,7 @@ def fetch_prices_async(
             raw = _download_batch(sorted(tickers))
             sources = dict.fromkeys(raw, PRICE_SOURCE)
 
-            # Birincil sağlayıcının VERMEDİĞİ tickerlar için yedeğe düş.
-            # `_download_batch` ağ hatasında da, "fiyat yok"ta da boş dönüyor
-            # (ikisini ayırmıyor) — bu yüzden ayrım aramak yerine basitçe
-            # eksikler yeniden deneniyor. Yedek yalnızca kripto ve dövizi
-            # kapsıyor; BIST ve GC=F için kaynak yok (bkz. price_providers).
+
             missing = [
                 ticker for ticker in sorted(tickers) if ticker not in raw
             ]

@@ -1,6 +1,6 @@
 """Arayüz/servis sınırı: hedefler yalnız SQL'den besleniyor (dilim 3).
 
-Sabitlenen sözleşme (docs/SAVINGS_SINGLE_SOURCE_PLAN.md §9):
+Sabitlenen sözleşme (docs/ARCHITECTURE.md):
 
   * `main.py` hedefleri `JsonStore` üzerinden OKUMUYOR,
   * `SavingsMixin` listeyi `SavingsService.get_goals()`'tan alıyor,
@@ -89,8 +89,8 @@ class SourceOfTruthTest(_Profile):
 
         SavingsService.create_goal("Araba Fonu", 20000.0, color="green")
         app = self.make_app()
-        # `store` HİÇ verilmiyor: JSON'a dokunan bir kod yolu kalsaydı
-        # AttributeError ile patlardı.
+
+
         goals = app.load_savings_goals()
 
         self.assertEqual([g["name"] for g in goals], ["Araba Fonu"])
@@ -338,7 +338,7 @@ class QuarantineNotificationTest(_Profile):
         legacy = self.root / "savings_goals.json"
         legacy.write_text(
             json.dumps({"goals": {"data": [
-                # SQL'de karşılığı yok ve üzerinde para var -> karantina.
+
                 {"id": 4242, "name": "Kayıp Fon", "target": 9000.0,
                  "current": 4500.0},
             ]}}),

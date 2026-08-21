@@ -20,7 +20,7 @@ import re
 import subprocess
 import sys
 
-# `v` öneki isteğe bağlı; prerelease son eki (`-rc1`) ayrı yakalanır.
+
 _TAG = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?$")
 
 
@@ -67,7 +67,7 @@ def select_previous(target, tags, *, allow_prerelease=False):
         if parsed[3] is not None and not allow_prerelease:
             continue
         key = _sort_key(parsed)
-        if key >= target_key:          # hedefin kendisi ve sonrası eleniyor
+        if key >= target_key:
             continue
         candidates[key] = tag.strip()
 

@@ -62,8 +62,7 @@ class MoneyDecisionPrecisionTest(unittest.TestCase):
         goal_id = SavingsService.create_goal("Tatil", 1000.0)
         stored = self._drift_goal_to(goal_id, 3000, 0.10)
 
-        # Önce artığın gerçekten oluştuğunu doğrula — yoksa test bir şey
-        # kanıtlamaz ve sessizce anlamsızlaşır.
+
         self.assertNotEqual(
             stored, 300.0, "Test kurulumu artığı üretemedi; vaka geçersiz"
         )
@@ -104,8 +103,7 @@ class MoneyDecisionPrecisionTest(unittest.TestCase):
                 "WHERE id = ?", (goal_id,)
             ).fetchone()
 
-        # Vakanın gerçekten ayırt edici olduğunu doğrula: ham karşılaştırma
-        # BAŞARISIZ olmalı, yuvarlanmış olan başarılı.
+
         self.assertLess(
             current, 300.01,
             "Ham toplam eşiği aşıyorsa test eski kodda da geçer; vaka geçersiz",

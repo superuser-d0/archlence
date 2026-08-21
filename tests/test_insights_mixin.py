@@ -49,9 +49,6 @@ class _Clock:
         return callback(0)
 
 
-# Mixin'in iş mantığını test ederken KivyMD widget importlarının SDL penceresi
-# istemesine gerek yok. Yalnız modül yüklenirken kullanılan adları sağla;
-# patch bağlamı bitince sys.modules eski hâline döner.
 _stubs = {
     "kivy": _module("kivy"),
     "kivy.clock": _module("kivy.clock", Clock=_Clock),
@@ -67,10 +64,8 @@ _stubs = {
     "kivymd.uix.fitimage": _module("kivymd.uix.fitimage", FitImage=_Widget),
     "kivy.metrics": _module("kivy.metrics", dp=lambda v: v),
     "ui.theme": _module(
-        # Gerçek ftheme.accent bir renk (RGBA) döndürür; burada bilerek
-        # SEÇİLEN accent adının kendisini döndürüyoruz ki testler
-        # _score_accent'in doğru bandı (green/amber/red) seçtiğini
-        # doğrudan assert edebilsin — gerçek renk değerini değil.
+
+
         "ui.theme", accent=lambda style, name: name,
         apply_card_theme=lambda card, *args, **kwargs: card,
     ),
@@ -205,8 +200,8 @@ class InsightsMixinActionTest(unittest.TestCase):
         )
 
         self.assertEqual(score_value.text, "85")
-        # _score_accent(85) -> "green" (>=60); ui.theme stub'ı accent adını
-        # olduğu gibi geri döndürüyor, bu yüzden doğrudan assert edilebiliyor.
+
+
         self.assertEqual(score_value.text_color, "green")
         self.assertEqual(score_bar.color, "green")
         self.assertEqual(score_bar.value, 85.0)
@@ -256,9 +251,8 @@ class InsightsMixinActionTest(unittest.TestCase):
         self.assertNotEqual(score_label.text, "Yeterli veri yok")
         self.assertEqual(score_bar.value, 0)
         self.assertEqual(score_bar.color, "red")
-        # DÜZELTME öncesi hata durumunda bar opacity=0 (görünmez) kalıyordu,
-        # aynı "insufficient data" ile aynı görünüyordu; artık ayrı: bar
-        # görünür (opacity=1) ama değeri 0 ve kırmızı.
+
+
         self.assertEqual(score_bar.opacity, 1)
 
     @mock.patch("services.insights_service.dismiss_recurring_candidate")
@@ -284,10 +278,8 @@ class InsightsMixinActionTest(unittest.TestCase):
             recurring_candidates_container=container,
         )
         self.host._active_subscriptions = []
-        # self.host bir Mock() — self._empty_label(...) çağrısının gerçek
-        # InsightsMixin._empty_label'a gitmesi için (yoksa Mock kendi sahte
-        # attribute'unu üretir) diğer testlerdeki desenle aynı şekilde
-        # gerçek metoda bağlanıyor.
+
+
         self.host._empty_label = types.MethodType(InsightsMixin._empty_label, self.host)
 
         InsightsMixin.render_recurring_candidates(self.host, [])
@@ -323,9 +315,9 @@ class InsightsMixinActionTest(unittest.TestCase):
         self.assertEqual(len(recycler.data), 2)
         self.assertEqual(
             [row["name"] for row in recycler.data], ["Netflix", "Spotify"])
-        # Ham kayıt satırda taşınmalı: DÜZENLE/KALDIR diyalogları onu ister.
+
         self.assertIs(recycler.data[0]["payment"], payments[0])
-        # Aktif abonelik için kart widget'ı kurulmamalı.
+
         self.assertEqual(container.children, [])
 
     def test_icon_prefetch_refresh_does_not_wipe_active_incomes(self):

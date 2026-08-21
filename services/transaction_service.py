@@ -17,8 +17,7 @@ from datetime import datetime
 
 SECRET_KEY = "fi" + "nora_secure_2026"
 
-# Taksit planları tablosu tembel (lazy) oluşturulur — asset_service'teki
-# asset_price_cache ile aynı desen; init_db'ye dokunmadan şema genişler.
+
 _INSTALLMENTS_TABLE = "installment_plans"
 
 
@@ -92,15 +91,9 @@ class TransactionService:
             if not 1 <= installments <= 12:
                 raise ValueError("Taksit sayısı 1 ile 12 arasında olmalıdır.")
             if installments == 1:
-                installments = None  # 1 taksit = tek çekim; plan kaydı gereksiz.
+                installments = None
 
-        # Donma kuralı gelir/gider ayrımı yapmadan ve CSV'nin geçmiş-limit
-        # istisnasından bağımsız uygulanır. `enforce_credit_limit=False`
-        # yalnız eski limit aşımını kabul eder; donmuş hesabı bypass etmez.
-        # Hesabın varlığını burada doğrula: ileri tarihli (pending) kayıtlar
-        # adjust_account_balance'ı HİÇ çağırmaz, dolayısıyla oradaki koruma bu
-        # yolu kapsamaz. Kontrol olmasa sahipsiz bir pending satırı yazılır ve
-        # vadesi geldiğinde settle sırasında sessizce başarısız olurdu.
+
         conn = get_connection()
         try:
             cursor = conn.cursor()
@@ -108,28 +101,19 @@ class TransactionService:
             # SQLite snapshot. BEGIN IMMEDIATE serializes competing card
             # charges before either can consume the same available limit.
             cursor.execute("BEGIN IMMEDIATE")
-            # Kural `AccountService.assert_spending_allowed`'da tek yerde:
-            # hesap var mı, donmuş mu, kredi kartıysa limit yeter mi. Burası
-            # onu KOPYALIYORDU ve kopya, `asset_purchase_service` aynı
-            # korumaya ihtiyaç duyduğunda oraya taşınmadı — o yol da bu yüzden
-            # yarışa açıktı. Tek fark artık ret mesajının ayrıntılı olması
-            # ("kullanılabilir limit X, harcama Y"); hiçbir test veya çağıran
-            # eski kısa metne bağlı değildi.
+
+
             AccountService.assert_spending_allowed(
                 cursor, account_id, amount, transaction_type,
                 enforce_limits=enforce_credit_limit,
             )
 
-            # Yalnızca tutar ve açıklama şifrelenir; type/category düz metin kalır
-            # çünkü SQL sorguları (filtreleme ve categories JOIN'i) bu kolonlar
-            # üzerinden çalışıyor — şifrelenirlerse raporlama sorguları bozulur.
+
             str_amount = str(amount)
             encrypted_amount = encrypt(str_amount, SECRET_KEY)
             encrypted_description = encrypt(description, SECRET_KEY)
 
-            # transaction_date DB tarafında değil uygulamada üretilir; böylece
-            # get_transactions_by_period'daki 'localtime' filtreleriyle aynı
-            # saat diliminde kalır.
+
             date_now = transaction_date or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             # Check if transaction is in the future
@@ -143,20 +127,13 @@ class TransactionService:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (account_id, encrypted_amount, transaction_type, category, encrypted_description, date_now, status, date_now))
 
-            # Hesaplar Kopuk düzeltmesi: accounts.balance işlemle aynı commit'te
-            # senkron güncellenir (gelir artırır, gider azaltır).
-            # SADECE geçmiş veya bugüne ait işlemler bakiyeye etki eder!
+
             if not is_future:
                 adjust_account_balance(cursor, account_id, transaction_type, amount)
 
             if installments:
-                # Taksit planı işlemle AYNI commit'te yazılır (atomiklik).
-                #
-                # Bölme Decimal'de: `round(float(amount)/n, 2)` anaparayı
-                # korumuyordu. 1000,00 TL / 3 -> 333,33 ve 3 x 333,33 = 999,99;
-                # 12.500,00 / 12 -> 1.041,67 ve 12 x 1.041,67 = 12.500,04.
-                # Yani plan, anaparadan SAPAN bir borç gösteriyordu
-                # ve sapma iki yönde de olabiliyordu.
+
+
                 monthly = fiat(decimal_from(amount) / installments)
                 _ensure_installments_table(cursor)
                 cursor.execute(f"""
@@ -177,12 +154,7 @@ class TransactionService:
         finally:
             conn.close()
 
-        # ── ABONELİK INTERCEPTOR ────────────────────────────────────────────
-        # İşlem defterine yazıldıktan SONRA çalışır: abonelik gibi görünen bir
-        # gider ayrıca "Aktif Aboneliklerim" radarına da kaydedilir. İşlemin
-        # kendi commit'inin dışında tutuluyor, çünkü radar kaydı yardımcı bir
-        # kolaylık — orada çıkan bir hata kullanıcının gerçek harcamasının
-        # kaydedilmesini ASLA geri almamalı.
+
         if detect_subscription and transaction_type in ("expense", "Gider"):
             try:
                 from services.recurring_service import (
@@ -242,8 +214,8 @@ class TransactionService:
 
             settled = 0
             for row in due_rows:
-                # Planlandıktan sonra hesap dondurulmuş olabilir. Vade gelince
-                # donmayı bypass edip bakiyeyi değiştirme; kayıt pending kalsın.
+
+
                 if bool(row["is_frozen"]):
                     continue
                 try:
@@ -253,8 +225,8 @@ class TransactionService:
                 except (DecryptionError, ValueError, TypeError):
                     from utils.logging_config import get_logger
                     get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] pending işlem id={row['id']} tutarı çözülemedi")
-                    # Tutar çözülemiyorsa bakiyeye körlemesine dokunmaktansa
-                    # kaydı pending bırak; kullanıcı veriyi düzeltebilir.
+
+
                     continue
 
                 cursor.execute("SAVEPOINT settle_tx")
@@ -268,14 +240,8 @@ class TransactionService:
                         (row["id"],),
                     )
                 except (sqlite3.Error, ValueError, ArchlenceError):
-                    # Gerçekçi küme: `adjust_account_balance` hesap bulunamazsa
-                    # ValueError, veri bütünlüğü bozuksa ArchlenceError türevi
-                    # (FinancialDataIntegrityError) fırlatır; UPDATE ise
-                    # sqlite3.Error. Bir satırın yerleşememesi KALAN vadesi
-                    # gelmiş işlemleri iptal etmemeli, o yüzden burada durup
-                    # döngü sürüyor — ama artık SESSİZ değil: bu blok eskiden
-                    # hiç loglamıyordu, yani kullanıcının kirası/maaşı hiç
-                    # işlenmeden geçtiğinde ortada tek bir iz kalmıyordu.
+
+
                     from utils.logging_config import get_logger
                     get_logger().exception(
                         f"Vadesi gelen işlem yerleştirilemedi (id={row['id']}), "
@@ -370,11 +336,9 @@ class TransactionService:
         işleme mantığı tek yerde (settle_due_transactions) kalsın.
         """
         day = str(new_date)[:10]
-        datetime.strptime(day, "%Y-%m-%d")  # biçim doğrulaması
-        # Saat bileşeni KORUNUR: transaction_date'i tarih-only yazmak
-        # ui/charts.py'nin zaman kovalarını bozuyordu (tek bir tarih-only satır
-        # tüm zaman grafiğini sessizce çizilmez hâle getiriyor). Projedeki
-        # konvansiyon her zaman "%Y-%m-%d %H:%M:%S".
+        datetime.strptime(day, "%Y-%m-%d")
+
+
         stamp = f"{day} 09:00:00"
 
         conn = get_connection()
@@ -418,9 +382,8 @@ class TransactionService:
         plans = []
         for r in rows:
             try:
-                # decimal_from ŞİFRE ÇÖZÜLMÜŞ METİN üzerinden çağrılıyor,
-                # float üzerinden değil: araya bir float sokmak, kaçınmak
-                # istediğimiz ikili yaklaşıklığı geri getirirdi.
+
+
                 total = decimal_from(decrypt(str(r["total_amount"]), SECRET_KEY))
                 monthly = decimal_from(
                     decrypt(str(r["monthly_amount"]), SECRET_KEY)
@@ -431,8 +394,8 @@ class TransactionService:
                 from utils.logging_config import get_logger
                 get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] taksit planı id={r['id']} tutarı çözülemedi")
                 continue
-            # Açıklama, transactions tablosundaki konvansiyonla aynı şekilde
-            # şifreli durur; çözülemezse plan gizlenmez, ad boş bırakılmaz.
+
+
             try:
                 plan_description = decrypt(str(r["description"]), SECRET_KEY) or "Taksitli İşlem"
             except KeyUnavailableError:
@@ -443,18 +406,14 @@ class TransactionService:
                 plan_description = "Taksitli İşlem"
             paid_count = int(r["paid_installments"])
             remaining = int(r["total_installments"]) - paid_count
-            # Kalan borç ANAPARADAN türetiliyor, `aylık x kalan`dan değil.
-            # Eski formül eşit taksitler varsayıyordu; bölme tam bölünmüyorsa
-            # taksitlerin toplamı anaparayı tutmaz. Anaparadan ödenen kısmı
-            # düşmek, farkı doğal olarak SON taksite yüklüyor: 1000,00 / 3 ->
-            # 333,33 + 333,33 + 333,34, toplam tam olarak 1000,00.
+
+
             remaining_amount = fiat(total - monthly * paid_count)
             plans.append({
                 "id": r["id"],
                 "description": plan_description,
-                # Dış arayüz float kalıyor: kusur temsilde değil HESAPTAydı ve
-                # bu değerler zaten 2 haneye yuvarlanmış durumda. Decimal
-                # döndürmek her çağıranı değiştirmeyi gerektirirdi.
+
+
                 "total_amount": float(total),
                 "monthly_amount": float(monthly),
                 "total_installments": int(r["total_installments"]),
@@ -471,9 +430,8 @@ class TransactionService:
 
         with managed_connection() as conn:
             cursor = conn.cursor()
-            # status filtresi: ileri tarihli (pending) işlemler bakiyeye
-            # işlenmediği için raporlanan gelir/gider/tasarruf metriklerine de
-            # girmemeli — yoksa bakiye ile dashboard birbirini tutmaz.
+
+
             cursor.execute(f"""
                 SELECT t.amount, t.type, t.category, t.transaction_date, c.importance
                 FROM transactions t
@@ -490,15 +448,8 @@ class TransactionService:
             except KeyUnavailableError:
                 raise
             except (DecryptionError, ValueError, TypeError) as exc:
-                # 0.0'A DÜŞÜLMÜYOR — bu satırlar TOPLANIYOR. Tek çağıranı
-                # `ui/charts.py`, değerleri kategoriye göre toplayıp pasta ve
-                # trend grafiğini çiziyor. Bozuk bir tutarı 0,00 saymak,
-                # kullanıcıya sessizce YANLIŞ bir grafik göstermek olurdu;
-                # oysa grafiğin hiç çizilmemesi görünür ve dürüsttür.
-                # Çağıran zaten `except Exception` ile boş grafiğe düşüp
-                # logluyor, yani bu bir çökme değil nazik bir bozulma.
-                # Aynı politika `financial_summary_service.decrypt_decimal`
-                # ve `main.py::_apply_dashboard_integrity_error` ile birebir.
+
+
                 raise FinancialDataIntegrityError(
                     "transactions", None, "amount", reason=exc
                 ) from exc
@@ -625,7 +576,7 @@ class TransactionService:
                 "amount": amount,
                 "type": r["type"],
                 "category": r["category"] or "",
-                # Açıklama boşsa kategori daha anlamlı bir etiket.
+
                 "description": desc.strip() or (r["category"] or "İşlem"),
                 "date": (r["transaction_date"] or "")[:10],
             })

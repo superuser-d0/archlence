@@ -49,7 +49,7 @@ class WorktreeProvisioningTest(unittest.TestCase):
         _git("commit", "--quiet", "-m", "ilk", cwd=self.repo)
         _git("tag", "v0.0.1", cwd=self.repo)
 
-        # `_ensure_worktree` modül sabitinden depo kökünü okuyor.
+
         self._saved_root = matrix.CURRENT_ROOT
         matrix.CURRENT_ROOT = self.repo
         self.addCleanup(self._restore_root)
@@ -66,16 +66,12 @@ class WorktreeProvisioningTest(unittest.TestCase):
         target = self.worktrees / "archlence-audit-v001"
         self.assertTrue(matrix._ensure_worktree(target, "v0.0.1"))
 
-        # `/tmp` temizliğini simüle et: dizin gider, kayıt kalır.
-        # `rm -rf` DEĞİL: bu paket Windows CI'da da koşuyor ve orada `rm`
-        # yok. Aynı sınıftan bir hata bu sürümde zaten bir kez ödendi
-        # (`os.fchmod`, `c57f85b`) — testin kendisi tekrarlamasın.
+
         shutil.rmtree(target)
         self.assertIn("archlence-audit-v001", self._registered())
         self.assertFalse(target.exists())
 
-        # Düzeltme öncesi burası "missing but already registered" ile
-        # `SystemExit` atıyordu.
+
         self.assertTrue(matrix._ensure_worktree(target, "v0.0.1"))
         self.assertTrue((target / "file.txt").exists())
 

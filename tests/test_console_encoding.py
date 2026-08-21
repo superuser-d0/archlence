@@ -39,14 +39,14 @@ class TurkishTextOnLegacyConsoleTest(unittest.TestCase):
         raw = io.BytesIO()
         stream = io.TextIOWrapper(raw, encoding="cp1252", errors="strict")
 
-        # Düzeltme öncesi davranış: patlar.
+
         with self.assertRaises(UnicodeEncodeError):
             print("Abonelik radarına yazılamadı", file=stream)
             stream.flush()
 
-        # Düzeltme: main.py/run_tests.py'nin yaptığı reconfigure.
+
         stream.reconfigure(encoding="utf-8", errors="replace")
-        print("Abonelik radarına yazılamadı", file=stream)  # patlamamalı
+        print("Abonelik radarına yazılamadı", file=stream)
         stream.flush()
         self.assertIn("radarına", raw.getvalue().decode("utf-8"))
 

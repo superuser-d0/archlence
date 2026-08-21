@@ -5,7 +5,7 @@ NEDEN VAR: `fetch_active_non_try_total` her varlığın değerini
 topluyordu. `calculate_pnl`'de kapatılan sınıfın aynısı: çarpım yuvarlama
 sınırına düştüğünde ikili gösterim yarım kuruşu yutuyor.
 
-Denetimde ölçüldü (`docs/audits/PORTFOLIO_TOTAL_AUDIT.md`), ve önemli olan
+Ölçülerek doğrulandı, ve önemli olan
 şu: bu vakalar uydurma değil, Archlence'in KENDİ hassasiyet politikası
 içinde — kripto miktarı 8 hane, hisse 6 hane, fiyatlar iki-üç ondalık.
 
@@ -46,7 +46,7 @@ class PortfolioTotalPrecision(unittest.TestCase):
         from database.init_db import initialize_database
         initialize_database()
 
-    # ------------------------------------------------------------------ yardım
+
     def _add_asset(self, name, code, kind, price, quantity):
         from database.db import insert_asset
         insert_asset(name, code, kind, price, quantity)
@@ -91,7 +91,7 @@ class PortfolioTotalPrecision(unittest.TestCase):
             f"(ham değer: {result['total']!r})",
         )
 
-    # ------------------------------------------------------------- kuruş vakaları
+
     def test_crypto_quantity_times_sub_kurus_price(self):
         """15 x 0,045 = 0,675 -> 0,68."""
         result = self._total_for(
@@ -116,7 +116,7 @@ class PortfolioTotalPrecision(unittest.TestCase):
         )
         self._assert_total_kurus(result, "0.68")
 
-    # ------------------------------------------------------------ birikim vakaları
+
     def test_ten_assets_match_the_decimal_reference(self):
         assets, prices, reference = [], {}, Decimal(0)
         for index in range(10):
@@ -143,7 +143,7 @@ class PortfolioTotalPrecision(unittest.TestCase):
         self._assert_total_kurus(
             result, f"{reference.quantize(Decimal('0.01')):,.2f}")
 
-    # ------------------------------------------------------- progress sözleşmesi
+
     def test_progress_and_final_totals_agree(self):
         """Son ara toplam ile nihai toplam AYNI finansal değeri göstermeli.
 
@@ -214,7 +214,7 @@ class PortfolioTotalPrecision(unittest.TestCase):
         result = self._total_for(
             [("Coin", "G01", "Kripto", 0.045, 15.0),
              ("Coin", "G02", "Kripto", 1.0, 1.0)],
-            {"G01": 0.045},          # G02 fiyatsız
+            {"G01": 0.045},
         )
         self._assert_total_kurus(result, "0.68")
         self.assertEqual(result["priced_count"], 1)

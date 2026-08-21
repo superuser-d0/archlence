@@ -11,37 +11,19 @@ import unicodedata
 
 from utils.app_paths import cache_dir
 
-# docs/ROADMAP.md Faz 1 madde 4. Paketlenmiş bir Windows kurulumunda
-# uygulamanın kendi kurulum dizini genelde salt-okunur. Bu bir ÖNBELLEK —
-# indirilen logo yeniden indirilebilir — bu yüzden eski BASE_DIR
-# konumundan bir MİGRATİON yok, gerekmiyor da: en kötü ihtimalle bir sonraki
-# `fetch_and_cache_brand_icon` çağrısı logoyu yeniden indirir.
+
 BRAND_ICON_CACHE_DIR = os.path.join(cache_dir(), "brand_icon_cache_v3")
 
-# Yalnızca bozuk/anlamsız görüntüleri eler. Gerçek favicon'lar en az 16px'tir.
-#
-# KARAR GEÇMİŞİ: bir ara bu eşik 32'ydi ve altındakiler önbelleğe HİÇ
-# alınmıyordu (gerekçe: 16 pikseli germek bulanık durur, vektör ikon daha
-# temiz). Sahada yanlış çıktı — bazı markalar (turktelekom.com.tr,
-# superonline.net) hiçbir sağlayıcıda 16x16'dan büyük favicon yayınlamıyor
-# ve o markaların logosu tamamen kayboldu. Kullanıcı için markayı TANIMAK,
-# kenarların keskinliğinden daha önemli: artık küçük logolar da kabul edilip
-# `TARGET_ICON_PX`'e LANCZOS ile büyütülüyor.
+
 MIN_ACCEPTABLE_ICON_PX = 16
 
-# Aday bu boyuta ulaşınca kalan sağlayıcılar denenmez (erken çıkış).
-# Daha küçük kalan logolar diske yazılmadan önce bu boyuta büyütülür.
+
 TARGET_ICON_PX = 128
 
-# "Bu markada kullanılabilir logo bulunamadı" bilgisi de önbelleklenir.
-# NEDEN ZORUNLU: çağıran taraf (main.py::_render_recent_transactions) diskte
-# ikon YOKSA yeniden indirmeyi tetikler. Negatif sonuç hatırlanmazsa
-# turkcell gibi kalıcı olarak elenen her marka, dashboard'ın HER
-# çiziminde sağlayıcı sayısı kadar HTTP isteği doğururdu.
-# Süre sınırlı: marka ileride daha büyük bir favicon yayınlayabilir.
+
 _MISS_TTL_SECONDS = 30 * 24 * 3600
 
-# Uzun/özgül takma adlar önce sınanır. Değer: (cache anahtarı, marka domaini).
+
 _BRANDS = (
     (("amazon prime", "prime video"), "prime-video", "primevideo.com"),
     (("youtube premium", "youtube music", "youtube"), "youtube", "youtube.com"),
@@ -58,13 +40,13 @@ _BRANDS = (
     (("tod tv", "tod"), "tod", "todtv.com.tr"),
     (("tabii",), "tabii", "tabii.com"),
 
-    # ── Video/yayın (ek) ────────────────────────────────────────────────
+
     (("twitch",), "twitch", "twitch.tv"),
     (("paramount plus", "paramount+"), "paramount-plus", "paramountplus.com"),
     (("peacock",), "peacock", "peacocktv.com"),
     (("crunchyroll",), "crunchyroll", "crunchyroll.com"),
 
-    # ── Müzik ───────────────────────────────────────────────────────────
+
     (("tidal",), "tidal", "tidal.com"),
     (("soundcloud", "soundcloud go"), "soundcloud", "soundcloud.com"),
 
@@ -85,7 +67,7 @@ _BRANDS = (
     (("google one", "google drive"), "google-one", "one.google.com"),
     (("dropbox",), "dropbox", "dropbox.com"),
 
-    # ── Üretkenlik / yapay zekâ ─────────────────────────────────────────
+
     (("microsoft 365", "office 365"), "microsoft-365", "microsoft.com"),
     (("adobe creative cloud", "adobe cc", "creative cloud"), "adobe-cc", "adobe.com"),
     (("canva",), "canva", "canva.com"),
@@ -101,25 +83,23 @@ _BRANDS = (
     (("lastpass", "last pass"), "lastpass", "lastpass.com"),
     (("claude", "anthropic"), "claude", "claude.ai"),
     (("gemini advanced", "google gemini", "gemini"), "gemini", "gemini.google.com"),
-    # ── Eğitim ───────────────────────────────────────────────────────────
+
     (("udemy",), "udemy", "udemy.com"),
     (("coursera",), "coursera", "coursera.org"),
     (("duolingo",), "duolingo", "duolingo.com"),
     (("skillshare",), "skillshare", "skillshare.com"),
 
-    # ── Spor / sağlık ────────────────────────────────────────────────────
+
     (("macfit", "mac fit"), "macfit", "macfit.com"),
     (("club sporium", "clubsporium", "sporium"), "sporium", "clubsporium.com.tr"),
     (("strava",), "strava", "strava.com"),
     (("headspace",), "headspace", "headspace.com"),
 
-    # ── Üyelik / destek ──────────────────────────────────────────────────
+
     (("patreon",), "patreon", "patreon.com"),
     (("wikipedia", "wikimedia"), "wikipedia", "wikipedia.org"),
 
-    # ── Proton gizlilik paketi ───────────────────────────────────────────
-    # Ürün adları genel "proton" girdisinden önce olmalı; böylece her ürünün
-    # önbelleği bağımsız kalır ve VPN kendi alan adının ikonunu kullanabilir.
+
     (("proton vpn", "protonvpn"), "proton-vpn", "protonvpn.com"),
     (("proton mail", "protonmail"), "proton-mail", "proton.me"),
     (("proton pass", "protonpass"), "proton-pass", "proton.me"),
@@ -132,11 +112,7 @@ _BRANDS = (
         "proton.me",
     ),
 
-    # ── Telekomünikasyon / internet ─────────────────────────────────────
-    # Alt markalar ana operatörden önce gelir: "Turkcell Superonline"
-    # metni Turkcell'in mobil logosuna değil Superonline'ın kendi ikonuna
-    # çözülmeli. Türkçe karakterli ve fatura/ekstrelerde görülen bitişik
-    # yazımlar normalize edilerek aynı cache anahtarında birleşir.
+
     (
         ("turkcell superonline", "superonline"),
         "superonline",
@@ -159,19 +135,14 @@ _BRANDS = (
         "turkcell.com.tr",
     ),
 
-    # ── Sosyal medya ────────────────────────────────────────────────────
-    # Instagram'ın kendisi ücretsizdir; tanınan asıl ürün rozet/destek
-    # paketi "Meta Verified"tir (Instagram + Facebook). Kullanıcı çoğunlukla
-    # abonelik adını yalnızca "Instagram" olarak girer; ikon yine de
-    # instagram.com'un kendi favicon'undan gelir — Meta'nın genel logosundan
-    # daha tanınır olduğu için.
+
     (("meta verified", "instagram"), "instagram", "instagram.com"),
 
     # ── VPN ─────────────────────────────────────────────────────────────
     (("nordvpn", "nord vpn"), "nordvpn", "nordvpn.com"),
     (("expressvpn", "express vpn"), "expressvpn", "expressvpn.com"),
 
-    # ── Bankalar ve Cüzdanlar (Türkiye) ─────────────────────────────────
+
     (("garanti bbva", "garanti bankası", "garanti"), "garanti", "garantibbva.com.tr"),
     (("iş bankası", "is bankasi", "işcep", "iscep", "is bank"), "is-bankasi", "isbank.com.tr"),
     (("yapı kredi", "yapi kredi", "yapıkredi", "yapikredi"), "yapi-kredi", "yapikredi.com.tr"),
@@ -194,9 +165,7 @@ _BRANDS = (
     (("pokus",), "pokus", "pokus.com.tr"),
     (("ozan", "ozan superapp"), "ozan", "ozan.com"),
 
-    # Genel sağlayıcı adları SONDA durmalı: yukarıdaki daha özgül ürün/marka
-    # girdileri önce sınanır. Örneğin banka ekstresindeki "GOOGLE *ProtonVPN"
-    # genel Google ikonuna değil Proton VPN'e çözülmelidir.
+
     (("google",), "google", "google.com"),
     (("amazon",), "amazon", "amazon.com"),
 )
@@ -208,16 +177,6 @@ def _normalize(text: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9+]+", " ", ascii_text).split())
 
 
-# Takma adların normalize edilmiş hâli SABİTTİR — import'ta bir kez hesaplanır.
-#
-# NEDEN (ölçüldü, 2026-08-02): eşleşme döngüsü her çağrıda 176 takma adın
-# HEPSİNİ yeniden `_normalize` ediyordu (NFKD + regex). Eşleşmeyen bir metin
-# için tek `classify_brand` çağrısı 220 µs sürüyordu. Ana sayfa bunu her
-# abonelik ve her "son işlem" satırı için çağırdığı (üstelik bazı yollarda
-# satır başına iki kez) maliyet doğrudan abonelik sayısıyla büyüyordu —
-# "abonelik ekledikçe ana sayfa yavaşlıyor" şikayetinin ölçülebilir kısmı.
-# Boşluklu ("` alias `") biçimde saklanır ki eşleşme testi düz bir alt-dize
-# aramasına insin ve tam kelime sınırı korunsun.
 _NORMALIZED_BRANDS = tuple(
     (
         tuple(f" {_normalize(alias)} " for alias in aliases),
@@ -333,15 +292,13 @@ def _decode_largest_frame(payload: bytes):
     image = Image.open(BytesIO(payload))
     if getattr(image, "format", None) == "ICO":
         try:
-            # `.ico`, ICO açıldığında `IcoImageFile` ÖRNEĞİNDE bulunuyor;
-            # `Image.open()` tip olarak `ImageFile`'a daraldığı için stub bunu
-            # bilmiyor. Runtime'da doğrulandı (Pillow 12.3.0) ve zaten
-            # aşağıdaki `AttributeError` yakalaması ile korumalı.
+
+
             largest = max(image.ico.sizes())  # type: ignore[attr-defined]
             image = image.ico.getimage(largest)  # type: ignore[attr-defined]
         except (AttributeError, KeyError, ValueError, OSError):
-            # Pillow'un ICO iç yapısı sürümden sürüme değişebilir; en büyük
-            # kare alınamazsa Image.open'ın seçtiği kareyle devam edilir.
+
+
             pass
     return image.convert("RGBA")
 
@@ -375,10 +332,8 @@ def fetch_and_cache_brand_icon(text: str) -> bool:
                 continue
             candidate = _decode_largest_frame(response.content)
         except (OSError, ValueError):
-            # OSError, hem `requests.RequestException`'ı (ağ/DNS/timeout) hem
-            # `PIL.UnidentifiedImageError`'ı (çözülemeyen içerik) kapsar —
-            # ikisi de OSError türevi. Bir sağlayıcının düşmesi diğerlerinin
-            # denenmesini engellememeli, o yüzden `continue`.
+
+
             continue
         if best is None or candidate.size[0] > best.size[0]:
             best = candidate
@@ -390,21 +345,16 @@ def fetch_and_cache_brand_icon(text: str) -> bool:
         return False
 
     if best.size[0] < TARGET_ICON_PX:
-        # Küçük favicon'u LANCZOS ile büyüt. Keskinlik kazandırmaz (var olmayan
-        # ayrıntı üretilemez) ama kenarları yumuşatır ve diskteki her logonun
-        # ekranda küçültülerek çizilmesini sağlar — FitImage'daki `mipmap` da
-        # ancak küçültmede devreye girer.
+
+
         try:
             from PIL import Image
 
-            # `Image.Resampling.LANCZOS`, `Image.LANCZOS` ile AYNI değer (1)
-            # ve Pillow 9.1'den beri kanonik ad. Tip stub'ları yalnız bunu
-            # biliyor; ikisi runtime'da eşdeğer olduğu için burada `ignore`
-            # yerine desteklenen adı kullanmak daha doğru.
+
             best = best.resize(
                 (TARGET_ICON_PX, TARGET_ICON_PX), Image.Resampling.LANCZOS)
         except (OSError, ValueError, AttributeError):
-            pass  # büyütülemezse özgün boyutuyla yazılır, ikon yine görünür
+            pass
 
     try:
         os.makedirs(BRAND_ICON_CACHE_DIR, exist_ok=True)

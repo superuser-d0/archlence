@@ -42,7 +42,6 @@ class RecurringChargeIntegrityTest(AccountFixtureMixin, unittest.TestCase):
         initialize_database()
         self.account_id = self.create_test_account("Vadesiz", balance=10000.0)
 
-    # ─── Yardımcılar ─────────────────────────────────────────────────────────
 
     def _add(self, name="Netflix", amount=149.99, **kwargs):
         from database.db import (
@@ -73,7 +72,6 @@ class RecurringChargeIntegrityTest(AccountFixtureMixin, unittest.TestCase):
                           "recurring_payments", "recurring_operation_markers")
         }
 
-    # ─── 1. Marker izlenebilirliği ───────────────────────────────────────────
 
     def test_marker_records_the_transaction_it_charged(self):
         """Marker'ın işaret ettiği satır GERÇEKTEN o tahsilatın işlemi olmalı.
@@ -121,8 +119,7 @@ class RecurringChargeIntegrityTest(AccountFixtureMixin, unittest.TestCase):
         after_first = (self._counts(),
                        self._rows("SELECT * FROM recurring_operation_markers"))
 
-        # Bayat UI nesnesi eski vadeyi taşımaya devam eder — gerçek tekrar
-        # denemesi tam olarak böyle görünür.
+
         self.assertFalse(process_due_recurring_payment(payment))
         self.assertEqual(
             (self._counts(),
@@ -131,7 +128,6 @@ class RecurringChargeIntegrityTest(AccountFixtureMixin, unittest.TestCase):
             "ikinci geçiş kalıcı durumu değiştirdi",
         )
 
-    # ─── 2. Tutar sınırı ─────────────────────────────────────────────────────
 
     def test_insert_rejects_non_finite_and_non_positive_amounts(self):
         from database.db import insert_recurring_payment
@@ -252,7 +248,7 @@ class RecurringChargeIntegrityTest(AccountFixtureMixin, unittest.TestCase):
                     calculate_monthly_budget(
                         date.today().month, date.today().year)
 
-                # Kayıt OLDUĞU GİBİ duruyor — sessiz normalizasyon yok.
+
                 conn = sqlite3.connect(self.db_path)
                 try:
                     raw = conn.execute(
@@ -267,7 +263,6 @@ class RecurringChargeIntegrityTest(AccountFixtureMixin, unittest.TestCase):
                     conn.close()
                 self.assertEqual(decrypt(raw, SECRET_KEY), stored)
 
-    # ─── İade sınırı ─────────────────────────────────────────────────────────
 
     def test_refund_rejects_a_corrupted_charge_without_touching_money(self):
         """İade edilecek tahsilatın SAKLANMIŞ tutarı bozuksa hiçbir şey yazılmaz.
@@ -332,13 +327,12 @@ class RecurringChargeIntegrityTest(AccountFixtureMixin, unittest.TestCase):
         self.assertEqual(
             AccountService.get_account(self.account_id)["balance"], 10000.0)
 
-        # İkinci çağrı marker yüzünden hiçbir şey yapmaz.
+
         self.assertEqual(refund_current_period_charge(payment["id"]), 0.0)
         self.assertEqual(self._counts(), after_first)
         self.assertEqual(
             AccountService.get_account(self.account_id)["balance"], 10000.0)
 
-    # ─── 3. Karar ve yazma aynı transaction'da ───────────────────────────────
 
     def test_charge_decides_and_writes_on_a_single_connection(self):
         """Harcama izni ayrı bir bağlantıdan SORULMAMALI.
