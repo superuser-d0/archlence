@@ -20,13 +20,31 @@ FORBIDDEN_PARTS = {
     "fixtures",
     "db_backups",
 }
+
+# Dependency wheels and interpreters often retain paths from their own public
+# build machines. A path is private to this project only when a developer home
+# path also leads to an Archlence worktree.
+PROJECT_WORKTREE_PATTERN = re.compile(
+    rb"(?:"
+    rb"/home/[^/\x00\r\n'\"]{1,64}"
+    rb"(?:/[^/\x00\r\n'\"]{1,96}){0,8}"
+    rb"/archlence(?:/|\x00|$)"
+    rb"|"
+    rb"(?:[A-Za-z]:)?\\{1,2}Users\\{1,2}"
+    rb"[^\\\x00\r\n'\"]{1,64}"
+    rb"(?:\\{1,2}[^\\\x00\r\n'\"]{1,96}){0,8}"
+    rb"\\{1,2}archlence(?:\\{1,2}|\x00|$)"
+    rb"|"
+    rb"Documents[/\\]{1,2}archlence(?:[/\\]{1,2}|\x00|$)"
+    rb")",
+    re.IGNORECASE,
+)
+
 TEXT_PATTERNS = {
-    "developer-home": re.compile(
-        rb"/home/[^/\x00]{1,64}/|\\\\Users\\\\[^\\\x00]{1,64}\\\\|"
-        rb"Documents[/\\\\]archlence",
-        re.IGNORECASE,
+    "developer-home": PROJECT_WORKTREE_PATTERN,
+    "private-key": re.compile(
+        rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"
     ),
-    "private-key": re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
     "github-token": re.compile(rb"\bgh[pousr]_[A-Za-z0-9_]{30,}\b"),
 }
 
@@ -41,7 +59,7 @@ def inspect_files(files):
         if lowered & FORBIDDEN_PARTS:
             findings.append(f"development-content:{name}")
         # PyInstaller stores Python sources in PYZ/bytecode. Scan every file as
-        # bytes so developer paths and tokens cannot hide inside binaries.
+        # bytes so project paths and tokens cannot hide inside binaries.
         if len(content) <= 100_000_000:
             for label, pattern in TEXT_PATTERNS.items():
                 if pattern.search(content):
