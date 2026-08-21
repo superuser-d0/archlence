@@ -20,32 +20,19 @@ Screen behaviour should move into separate controller/view-model classes and
 engineering objective; implementation should be proposed in the pull request
 that performs the first extraction rather than kept as a speculative plan.
 
-Measured on 2026-08-17: `main.py` is 2,280 lines across 17 mixins.
+Measured on 2026-08-21: `main.py` is 2,432 physical lines across 17 mixins.
 
 The real constraint is not file size. `.kv` binds to `app` as a single object —
-33 method calls and 344 references, all resolved *at runtime*. A missing name
-is not a build error, it is a control that silently does nothing, which is
-exactly the defect found and fixed twice in 0.0.11 and 0.0.12. The plan
+32 distinct invoked names and 489 references, all resolved *at runtime*. A
+missing name is not a build error; it is a control that silently does nothing.
+That is exactly the defect found and fixed twice in 0.0.11 and 0.0.12. The plan
 therefore keeps `.kv` untouched behind delegating methods rather than
-repointing 344 call sites.
+repointing 489 call sites.
 
 The plan's prerequisite is already done and was worth doing on its own:
 `tests/test_kv_app_surface.py` asserts that every `app.<name>` used in `.kv`
 actually exists on `ArchlenceApp`, which closes the silent-breakage risk
 permanently.
-
-### 2. Validate packaged key storage on real systems
-
-`utils/key_provider.py` selects `DpapiKeyProvider` on Windows,
-`KeyringKeyProvider` (Secret Service/KWallet) on Linux, and an owner-only file
-elsewhere; `MigratingKeyProvider` moves an existing file-based key into the OS
-key store on first use. The Linux Secret Service path was verified empirically
-on a development machine — a fresh profile produced a working key with no
-`encryption.key` file on disk.
-
-Still needed: end-to-end confirmation of the Windows DPAPI path and of recovery
-behaviour from a **packaged** build on real hardware, not a development
-checkout.
 
 ## Where the rest of the status lives
 
@@ -83,8 +70,11 @@ pull request that landed it.
    the config path, crash log, and brand-icon cache.
 5. Encryption: AES-256-GCM with a versioned envelope, a random per-install key
    held in an OS key store, no fail-open on decrypt, and a backup-first
-   transactional migration for existing databases. Real-system validation of
-   the packaged Windows path is still open — see above.
+   transactional migration for existing databases. The Windows package gate
+   launches the frozen executable with an isolated profile, verifies that it
+   creates a user-scoped DPAPI blob and no raw key file, then performs a
+   backup/mutation/restore round trip against that packaged profile. Linux
+   Secret Service was also verified empirically on a development system.
 6. PIN hashing moved to Argon2id with lazy upgrade on successful login, plus a
    persisted login throttle with doubling lockout.
 

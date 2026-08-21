@@ -76,13 +76,18 @@ accounting certification, and verified backups remain essential.
   English visual regression at 96/192 DPI, Windows EXE packaging, and Linux
   AppImage packaging. Both packages launch in real SDL smoke tests and are
   scanned for private data, secrets, developer worktrees, and forbidden files.
+- The Windows package gate launches the frozen executable with an isolated
+  profile, proves it created a user-scoped DPAPI blob rather than a raw key,
+  and completes a backup/mutation/restore round trip against that packaged
+  profile. The same workflow upgrades a verified v0.0.12 installation to
+  1.0.0 and checks profile persistence and uninstall behavior.
 
 - Every `app.<name>` used in a `.kv` file is now checked against
   `ArchlenceApp`. Kivy resolves those names at runtime, so a missing one is
   not a build error — it is a control that silently does nothing. That is
   precisely the defect found twice recently: the search bar reported by a user
   against 0.0.10, and the notification bell found beside it. Both were caught
-  by hand, not by a gate. The scan finds 40 distinct references and was
+  by hand, not by a gate. The scan finds 39 distinct names and was
   verified against a known-broken state: renaming `toggle_wealth_visibility`
   turns it red and names the site (`ui/dashboard.kv:1579`).
 

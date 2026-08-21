@@ -9,7 +9,9 @@ and remain historical baselines.
 
 - **Package checks:** the Windows installer and Linux AppImage pass launch
   smoke tests in CI. The Windows workflow also exercises installation,
-  previous-release upgrade, profile persistence, and removal.
+  previous-release upgrade, profile persistence, and removal. Its frozen EXE
+  creates an isolated DPAPI-backed profile that completes a verified
+  backup/mutation/restore round trip without producing a raw key file.
 - **Financial correctness:** dashboard period/30-day metrics and budget totals
   do not count corrupt encrypted records as zero. A shared Decimal policy
   defines fiat, quantity, and percentage boundaries where migration is
@@ -45,9 +47,10 @@ and remain historical baselines.
   new broad or silent handlers and freezes a decreasing baseline.
 - Packages are not code-signed. Windows SmartScreen may warn, and the AppImage
   has no cryptographic signature. SHA-256 checksums and an SBOM are published.
-- Windows DPAPI and Linux Secret Service/KWallet integrations exist, with a
-  visible permission-restricted file fallback, but packaged keystore and
-  recovery behavior still needs broader real-system validation.
+- Windows DPAPI is exercised through the packaged application on Windows CI.
+  Linux Secret Service/KWallet integrations exist and have an explicit,
+  visible permission-restricted file fallback; desktop keyring availability
+  still varies by Linux distribution and session configuration.
 
 Losing both the active key and usable recovery material can make encrypted
 records unrecoverable. See [Key management](KEY_MANAGEMENT.md) and
