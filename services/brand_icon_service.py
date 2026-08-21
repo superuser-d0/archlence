@@ -50,7 +50,7 @@ _BRANDS = (
     (("tidal",), "tidal", "tidal.com"),
     (("soundcloud", "soundcloud go"), "soundcloud", "soundcloud.com"),
 
-    # ── Kitap / sesli kitap ─────────────────────────────────────────────
+    # ── Books / audiobooks ──────────────────────────────────────────────
     (("storytel",), "storytel", "storytel.com"),
     (("audible",), "audible", "audible.com"),
     (("kindle unlimited",), "kindle-unlimited", "amazon.com"),

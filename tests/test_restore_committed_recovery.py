@@ -65,7 +65,7 @@ class RestoreCommittedRecoveryTest(unittest.TestCase):
             "Yedek Hesabı", "checking", initial_balance=1000
         )
 
-        # Yedek: bakiye 4321, config "from-backup".
+        # Backup state: balance 4321, config "from-backup".
         self.config_path.write_text('{"profile":"from-backup"}',
                                     encoding="utf-8")
         self._set_balance(4321.0)
@@ -75,7 +75,7 @@ class RestoreCommittedRecoveryTest(unittest.TestCase):
             config_path=str(self.config_path),
         )
 
-        # Mevcut profil FARKLI: bakiye 9999, config "current".
+        # Current profile differs: balance 9999, config "current".
         self._set_balance(9999.0)
         self.config_path.write_text('{"profile":"current"}', encoding="utf-8")
 
@@ -185,7 +185,7 @@ class RestoreCommittedRecoveryTest(unittest.TestCase):
         self.assertEqual(result["action"], "cleanup-only")
         self.assertEqual(self._balance(), 4321.0)
 
-    # ── COMMITTED ama yeni DB yok: fail-closed ───────────────────────────
+    # ── COMMITTED without a new database: fail closed ───────────────────
 
     def test_committed_without_the_new_database_fails_closed(self):
         self._restore_crashing_at("after_committed_marker")

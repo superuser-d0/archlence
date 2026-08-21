@@ -291,7 +291,7 @@ def _initialize_database(conn):
     """)
 
 
-    # 3. Kategoriler Tablosu
+    # 3. Categories table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

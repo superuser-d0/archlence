@@ -1,7 +1,7 @@
 # Maintainer: Archlence contributors
 
 pkgname=archlence-bin
-pkgver=0.0.12
+pkgver=1.0.0
 
 pkgrel=1
 pkgdesc="Local-first personal finance manager (prebuilt AppImage)"

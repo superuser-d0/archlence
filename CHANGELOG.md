@@ -2,14 +2,92 @@
 
 ## [Unreleased]
 
+No changes yet.
+
+## [1.0.0] — 2026-08-21
+
+Archlence 1.0 establishes the first stable Windows and x86-64 Linux release.
+The stable designation is based on enforced data-integrity, upgrade, backup,
+restore, package-launch, and recovery contracts. It is not banking or
+accounting certification, and verified backups remain essential.
+
+### Highlights
+
+- Savings goals now have one authoritative store in SQLite and a permanent
+  UUID identity. Restore can no longer rewind an integer sequence and silently
+  direct a deposit into a different post-restore goal.
+- Backup, restore, export, database schema, external-price, credential, and
+  startup-failure paths were hardened together and are covered by fail-closed
+  regression tests.
+- The public application is English-only for a consistent global interface.
+  Legacy Turkish source keys remain internal so existing profiles and stored
+  values continue to load safely.
+- Repository metadata and packaged-content gates prevent personal developer
+  names, private worktree paths, credentials, databases, keys, and logs from
+  entering release artifacts.
+
+### Financial correctness and reliability
+
+- Savings-goal migration is repeatable, never overwrites an existing SQL
+  amount from stale JSON, quarantines ambiguous records, and retires the legacy
+  file only after verification. Numeric row IDs remain internal; `goal_uid` is
+  the durable identity used across restore generations.
+- SQLite foreign-key enforcement is enabled and checked on every connection.
+  Schema migration uses integrity preflight checks and older applications
+  refuse newer schema generations instead of writing incompatible data.
+- Credential changes require the current password, enforce the shared
+  12–64-character policy, reset throttle state only after success, and require
+  a fresh login. Successfully authenticated weak legacy credentials are forced
+  through renewal before financial screens become available.
+- Backup creation validates the database, AEAD records, metadata, key
+  fingerprint, and streamed file digest as a single contract. Restore uses a
+  durable journal and rollback generation so interruption cannot leave a
+  database/key mismatch.
+- Exports reject unsafe destinations and preserve platform-appropriate private
+  permissions. External prices reject non-finite values and report provider,
+  age, and freshness instead of presenting stale data as guaranteed current.
+- Startup failures are displayed after the Kivy event loop starts; protected
+  initialization errors no longer disappear into a blank or silently closed
+  application.
+
+### Performance
+
+- Backup hashing streams file contents instead of loading an entire database
+  or archive into memory.
+- Account transaction queries use an index aligned with their account/date
+  access path.
+- The visual CI matrix now runs the supported English surface at 96 and 192
+  DPI, reducing redundant jobs while preserving density coverage.
+
+### UI and accessibility
+
+- All public labels, dialogs, password flows, empty states, and generated
+  descriptions render in English. Retired locale preferences safely fall back
+  to English.
+- The password-change dialog has three masked, length-bounded fields with
+  policy-derived helper text. A real Kivy verifier exercises wrong-current and
+  successful-change paths at both supported CI densities.
+- Startup errors share one visible, fail-closed surface rather than relying on
+  console output that packaged users may never see.
+
 ### Testing and packaging
+
+- Pull requests require Linux and Windows full tests, lint, reliability gates,
+  English visual regression at 96/192 DPI, Windows EXE packaging, and Linux
+  AppImage packaging. Both packages launch in real SDL smoke tests and are
+  scanned for private data, secrets, developer worktrees, and forbidden files.
+- The Windows package gate launches the frozen executable with an isolated
+  profile, proves it created a user-scoped DPAPI blob rather than a raw key,
+  and completes a backup/mutation/restore round trip against that packaged
+  profile. The same workflow upgrades a verified v0.0.12 installation to
+  1.0.0 and checks profile persistence and uninstall behavior.
 
 - Every `app.<name>` used in a `.kv` file is now checked against
   `ArchlenceApp`. Kivy resolves those names at runtime, so a missing one is
   not a build error — it is a control that silently does nothing. That is
   precisely the defect found twice recently: the search bar reported by a user
   against 0.0.10, and the notification bell found beside it. Both were caught
-  by hand, not by a gate. The scan finds 40 distinct references and was
+  by hand, not by a gate. The scan finds 39 distinct names and was
   verified against a known-broken state: renaming `toggle_wealth_visibility`
   turns it red and names the site (`ui/dashboard.kv:1579`).
 
@@ -52,6 +130,47 @@
   because Python puts the script's own directory on the path rather than the
   repository root. A diagnostic that does not run without an undocumented
   environment variable is a diagnostic that does not run.
+
+### Additional issues found and fixed
+
+- The real-Kivy password verifier still expected retired Turkish labels after
+  the application became English-only. It now checks the rendered English
+  fields and translated policy helper at both CI densities.
+- The first generic package privacy scan treated build paths embedded by
+  CPython, NumPy, and other third-party wheels as Archlence developer paths.
+  It now requires a home path to lead to an Archlence worktree, preserving the
+  privacy gate without rejecting public dependency metadata.
+- Stale handoff, audit, and completed implementation-plan documents were
+  removed. The active architecture, release, security, installation, backup,
+  and recovery documents remain the maintained sources of truth.
+
+### Known limitations
+
+- Windows and Linux packages are not code-signed. Windows SmartScreen may
+  warn, and the AppImage has no publisher signature. Every release includes
+  SHA-256 checksums, a CycloneDX SBOM, and third-party notices.
+- macOS has no packaged, signed, or notarized release and is not a supported
+  packaged target for 1.0.
+- Encrypted-description search intentionally covers the 500 most recent
+  transactions. Account and category search is unaffected.
+- Yahoo Finance remains the only provider for BIST equities and gold. Crypto
+  and foreign-currency paths have named fallbacks; very old cached values are
+  reported as stale rather than current.
+- Cross-user DPAPI isolation is pinned at the Windows API flag boundary but
+  cannot be exercised without a second Windows account. The signed-in account
+  and running process remain inside the documented threat boundary.
+- The deprecated legacy CBC reader remains available only for old-profile
+  migration. New writes use authenticated encryption exclusively.
+
+### Installation and checksum verification
+
+- Windows: `ArchlenceSetup-1.0.0.exe`
+- Linux x86-64: `Archlence-1.0.0-x86_64.AppImage`
+- Verify both files with the release's `SHA256SUMS.txt`. The same release also
+  contains `Archlence-1.0.0-sbom.cdx.json` and `THIRD_PARTY_NOTICES.md`.
+- Upgrade, installation, profile persistence, removal, package launch, and
+  packaged-content scans are blocking CI gates. Back up from inside Archlence
+  and retain the recovery password separately before upgrading.
 
 ## [0.0.12] — 2026-08-17
 

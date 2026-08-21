@@ -346,7 +346,7 @@ def dismiss_recurring_candidate(key):
         conn.commit()
 
 
-# ── 2. Anomali tespiti ─────────────────────────────────────────────────────
+# ── 2. Anomaly detection ───────────────────────────────────────────────────
 
 def _dismissed_anomaly_ids():
     """Kullanıcının gördüm/gizle dediği transaction kimlikleri."""

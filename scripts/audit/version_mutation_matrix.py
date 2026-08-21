@@ -80,7 +80,7 @@ CASES = [
     ("08-readme-marker", "README dinamik release rozeti",
      "README.md",
      "[![Latest release](https://img.shields.io/github/v/release/"
-     "superuser-d0/archlence?include_prereleases)]"
+     "superuser-d0/archlence)]"
      "(https://github.com/superuser-d0/archlence/releases/latest)",
      "[![Latest release](https://example.invalid/badge)](https://example.invalid)"),
     ("09-windows-asset-filename", "Windows release asset adı",
@@ -99,8 +99,8 @@ CASES = [
      '--title "Archlence"'),
     ("14-tag-mismatch-check", "Tag/uygulama eşleşme kontrolü kaldırıldı",
      ".github/workflows/release.yml",
-     'echo "::error::Tag/input sürümü ($version) uygulama sürümüyle '
-     '($expected) eşleşmiyor."',
+     'echo "::error::Tag/input version ($version) does not match application '
+     'version ($expected)."',
      'echo "surum farkli ama devam"'),
     ("15-fixed-upgrade-baseline", "Upgrade tabanı sabit sürüme bağlandı",
      ".github/workflows/build-windows.yml", 'UPGRADE_BASELINE_TAG: ""',

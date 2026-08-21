@@ -1,7 +1,7 @@
 # Security and reliability status
 
 This document is the single current security and reliability summary for the
-active 0.0.x pre-release line. Release-specific changes and limitations belong
+active 1.x stable line. Release-specific changes and limitations belong
 in `CHANGELOG.md`; dated audit documents describe only the commit they audited
 and remain historical baselines.
 
@@ -9,7 +9,9 @@ and remain historical baselines.
 
 - **Package checks:** the Windows installer and Linux AppImage pass launch
   smoke tests in CI. The Windows workflow also exercises installation,
-  previous-release upgrade, profile persistence, and removal.
+  previous-release upgrade, profile persistence, and removal. Its frozen EXE
+  creates an isolated DPAPI-backed profile that completes a verified
+  backup/mutation/restore round trip without producing a raw key file.
 - **Financial correctness:** dashboard period/30-day metrics and budget totals
   do not count corrupt encrypted records as zero. A shared Decimal policy
   defines fiat, quantity, and percentage boundaries where migration is
@@ -24,11 +26,15 @@ and remain historical baselines.
   authoritative component inventory.
 - **External price data:** third-party price results carry source, age, and
   freshness status rather than being presented as guaranteed current values.
+- **Credentials:** new and changed passwords use the shared strong-password
+  policy. A user who successfully authenticates with an older weak credential
+  must renew it before reaching financial screens.
 
 ## Known limitations
 
-- The 0.0.x line is pre-release and is not recommended as the sole store for
-  day-to-day financial records. It is not banking or accounting certification.
+- Stable describes the verified software and recovery scope. It is not banking
+  or accounting certification, and verified backups remain the user's
+  responsibility.
 - The legacy CBC reader remains deprecated for compatibility with old profiles
   and backups. New data cannot be written in that format.
 - Yahoo Finance is the primary price provider. When it returns nothing for a
@@ -41,11 +47,10 @@ and remain historical baselines.
   new broad or silent handlers and freezes a decreasing baseline.
 - Packages are not code-signed. Windows SmartScreen may warn, and the AppImage
   has no cryptographic signature. SHA-256 checksums and an SBOM are published.
-- Windows DPAPI and Linux Secret Service/KWallet integrations exist, with a
-  visible permission-restricted file fallback, but packaged keystore and
-  recovery behavior still needs broader real-system validation.
-- Existing 4-digit credentials are not automatically upgraded to the password
-  policy introduced for new or changed credentials.
+- Windows DPAPI is exercised through the packaged application on Windows CI.
+  Linux Secret Service/KWallet integrations exist and have an explicit,
+  visible permission-restricted file fallback; desktop keyring availability
+  still varies by Linux distribution and session configuration.
 
 Losing both the active key and usable recovery material can make encrypted
 records unrecoverable. See [Key management](KEY_MANAGEMENT.md) and

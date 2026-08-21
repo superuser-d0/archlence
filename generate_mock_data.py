@@ -103,7 +103,7 @@ def _main(conn):
         salary = 85_000.0 if d < date(2026, 1, 1) else 110_500.0
         add_tx(cursor, salary, "income", "Maaş", "Aylık maaş", d, hour=8, minute=30)
         n_tx += 1
-    # Ara gelirler: iki kez freelance, bir kez prim
+    # Occasional income: two freelance payments and one bonus
     for d, amt, cat, desc in [
         (date(2025, 10, 14), 22_500.0, "Freelance", "Web sitesi projesi"),
         (date(2026, 3, 6), 18_000.0, "Freelance", "Danışmanlık raporu"),

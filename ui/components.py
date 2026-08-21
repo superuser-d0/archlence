@@ -1254,7 +1254,7 @@ Builder.load_string('''
     md_bg_color: 0.09, 0.10, 0.12, 1
     line_color: 0, 0, 0, 0
 
-    # Sol: ikon tepsisi (glyph AnchorLayout ile kusursuz merkezlenir)
+    # Left: icon tray (the glyph is centered precisely by AnchorLayout)
     MDCard:
         size_hint: None, None
         size: "44dp", "44dp"
@@ -1274,7 +1274,7 @@ Builder.load_string('''
                 text_color: root.accent_color
                 font_size: "22sp"
 
-    # Orta: ad + maskeli numara
+    # Center: name and masked number
     MDBoxLayout:
         orientation: "vertical"
         spacing: "2dp"

@@ -135,12 +135,12 @@ def measure_business_decisions():
         shown = AccountService.get_account(account_id)["balance"]
         print(f"  4a vadesiz  ham={raw!r}  gosterilen={shown}  (beklenen 100.0)")
 
-        # --- 4b. Tam bakiye kadar harcama kabul ediliyor mu?
+        # --- 4b. Is spending the full balance accepted?
         allowed, reason = AccountService.check_spending_allowed(
             account_id, 100.00, "expense")
         print(f"  4b tam-tutar harcama izni={allowed}  gerekce={reason!r}")
 
-        # --- 4c. Kredi karti: limitin TAMAMI kadar harcama
+        # --- 4c. Credit card: spend the entire limit
         card_id = AccountService.create_account("Drift card", "credit_card",
                                                 credit_limit=100.0)
         with closing(get_connection()) as conn, conn:
@@ -158,7 +158,7 @@ def measure_business_decisions():
             card_id, 50.01, "expense")
         print(f"     bir kurus FAZLASI izni={allowed_over}  (False olmali)")
 
-        # --- 4d. Gercek islem yolu: tam tutar yazilabiliyor mu?
+        # --- 4d. Real transaction path: can the exact amount be stored?
         try:
             TransactionService.add_transaction(
                 card_id, 50.00, "expense", "Audit", "sinir", detect_subscription=False)
@@ -166,7 +166,7 @@ def measure_business_decisions():
         except ValueError as exc:
             print(f"  4d gercek islem: REDDEDILDI -> {exc}")
 
-        # --- 4e. Birikim hedefi: gosterilen tutarin TAMAMINI cekme
+        # --- 4e. Savings goal: withdraw the full displayed amount
         from services.savings_service import SavingsService
         goal_id = SavingsService.create_goal("Drift goal", 1000.0)
         with closing(get_connection()) as conn, conn:

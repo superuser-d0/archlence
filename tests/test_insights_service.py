@@ -288,7 +288,7 @@ class InsightsServiceTestCase(AccountFixtureMixin, unittest.TestCase):
         self.assertEqual(normalize_name("NETFLIX.COM 12/2026"), normalize_name("netflix com"))
         self.assertEqual(normalize_name("Spotify (Otomatik)"), "spotify")
 
-    # ─── 2. Anomali tespiti ──────────────────────────────────────────────────
+    # ─── 2. Anomaly detection ────────────────────────────────────────────────
 
     def test_detects_outlier_expense(self):
         """Kategori ortalamasının çok üstündeki işlem anomali olmalı."""

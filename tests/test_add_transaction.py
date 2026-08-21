@@ -69,7 +69,7 @@ class TransactionDateStatusTest(AccountFixtureMixin, unittest.TestCase):
         finally:
             conn.close()
 
-    # ─── (a) Gelecek tarih ───────────────────────────────────────────────────
+    # ─── (a) Future date ─────────────────────────────────────────────────────
 
     def test_future_transaction_is_pending_and_balance_untouched(self):
         before = self._balance()

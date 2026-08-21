@@ -19,17 +19,17 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Kodu çek
+      - name: Check out source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
-      - name: Python kur
+      - name: Set up Python
 
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
           cache: pip
 
-      - name: Bağımlılıkları kur
+      - name: Install dependencies
 
         run: |
           sudo apt-get update
@@ -38,19 +38,19 @@ jobs:
           pip install -r requirements-runtime.txt
           pip install pyinstaller
 
-      - name: PyInstaller ile derle
+      - name: Build with PyInstaller
 
         run: xvfb-run -a pyinstaller --noconfirm --log-level WARN archlence.spec
         timeout-minutes: 20
 
-      - name: Ham dizini artifact olarak yükle
+      - name: Upload unpacked application artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: Archlence-Linux
           path: dist/Archlence/
           if-no-files-found: error
 
-      - name: AppDir oluştur
+      - name: Create AppDir
 
         run: |
           mkdir -p AppDir/usr/bin
@@ -60,7 +60,7 @@ jobs:
           cp assets/archlence.desktop AppDir/Archlence.desktop
           cp assets/icon.png AppDir/archlence.png
 
-      - name: appimagetool indir
+      - name: Download appimagetool
 
         env:
           APPIMAGETOOL_VERSION: "1.9.1"
@@ -70,19 +70,19 @@ jobs:
           url="https://github.com/AppImage/appimagetool/releases/download/${{ env.APPIMAGETOOL_VERSION }}/appimagetool-x86_64.AppImage"
           wget -q "$url" -O appimagetool
           echo "${{ env.APPIMAGETOOL_SHA256 }}  appimagetool" | sha256sum -c - || {
-            echo "::error::appimagetool checksum uyusmadi. Beklenen: ${{ env.APPIMAGETOOL_SHA256 }}"
-            echo "::error::Gercek: $(sha256sum appimagetool | cut -d' ' -f1)"
+            echo "::error::appimagetool checksum mismatch. Expected: ${{ env.APPIMAGETOOL_SHA256 }}"
+            echo "::error::Actual: $(sha256sum appimagetool | cut -d' ' -f1)"
             exit 1
           }
           chmod +x appimagetool
 
-      - name: AppImage oluştur
+      - name: Build AppImage
         run: ./appimagetool --appimage-extract-and-run AppDir dist/Archlence-x86_64.AppImage
 
-      - name: Paket içeriği ve secret taraması
+      - name: Scan package contents and secrets
         run: python scripts/inspect_package_contents.py dist/Archlence
 
-      - name: "Smoke test: AppImage gerçek SDL penceresinde çalışıyor"
+      - name: "Smoke test: AppImage stays alive in a real SDL window"
 
         run: |
           set -euo pipefail
@@ -99,17 +99,17 @@ jobs:
           status=$?
           set -e
           if [ "$status" -ne 124 ]; then
-            echo "::error::AppImage 12 saniye ayakta kalmadı (status=$status)."
+            echo "::error::AppImage did not stay alive for 12 seconds (status=$status)."
             exit 1
           fi
           if [ -s "$crash_log" ]; then
-            echo "::error::AppImage ayakta kaldı ama crash.log'a yazıldı — yakalanmış ama sessiz kalmış bir istisna olabilir. Son satırlar:"
+            echo "::error::AppImage stayed alive but wrote to crash.log; a caught exception may have been suppressed. Last lines:"
             tail -n 40 "$crash_log"
             exit 1
           fi
-          echo "Smoke test geçti: 12 saniye ayakta, crash.log boş."
+          echo "Smoke test passed: alive for 12 seconds with an empty crash.log."
 
-      - name: AppImage'ı artifact olarak yükle
+      - name: Upload AppImage artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: Archlence-AppImage

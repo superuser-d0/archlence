@@ -746,7 +746,7 @@ class BudgetMixin:
         self.months_grid.opacity = 1 if active else 0
         self._refresh_budget_dialog_height()
 
-    # ── Liste ────────────────────────────────────────────────────────────────
+    # ── List ─────────────────────────────────────────────────────────────────
     def load_budget_list(self):
         container = getattr(self, "bp_list_container", None)
         if container is None:

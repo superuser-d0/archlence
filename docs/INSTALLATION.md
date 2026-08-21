@@ -1,9 +1,8 @@
 # Installation and troubleshooting
 
-Archlence is distributed as an active pre-release. It is suitable for testing
-and development, but it is not yet recommended as the sole store for everyday
-financial records. Keep a verified backup before installing an update or using
-real data.
+Archlence 1.0 is distributed as a stable desktop release for Windows and
+x86-64 Linux. Keep a verified backup before installing an update and retain
+the recovery password separately from the backup package.
 
 ## Choose an installation method
 
@@ -84,7 +83,7 @@ initial account.
 
 Run the newer installer for an in-place application upgrade. The packaged
 upgrade checks in CI exercise preservation of a previous-release profile, but
-pre-release users should still create and verify a backup first.
+users should still create and verify a backup first.
 
 Remove Archlence from Windows **Installed apps** or its Start-menu uninstaller.
 Upgrade and uninstall do not intentionally remove the user database. If you

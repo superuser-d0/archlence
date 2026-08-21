@@ -281,7 +281,7 @@ class TransactionMixin:
         self._update_mini_card_preview()
         self._rebuild_focus_chain()
 
-    # ─── Klavye navigasyonu ──────────────────────────────────────────────────
+    # ─── Keyboard navigation ─────────────────────────────────────────────────
 
     def _rebuild_focus_chain(self):
         """İşlem formundaki alanların TAB sırasını (yeniden) kurar.
@@ -386,7 +386,7 @@ class TransactionMixin:
             return
         layout = self._transaction_form_layout
         if active:
-            # recurring_row'dan (en alttaki temel alan) hemen sonraya ekle.
+            # Insert immediately after recurring_row (the bottom base field).
             layout.add_widget(self._recurring_box)
         else:
             if self._recurring_box.parent is not None:

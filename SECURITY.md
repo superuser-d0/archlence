@@ -1,9 +1,8 @@
 # Security policy
 
-Archlence is in active 0.0.x pre-release development. No release line is
-declared stable or long-term supported. Security reports are evaluated against
-the latest public pre-release and current `main`; older pre-releases may not
-receive a separate fix.
+Archlence 1.x is the stable release line. Security reports are evaluated
+against the latest stable release and current `main`. Fixes are normally
+released for the latest stable version; older releases may require an upgrade.
 
 For current guarantees and limitations, read the
 [security and reliability status](docs/SECURITY_RELIABILITY_STATUS.md).
@@ -36,7 +35,8 @@ problem.
 The report will be reviewed in the private advisory. The maintainer may ask for
 clarification, reproduce the issue, prepare regression tests and a fix, and
 coordinate disclosure through the advisory. The project does not promise a
-fixed response or release deadline during the pre-release period.
+fixed response or release deadline, but confirmed vulnerabilities are handled
+privately until a fix and disclosure plan are ready.
 
 Keep details private until the maintainer confirms that coordinated disclosure
 is appropriate. If a report is not a security issue, it can be moved to the

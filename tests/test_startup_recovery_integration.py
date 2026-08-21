@@ -268,7 +268,7 @@ class RecoveryFailurePresentationTest(unittest.TestCase):
         self.assertIsNotNone(root, "açılış hatasında güvenli root dönmedi")
         self.assertEqual(len(shown), 1, "presenter cagrilmadi")
         self.assertEqual(shown[0], USER_MESSAGE)
-        # Hassas ayrinti kullanici metnine SIZMAMALI.
+        # Sensitive details must not leak into user-facing text.
         self.assertNotIn("/gizli/yol", shown[0])
         self.assertNotIn("finance.db", shown[0])
         self.assertNotIn("Traceback", shown[0])

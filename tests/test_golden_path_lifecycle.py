@@ -164,11 +164,11 @@ def _build_golden_financial_state(case):
 
     expected = {}
 
-    # 1-2 · nakit hesap
+    # 1-2: cash account
     cash_id = AccountService.create_account(
         "Altın Kumbara", "checking", initial_balance=0.0)
 
-    # 3 · gelir
+    # 3: income
     TransactionService.add_transaction(
         cash_id, 5000.00, "income", "Maaş", "Golden path geliri",
         detect_subscription=False)
@@ -212,7 +212,7 @@ def _build_golden_financial_state(case):
         if item["category"] == "Abonelik"
     )
 
-    # 9 · birikim hedefi
+    # 9: savings goal
     goal_id = SavingsService.create_goal("Tatil", 1000.00)
     SavingsService.deposit_to_goal(goal_id, 250.00, cash_id)
     cash -= Decimal("250.00")
@@ -275,7 +275,7 @@ class FinancialLifecycleGoldenPath(_TemporaryProfile):
             "kısmi satıştan sonra kalan miktar yanlış",
         )
 
-        # --- Birikim hedefi
+        # --- Savings goal
         self.assertEqual(len(snapshot["savings"]), 1)
         self.assertEqual(snapshot["savings"][0]["current"], _money(250.00))
         self.assertEqual(snapshot["savings"][0]["target"], _money(1000.00))

@@ -73,7 +73,7 @@ class ResolveConfigPathTest(unittest.TestCase):
         self.assertEqual(result, os.path.join(self.data_dir_path, "archlence_config.json"))
         with open(result, encoding="utf-8") as f:
             self.assertEqual(f.read(), "cok eski surumden kalan veri")
-        # _APP_DIR'a ara dosya YAZILMAMALI.
+        # Temporary files must not be written to _APP_DIR.
         self.assertFalse(
             os.path.exists(os.path.join(self.app_dir, "archlence_config.json"))
         )

@@ -40,7 +40,7 @@ def parse_version(tag):
 def _sort_key(parsed):
     """Semver sırası: prerelease, aynı sayıdaki stable'dan ÖNCE gelir."""
     major, minor, patch, pre = parsed
-    # `pre is None` -> stable -> 1 (sonra gelir); prerelease -> 0.
+    # `pre is None` -> stable -> 1 (sorts later); prerelease -> 0.
     return (major, minor, patch, 1 if pre is None else 0, pre or "")
 
 

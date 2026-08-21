@@ -67,7 +67,7 @@ class I18nTestCase(unittest.TestCase):
         from ui.i18n import trf
 
         set_language("en")
-        # Sabit etiketler TAM ANAHTAR olarak duruyor.
+        # Static labels remain as complete keys.
         self.assertEqual(tr("Değişim (Bugün)"), "Change (Today)")
         self.assertEqual(tr("Nakit / Vadesiz"), "Cash / Checking")
 
