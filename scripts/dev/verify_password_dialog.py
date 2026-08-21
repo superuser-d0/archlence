@@ -1,21 +1,15 @@
-"""Parola değiştirme diyaloğunu GERÇEK Kivy penceresinde ölçer.
+"""Measure the password-change dialog in a real Kivy window.
 
-NEDEN VAR: `_apply_new_pin` eskiden mevcut parolayı hiç sormuyordu — açık
-bırakılmış bir uygulamanın başına oturan herkes parolayı değiştirip sahibini
-kilitleyebiliyordu. Düzeltme üç alanlı bir diyalog ve doğrulama zinciri
-getirdi; ama bir diyaloğun GERÇEKTEN çizildiğini, alanların maskeli olduğunu
-ve metinlerin iki dilde de çevrildiğini birim testi kanıtlayamaz. Bu betik
-gerçek `ArchlenceApp`i, gerçek KV'yi ve gerçek bir profili kullanır.
+This verifier uses the real ``ArchlenceApp``, KV tree, and a disposable local
+profile. It confirms that:
 
-Ölçtüğü şeyler:
-
-  1. Diyalog üç parola alanıyla çiziliyor (Mevcut / Yeni / Yeni Tekrar),
-  2. üçü de `password=True` — düz metin ekranda görünmüyor,
-  3. yardım metni politikanın kendi metniyle aynı kaynaktan geliyor,
-  4. hint ve başlık metinleri Türkçe ve İngilizce'de çevriliyor,
-  5. YANLIŞ mevcut parola ile kaydetmek saklanan hash'i DEĞİŞTİRMİYOR,
-  6. doğru mevcut parola + geçerli yeni parola değişikliği tamamlıyor,
-  7. diyalog kapandığında hassas alan referansları bırakılıyor.
+  1. the dialog renders current, new, and confirmation password fields,
+  2. every password field is masked,
+  3. helper text comes from the password-policy source,
+  4. the public labels are rendered in English,
+  5. a wrong current password cannot change the stored hash,
+  6. a valid change with the correct current password succeeds, and
+  7. sensitive widget references are released when the dialog closes.
 
     xvfb-run -a python scripts/dev/verify_password_dialog.py --output visual/pwd
 """
@@ -57,9 +51,9 @@ from security.security_service import (                         # noqa: E402
 )
 from ui.i18n import tr                                          # noqa: E402
 
-CURRENT_PASSWORD = "Mevcut-Parola-2026!"
-NEW_PASSWORD = "Yeni-Guclu-Parola-2026!"
-WRONG_PASSWORD = "Tamamen-Yanlis-2026!"
+CURRENT_PASSWORD = "Current-Password-2026!"
+NEW_PASSWORD = "New-Strong-Password-2026!"
+WRONG_PASSWORD = "Completely-Wrong-2026!"
 
 
 def _walk(widget):
@@ -81,11 +75,7 @@ class PasswordDialogVerifier(ArchlenceApp):
         self.findings.append(dict(step=step, reason=reason, **extra))
 
     def _setup_screen_limits(self):
-        """`.kv`'den gelen üç parola alanının GERÇEK sınırını okur.
-
-        Kaynak metni değil, çizilmiş widget'ı ölçüyor: KV'deki sayı ile ekrana
-        gelen değer arasında bir fark kalırsa burada görünür.
-        """
+        """Read the effective limits of the three password fields from KV."""
         return [
             self.root.ids[name].max_text_length
             for name in ("pin_setup_input", "pin_confirm_input",
@@ -112,7 +102,7 @@ class PasswordDialogVerifier(ArchlenceApp):
     def _check_surface(self, _dt):
         dialog = getattr(self, "_change_pin_dialog", None)
         if dialog is None:
-            self._fail("diyalog", "diyalog hiç açılmadı")
+            self._fail("dialog", "the dialog did not open")
             self._finish()
             return
 
@@ -121,20 +111,20 @@ class PasswordDialogVerifier(ArchlenceApp):
             if isinstance(widget, MDTextField)
         ]
         hints = [field.hint_text for field in fields]
-        self.observations["field_hints_tr"] = hints
+        self.observations["field_hints_en"] = hints
         self.observations["field_count"] = len(fields)
 
         if len(fields) != 3:
-            self._fail("alanlar", f"üç parola alanı beklendi, {len(fields)} çizildi",
+            self._fail("fields", f"expected three password fields, rendered {len(fields)}",
                        shown=hints)
 
-        for expected in ("Mevcut Şifre", "Yeni Şifre", "Yeni Şifre Tekrar"):
+        for expected in ("Current Password", "New Password", "Confirm New Password"):
             if expected not in hints:
-                self._fail("alanlar", f"'{expected}' alanı ekranda yok", shown=hints)
+                self._fail("fields", f"'{expected}' is missing", shown=hints)
 
         for field in fields:
             if not field.password:
-                self._fail("maskeleme", "parola alanı düz metin gösteriyor",
+                self._fail("masking", "a password field renders plain text",
                            shown=field.hint_text)
 
 
@@ -142,24 +132,25 @@ class PasswordDialogVerifier(ArchlenceApp):
         self.observations["dialog_max_lengths"] = limits
         for limit in limits:
             if limit != PasswordPolicy.MAX_LENGTH:
-                self._fail("uzunluk-siniri",
-                           "diyalog alanı politika sınırını taşımıyor",
+                self._fail("length-limit",
+                           "a dialog field does not use the policy limit",
                            shown=limit, expected=PasswordPolicy.MAX_LENGTH)
 
         setup_limits = self._setup_screen_limits()
         self.observations["setup_max_lengths"] = setup_limits
         for limit in setup_limits:
             if limit != PasswordPolicy.MAX_LENGTH:
-                self._fail("uzunluk-siniri",
-                           "kurulum/giriş alanı politika sınırını taşımıyor",
+                self._fail("length-limit",
+                           "a setup/login field does not use the policy limit",
                            shown=limit, expected=PasswordPolicy.MAX_LENGTH)
 
         helper = [f.helper_text for f in fields if f.helper_text]
         self.observations["helper_text"] = helper
-        if PasswordPolicy.REQUIREMENTS not in helper:
-            self._fail("yardim-metni",
-                       "yardım metni politika kaynağıyla aynı değil",
-                       shown=helper, expected=PasswordPolicy.REQUIREMENTS)
+        expected_helper = tr(PasswordPolicy.REQUIREMENTS, "en")
+        if expected_helper not in helper:
+            self._fail("helper-text",
+                       "helper text does not match the translated policy source",
+                       shown=helper, expected=expected_helper)
 
 
         english = {source: tr(source, "en") for source in (
@@ -173,7 +164,7 @@ class PasswordDialogVerifier(ArchlenceApp):
         self.observations["english"] = english
         for source, translated in english.items():
             if translated == source:
-                self._fail("ceviri", "İngilizce karşılığı yok", shown=source)
+                self._fail("translation", "the English mapping is missing", shown=source)
 
         Clock.schedule_once(self._check_wrong_current, 0.5)
 
@@ -189,11 +180,11 @@ class PasswordDialogVerifier(ArchlenceApp):
             after == self._stored_before
         )
         if after != self._stored_before:
-            self._fail("yanlis-mevcut",
-                       "yanlış mevcut parolayla hash DEĞİŞTİ")
+            self._fail("wrong-current",
+                       "the hash changed after a wrong current password")
         if getattr(self, "_change_pin_dialog", None) is None:
-            self._fail("yanlis-mevcut",
-                       "başarısız denemede diyalog kapandı")
+            self._fail("wrong-current",
+                       "the dialog closed after a failed attempt")
             self._finish()
             return
 
@@ -217,15 +208,16 @@ class PasswordDialogVerifier(ArchlenceApp):
         )
         self.observations["password_changed"] = changed
         if not changed:
-            self._fail("dogru-degisiklik",
-                       "doğru mevcut parolayla değişiklik tamamlanmadı")
+            self._fail("valid-change",
+                       "the change failed with the correct current password")
         if SecurityService.verify_password(
             CURRENT_PASSWORD, security["salt"], security["pin_hash"]
         ):
-            self._fail("dogru-degisiklik", "eski parola hâlâ geçerli")
+            self._fail("valid-change", "the old password is still valid")
 
+        missing = object()
         leftovers = {
-            name: getattr(self, name, "yok")
+            name: getattr(self, name, missing)
             for name in ("_current_pin_input", "_new_pin_input",
                          "_new_pin_confirm", "_change_pin_dialog")
         }
@@ -234,14 +226,14 @@ class PasswordDialogVerifier(ArchlenceApp):
         }
         for name, value in leftovers.items():
             if value is not None:
-                self._fail("temizlik",
-                           f"{name} diyalog kapandıktan sonra hâlâ tutuluyor")
+                self._fail("cleanup",
+                           f"{name} is missing or retained after the dialog closed")
 
         screen = self.root.ids.screen_manager.current
         self.observations["screen_after_change"] = screen
         if screen != "login":
-            self._fail("yeniden-giris",
-                       "parola değiştikten sonra yeniden giriş istenmedi",
+            self._fail("reauthentication",
+                       "login was not required after the password change",
                        shown=screen)
         self._finish()
 
@@ -250,15 +242,15 @@ class PasswordDialogVerifier(ArchlenceApp):
         (self.output / "password-dialog.json").write_text(
             json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        print(f"Alan ipuçları: {self.observations.get('field_hints_tr')}", flush=True)
+        print(f"Field hints: {self.observations.get('field_hints_en')}", flush=True)
         if self.findings:
             for item in self.findings:
-                print(f"[BULGU] {item['step']}: {item['reason']}", flush=True)
-            print(f"::error::{len(self.findings)} parola diyaloğu bulgusu", flush=True)
+                print(f"[FINDING] {item['step']}: {item['reason']}", flush=True)
+            print(f"::error::{len(self.findings)} password-dialog findings", flush=True)
             self.exit_code = 1
         else:
-            print("Diyalog üç maskeli alanla çiziliyor; mevcut parola "
-                  "doğrulanmadan hiçbir şey değişmiyor.", flush=True)
+            print("The dialog renders three masked fields and changes nothing "
+                  "until the current password is verified.", flush=True)
             self.exit_code = 0
         self.stop()
 
