@@ -85,6 +85,25 @@ def present_schema_too_new_failure(app, message):
     return dialog
 
 
+def present_data_integrity_failure(app, message):
+    """Veri bütünlüğü hatasını kullanıcıya güvenli biçimde gösterir.
+
+    Kardeşleriyle aynı sözleşme: `message` DAİMA
+    `database.init_db.DATA_INTEGRITY_MESSAGE` olmalı. Tablo adı, rowid,
+    ebeveyn tablo, dosya yolu, şifreli içerik ya da herhangi bir finansal
+    değer buraya GEÇİRİLMEMELİ — hepsi geliştirici log'una gider.
+
+    Bu sınır olmadan `FinancialDataIntegrityError` `build()` içinden ham
+    hâliyle dışarı taşıyordu: kullanıcı güvenli bir ekran yerine çökme
+    görüyordu ve exception metni tablo/rowid taşıyordu.
+    """
+    from kivymd.uix.dialog import MDDialog
+
+    dialog = MDDialog(title="Veritabanı doğrulanamadı", text=message)
+    dialog.open()
+    return dialog
+
+
 def run_startup_recovery(db_path=None, *, config_path=None):
     """Yarım restore varsa geri alır; yoksa hiçbir şey yapmaz.
 

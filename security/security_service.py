@@ -124,12 +124,26 @@ class PasswordPolicy:
     """
 
     MIN_LENGTH = 12
+
+    # ÜST SINIR DA SÖZLEŞMENİN PARÇASI. Politikada üst sınır yokken arayüz
+    # alanları farklı `max_text_length` taşıyordu — parola değiştirme
+    # diyaloğunda 64, kurulum ve giriş alanlarında 32. KivyMD 1.2.0 bu değeri
+    # KESMİYOR, yalnız alanı hata durumuna sokuyor; yani kilitlenme değildi
+    # ama politika "geçerli" derken arayüz kırmızı gösterebiliyordu. Tek sayı,
+    # tek kaynak: üç alan da bunu gösterir, politika da bunu uygular.
+    #
+    # 64: Argon2id girdi uzunluğundan bağımsız çalışır, yani sınır güvenlik
+    # değil kullanılabilirlik/tutarlılık kararıdır. Parola yöneticilerinin
+    # ürettiği uzun parolalar rahatça sığar.
+    MAX_LENGTH = 64
+
     SPECIAL_CHARS = ".,;:!?-_@#$%^&*()+=/\\|~`'\"<>[]{}"
 
     #: Üretilebilecek TÜM hata metinleri. `translate()`'e verilebilecek Türkçe
     #: kaynak anahtarlarıdır ve i18n kapısı bu listeye bakar; buraya bir metin
     #: eklenip `ui/i18n.py`'ye eklenmezse kapı kırılır.
     TOO_SHORT = "Şifre en az 12 karakter olmalıdır."
+    TOO_LONG = "Şifre en fazla 64 karakter olabilir."
     NO_UPPER = "Şifre en az 1 büyük harf içermelidir."
     NO_LOWER = "Şifre en az 1 küçük harf içermelidir."
     NO_DIGIT = "Şifre en az 1 rakam içermelidir."
@@ -138,11 +152,11 @@ class PasswordPolicy:
 
     #: Arayüzdeki yardım metni — politikanın kendisiyle aynı kaynaktan.
     REQUIREMENTS = (
-        "En az 12 karakter, 1 büyük harf, 1 küçük harf, 1 rakam ve 1 özel karakter"
+        "12-64 karakter, 1 büyük harf, 1 küçük harf, 1 rakam ve 1 özel karakter"
     )
 
     MESSAGES = (
-        TOO_SHORT, NO_UPPER, NO_LOWER, NO_DIGIT, NO_SPECIAL,
+        TOO_SHORT, TOO_LONG, NO_UPPER, NO_LOWER, NO_DIGIT, NO_SPECIAL,
         HAS_EDGE_WHITESPACE,
     )
 
@@ -158,6 +172,8 @@ class PasswordPolicy:
             return False, PasswordPolicy.HAS_EDGE_WHITESPACE
         if len(password) < PasswordPolicy.MIN_LENGTH:
             return False, PasswordPolicy.TOO_SHORT
+        if len(password) > PasswordPolicy.MAX_LENGTH:
+            return False, PasswordPolicy.TOO_LONG
         if not any(c.isupper() for c in password):
             return False, PasswordPolicy.NO_UPPER
         if not any(c.islower() for c in password):

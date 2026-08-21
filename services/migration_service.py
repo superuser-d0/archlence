@@ -35,7 +35,35 @@ from database.db import (
 from utils.crypto import decrypt
 from utils.errors import DecryptionError, KeyUnavailableError
 
-CSV_HEADER = ["kayit_turu", "tarih", "tur", "kategori", "tutar", "miktar", "aciklama", "detay"]
+# ── FORMAT İŞARETİ ───────────────────────────────────────────────────────────
+# `kayit_turu` YENİ FORMATI KANITLAMAZ. v0.0.12 ve daha eski Archlence
+# export'larında da o kolon vardı, ama kaçış sözleşmesi YOKTU. Importer
+# yalnız `kayit_turu`'na bakarak "bu bizim yeni formatımız" dediğinde eski bir
+# dosyadaki GERÇEK kullanıcı apostrofunu soyuyordu — ölçüldü:
+#
+#     eski export:  aciklama = '=gercek-kullanici-metni
+#     içe aktarım:  aciklama =  =gercek-kullanici-metni     <-- apostrof KAYIP
+#
+# Bu yüzden format artık AÇIKÇA ve SÜRÜMLÜ olarak işaretleniyor. İşaret satır
+# başına taşınıyor (yalnız başlıkta değil): bir dosya elle düzenlenip
+# satırları karıştırılmış olabilir ve her satır kendi sözleşmesini taşımalı.
+CSV_VERSION_COLUMN = "_archlence_csv_version"
+
+#: Bu sürümün ürettiği kaçış sözleşmesi. Kaçış kuralları değişirse artar.
+CSV_ESCAPE_VERSION = 2
+
+#: Geri çözülebilen sürümler. Tanınmayan bir sürüm TAHMİN EDİLMEZ.
+SUPPORTED_CSV_VERSIONS = frozenset({2})
+
+CSV_HEADER = [
+    CSV_VERSION_COLUMN,
+    "kayit_turu", "tarih", "tur", "kategori", "tutar", "miktar", "aciklama",
+    "detay",
+]
+
+#: `kayit_turu` sütununun tanıdığı kayıt türleri. Bunların dışındaki bir değer
+#: bozuk satır demektir ve SESSİZCE ATLANMAZ — `skipped` sayacına girer.
+_RECORD_KINDS = frozenset({"islem", "varlik", "borc", "tekrarlanan"})
 
 # Jenerik CSV başlıklarını alan adlarına eşleme (küçük harfe indirilmiş halleriyle)
 _COLUMN_ALIASES = {
@@ -104,11 +132,39 @@ def unescape_csv_text(value):
 
 
 def _escape_row(row):
-    """Bir dışa aktarım satırının metin kolonlarını kaçırır (sözleşme yukarıda)."""
-    escaped = list(row)
+    """Bir satırı dışa aktarıma hazırlar: sürüm işareti + metin kaçışı.
+
+    `row` sürüm kolonunu İÇERMEDEN gelir (çağıranlar veri kolonlarını üretir);
+    işaret burada, tek yerde eklenir ki hiçbir satır işaretsiz çıkmasın.
+    """
+    escaped = [str(CSV_ESCAPE_VERSION)] + list(row)
     for index in _CSV_TEXT_INDEXES:
         escaped[index] = escape_csv_text(escaped[index])
     return escaped
+
+
+#: "İşaret var ama yorumlanamıyor" — tahmin etmek yerine satır atlanır.
+_AMBIGUOUS = object()
+
+
+def _row_escape_version(raw):
+    """Satırın sürüm işaretini çözer.
+
+    Döner: desteklenen sürüm numarası, `None` (işaret yok) ya da
+    `_AMBIGUOUS` (işaret var ama okunamıyor/desteklenmiyor).
+    """
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return _AMBIGUOUS
+    try:
+        version = int(text)
+    except ValueError:
+        return _AMBIGUOUS
+    if version not in SUPPORTED_CSV_VERSIONS:
+        return _AMBIGUOUS
+    return version
 
 
 def get_export_path():
@@ -282,28 +338,61 @@ def parse_transactions_csv(path):
         reader = csv.DictReader(f)
         if not reader.fieldnames:
             return [], 0
-        field_map = {}
+        # BAŞLIK NORMALİZASYONU TEK YERDE. Eskiden `field_map` başlıkları
+        # küçük harfe indirip kırpıyor, ama `kayit_turu` DOĞRUDAN
+        # `row.get("kayit_turu")` ile okunuyordu. `DictReader`'ın anahtarları
+        # HAM başlıklar olduğu için `KAYIT_TURU` ya da ` kayit_turu ` yazan bir
+        # dosyada bu okuma hep `None` dönüyordu: her satır "islem değil" sayılıp
+        # SESSİZCE düşüyordu — `skipped` bile artmıyordu, yani kullanıcı hiçbir
+        # şeyin içeri girmediğini ancak listeye bakarak anlıyordu. Ölçüldü.
+        header_map = {}
         for name in reader.fieldnames:
-            key = _COLUMN_ALIASES.get((name or "").strip().lower())
-            if key and key not in field_map:
-                field_map[key] = name
-        has_type_col = "kayit_turu" in [(n or "").strip().lower() for n in reader.fieldnames]
+            key = (name or "").strip().lower()
+            if key and key not in header_map:
+                header_map[key] = name
+        field_map = {}
+        for key, raw_name in header_map.items():
+            alias = _COLUMN_ALIASES.get(key)
+            if alias and alias not in field_map:
+                field_map[alias] = raw_name
 
-        # ARCHLENCE'IN KENDİ FORMATIYSA kaçış geri çözülür. Ayırt edici işaret
-        # `kayit_turu` kolonudur — yalnız bizim export'umuzda vardır. Üçüncü
-        # taraf bir CSV'de apostrofla başlayan bir değer KULLANICININ kendi
-        # verisidir ve dokunulmaz; orada soymak yabancı dosyayı bozardı.
-        def _text(row, key):
+        type_col = header_map.get("kayit_turu")
+        version_col = header_map.get(CSV_VERSION_COLUMN)
+
+        # KAÇIŞ YALNIZ İŞARETLİ SATIRLARDA GERİ ÇÖZÜLÜR.
+        #
+        # `kayit_turu`'nun varlığı yeni formatı KANITLAMAZ: o kolon v0.0.12 ve
+        # daha eski export'larda da vardı, kaçış sözleşmesi ise yoktu. İşaret
+        # yoksa hiçbir apostrof sökülmez — ne eski Archlence dosyasında ne de
+        # üçüncü taraf bir CSV'de. İkisinde de baştaki apostrof KULLANICININ
+        # kendi verisidir.
+        def _text(row, key, unescape):
             raw = row.get(field_map.get(key, ""), "") or ""
-            return unescape_csv_text(raw) if has_type_col else raw
+            return unescape_csv_text(raw) if unescape else raw
 
         for row in reader:
-            if has_type_col:
-                kayit_turu = (row.get("kayit_turu") or "").strip().lower()
+            unescape = False
+            if version_col is not None:
+                version = _row_escape_version(row.get(version_col))
+                if version is _AMBIGUOUS:
+                    # İşaret var ama okunamıyor ya da desteklenmiyor. Satırın
+                    # kaçırılmış olup olmadığını BİLMİYORUZ; tahmin etmek ya
+                    # gerçek apostrofu yer ya da formülü içeri alır.
+                    skipped += 1
+                    continue
+                unescape = version is not None
+
+            if type_col is not None:
+                kayit_turu = (row.get(type_col) or "").strip().lower()
+                if kayit_turu not in _RECORD_KINDS:
+                    # Tanınmayan/boş kayıt türü: bozuk satır. Sessizce
+                    # düşürmek yerine sayılıyor.
+                    skipped += 1
+                    continue
                 if kayit_turu != "islem":
                     continue  # varlık/borç/tekrarlanan satırları işlem değildir
 
-            raw_tur = _text(row, "tur").strip().lower()
+            raw_tur = _text(row, "tur", unescape).strip().lower()
             if raw_tur in _INCOME_WORDS:
                 tx_type = "income"
             elif raw_tur in _EXPENSE_WORDS:
@@ -345,9 +434,9 @@ def parse_transactions_csv(path):
             records.append({
                 "date": date,
                 "type": tx_type,
-                "category": _text(row, "kategori").strip() or "Diğer",
+                "category": _text(row, "kategori", unescape).strip() or "Diğer",
                 "amount": amount,
-                "description": _text(row, "aciklama").strip(),
+                "description": _text(row, "aciklama", unescape).strip(),
             })
 
     return records, skipped

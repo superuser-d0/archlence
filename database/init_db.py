@@ -39,6 +39,15 @@ SCHEMA_TOO_NEW_MESSAGE = (
     "dokunulmadı. Lütfen uygulamanın güncel sürümünü kullanın."
 )
 
+# Bütünlük kapısının kullanıcıya gösterdiği metin. `SCHEMA_TOO_NEW_MESSAGE`
+# ile aynı sözleşme: dosya yolu, tablo adı, rowid, şifreli içerik veya
+# finansal değer İÇERMEZ. Teknik ayrıntı yalnız log'a gider.
+DATA_INTEGRITY_MESSAGE = (
+    "Veritabanı bütünlüğü doğrulanamadı. Verilerinizi korumak için açılış "
+    "durduruldu; hiçbir kayıt değiştirilmedi veya silinmedi. Doğrulanmış bir "
+    "yedeği geri yükleyin ya da onarım için destek alın."
+)
+
 #: `savings_goals` şemasının TEK tanımı.
 #
 # Taze kurulum bu metinle yaratıyor, göç eden profil ise `goal_uid NOT NULL`
@@ -92,6 +101,29 @@ def initialize_database():
         conn.close()
 
 
+#: `foreign_key_check`'ten okunacak EN FAZLA ihlal sayısı.
+#
+# `fetchall()` KULLANILMIYOR. Tam sayıyı öğrenmenin bedeli, ihlal sayısı kadar
+# satırı belleğe almak: milyonlarca öksüz satırı olan bozuk bir profilde bu,
+# hata mesajını üretmeye çalışırken sürecin belleğini tüketmek demek. Teşhis
+# için ilk birkaç örnek yeter; mesaj "en az N" der, kesin sayı vermez.
+_FK_VIOLATION_SAMPLE = 5
+
+
+def _foreign_key_violations(conn, limit=_FK_VIOLATION_SAMPLE):
+    """En fazla `limit` ihlal okur. Kalan olup olmadığını da bildirir.
+
+    Döner: `(örnekler, daha_var_mı)`.
+    """
+    cursor = conn.execute("PRAGMA foreign_key_check")
+    try:
+        sample = [tuple(row)[:3] for row in cursor.fetchmany(limit)]
+        more = bool(cursor.fetchmany(1))
+    finally:
+        cursor.close()
+    return sample, more
+
+
 def _require_no_foreign_key_violations(conn):
     """Öksüz satır varsa FAIL-CLOSED durur — hiçbir şeyi onarmadan.
 
@@ -108,26 +140,47 @@ def _require_no_foreign_key_violations(conn):
     Mesaj teşhis edilebilir olmak zorunda: hangi tablo, hangi rowid, hangi
     ebeveyn. Kullanıcı bunları alıp kararı kendisi verebilsin.
     """
-    violations = conn.execute("PRAGMA foreign_key_check").fetchall()
-    if not violations:
+    sample, more = _foreign_key_violations(conn)
+    if not sample:
         return
-    first = tuple(violations[0])
-    table, rowid, parent = first[0], first[1], first[2]
+    table, rowid, parent = sample[0]
     from utils.logging_config import get_logger
 
     get_logger().error(
-        "[VERİ BÜTÜNLÜĞÜ] %d foreign key ihlali: %s",
-        len(violations),
-        [tuple(row)[:3] for row in violations[:10]],
+        "[VERİ BÜTÜNLÜĞÜ] foreign key ihlali (ilk %d örnek%s): %s",
+        len(sample), ", devamı var" if more else "", sample,
     )
+    count = f"{len(sample)}+" if more else str(len(sample))
     raise FinancialDataIntegrityError(
         table, rowid, "account_id",
         reason=(
-            f"{len(violations)} kayıt bağlı olduğu {parent} satırını "
-            f"kaybetmiş (ilk: {table} rowid={rowid} -> {parent}). "
+            f"{count} kayıt bağlı olduğu {parent} satırını kaybetmiş "
+            f"(ilk: {table} rowid={rowid} -> {parent}). "
             "Hiçbir kayıt değiştirilmedi."
         ),
     )
+
+
+def _preflight_foreign_keys(conn):
+    """Bütünlük kapısı — TEK BİR YAZIMDAN ÖNCE.
+
+    NEDEN BURAYA TAŞINDI: kapı eskiden şema kuşağının SONUNDAydı, yani
+    `CREATE TABLE`/`ALTER TABLE`/backfill adımları ve `PRAGMA user_version = 2`
+    yazımı çoktan commit edilmiş oluyordu. Ölçüldü — öksüz satır taşıyan bir
+    profilde `initialize_database()` hata fırlatmasına RAĞMEN:
+
+        user_version        : 1 -> 2
+        "Varlık Alımı"      : silinmiş kategori GERİ YAZILDI
+        finance.db sha256   : DEĞİŞTİ
+
+    Yani hatanın kendi metnindeki "Hiçbir kayıt değiştirilmedi" iddiası
+    YANLIŞTI. Kapı artık `SchemaTooNewError` kontrolünden hemen sonra, hiçbir
+    DDL/DML çalışmadan koşuyor.
+
+    TAZE VERİTABANINDA GÜVENLİ NO-OP: henüz tablo yoktur, `foreign_key_check`
+    boş döner. Bu yüzden ayrıca "tablo var mı" sorgusu yapmaya gerek yok.
+    """
+    _require_no_foreign_key_violations(conn)
 
 
 def _initialize_database(conn):
@@ -139,6 +192,10 @@ def _initialize_database(conn):
     found = cursor.execute("PRAGMA user_version").fetchone()[0]
     if found > SCHEMA_VERSION:
         raise SchemaTooNewError(found, SCHEMA_VERSION)
+
+    # BÜTÜNLÜK KAPISI DA HER ŞEYDEN ÖNCE, aynı gerekçeyle: bozuk bir profile
+    # ONU DÜZELTMEYE ÇALIŞMADAN ÖNCE hiç dokunmamak.
+    _preflight_foreign_keys(conn)
 
     # 1. Hesaplar Tablosu
     cursor.execute("""
@@ -966,11 +1023,13 @@ def _initialize_database(conn):
     cursor.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")  # nosec B608
     conn.commit()
 
-    # BÜTÜNLÜK KAPISI EN SONDA — şema bu kuşağa getirildikten ve commit
-    # edildikten sonra. Amaç: zorlama KAPALIYKEN yazılmış eski profillerde
-    # kalmış öksüz satırları görünür kılmak (bkz. database/db.py
-    # ::enable_foreign_keys — kısıt şemada vardı ama motor uygulamıyordu).
-    _require_no_foreign_key_violations(conn)
+    # BURADA İKİNCİ BİR TAM TARAMA YOK, bilerek. Kapı başta koştu ve bu
+    # bağlantıda `PRAGMA foreign_keys=ON` açık (bkz. database/db.py
+    # ::enable_foreign_keys), yani aradaki her yazım zaten motor tarafından
+    # zorlanıyor — sağlıklı bir açılışta ikinci tarama aynı cevabı bulmak için
+    # bütün tabloları yeniden okumak olurdu. Tek fark yaratabilecek durum,
+    # göç adımlarının kendisinin ihlal ÜRETMESİ; o da FK açıkken zaten
+    # `IntegrityError` ile burada değil, kaynağında patlar.
     # ─────────────────────────────────────────────────────────────────────────
     # Kapatma ARTIK BURADA DEĞİL: sarmalayıcı `initialize_database`'in
     # `finally` bloğu yapıyor, böylece hata yolları da kapsanıyor.

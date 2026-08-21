@@ -239,6 +239,7 @@ except (ImportError, AttributeError) as exc:
 # =========================================================================
 from utils.crypto import decrypt, key_protection_status
 from database.init_db import (
+    DATA_INTEGRITY_MESSAGE,
     SCHEMA_TOO_NEW_MESSAGE,
     initialize_database,
 )
@@ -603,6 +604,24 @@ class ArchlenceApp(
             )
             self._startup_recovery_failure = SCHEMA_TOO_NEW_MESSAGE
             present_schema_too_new_failure(self, SCHEMA_TOO_NEW_MESSAGE)
+            raise
+        except FinancialDataIntegrityError as exc:
+            # BÜTÜNLÜK KAPISI. Kardeşleriyle aynı sözleşme: kapı fail-closed
+            # durdu ve veritabanına DOKUNMADI; buradan sonrası yalnız sunum.
+            #
+            # Bu sınır olmadan istisna `build()`'dan ham hâliyle dışarı
+            # taşıyordu — kullanıcı güvenli bir ekran yerine çökme görüyor,
+            # exception metni de tablo/rowid taşıyordu. Ayrıntı LOG'a girer,
+            # kullanıcı metnine DEĞİL.
+            from services.startup_recovery import present_data_integrity_failure
+            from utils.logging_config import get_logger
+            get_logger().critical(
+                "Veritabanı bütünlük kapısı açılışı durdurdu: "
+                "table=%s id=%s field=%s reason=%s",
+                exc.table, exc.record_id, exc.field, exc.reason,
+            )
+            self._startup_recovery_failure = DATA_INTEGRITY_MESSAGE
+            present_data_integrity_failure(self, DATA_INTEGRITY_MESSAGE)
             raise
         # BİRİKİM HEDEFLERİ ARTIK JSON'DAN OKUNMUYOR.
         #
@@ -1883,14 +1902,14 @@ class ArchlenceApp(
         self._current_pin_input = MDTextField(
             hint_text=translate("Mevcut Şifre"),
             password=True,
-            max_text_length=64,
+            max_text_length=PasswordPolicy.MAX_LENGTH,
             multiline=False,
             write_tab=False,
         )
         self._new_pin_input = MDTextField(
             hint_text=translate("Yeni Şifre"),
             password=True,
-            max_text_length=64,
+            max_text_length=PasswordPolicy.MAX_LENGTH,
             multiline=False,
             write_tab=False,
             helper_text=translate(PasswordPolicy.REQUIREMENTS),
@@ -1899,7 +1918,7 @@ class ArchlenceApp(
         self._new_pin_confirm = MDTextField(
             hint_text=translate("Yeni Şifre Tekrar"),
             password=True,
-            max_text_length=64,
+            max_text_length=PasswordPolicy.MAX_LENGTH,
             multiline=False,
             write_tab=False
         )

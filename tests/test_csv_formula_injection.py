@@ -159,8 +159,11 @@ class CsvExportInjectionTest(unittest.TestCase):
         self._add("normal açıklama")
         export_all_to_csv(str(self.export_path))
         rows = self._rows()
+        # SÜTUN İNDEKSİ BAŞLIKTAN OKUNUYOR, sabit değil: sürüm işareti
+        # kolonu eklendiğinde sabit indeks sessizce yanlış sütunu okurdu.
         amount_index = CSV_HEADER.index("tutar")
-        islem = [r for r in rows[1:] if r[0] == "islem"][0]
+        kind_index = CSV_HEADER.index("kayit_turu")
+        islem = [r for r in rows[1:] if r[kind_index] == "islem"][0]
         self.assertEqual(float(islem[amount_index]), 125.50)
 
     def test_export_import_round_trip_restores_the_original_text(self):

@@ -197,21 +197,21 @@ MDScreen:
                         id: pin_setup_input
                         hint_text: app.tr("Şifre", app.language)
                         password: True
-                        max_text_length: 32
+                        max_text_length: 64
                         size_hint_x: 0.8
                         pos_hint: {"center_x": .5}
                         multiline: False
                         write_tab: False
                         focus_next: pin_confirm_input
                         on_text_validate: pin_confirm_input.focus = True
-                        helper_text: app.tr("En az 12 karakter, 1 büyük harf, 1 küçük harf, 1 rakam ve 1 özel karakter", app.language)
+                        helper_text: app.tr("12-64 karakter, 1 büyük harf, 1 küçük harf, 1 rakam ve 1 özel karakter", app.language)
                         helper_text_mode: "persistent"
 
                     MDTextField:
                         id: pin_confirm_input
                         hint_text: app.tr("Şifre Tekrar", app.language)
                         password: True
-                        max_text_length: 32
+                        max_text_length: 64
                         size_hint_x: 0.8
                         pos_hint: {"center_x": .5}
                         multiline: False
@@ -360,7 +360,7 @@ MDScreen:
                             id: password_input
                             hint_text: app.tr("Şifre", app.language)
                             password: True
-                            max_text_length: 32
+                            max_text_length: 64
                             multiline: False
                             write_tab: False
                             on_text_validate: app.check_login()

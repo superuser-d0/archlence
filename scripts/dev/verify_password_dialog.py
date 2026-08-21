@@ -80,6 +80,18 @@ class PasswordDialogVerifier(ArchlenceApp):
     def _fail(self, step, reason, **extra):
         self.findings.append(dict(step=step, reason=reason, **extra))
 
+    def _setup_screen_limits(self):
+        """`.kv`'den gelen üç parola alanının GERÇEK sınırını okur.
+
+        Kaynak metni değil, çizilmiş widget'ı ölçüyor: KV'deki sayı ile ekrana
+        gelen değer arasında bir fark kalırsa burada görünür.
+        """
+        return [
+            self.root.ids[name].max_text_length
+            for name in ("pin_setup_input", "pin_confirm_input",
+                         "password_input")
+        ]
+
     def on_start(self):
         super().on_start()
         Clock.schedule_once(self._install_credential, 1.5)
@@ -124,6 +136,25 @@ class PasswordDialogVerifier(ArchlenceApp):
             if not field.password:
                 self._fail("maskeleme", "parola alanı düz metin gösteriyor",
                            shown=field.hint_text)
+
+        # UZUNLUK SINIRI TEK KAYNAKTAN. Diyalog 64, kurulum/giriş alanları 32
+        # gösteriyordu ve politikanın üst sınırı hiç yoktu; üç ekran üç ayrı
+        # sayı taşıyordu.
+        limits = [field.max_text_length for field in fields]
+        self.observations["dialog_max_lengths"] = limits
+        for limit in limits:
+            if limit != PasswordPolicy.MAX_LENGTH:
+                self._fail("uzunluk-siniri",
+                           "diyalog alanı politika sınırını taşımıyor",
+                           shown=limit, expected=PasswordPolicy.MAX_LENGTH)
+
+        setup_limits = self._setup_screen_limits()
+        self.observations["setup_max_lengths"] = setup_limits
+        for limit in setup_limits:
+            if limit != PasswordPolicy.MAX_LENGTH:
+                self._fail("uzunluk-siniri",
+                           "kurulum/giriş alanı politika sınırını taşımıyor",
+                           shown=limit, expected=PasswordPolicy.MAX_LENGTH)
 
         helper = [f.helper_text for f in fields if f.helper_text]
         self.observations["helper_text"] = helper

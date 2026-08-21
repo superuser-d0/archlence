@@ -233,11 +233,66 @@ def _stage_package(package_path, destination):
             for info in infos:
                 total += _stage_member(archive, info, destination, total)
                 staged.append(info.filename)
-    except (zipfile.BadZipFile, zipfile.LargeZipFile, OSError, EOFError) as exc:
+    except (
+        zipfile.BadZipFile, zipfile.LargeZipFile, OSError, EOFError,
+        ValueError,
+        # `NotImplementedError` — desteklenmeyen sıkıştırma yöntemi.
+        # `RuntimeError` — zipfile'ın parola isteyen/şifreli üye yolu.
+        # İkisi de PAKETİN İÇERİĞİNDEN doğar, yani bir programlama hatası
+        # değil bozuk/düşmanca girdidir; sözleşme
+        # `IntegrityVerificationError` demek zorunda. `NotImplementedError`
+        # zaten `RuntimeError`'ın alt sınıfı, açıklık için ikisi de yazıldı.
+        NotImplementedError, RuntimeError,
+    ) as exc:
         # Bozuk ZIP ve CRC uyuşmazlığı da buradan geçer: kütüphane
         # `BadZipFile` fırlatır, sözleşme `IntegrityVerificationError`'dır.
+        #
+        # `MemoryError`, `KeyboardInterrupt` ve `SystemExit` BİLEREK YOK:
+        # ilki `Exception` alt sınıfı olsa da süreç seviyesinde bir durum,
+        # diğer ikisi zaten `BaseException`. Hiçbiri "paket bozuk" demek
+        # değildir ve yutulmamalı.
         raise IntegrityVerificationError("Backup paketi açılamadı.") from exc
     return staged
+
+
+_HEX64 = frozenset("0123456789abcdef")
+
+
+def _require_mapping(payload, label):
+    """JSON kökünün gerçekten bir nesne olduğunu doğrular.
+
+    `metadata.json` içeriği `[]` olan bir paket `metadata.get(...)` çağrısında
+    `AttributeError` fırlatıyordu — ölçüldü. Sözleşme
+    `IntegrityVerificationError` diyor; kök tipi ilk sınanan şey olmalı."""
+    if not isinstance(payload, dict):
+        raise IntegrityVerificationError(f"Backup {label} bozuk.")
+    return payload
+
+
+def _require_hex_digest(value, label):
+    """64 karakterlik küçük harf hex — SHA-256'nın tek geçerli gösterimi."""
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or not set(value).issubset(_HEX64)
+    ):
+        raise IntegrityVerificationError(f"Backup {label} biçimi geçersiz.")
+    return value
+
+
+def _require_record_count(value):
+    """`aead_records_verified` GERÇEK, negatif olmayan bir `int` olmalı.
+
+    Eskiden `int(metadata.get("aead_records_verified", -1))` yazıyordu ve
+    ölçüldü: `"abc"` `ValueError`, `None` `TypeError` fırlatıyordu — ikisi de
+    sözleşme dışı. `bool` ayrıca eleniyor çünkü `int`'in alt sınıfı: `True`
+    sessizce 1 sayısına dönüşürdü.
+    """
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise IntegrityVerificationError(
+            "Backup AEAD doğrulama sayısı geçersiz."
+        )
+    return value
 
 ENCRYPTED_FIELDS = {
     "transactions": ("amount", "description"),
@@ -399,16 +454,25 @@ def _integrity_check(db_path):
         # PRAGMA. Zorlama bağlantı başına kapalı olduğu için eski profillerde
         # öksüz satır birikmiş olabilir; böyle bir veritabanını "doğrulanmış
         # yedek" diye yayımlamak ya da restore etmek, kusuru taşımaktır.
-        violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+        #
+        # SINIRLI OKUMA: paket DIŞARIDAN geliyor, yani ihlal sayısını
+        # belirleyen taraf biz değiliz. `fetchall()` milyonlarca öksüz satırı
+        # olan bir veritabanında hata mesajını üretirken belleği tüketirdi.
+        # Teşhis için ilk örnek yeter.
+        cursor = conn.execute("PRAGMA foreign_key_check")
+        try:
+            violations = [tuple(row)[:3] for row in cursor.fetchmany(1)]
+        finally:
+            cursor.close()
     if result != "ok":
         raise IntegrityVerificationError(
             "Backup veritabanı SQLite bütünlük kontrolünü geçemedi."
         )
     if violations:
-        first = tuple(violations[0])
+        table, rowid, parent = violations[0]
         raise IntegrityVerificationError(
-            f"Backup veritabanında {len(violations)} foreign key ihlali var "
-            f"(ilk: {first[0]} rowid={first[1]} -> {first[2]})."
+            "Backup veritabanında foreign key ihlali var "
+            f"(ilk: {table} rowid={rowid} -> {parent})."
         )
 
 
@@ -538,23 +602,48 @@ def _verify_staged(temp, passphrase):
         raise IntegrityVerificationError(
             "Backup metadata veya kurtarma materyali bozuk."
         ) from exc
-    if metadata.get("format_version") != 2:
+
+    # ŞEKİL DOĞRULAMASI EN ÖNDE — tek bir `.get()` çağrısından, PBKDF2'den,
+    # hash hesabından ve DB açmadan ÖNCE. Bu paket dışarıdan geliyor; JSON
+    # kökünün nesne olduğu bile varsayılamaz.
+    metadata = _require_mapping(metadata, "metadata")
+    recovery = _require_mapping(recovery, "kurtarma materyali")
+
+    # `format_version` GERÇEK int olmalı: `bool` `int`'in alt sınıfı olduğu
+    # için `True == 1`, ve `"2" != 2` sessizce doğru sonucu verse de tip
+    # sözleşmesi açık yazılmalı.
+    # `2.0 == 2` Python'da True'dur, yani salt karşılaştırma float bir sürümü
+    # kabul ederdi. Tip önce sınanıyor.
+    version = metadata.get("format_version")
+    if (
+        isinstance(version, bool)
+        or not isinstance(version, int)
+        or version != 2
+    ):
         raise IntegrityVerificationError("Backup format sürümü desteklenmiyor.")
+    if not isinstance(metadata.get("authentication_salt"), str):
+        raise IntegrityVerificationError("Backup authentication metadata bozuk.")
+    expected_digest = _require_hex_digest(
+        metadata.get("database_sha256"), "veritabanı hash'i")
+    expected_fingerprint = _require_hex_digest(
+        metadata.get("key_fingerprint"), "anahtar parmak izi")
+    expected_records = _require_record_count(
+        metadata.get("aead_records_verified"))
+
     supplied_tag = metadata.get("authentication_tag")
     if not isinstance(supplied_tag, str) or not hmac.compare_digest(
         supplied_tag, _backup_auth_tag(metadata, passphrase)
     ):
         raise IntegrityVerificationError("Backup authentication doğrulanamadı.")
     db_copy = temp / "finance.db"
-    digest = hashlib.sha256(db_copy.read_bytes()).hexdigest()
-    if digest != metadata.get("database_sha256"):
+    if hashlib.sha256(db_copy.read_bytes()).hexdigest() != expected_digest:
         raise IntegrityVerificationError("Backup veritabanı hash'i eşleşmiyor.")
     key = decrypt_recovery_material(recovery, passphrase)
-    if hashlib.sha256(key).hexdigest() != metadata.get("key_fingerprint"):
+    if hashlib.sha256(key).hexdigest() != expected_fingerprint:
         raise IntegrityVerificationError("Backup anahtar parmak izi eşleşmiyor.")
     _integrity_check(db_copy)
     checked = verify_database_key(db_copy, key)
-    if checked != int(metadata.get("aead_records_verified", -1)):
+    if checked != expected_records:
         raise IntegrityVerificationError(
             "Backup AEAD doğrulama sayısı eşleşmiyor."
         )
