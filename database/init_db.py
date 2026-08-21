@@ -842,6 +842,28 @@ def _initialize_database(conn):
     # Replay her zaman "tarihe göre" tarandığı için ts indeksi şart.
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_balance_events_ts ON balance_events(ts)")
 
+    # `transactions.account_id` — foreign key VARDI ama indeksi YOKTU.
+    #
+    # SQLite ebeveyn tarafına (`accounts.id`, zaten PRIMARY KEY) indeks
+    # zorlar, ÇOCUK tarafına zorlamaz. Ölçüldü — indeks yokken account_id
+    # filtreli her sorgu tam tarama yapıyordu:
+    #
+    #     SELECT ... WHERE account_id = ?            -> SCAN transactions
+    #     SELECT COUNT(*) ... WHERE account_id = ?   -> SCAN transactions
+    #
+    # Bu üç yerde geçiyor: hesap ekstresi, `delete_credit_card`'ın bağımlılık
+    # temizliği ve — zorlama artık AÇIK olduğu için — her `accounts` satırının
+    # silinmesi/güncellenmesinde motorun yaptığı çocuk arama. Sonuncusu yeni:
+    # indekssiz bir çocuk tablo, FK zorlamasının maliyetini satır sayısıyla
+    # doğru orantılı hâle getirir.
+    #
+    # `IF NOT EXISTS` — hem taze kurulum hem göç eden profil aynı indeksi alır;
+    # şema tutarlılık kapısı ikisini karşılaştırıyor.
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_transactions_account_id "
+        "ON transactions(account_id)"
+    )
+
     # 12. Günlük Bakiye Anlık Görüntüsü (Faz 2 — replay kısayolu)
     # get_balance_at() sıfırdan replay etmek yerine tarihe en yakın snapshot'ı
     # alıp yalnızca sonrasındaki olayları oynatır. snapshot_date UNIQUE: günde

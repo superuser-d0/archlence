@@ -94,6 +94,35 @@ _ALLOWED_MEMBERS = frozenset(_REQUIRED_MEMBERS + _OPTIONAL_MEMBERS)
 _STAGE_CHUNK = 64 * 1024
 
 
+#: Hash okuma bloğu. 1 MiB, sabit — dosya ne kadar büyürse büyüsün tahsis
+#: değişmez.
+_HASH_CHUNK = 1024 * 1024
+
+
+def _sha256_file(path):
+    """Dosyanın SHA-256'sını SABİT bellekle hesaplar.
+
+    Eskiden `hashlib.sha256(path.read_bytes()).hexdigest()` yazıyordu.
+    `read_bytes()` dosyanın TAMAMINI ek bir `bytes` nesnesi olarak belleğe
+    alır ve paket sınırı 256 MiB olduğuna göre bu, tek bir hash için çeyrek
+    gigabaytlık bir tahsis demekti. Ölçüldü (64 MiB dosya):
+
+        read_bytes : tepe tahsis ~67.109.000 bayt  (dosya boyutunun 1,00x'i)
+        streaming  : tepe tahsis ~1.049.000 bayt   (0,02x)
+
+    Özet BİREBİR AYNI kalır; değişen yalnız belleğe alma biçimi.
+
+    Dosya tanıtıcısı `with` ile kapanır, yani hata yollarında da bırakılmaz —
+    Windows'ta açık kalan bir handle sonraki `os.replace`/silme adımını
+    bloklardı.
+    """
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(_HASH_CHUNK), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def _member_byte_limit(name):
     return MAX_DB_MEMBER_BYTES if name == "finance.db" else MAX_SMALL_MEMBER_BYTES
 
@@ -553,7 +582,7 @@ def create_backup(
         metadata = {
             "format_version": 2,
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "database_sha256": hashlib.sha256(db_copy.read_bytes()).hexdigest(),
+            "database_sha256": _sha256_file(db_copy),
             "key_fingerprint": hashlib.sha256(key).hexdigest(),
             "aead_records_verified": aead_checked,
             "authentication_salt": base64.b64encode(os.urandom(16)).decode("ascii"),
@@ -636,7 +665,7 @@ def _verify_staged(temp, passphrase):
     ):
         raise IntegrityVerificationError("Backup authentication doğrulanamadı.")
     db_copy = temp / "finance.db"
-    if hashlib.sha256(db_copy.read_bytes()).hexdigest() != expected_digest:
+    if _sha256_file(db_copy) != expected_digest:
         raise IntegrityVerificationError("Backup veritabanı hash'i eşleşmiyor.")
     key = decrypt_recovery_material(recovery, passphrase)
     if hashlib.sha256(key).hexdigest() != expected_fingerprint:
