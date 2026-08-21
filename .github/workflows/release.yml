@@ -7,16 +7,16 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Deneme sürümü (ör. 0.0.0-test)"
+        description: "Release version (for example, 1.0.0)"
         required: true
         type: string
 
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false   # yayın işini yarıda kesmek istemiyoruz
+  cancel-in-progress: false   # Never interrupt a release in progress.
 
 permissions:
-  contents: write   # release oluşturmak/varlık yüklemek için gerekli
+  contents: write   # Required to create releases and upload assets.
 
 jobs:
   version:
@@ -25,10 +25,10 @@ jobs:
       version: ${{ steps.derive.outputs.version }}
       prerelease: ${{ steps.derive.outputs.prerelease }}
     steps:
-      - name: Kodu çek
+      - name: Check out source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
-      - name: Sürümü belirle
+      - name: Derive version
         id: derive
         shell: bash
 
@@ -40,12 +40,12 @@ jobs:
             version="${{ inputs.version }}"
           fi
           if [ -z "$version" ]; then
-            echo "::error::Sürüm belirlenemedi."
+            echo "::error::Unable to derive the release version."
             exit 1
           fi
           expected="$(python -c 'from utils.version import APP_VERSION; print(APP_VERSION)')"
           if [ "$version" != "$expected" ]; then
-            echo "::error::Tag/input sürümü ($version) uygulama sürümüyle ($expected) eşleşmiyor."
+            echo "::error::Tag/input version ($version) does not match application version ($expected)."
             exit 1
           fi
 
@@ -56,7 +56,7 @@ jobs:
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
-          echo "Sürüm: $version (ön-sürüm: $prerelease)"
+          echo "Version: $version (prerelease: $prerelease)"
 
   build-windows:
     needs: version
@@ -72,22 +72,22 @@ jobs:
     needs: [version, build-windows, build-linux]
     runs-on: ubuntu-latest
     steps:
-      - name: Kodu çek
+      - name: Check out source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
-      - name: Windows kurulum paketini indir
+      - name: Download Windows installer
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: Archlence-Setup
           path: assets-in/windows
 
-      - name: Linux AppImage'ı indir
+      - name: Download Linux AppImage
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: Archlence-AppImage
           path: assets-in/linux
 
-      - name: Varlıkları sürümlü adlarla hazırla
+      - name: Prepare versioned assets
         shell: bash
 
         run: |
@@ -107,7 +107,7 @@ jobs:
           )
           ls -la release-assets
 
-      - name: CHANGELOG'dan sürüm notlarını yaz
+      - name: Generate release notes from CHANGELOG
         shell: bash
         run: |
           python scripts/release_notes_from_changelog.py \
@@ -115,7 +115,7 @@ jobs:
             --output release-notes.md
           cat release-notes.md
 
-      - name: CycloneDX SBOM üret
+      - name: Generate CycloneDX SBOM
         shell: bash
         run: |
           python -m pip install cyclonedx-bom
@@ -128,7 +128,7 @@ jobs:
               >> SHA256SUMS.txt
           )
 
-      - name: Draft release oluştur ve varlıkları ekle
+      - name: Create draft release and upload assets
         shell: bash
 
         env:
@@ -154,7 +154,7 @@ jobs:
             $prerelease_flag \
             --draft
 
-      - name: GitHub'dan yeniden indir ve SHA-256 doğrula
+      - name: Download assets again and verify SHA-256
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -170,7 +170,7 @@ jobs:
             sha256sum -c expected.txt
           )
 
-      - name: Tag push ise yayımla (ön-sürüm durumunu KORUYARAK)
+      - name: Publish tag-triggered release with correct stability state
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -184,13 +184,13 @@ jobs:
               --repo "${{ github.repository }}" \
               --draft=false \
               --prerelease=true
-            echo "Ön-sürüm olarak yayımlandı (Latest DEĞİL)."
+            echo "Published as a prerelease (not Latest)."
           else
             gh release edit "$tag" \
               --repo "${{ github.repository }}" \
               --draft=false \
               --prerelease=false \
               --latest
-            echo "Kararlı sürüm olarak yayımlandı (Latest)."
+            echo "Published as the stable Latest release."
           fi
-          echo "Yayınlandı: $(gh release view "$tag" --repo "${{ github.repository }}" --json url -q .url)"
+          echo "Published: $(gh release view "$tag" --repo "${{ github.repository }}" --json url -q .url)"

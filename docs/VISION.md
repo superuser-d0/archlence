@@ -31,12 +31,12 @@ Evaluate the icon using the real `.ico` sizes, not only the 1024-pixel PNG.
 
 ## Release line and the meaning of “stable”
 
-The current line is **0.0.x — pre-release**. This is a warning, not modest
-versioning: packages install and launch, and protected flows have automated
-tests, but the application is still being validated through real-world use. It
-is not yet recommended for everyday financial tracking.
+The current line is **1.x — stable**. Stable means that supported packages,
+data integrity, upgrades, backup, restore, and recovery are guarded by release
+tests and verified acceptance paths. It does not remove the need for backups
+or turn the application into a regulated financial service.
 
-A release must meet at least these conditions before it can be called stable:
+Every stable release must continue to meet these conditions:
 
 - No known defect may corrupt user data, especially any defect that records a
   value different from the value entered by the user.

@@ -10,10 +10,10 @@ on:
   workflow_call:
     inputs:
       version:
-        description: "Kurulum paketine gömülecek sürüm (etiketten türetilir)."
+        description: "Version embedded in the installer (derived from the tag)."
         required: false
         type: string
-        default: "0.0.12"
+        default: "1.0.0"
 
 concurrency:
   group: build-windows-${{ github.ref }}
@@ -26,42 +26,50 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Kodu çek
+      - name: Check out source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
 
           fetch-depth: 0
 
-      - name: Python kur
+      - name: Set up Python
 
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
-          cache: pip   # bağımlılıkları her koşuda baştan indirmesin
+          cache: pip   # Reuse downloaded dependencies between runs.
 
-      - name: Bağımlılıkları kur
+      - name: Install dependencies
 
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-runtime.txt
           pip install pyinstaller kivy_deps.sdl2 kivy_deps.glew kivy_deps.angle
 
-      - name: PyInstaller ile derle
+      - name: Build with PyInstaller
 
         env:
           KIVY_GL_BACKEND: angle_sdl2
         run: pyinstaller --noconfirm --log-level WARN archlence.spec
         timeout-minutes: 20
 
-      - name: "Smoke test: Archlence.exe gerçekten açılıyor mu"
+      - name: "Smoke test: Archlence.exe opens and stays healthy"
 
         shell: pwsh
         env:
           KIVY_GL_BACKEND: angle_sdl2
         run: |
           $ErrorActionPreference = "Stop"
-          $crashLogDir = python -c "from utils.app_paths import log_dir; print(log_dir())"
-          $crashLogPath = Join-Path $crashLogDir "crash.log"
+          $runnerRoot = [IO.Path]::GetFullPath($env:RUNNER_TEMP)
+          $smokeHome = [IO.Path]::GetFullPath((Join-Path $runnerRoot "Archlence-Packaged-Profile"))
+          if (-not $smokeHome.StartsWith($runnerRoot, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Packaged smoke profile escaped RUNNER_TEMP: $smokeHome"
+          }
+          if (Test-Path $smokeHome) {
+            Remove-Item -LiteralPath $smokeHome -Recurse -Force
+          }
+          $env:ARCHLENCE_HOME = $smokeHome
+          $crashLogPath = Join-Path $smokeHome "logs\crash.log"
           $beforeSize = if (Test-Path $crashLogPath) { (Get-Item $crashLogPath).Length } else { 0 }
 
           $proc = Start-Process -FilePath "dist\Archlence\Archlence.exe" -PassThru
@@ -69,13 +77,13 @@ jobs:
 
           $stillAlive = -not $proc.HasExited
           if (-not $stillAlive) {
-            Write-Host "::error::Archlence.exe 10 saniye içinde kendiliğinden kapandı (exit code: $($proc.ExitCode)) — muhtemelen Window sessizce None kaldı (bkz. archlence.spec'teki KIVY_GL_BACKEND notu)."
+            Write-Host "::error::Archlence.exe exited within 10 seconds (exit code: $($proc.ExitCode)); the Window may have remained None (see the KIVY_GL_BACKEND note in archlence.spec)."
           }
 
           $afterSize = if (Test-Path $crashLogPath) { (Get-Item $crashLogPath).Length } else { 0 }
           $crashLogGrew = $afterSize -gt $beforeSize
           if ($crashLogGrew) {
-            Write-Host "::error::crash.log bu çalıştırma sırasında büyüdü — yakalanmış ama sessiz kalmış bir istisna olabilir. Son satırlar:"
+            Write-Host "::error::crash.log grew during this run; a caught exception may have been suppressed. Last lines:"
             Get-Content $crashLogPath -Tail 40
           }
 
@@ -86,37 +94,39 @@ jobs:
           if ((-not $stillAlive) -or $crashLogGrew) {
             exit 1
           }
-          Write-Host "Smoke test geçti: Archlence.exe 10 saniye sonra hâlâ çalışıyordu, crash.log'a yeni yazı yok."
+          Write-Host "Smoke test passed: Archlence.exe stayed alive for 10 seconds and crash.log did not grow."
 
-      - name: "Paketleme bütünlüğü: pywin32'nin tembel importu da pakette mi"
+          python scripts/dev/verify_packaged_windows_profile.py --home $smokeHome
+
+      - name: "Package integrity: include the lazy pywin32 import"
 
         run: python scripts/check_frozen_lazy_imports.py dist/Archlence
 
-      - name: Paket içeriği ve secret taraması
+      - name: Scan package contents and secrets
         run: python scripts/inspect_package_contents.py dist/Archlence
 
-      - name: Ham .exe klasörünü artifact olarak yükle
+      - name: Upload unpacked Windows artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: Archlence-Windows
           path: dist/Archlence/
           if-no-files-found: error
 
-      - name: Inno Setup ile tek dosyalık kurulum paketi oluştur
+      - name: Build the installer with Inno Setup
 
         run: |
           $version = "${{ inputs.version }}"
           if ([string]::IsNullOrWhiteSpace($version)) {
             $version = (python -c "from utils.version import APP_VERSION; print(APP_VERSION)").Trim()
-            Write-Host "inputs.version bos; merkezi kaynaktan alindi: $version"
+            Write-Host "inputs.version is empty; using the central version: $version"
           }
           $central = (python -c "from utils.version import APP_VERSION; print(APP_VERSION)").Trim()
           if ($version -ne $central) {
-            Write-Host "::error::Verilen surum ($version) uygulama surumuyle ($central) uyusmuyor."
+            Write-Host "::error::Provided version ($version) does not match application version ($central)."
             exit 1
           }
           if ($version -notmatch '^\d+\.\d+\.\d+$') {
-            Write-Host "::error::Gecersiz surum bicimi: $version"
+            Write-Host "::error::Invalid version format: $version"
             exit 1
           }
           choco install innosetup -y --no-progress
@@ -124,7 +134,7 @@ jobs:
             "/DMyAppVersion=$version" `
             installer\archlence.iss
 
-      - name: "Upgrade smoke: önceki sürüm profilini yeni sürümle aç"
+      - name: "Upgrade smoke: open the previous-release profile in the new version"
         shell: pwsh
 
         timeout-minutes: 10
@@ -141,13 +151,13 @@ jobs:
           git fetch --tags --quiet
           $baseline = (python scripts/previous_release.py --target $target).Trim()
           if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($baseline)) {
-            Write-Host "::warning::Yükseltme smoke testi ATLANDI: $target için önceki yayın bulunamadı."
+            Write-Host "::warning::Upgrade smoke test skipped: no previous release found for $target."
             exit 0
           }
           $baselineVersion = $baseline.TrimStart("v")
           $env:UPGRADE_BASELINE_TAG = $baseline
           $env:UPGRADE_BASELINE_ASSET = "ArchlenceSetup-$baselineVersion.exe"
-          Write-Host "Yükseltme tabanı: $baseline -> $target"
+          Write-Host "Upgrade baseline: $baseline -> $target"
 
           $sumsUrl = "https://github.com/${{ github.repository }}/releases/download/$baseline/SHA256SUMS.txt"
           try {
@@ -159,12 +169,12 @@ jobs:
               [string]$response.Content
             }
           } catch {
-            Write-Host "::error::Taban yayının SHA256SUMS.txt dosyası indirilemedi: $sumsUrl"
+            Write-Host "::error::Unable to download SHA256SUMS.txt for the baseline release: $sumsUrl"
             exit 1
           }
           $line = ($sums -split "`n") | Where-Object { $_ -match [regex]::Escape($env:UPGRADE_BASELINE_ASSET) } | Select-Object -First 1
           if (-not $line) {
-            Write-Host "::error::$($env:UPGRADE_BASELINE_ASSET) taban manifestinde bulunamadı."
+            Write-Host "::error::$($env:UPGRADE_BASELINE_ASSET) was not found in the baseline manifest."
             exit 1
           }
           $env:UPGRADE_BASELINE_SHA256 = ($line -split "\s+")[0]
@@ -173,7 +183,7 @@ jobs:
             param($Proc, [int]$TimeoutSeconds, [string]$Label)
             if (-not $Proc.WaitForExit($TimeoutSeconds * 1000)) {
               try { $Proc.Kill() } catch { }
-              Write-Host "::error::$Label $TimeoutSeconds saniyede tamamlanmadı (askıda kaldı)."
+              Write-Host "::error::$Label did not finish within $TimeoutSeconds seconds."
               exit 1
             }
             [void]$Proc.WaitForExit(10000)
@@ -187,23 +197,23 @@ jobs:
 
             Invoke-WebRequest $url -OutFile $oldInstaller -TimeoutSec 180
           } catch {
-            Write-Host "::error::Taban sürüm indirilemedi: $url"
+            Write-Host "::error::Unable to download the baseline release: $url"
             exit 1
           }
           $oldHash = (Get-FileHash $oldInstaller -Algorithm SHA256).Hash.ToLower()
           if ($oldHash -ne $env:UPGRADE_BASELINE_SHA256.ToLower()) {
-            Write-Host "::error::Taban kurulum paketinin hash'i eşleşmiyor."
+            Write-Host "::error::Baseline installer hash mismatch."
             exit 1
           }
           $oldSetup = Start-Process $oldInstaller -PassThru `
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", `
               "/SP-", "/DIR=$installDir"
-          if ((Invoke-Bounded $oldSetup 120 "Taban kurulum") -ne 0) { exit 1 }
+          if ((Invoke-Bounded $oldSetup 120 "Baseline installation") -ne 0) { exit 1 }
           $oldExe = Join-Path $installDir "Archlence.exe"
           $oldProc = Start-Process $oldExe -WorkingDirectory $installDir -PassThru
           Start-Sleep -Seconds 8
           if ($oldProc.HasExited) {
-            Write-Host "::error::Taban sürüm çalışır durumda kalmadı."
+            Write-Host "::error::Baseline release did not stay running."
             exit 1
           }
           Stop-Process -Id $oldProc.Id -Force
@@ -212,7 +222,7 @@ jobs:
             Where-Object { $_.FullName -match "Archlence" } |
             Select-Object -First 1
           if (-not $db) {
-            Write-Host "::error::Taban sürümün profil veritabanı oluşmadı."
+            Write-Host "::error::Baseline release did not create a profile database."
             exit 1
           }
           python -c "import sqlite3; p=r'$($db.FullName)'; c=sqlite3.connect(p); c.execute('INSERT INTO accounts (name,type,balance) VALUES (?,?,?)',('upgrade-sentinel','bank',1234.56)); c.commit(); c.close()"
@@ -222,11 +232,11 @@ jobs:
           $upgrade = Start-Process $newInstaller -PassThru `
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", `
               "/SP-", "/DIR=$installDir"
-          if ((Invoke-Bounded $upgrade 120 "Yükseltme kurulumu") -ne 0) { exit 1 }
+          if ((Invoke-Bounded $upgrade 120 "Upgrade installation") -ne 0) { exit 1 }
           $newProc = Start-Process $oldExe -WorkingDirectory $installDir -PassThru
           Start-Sleep -Seconds 8
           if ($newProc.HasExited) {
-            Write-Host "::error::Yükseltilmiş sürüm çalışır durumda kalmadı."
+            Write-Host "::error::Upgraded release did not stay running."
             exit 1
           }
           Stop-Process -Id $newProc.Id -Force
@@ -236,14 +246,14 @@ jobs:
           $uninstaller = Join-Path $installDir "unins000.exe"
           $remove = Start-Process $uninstaller -PassThru `
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
-          $removeExit = Invoke-Bounded $remove 120 "Yükseltme sonrası kaldırma"
+          $removeExit = Invoke-Bounded $remove 120 "Post-upgrade uninstall"
           if ($removeExit -ne 0 -or -not (Test-Path $db.FullName)) {
-            Write-Host "::error::Yükseltme sonrası kaldırma kullanıcı verisini korumadı."
+            Write-Host "::error::Post-upgrade uninstall did not preserve user data."
             exit 1
           }
-          Write-Host "$($env:UPGRADE_BASELINE_TAG) -> mevcut sürüm yükseltme/profil koruma testi geçti."
+          Write-Host "$($env:UPGRADE_BASELINE_TAG) -> current version upgrade/profile-preservation test passed."
 
-      - name: "Smoke test: installer kur, çalıştır ve kaldır"
+      - name: "Smoke test: install, launch, and uninstall"
         shell: pwsh
 
         timeout-minutes: 10
@@ -256,7 +266,7 @@ jobs:
             param($Proc, [int]$TimeoutSeconds, [string]$Label)
             if (-not $Proc.WaitForExit($TimeoutSeconds * 1000)) {
               try { $Proc.Kill() } catch { }
-              Write-Host "::error::$Label $TimeoutSeconds saniyede tamamlanmadı (askıda kaldı)."
+              Write-Host "::error::$Label did not finish within $TimeoutSeconds seconds."
               exit 1
             }
             [void]$Proc.WaitForExit(10000)
@@ -270,12 +280,12 @@ jobs:
               "/SP-", "/DIR=$installDir"
           $setupExit = Invoke-Bounded $setup 120 "Installer"
           if ($setupExit -ne 0) {
-            Write-Host "::error::Installer başarısız (exit=$setupExit)."
+            Write-Host "::error::Installer failed (exit=$setupExit)."
             exit 1
           }
           $exe = Join-Path $installDir "Archlence.exe"
           if (-not (Test-Path $exe)) {
-            Write-Host "::error::Kurulan Archlence.exe bulunamadı."
+            Write-Host "::error::Installed Archlence.exe was not found."
             exit 1
           }
           $crashLogDir = python -c "from utils.app_paths import log_dir; print(log_dir())"
@@ -289,13 +299,13 @@ jobs:
 
           $exitedEarly = $proc.HasExited
           if ($exitedEarly) {
-            Write-Host "::error::Kurulu uygulama erken kapandı (exit=$($proc.ExitCode))."
+            Write-Host "::error::Installed application exited early (exit=$($proc.ExitCode))."
           }
 
           $afterSize = if (Test-Path $crashLogPath) { (Get-Item $crashLogPath).Length } else { 0 }
           $crashLogGrew = $afterSize -gt $beforeSize
           if ($crashLogGrew) {
-            Write-Host "::error::Kurulu uygulama ayakta kaldı ama crash.log büyüdü — yakalanmış ama sessiz kalmış bir istisna olabilir. Son satırlar:"
+            Write-Host "::error::Installed application stayed alive but crash.log grew; a caught exception may have been suppressed. Last lines:"
             Get-Content $crashLogPath -Tail 40
           }
 
@@ -308,7 +318,7 @@ jobs:
 
           $dbPath = Join-Path $dataDir "finance.db"
           if (-not (Test-Path $dbPath)) {
-            Write-Host "::error::Kurulu uygulama açıldı ama kullanıcı profilini ($dbPath) oluşturmadı."
+            Write-Host "::error::Installed application launched but did not create the user profile ($dbPath)."
             exit 1
           }
           $dbSizeBefore = (Get-Item $dbPath).Length
@@ -316,24 +326,24 @@ jobs:
           $uninstaller = Join-Path $installDir "unins000.exe"
           $remove = Start-Process -FilePath $uninstaller -PassThru `
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
-          $removeExit = Invoke-Bounded $remove 120 "Kaldırma"
+          $removeExit = Invoke-Bounded $remove 120 "Uninstall"
           if ($removeExit -ne 0 -or (Test-Path $exe)) {
-            Write-Host "::error::Kaldırma doğrulanamadı."
+            Write-Host "::error::Uninstall could not be verified."
             exit 1
           }
 
           if (-not (Test-Path $dbPath)) {
-            Write-Host "::error::Kaldırma kullanıcı veritabanını SİLDİ ($dbPath). installer/archlence.iss'e UninstallDelete eklenmiş olabilir."
+            Write-Host "::error::Uninstall deleted the user database ($dbPath). An UninstallDelete entry may have been added to installer/archlence.iss."
             exit 1
           }
           $dbSizeAfter = (Get-Item $dbPath).Length
           if ($dbSizeAfter -ne $dbSizeBefore) {
-            Write-Host "::error::Kaldırma kullanıcı veritabanını DEĞİŞTİRDİ ($dbSizeBefore -> $dbSizeAfter bayt)."
+            Write-Host "::error::Uninstall modified the user database ($dbSizeBefore -> $dbSizeAfter bytes)."
             exit 1
           }
-          Write-Host "Installer smoke testi geçti (kullanıcı verisi kaldırmadan sonra korundu)."
+          Write-Host "Installer smoke test passed; user data survived uninstall."
 
-      - name: "Kurulum kapsamı: VARSAYILAN hedef kullanıcı profili altında mı"
+      - name: "Install scope: default target is under the user profile"
         shell: pwsh
         timeout-minutes: 5
 
@@ -343,33 +353,33 @@ jobs:
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-"
           if (-not $setup.WaitForExit(120000)) {
             try { $setup.Kill() } catch { }
-            Write-Host "::error::Varsayılan hedefe kurulum 120 saniyede tamamlanmadı."
+            Write-Host "::error::Default-target installation did not finish within 120 seconds."
             exit 1
           }
           [void]$setup.WaitForExit(10000)
           if ($setup.ExitCode -ne 0) {
-            Write-Host "::error::Varsayılan hedefe kurulum başarısız (exit=$($setup.ExitCode))."
+            Write-Host "::error::Default-target installation failed (exit=$($setup.ExitCode))."
             exit 1
           }
           $expected = Join-Path $env:LOCALAPPDATA "Programs\Archlence"
           $exe = Join-Path $expected "Archlence.exe"
           if (-not (Test-Path $exe)) {
-            Write-Host "::error::Varsayılan kurulum $expected altında bulunamadı; kapsam kullanıcı profilinden çıkmış olabilir."
-            Get-ChildItem (Join-Path $env:LOCALAPPDATA "Programs") -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  bulunan: $($_.FullName)" }
+            Write-Host "::error::Default installation was not found under $expected; install scope may have escaped the user profile."
+            Get-ChildItem (Join-Path $env:LOCALAPPDATA "Programs") -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  found: $($_.FullName)" }
             exit 1
           }
           if (Test-Path (Join-Path $env:ProgramFiles "Archlence")) {
-            Write-Host "::error::Kurulum makine geneli konuma (Program Files) yazdı — kullanıcı başına kurulum iddiası bozuldu."
+            Write-Host "::error::Installer wrote to a machine-wide Program Files location; per-user scope is broken."
             exit 1
           }
-          Write-Host "Varsayılan kurulum hedefi doğrulandı: $expected"
+          Write-Host "Default installation target verified: $expected"
           $uninstaller = Join-Path $expected "unins000.exe"
           $remove = Start-Process -FilePath $uninstaller -PassThru `
             -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"
           [void]$remove.WaitForExit(120000)
           [void]$remove.WaitForExit(10000)
 
-      - name: Kurulum paketini artifact olarak yükle
+      - name: Upload installer artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: Archlence-Setup

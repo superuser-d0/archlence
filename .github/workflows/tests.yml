@@ -202,7 +202,7 @@ jobs:
 
         run: python -m mypy services database
 
-      - name: Sürüm metadata tutarlılığı
+      - name: Version metadata consistency
         run: python scripts/check_version_consistency.py
 
   visual-regression:
@@ -246,7 +246,7 @@ jobs:
         run: >-
           xvfb-run -a python scripts/dev/verify_asset_dialog_layout.py
           --output visual/assets-${{ matrix.language }}-${{ matrix.dpi }}
-      - name: İkon/yazı binişme sözleşmesi
+      - name: Icon/text overlap contract
 
         env:
           KIVY_DPI: ${{ matrix.dpi }}
@@ -268,7 +268,7 @@ jobs:
         run: >-
           xvfb-run -a python scripts/dev/verify_i18n_user_data.py
           --output visual/i18n-${{ matrix.language }}-${{ matrix.dpi }}
-      - name: Parola değiştirme mevcut parolayı soruyor
+      - name: Password change requires the current password
 
         env:
           KIVY_DPI: ${{ matrix.dpi }}
@@ -279,7 +279,7 @@ jobs:
         run: >-
           xvfb-run -a python scripts/dev/verify_password_dialog.py
           --output visual/password-${{ matrix.language }}-${{ matrix.dpi }}
-      - name: Açılış hatası ekranı gerçekten çiziliyor
+      - name: Startup failure screen renders in a real window
 
         env:
           KIVY_DPI: ${{ matrix.dpi }}
@@ -290,7 +290,7 @@ jobs:
         run: >-
           xvfb-run -a python scripts/dev/verify_startup_failure_surface.py
           --output visual/startup-${{ matrix.language }}-${{ matrix.dpi }}
-      - name: Birikim hedefi kartları SQL'den besleniyor
+      - name: Savings-goal cards are sourced from SQL
 
         env:
           KIVY_DPI: ${{ matrix.dpi }}
@@ -301,7 +301,7 @@ jobs:
         run: >-
           xvfb-run -a python scripts/dev/verify_savings_goal_cards.py
           --output visual/savings-${{ matrix.language }}-${{ matrix.dpi }}
-      - name: Sekme kaydırma sözleşmesi
+      - name: Tab scrolling contract
 
         env:
           KIVY_DPI: ${{ matrix.dpi }}

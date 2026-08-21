@@ -20,7 +20,7 @@ from utils.version import APP_VERSION
 def require(pattern, path, description):
     text = (ROOT / path).read_text(encoding="utf-8")
     if not re.search(pattern, text, re.MULTILINE):
-        raise SystemExit(f"{description} eksik veya geçersiz: {path}")
+        raise SystemExit(f"{description} is missing or invalid: {path}")
 
 
 def main():
@@ -28,29 +28,29 @@ def main():
     require(
         rf'#define MyAppVersion "{escaped}"',
         "installer/archlence.iss",
-        "Installer sürümü",
+        "Installer version",
     )
     require(
         rf'default: "{escaped}"',
         ".github/workflows/build-windows.yml",
-        "Windows workflow sürümü",
+        "Windows workflow version",
     )
     require(
         rf"^pkgver={escaped}$",
         "PKGBUILD",
-        "Arch Linux paket sürümü",
+        "Arch Linux package version",
     )
     require(
         r"\[!\[Latest release\]\(https://img\.shields\.io/github/v/release/"
-        r"superuser-d0/archlence\?include_prereleases\)\]"
+        r"superuser-d0/archlence\)\]"
         r"\(https://github\.com/superuser-d0/archlence/releases/latest\)",
         "README.md",
-        "README dinamik pre-release rozeti",
+        "README stable-release badge",
     )
     require(
         rf"## \[{escaped}\]",
         "CHANGELOG.md",
-        "CHANGELOG sürümü",
+        "CHANGELOG version",
     )
     from scripts.release_notes_from_changelog import extract_release_notes
 
@@ -68,36 +68,36 @@ def main():
     require(
         r'text: "Archlence v" \+ app\.version',
         "ui/dashboard.kv",
-        "About ekranı sürüm binding'i",
+        "About-screen version binding",
     )
     require(
         r'--title "Archlence v\$\{v\}"',
         ".github/workflows/release.yml",
-        "Release başlığı",
+        "Release title",
     )
 
 
     require(
         r'Archlence-\$\{v\}-x86_64\.AppImage',
         ".github/workflows/release.yml",
-        "AppImage release asset adı",
+        "AppImage release asset name",
     )
     require(
         r'SHA256SUMS\.txt',
         ".github/workflows/release.yml",
-        "Checksum dosya adı",
+        "Checksum filename",
     )
     require(
         r'Archlence-\$\{\{ needs\.version\.outputs\.version \}\}-sbom\.cdx\.json',
         ".github/workflows/release.yml",
-        "SBOM dosya adı",
+        "SBOM filename",
     )
 
 
     require(
-        r'Tag/input sürümü .* uygulama sürümüyle .* eşleşmiyor',
+        r'Tag/input version .* does not match application version',
         ".github/workflows/release.yml",
-        "Tag/uygulama sürüm eşleşme kontrolü",
+        "Tag/application version match check",
     )
 
 
@@ -111,16 +111,16 @@ def main():
     )
     if re.search(r"inputs\.version\s*\|\|\s*'[0-9]", windows_code):
         raise SystemExit(
-            "Windows workflow'unda sabit sürüm fallback'i var: "
+            "Windows workflow contains a fixed version fallback: "
             ".github/workflows/build-windows.yml"
         )
 
     if re.search(r'UPGRADE_BASELINE_TAG:\s*"v[0-9]', windows_code):
         raise SystemExit(
-            "Upgrade smoke tabanı sabit bir sürüme bağlı: "
+            "Upgrade smoke baseline is pinned to a fixed version: "
             ".github/workflows/build-windows.yml"
         )
-    print(f"Sürüm tutarlı: {APP_VERSION} / tag v{APP_VERSION}")
+    print(f"Version metadata is consistent: {APP_VERSION} / tag v{APP_VERSION}")
 
 
 if __name__ == "__main__":

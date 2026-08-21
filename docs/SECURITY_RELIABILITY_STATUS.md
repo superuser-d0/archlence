@@ -1,7 +1,7 @@
 # Security and reliability status
 
 This document is the single current security and reliability summary for the
-active 0.0.x pre-release line. Release-specific changes and limitations belong
+active 1.x stable line. Release-specific changes and limitations belong
 in `CHANGELOG.md`; dated audit documents describe only the commit they audited
 and remain historical baselines.
 
@@ -24,11 +24,15 @@ and remain historical baselines.
   authoritative component inventory.
 - **External price data:** third-party price results carry source, age, and
   freshness status rather than being presented as guaranteed current values.
+- **Credentials:** new and changed passwords use the shared strong-password
+  policy. A user who successfully authenticates with an older weak credential
+  must renew it before reaching financial screens.
 
 ## Known limitations
 
-- The 0.0.x line is pre-release and is not recommended as the sole store for
-  day-to-day financial records. It is not banking or accounting certification.
+- Stable describes the verified software and recovery scope. It is not banking
+  or accounting certification, and verified backups remain the user's
+  responsibility.
 - The legacy CBC reader remains deprecated for compatibility with old profiles
   and backups. New data cannot be written in that format.
 - Yahoo Finance is the primary price provider. When it returns nothing for a
@@ -44,8 +48,6 @@ and remain historical baselines.
 - Windows DPAPI and Linux Secret Service/KWallet integrations exist, with a
   visible permission-restricted file fallback, but packaged keystore and
   recovery behavior still needs broader real-system validation.
-- Existing 4-digit credentials are not automatically upgraded to the password
-  policy introduced for new or changed credentials.
 
 Losing both the active key and usable recovery material can make encrypted
 records unrecoverable. See [Key management](KEY_MANAGEMENT.md) and

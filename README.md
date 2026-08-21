@@ -4,12 +4,12 @@
   <strong>A privacy-first, local-first desktop workspace for personal finance, cash flow, and portfolio tracking.</strong>
 </p>
 
-[![Latest release](https://img.shields.io/github/v/release/superuser-d0/archlence?include_prereleases)](https://github.com/superuser-d0/archlence/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/superuser-d0/archlence)](https://github.com/superuser-d0/archlence/releases/latest)
 [![Tests](https://github.com/superuser-d0/archlence/actions/workflows/tests.yml/badge.svg)](https://github.com/superuser-d0/archlence/actions/workflows/tests.yml)
 [![License](https://img.shields.io/github/license/superuser-d0/archlence)](LICENSE)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS%20source-5C3EE8)
-![Status](https://img.shields.io/badge/status-pre--release-orange)
+![Status](https://img.shields.io/badge/status-stable-2E8B57)
 
 <p align="center">
   <a href="https://github.com/superuser-d0/archlence/releases/latest">Download</a> ·
@@ -18,11 +18,10 @@
   <a href="https://github.com/superuser-d0/archlence/issues">Report a bug</a>
 </p>
 
-> [!WARNING]
-> Archlence is in active pre-release development. It is suitable for testing
-> and development, but it is not yet recommended as the sole store for
-> day-to-day financial records. Keep verified backups and review the
-> [current limitations](#project-status) before using real data.
+> [!IMPORTANT]
+> Archlence 1.0 is a stable local-first application, not a bank or accounting
+> service. Keep verified backups and review the
+> [current limitations](#project-status) before relying on any financial tool.
 
 ![Archlence dashboard](docs/screenshots/dashboard.png)
 
@@ -39,7 +38,7 @@ brings accounts, cash flow, transactions, subscriptions, debts, credit cards,
 and investments into one workspace built with Python, Kivy/KivyMD, and SQLite.
 
 The repository is open for transparent development, technical review, and
-future community contributions. Archlence remains an active pre-release.
+future community contributions. Archlence follows a stable 1.x release line.
 
 ### Latest release
 
@@ -61,7 +60,7 @@ See the [full changelog](CHANGELOG.md) and
   unusual-spending analysis help turn records into decisions.
 - **Desktop focus:** packaged Windows and Linux options avoid a browser-first
   workflow.
-- **English-first interface:** the public application surface is maintained in
+- **English interface:** the public application surface is maintained in
   English for a global audience.
 - **Transparent development:** limitations, technical debt, and release work
   are documented openly.
@@ -120,7 +119,7 @@ data controls.
 
 ## Quick installation
 
-Archlence is currently distributed as a pre-release.
+Archlence 1.0 is distributed as a stable desktop release.
 
 | Platform | Recommended package | Python required |
 | --- | --- | --- |
@@ -159,18 +158,14 @@ Archlence is not a bank, brokerage, accounting platform, or financial adviser.
 
 ## Project status
 
-Archlence is under active pre-release development and is not yet recommended
-as the sole store for day-to-day financial records. Current stabilization work
-includes:
+Archlence 1.0 is the stable line for Windows and x86-64 Linux. Stable means
+that data-integrity, upgrade, backup, restore, installation, and launch paths
+are release gates. It does not mean banking or accounting certification.
 
-- completing the shared `Decimal` policy across remaining financial paths;
-- validating packaged OS-keystore and recovery behavior across more real
-  Windows and Linux configurations;
-- stabilizing credit-card and recurring-payment workflows;
-- expanding real-hardware Windows installation, upgrade, persistence, and
-  removal checks;
-- adding code signing for the Windows installer and Linux AppImage;
-- reducing broad exception handling and UI-layer responsibility debt.
+Current non-blocking limitations include unsigned packages, no packaged macOS
+release, bounded encrypted-description search, limited fallback providers for
+some market prices, and remaining UI-layer architecture debt. Details and
+mitigations are maintained in the security and reliability status document.
 
 For scope and current guarantees, see the [product vision](docs/VISION.md),
 [security and reliability status](docs/SECURITY_RELIABILITY_STATUS.md), and
@@ -251,7 +246,7 @@ pull requests. Do not open a public issue for a suspected vulnerability; use a
 [private GitHub security advisory](https://github.com/superuser-d0/archlence/security/advisories/new)
 instead.
 
-See [SECURITY.md](SECURITY.md) for the reporting process and pre-release support
+See [SECURITY.md](SECURITY.md) for the reporting process and stable support
 scope. General project contact: `Superkullaniciyapiyor@proton.me`.
 
 ## Roadmap
