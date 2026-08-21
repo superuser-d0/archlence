@@ -26,9 +26,9 @@ from security.security_service import PasswordPolicy
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-#: 64 karakterlik, politika uyumlu parola.
+#: A policy-compliant, 64-character password.
 AT_LIMIT = "Ab1!" + "x" * 60
-#: 65 karakterlik, tek karakter fazla.
+#: A 65-character password, one character too long.
 OVER_LIMIT = "Ab1!" + "x" * 61
 
 

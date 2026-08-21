@@ -1165,7 +1165,7 @@ class PieChart(Widget):
                 Ellipse(pos=(x, y), size=(d, d), angle_start=0, angle_end=360 * self.anim_progress)
                 texts.append((0, 0)) # Placeholder for 0%
 
-            # 2. Halka (Donut) Kesimi
+            # 2. Donut segment
             if app:
                 Color(*app.theme_cls.bg_normal)
             else:

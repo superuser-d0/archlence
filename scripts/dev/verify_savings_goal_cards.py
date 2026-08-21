@@ -52,7 +52,7 @@ from main import ArchlenceApp                                   # noqa: E402
 from ui.components import SavingsGoalCard                       # noqa: E402
 
 SEED = [
-    # (ad, hedef, biriken, renk)
+    # (name, target, saved, color)
     ("Araba Fonu", 20000.0, 2500.0, "green"),
     ("Tatil Fonu", 10000.0, 0.0, "blue"),
 ]
@@ -154,7 +154,7 @@ class SavingsCardVerifier(ArchlenceApp):
             widget = widget.parent
         return None
 
-    # ── 1 + 2: kartlar SQL'den mi geliyor ────────────────────────────────
+    # ── 1 + 2: are cards sourced from SQL? ───────────────────────────────
     def _cards(self):
         """Hedef kartları — kabın KENDİSİNDEN okunuyor.
 

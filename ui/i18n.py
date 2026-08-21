@@ -76,7 +76,7 @@ EN = {
     "Hesap, kategori ve son işlemlerde arandı": "Searched accounts, categories and recent transactions",
     "Hesap": "Account",
     "İşlem": "Transaction",
-    # Bildirim zili
+    # Notification bell
     "Bekleyen bildirim yok": "No pending notifications",
     "Bildirimler yüklenemedi": "Could not load notifications",
     "Bekleyen işlem": "Pending transaction",
@@ -1083,7 +1083,7 @@ CONTROLLED_LABEL_SOURCES = frozenset({
 
 
     "asset_type",
-    # Defter kaynak etiketleri (mixins/history_mixin.py::ledger_source_text).
+    # Ledger source labels (mixins/history_mixin.py::ledger_source_text).
     "_SOURCE_LABELS",
 
     "_frequency_label",

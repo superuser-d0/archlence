@@ -120,7 +120,7 @@ class BudgetTrackingServiceTest(AccountFixtureMixin, unittest.TestCase):
 
     def test_rollover_disabled_positive_and_negative(self):
         from services.budget_service import get_effective_limit
-        # Pozitif devir: 1000 - 700 = +300.
+        # Positive rollover: 1000 - 700 = +300.
         self._plan(
             year=2025, month=12, amount=1000, category="Süpermarket"
         )
@@ -141,7 +141,7 @@ class BudgetTrackingServiceTest(AccountFixtureMixin, unittest.TestCase):
         )
         self.assertEqual(get_effective_limit("Ulaşım", 1, 2026), 250)
 
-        # Negatif devir: 300 - 450 = -150; yeni 500 → 350.
+        # Negative rollover: 300 - 450 = -150; new 500 -> 350.
         self._plan(year=2025, month=12, amount=300, category="Kıyafet")
         self._expense("Kıyafet", 450, "2025-12-20")
         self._plan(

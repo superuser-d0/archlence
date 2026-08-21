@@ -563,7 +563,7 @@ class InsightsMixin:
 
         threading.Thread(target=work, daemon=True).start()
 
-    # ─── 3. Anomaliler ───────────────────────────────────────────────────────
+    # ─── 3. Anomalies ────────────────────────────────────────────────────────
 
     def render_anomalies(self, anomalies):
         """Olağandışı harcamaları uyarı kartı olarak basar (en fazla 5)."""

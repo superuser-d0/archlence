@@ -77,7 +77,7 @@ class LegacyCardCleanupPolicyTest(unittest.TestCase):
         self.assertEqual(card["masked_number"], "**** **** **** 0366")
         self.assertEqual(card["network_logo"], "assets/visa.png")
 
-    # ─── Bozuk ciphertext: DEVAM ET ──────────────────────────────────────────
+    # ─── Corrupt ciphertext: continue ────────────────────────────────────────
 
     def test_corrupt_ciphertext_does_not_stop_the_cleanup(self):
         """Çözülemeyen kayıt açılışı ÇÖKERTMEMELİ, ham PAN da kalmamalı."""

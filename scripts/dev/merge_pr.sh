@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# "Merge et" iş akışı: yerelde biriken değişiklikleri repo kuralına uygun
-# şekilde (feature branch + PR) uzağa taşır. main'e asla doğrudan commit/push
-# yapmaz — geçmiş git log'daki her iş bir branch + PR ile girmiş, bu betik
-# aynı yolu otomatikleştirir.
+# "Merge it" workflow: moves accumulated local changes to the remote using
+# the repository convention (feature branch + PR). It never commits or pushes
+# directly to main; the project history uses branches and PRs, and this script
+# automates that same path.
 #
-# Kullanım:
-#   scripts/dev/merge_pr.sh <branch-adı> <pr-başlığı> [pr-gövdesi-dosyası]
-#   scripts/dev/merge_pr.sh <branch-adı> <pr-başlığı> [pr-gövdesi-dosyası] --push
+# Usage:
+#   scripts/dev/merge_pr.sh <branch-name> <pr-title> [pr-body-file]
+#   scripts/dev/merge_pr.sh <branch-name> <pr-title> [pr-body-file] --push
 #
-# --push VERİLMEDEN: yalnızca yerel branch oluşturup commit atar, hiçbir şeyi
-#   uzağa göndermez. Değişiklikleri gözden geçirmek için durak noktası.
-# --push VERİLİRSE: ayrıca origin'e push edip `gh pr create` ile PR açar.
+# Without --push: creates a local branch and commit only; nothing is sent to
+#   the remote. This provides a review checkpoint.
+# With --push: also pushes to origin and opens a PR with `gh pr create`.
 #
-# Bilinçli tasarım: `git add -u` kullanılır (yalnızca zaten TAKİP EDİLEN,
-# değiştirilmiş dosyalar) — `git add -A` değil. Böylece sahte/gizli/ilgisiz
-# yeni bir dosya (ör. .env, deneme çıktısı) yanlışlıkla commit'e girmez.
+# Deliberate design: use `git add -u` (only modified files that are already
+# tracked), not `git add -A`. This keeps fake, secret, or unrelated new files
+# (for example .env or experiment output) out of commits by default.
 set -euo pipefail
 
 if [ "$#" -lt 2 ]; then

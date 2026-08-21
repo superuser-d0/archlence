@@ -42,7 +42,7 @@ KNOWN_BRANDS = [
     "deezer", "tabii", "hbo max", "apple music", "apple tv", "apple one",
     "twitch", "paramount plus", "paramount+", "peacock", "crunchyroll",
     "tidal", "soundcloud go", "soundcloud",
-    # Kitap / sesli kitap
+    # Books / audiobooks
     "storytel", "audible", "kindle unlimited", "blinkist",
 
     "adobe", "creative cloud", "microsoft 365", "office 365", "icloud",

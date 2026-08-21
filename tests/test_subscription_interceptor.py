@@ -142,7 +142,7 @@ class InterceptorWiringTest(AccountFixtureMixin, unittest.TestCase):
         finally:
             conn.close()
 
-    # ─── Pozitif yol ─────────────────────────────────────────────────────────
+    # ─── Positive path ───────────────────────────────────────────────────────
 
     def test_card_subscription_lands_in_radar(self):
         self._add(self.card_id, "Dijital Platformlar", "Netflix")
@@ -167,7 +167,7 @@ class InterceptorWiringTest(AccountFixtureMixin, unittest.TestCase):
         self.assertEqual(len(self._radar()), 1)
         self.assertEqual(self._tx_count(), 2, "Her harcama deftere yazılmalı")
 
-    # ─── Negatif yol ─────────────────────────────────────────────────────────
+    # ─── Negative path ───────────────────────────────────────────────────────
 
     def test_ordinary_card_spending_is_ignored(self):
         self._add(self.card_id, "Süpermarket", "Haftalık alışveriş", amount=430.0)

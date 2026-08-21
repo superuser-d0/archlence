@@ -107,7 +107,7 @@ def kurus_diff(x, y):
 
 
 CASES = [
-    # (etiket, W0, gelir, gider, gun, r)
+    # (label, W0, income, expense, days, r)
     ("r=0 · 30g · kurusiu",        10000.00, 150.75, 100.25,   30, 0.0),
     ("r=0 · 365g · kurusiu",       10000.00, 150.75, 100.25,  365, 0.0),
     ("r=0 · 3650g · kurusiu",      10000.00, 150.75, 100.25, 3650, 0.0),
@@ -160,7 +160,7 @@ def main():
         dominant = "float temsil" if ab > bc else "RK4 kesme"
         print(f"   - {label}: baskin hata = {dominant} (|A-B|={ab:.2e}, |B-C|={bc:.2e})")
 
-    # Hangi hata baskin?
+    # Which error dominates?
     print("\n=== Baskin hata kaynagi (tum vakalar) ===")
     float_dom = sum(1 for _, ab, bc, _, _ in verdicts if ab > bc)
     print(f"  float temsil hatasi baskin : {float_dom}/{len(verdicts)} vaka")
@@ -208,7 +208,7 @@ def measure_scenario_arithmetic():
         if epct:
             print(f"{'':>32}gider float={f_exp!r:<20} Decimal={str(d_exp):<20} "
                   f"kurus fark={kurus_diff(f_exp, d_exp):.2e}")
-        # difference sonucu
+        # Difference result
         diff = res["difference"]
         print(f"{'':>4}difference={diff!r}  kurusa={fiat_str(diff)}")
 
