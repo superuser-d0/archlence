@@ -158,11 +158,12 @@ class StartupCallOrderTest(unittest.TestCase):
                 archlence_main, "JsonStore",
                 _record("config_store", side_effect=_StopBuild()),
             ),
-            # Presenter gerçek MDDialog kuruyor; bu testin ilgi alanı
-            # SIRA, gösterim değil.
+            # Presenter gerçek Kivy widget'ı kuruyor; bu testin ilgi alanı
+            # SIRA, gösterim değil. Sahte presenter yine de GERÇEK sözleşmeyi
+            # taklit ediyor: güvenli bir root döndürüyor.
             mock.patch(
                 "services.startup_recovery.present_startup_recovery_failure",
-                lambda *a, **k: None,
+                lambda app, message, *a, **k: _record_failure(app, message),
             ),
             mock.patch.object(archlence_main, "Clock", mock.MagicMock()),
             mock.patch(
@@ -174,17 +175,22 @@ class StartupCallOrderTest(unittest.TestCase):
             patch.start()
         self.addCleanup(lambda: [p.stop() for p in patches])
 
+        # `build()` ARTIK FIRLATMIYOR: açılış hatasında minimal ve güvenli
+        # bir root döndürüyor (bkz. services/startup_recovery.py — "AÇILIŞ
+        # HATASI YÜZEYİ"). Bu yüzden hem dönen root hem de kontrollü
+        # `_StopBuild` istisnası kaydediliyor.
         raised = None
+        root = None
         try:
-            app.build()
+            root = app.build()
         except (_StopBuild, StartupRecoveryError) as exc:
             raised = exc
         except Exception as exc:                       # noqa: BLE001
             raised = exc
-        return order, raised
+        return order, raised, root
 
     def test_recovery_runs_before_key_database_and_config(self):
-        order, _ = self._run_build_recording_order()
+        order, _, _ = self._run_build_recording_order()
         self.assertIn("recovery", order, "kurtarma açılış yolunda çağrılmıyor")
         for later in ("key_load", "database_init", "config_store"):
             if later in order:
@@ -194,12 +200,15 @@ class StartupCallOrderTest(unittest.TestCase):
                 )
 
     def test_failed_recovery_stops_startup_before_database_init(self):
-        order, raised = self._run_build_recording_order(
+        order, raised, root = self._run_build_recording_order(
             recovery_side_effect=StartupRecoveryError(
                 "test", outcome=RecoveryOutcome.MANUAL_INTERVENTION_REQUIRED
             )
         )
-        self.assertIsInstance(raised, StartupRecoveryError)
+        # Fırlatmak yerine güvenli root dönüyor — olay döngüsünün başlaması
+        # için tek yol bu.
+        self.assertIsNone(raised, f"build() beklenmedik biçimde fırlattı: {raised!r}")
+        self.assertIsNotNone(root, "açılış hatasında güvenli root dönmedi")
         self.assertNotIn(
             "database_init", order,
             "kurtarma başarısızken veritabanı yine de açıldı",
@@ -227,6 +236,8 @@ class RecoveryFailurePresentationTest(unittest.TestCase):
 
         def _presenter(app, message):
             shown.append(message)
+            app._startup_recovery_failure = message
+            return object()  # gerçek presenter root döndürür
 
         app = archlence_main.ArchlenceApp.__new__(archlence_main.ArchlenceApp)
         patches = [
@@ -255,9 +266,11 @@ class RecoveryFailurePresentationTest(unittest.TestCase):
             patch.start()
         self.addCleanup(lambda: [p.stop() for p in patches])
 
-        with self.assertRaises(StartupRecoveryError):
-            app.build()
+        root = app.build()
 
+        # FIRLATMIYOR: `build()` fırlatınca Kivy `runTouchApp()`'e hiç
+        # ulaşmıyor ve açılan diyalog ekrana çizilmiyordu.
+        self.assertIsNotNone(root, "açılış hatasında güvenli root dönmedi")
         self.assertEqual(len(shown), 1, "presenter cagrilmadi")
         self.assertEqual(shown[0], USER_MESSAGE)
         # Hassas ayrinti kullanici metnine SIZMAMALI.
@@ -265,6 +278,15 @@ class RecoveryFailurePresentationTest(unittest.TestCase):
         self.assertNotIn("finance.db", shown[0])
         self.assertNotIn("Traceback", shown[0])
         self.assertEqual(app._startup_recovery_failure, USER_MESSAGE)
+
+
+def _record_failure(app, message):
+    """Gerçek presenter'ın sözleşmesi: bayrağı kur ve güvenli root döndür."""
+    app._startup_recovery_failure = message
+    return _SAFE_ROOT_SENTINEL
+
+
+_SAFE_ROOT_SENTINEL = object()
 
 
 class _StopBuild(Exception):

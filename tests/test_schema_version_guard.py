@@ -195,15 +195,51 @@ class UserMessageIsSafeTest(unittest.TestCase):
             def open(self):
                 captured["opened"] = True
 
+        # DİYALOG ARTIK ERTELENİYOR. `build()` içinde senkron açmak,
+        # açılmasına rağmen ekrana hiç çizilmemesi demekti: Kivy `build()`
+        # dönmeden `runTouchApp()`'i çağırmıyor, yani olay döngüsü henüz
+        # başlamamış oluyor. Sözleşmenin ölçülen kısmı aynı — sunucuya
+        # exception metni değil SABİT metin gidiyor mu.
+        scheduled = []
+
+        class _App:
+            pass
+
+        class _StandIn:
+            """Pencere gerektirmeyen widget karşılığı.
+
+            `Widget.__init__` `EventLoop.ensure_window()` çağırıyor ve
+            pencere sağlayıcısı olmayan başsız testte bu `sys.exit(1)`
+            yapıyor; bu testin konusu widget çizimi değil, metin sözleşmesi.
+            """
+
+            def __init__(self, **kwargs):
+                self.children = []
+                for name, value in kwargs.items():
+                    setattr(self, name, value)
+
+            def add_widget(self, widget):
+                self.children.append(widget)
+
+            def bind(self, **kwargs):
+                pass
+
+        app = _App()
         with mock.patch.dict(
             "sys.modules",
             {"kivymd.uix.dialog": mock.Mock(MDDialog=_Dialog)},
-        ):
-            startup_recovery.present_schema_too_new_failure(
-                object(), SCHEMA_TOO_NEW_MESSAGE
+        ), mock.patch("kivy.uix.boxlayout.BoxLayout", _StandIn),                 mock.patch("kivy.uix.label.Label", _StandIn):
+            root = startup_recovery.present_startup_failure(
+                app, startup_recovery.SCHEMA_TOO_NEW_TITLE,
+                SCHEMA_TOO_NEW_MESSAGE, schedule=scheduled.append,
             )
+            self.assertIsNotNone(root, "güvenli root dönmedi")
+            self.assertEqual(len(scheduled), 1, "diyalog ertelenmedi")
+            scheduled[0]()  # olay döngüsünün ilk karesini taklit et
+
         self.assertEqual(captured["text"], SCHEMA_TOO_NEW_MESSAGE)
         self.assertTrue(captured["opened"])
+        self.assertEqual(app._startup_recovery_failure, SCHEMA_TOO_NEW_MESSAGE)
 
 
 if __name__ == "__main__":

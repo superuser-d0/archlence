@@ -215,7 +215,8 @@ class StartupPresentationTest(_ProfileFixture):
 
         def present(_app, message):
             shown["message"] = message
-            return object()
+            _app._startup_recovery_failure = message
+            return object()  # gerçek presenter güvenli root döndürür
 
         loaded = []
         with mock.patch(
@@ -235,14 +236,17 @@ class StartupPresentationTest(_ProfileFixture):
                 mock.patch("services.background_task_manager.BackgroundTaskManager"), \
                 mock.patch("services.startup_recovery.run_startup_recovery",
                            lambda *a, **k: None):
-            with self.assertRaises(FinancialDataIntegrityError):
-                main.ArchlenceApp.build(app)
-        return app, shown, loaded
+            # `build()` ARTIK FIRLATMIYOR: güvenli root döndürüyor, çünkü
+            # fırlatınca Kivy'nin olay döngüsü hiç başlamıyor ve hata ekranı
+            # kullanıcıya çizilmiyordu.
+            root = main.ArchlenceApp.build(app)
+        return app, shown, loaded, root
 
     def test_build_presents_the_safe_screen_and_stops(self):
         self._make_legacy_orphaned()
-        app, shown, loaded = self._run_build()
+        app, shown, loaded, root = self._run_build()
 
+        self.assertIsNotNone(root, "açılış hatasında güvenli root dönmedi")
         self.assertEqual(shown.get("message"), DATA_INTEGRITY_MESSAGE)
         self.assertEqual(app._startup_recovery_failure, DATA_INTEGRITY_MESSAGE)
         self.assertEqual(

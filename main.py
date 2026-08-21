@@ -582,9 +582,11 @@ class ArchlenceApp(
             # Log'a outcome girer, kullanıcı metnine DEĞİL exception'ın
             # kendisi de girmez — sabit `USER_MESSAGE` gösterilir.
             get_logger().critical("Açılış kurtarması başarısız: %s", exc.outcome)
-            self._startup_recovery_failure = _RECOVERY_USER_MESSAGE
-            present_startup_recovery_failure(self, _RECOVERY_USER_MESSAGE)
-            raise
+            # FIRLATMIYOR, ROOT DÖNDÜRÜYOR — gerekçe
+            # `services/startup_recovery.py`'nin "AÇILIŞ HATASI YÜZEYİ"
+            # bölümünde: `build()` fırlatınca `App.run()` `runTouchApp()`'e
+            # hiç ulaşmıyor ve açılan diyalog ekrana çizilmiyordu.
+            return present_startup_recovery_failure(self, _RECOVERY_USER_MESSAGE)
 
         self._warm_crypto_key_in_background()
         migrate_legacy_database_location()
@@ -602,9 +604,7 @@ class ArchlenceApp(
                 "Veritabanı şeması bu yapıdan yeni: bulunan=%s desteklenen=%s",
                 exc.found, exc.supported,
             )
-            self._startup_recovery_failure = SCHEMA_TOO_NEW_MESSAGE
-            present_schema_too_new_failure(self, SCHEMA_TOO_NEW_MESSAGE)
-            raise
+            return present_schema_too_new_failure(self, SCHEMA_TOO_NEW_MESSAGE)
         except FinancialDataIntegrityError as exc:
             # BÜTÜNLÜK KAPISI. Kardeşleriyle aynı sözleşme: kapı fail-closed
             # durdu ve veritabanına DOKUNMADI; buradan sonrası yalnız sunum.
@@ -620,9 +620,7 @@ class ArchlenceApp(
                 "table=%s id=%s field=%s reason=%s",
                 exc.table, exc.record_id, exc.field, exc.reason,
             )
-            self._startup_recovery_failure = DATA_INTEGRITY_MESSAGE
-            present_data_integrity_failure(self, DATA_INTEGRITY_MESSAGE)
-            raise
+            return present_data_integrity_failure(self, DATA_INTEGRITY_MESSAGE)
         # BİRİKİM HEDEFLERİ ARTIK JSON'DAN OKUNMUYOR.
         #
         # Eskiden burada `JsonStore(savings_goals.json)` açılıyor ve ekrandaki
@@ -736,6 +734,23 @@ class ArchlenceApp(
         dialog.open()
 
     def on_start(self):
+        # FAIL-CLOSED AÇILIŞ. `build()` bir açılış hatası yüzeyi döndürdüyse
+        # root dashboard DEĞİL, minimal bir mesaj ekranıdır; `self.root.ids`
+        # yoktur ve aşağıdaki hiçbir adım çalıştırılmamalıdır.
+        #
+        # Kivy `_run_prepare()` içinde `build()`'dan HEMEN SONRA `on_start`
+        # dispatch ediyor, yani bu kapı olmadan uygulama hata ekranını
+        # gösterirken arka planda cüzdan ısıtması, günlük bakiye anlık
+        # görüntüsü, grafik yenileme ve varlık yüklemesi yapardı — tam da
+        # açılışın "dokunma" dediği veritabanı üzerinde.
+        if getattr(self, "_startup_recovery_failure", None):
+            from utils.logging_config import get_logger
+            get_logger().critical(
+                "Açılış hata yüzeyi etkin; normal başlangıç adımları "
+                "çalıştırılmıyor."
+            )
+            return
+
         self._normalize_card_shadows()
 
         # Karantina bildirimi UI ayağa kalktıktan SONRA: `build()` sırasında

@@ -430,6 +430,25 @@ jobs:
         run: >-
           xvfb-run -a python scripts/dev/verify_password_dialog.py
           --output visual/password-${{ matrix.language }}-${{ matrix.dpi }}
+      - name: Açılış hatası ekranı gerçekten çiziliyor
+        # NEDEN BURADA: üç açılış hatası yolu da `MDDialog.open()` çağırıp
+        # istisnayı yeniden fırlatıyordu. Kivy `build()` fırlatınca
+        # `runTouchApp()`'e hiç ulaşmıyor, yani olay döngüsü başlamıyor ve
+        # açılan diyalog ekrana ÇİZİLMİYOR. Mock-call testi bunu yeşil
+        # görürdü — `open()` gerçekten çağrılıyordu.
+        #
+        # Dişleri doğrulandı: yalnız `main.py` eski hâline döndürüldüğünde
+        # kapı 7 bulgu ile kırmızı veriyor (runTouchApp çağrılmadı, root
+        # None, metin ekranda yok).
+        env:
+          KIVY_DPI: ${{ matrix.dpi }}
+          ARCHLENCE_LANGUAGE: ${{ matrix.language }}
+          XDG_DATA_HOME: ${{ runner.temp }}/archlence-startup-data
+          XDG_CACHE_HOME: ${{ runner.temp }}/archlence-startup-cache
+          XDG_STATE_HOME: ${{ runner.temp }}/archlence-startup-state
+        run: >-
+          xvfb-run -a python scripts/dev/verify_startup_failure_surface.py
+          --output visual/startup-${{ matrix.language }}-${{ matrix.dpi }}
       - name: Birikim hedefi kartları SQL'den besleniyor
         # NEDEN BURADA: birikim kartları uzun süre savings_goals.json'dan
         # çiziliyordu, para ise SQLite'taydı. Tek kaynak SQL'e taşındıktan

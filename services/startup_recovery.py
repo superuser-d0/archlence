@@ -53,55 +53,138 @@ USER_MESSAGE = (
 )
 
 
-def present_startup_recovery_failure(app, message):
-    """Kurtarma hatasını kullanıcıya güvenli biçimde gösterir.
+# ── AÇILIŞ HATASI YÜZEYİ ─────────────────────────────────────────────────────
+# Üç açılış hatası (kurtarma, şema kuşağı, veri bütünlüğü) TEK bir yüzeyi
+# paylaşır.
+#
+# ÖLÇÜLEN KUSUR: bu üç yol `MDDialog.open()` çağırıp sonra istisnayı yeniden
+# fırlatıyordu. Kivy'nin `App.run()` sırası şu:
+#
+#     _run_prepare()      -> self.build() çağrılır, root Window'a eklenir
+#     runTouchApp()       -> OLAY DÖNGÜSÜ burada başlar
+#
+# `build()` fırlatınca `_run_prepare` yarıda kalır ve `runTouchApp()`'e HİÇ
+# ulaşılmaz. Gerçek Kivy penceresiyle ölçüldü:
+#
+#     build() istisna firlatti mi : FinancialDataIntegrityError
+#     runTouchApp CAGRILDI MI     : False
+#     app.root                    : None
+#     MDDialog.open() cagrildi mi : ['Veritabanı doğrulanamadı']
+#
+# Yani diyalog nesnesi oluşturuluyor ve `open()` çağrılıyor — bir mock-call
+# testi bunu YEŞİL görürdü — ama olay döngüsü hiç başlamadığı için ekrana
+# tek bir piksel çizilmiyor. Kullanıcının gördüğü şey bir traceback.
+#
+# YENİ SÖZLEŞME: `build()` fırlatmaz. Minimal ve güvenli bir root DÖNDÜRÜR;
+# mesaj o root'un kendisinde yazılıdır (olay döngüsü başlar başlamaz
+# görünür) ve ayrıca ilk karede bir diyalog açılır. Uygulama bu noktadan
+# sonra normal kullanıma DEVAM EDEMEZ: `on_start` erken çıkar, hiçbir
+# finansal ekran ve veri yükleme yolu çalışmaz.
 
-    Ayrı fonksiyon olmasının sebebi test edilebilirlik: gerçek Kivy pencere
-    sağlayıcısı olmadan da çağrıldığı ve DOĞRU metni aldığı doğrulanabilsin.
+RECOVERY_FAILURE_TITLE = "Geri yükleme tamamlanamadı"
+SCHEMA_TOO_NEW_TITLE = "Veritabanı bu sürümden yeni"
+DATA_INTEGRITY_TITLE = "Veritabanı doğrulanamadı"
 
-    `message` DAİMA `USER_MESSAGE` olmalıdır — çağıran, exception'ın kendi
-    metnini veya traceback'ini buraya geçirmemelidir. Anahtar, parola,
-    journal içeriği veya dosya yolu kullanıcı metnine girmemeli.
+
+def build_startup_failure_root(title, message):
+    """Açılış hatası için minimal, kendi kendine yeten bir root üretir.
+
+    `ui/dashboard.kv` YÜKLENMEZ ve hiçbir `ids` referansı kullanılmaz: bu
+    yüzeyin ayakta olması için uygulamanın geri kalanının hazır olması
+    gerekmiyor. Metin root'un İÇİNDE yazılı, yani diyalog hiç açılamasa bile
+    kullanıcı ne olduğunu görür.
     """
-    from kivymd.uix.dialog import MDDialog
+    from kivy.uix.boxlayout import BoxLayout
+    from kivy.uix.label import Label
 
-    dialog = MDDialog(title="Geri yükleme tamamlanamadı", text=message)
-    dialog.open()
-    return dialog
+    # DÜZ KIVY WIDGET'LARI, KivyMD DEĞİL — bilinçli. KivyMD widget'ları
+    # kurulurken `App.get_running_app().theme_cls`'e bakar ve tema makinesi
+    # `build()` içinde hatanın oluştuğu noktada henüz hazır olmayabilir
+    # (kurtarma hatası config okunmadan ÖNCE oluşuyor).
+    #
+    # `dp()`/`sp()` DE KULLANILMIYOR: ikisi de Kivy'nin metrik/pencere
+    # başlatmasına bağlı ve pencere kurulamadıysa `dpi2px` `TypeError`
+    # fırlatıyor. Bu yüzeyin tek işi "bir şeyler bozuldu" demek; bozulduğunu
+    # bildirdiği makineye bağımlı olmamalı. Bedeli, ölçünün DPI ile
+    # ölçeklenmemesi — bir mesaj ekranı için kabul edilebilir.
+    root = BoxLayout(orientation="vertical", padding=32, spacing=16)
+
+    heading = Label(
+        text=title,
+        font_size=24,
+        bold=True,
+        halign="center",
+        valign="middle",
+        size_hint_y=None,
+        height=64,
+        color=(0.85, 0.15, 0.15, 1),
+    )
+    heading.bind(size=lambda widget, value: setattr(
+        widget, "text_size", (value[0], None)))
+
+    body = Label(
+        text=message,
+        font_size=15,
+        halign="center",
+        valign="top",
+        color=(0.2, 0.2, 0.2, 1),
+    )
+    body.bind(size=lambda widget, value: setattr(
+        widget, "text_size", value))
+
+    root.add_widget(heading)
+    root.add_widget(body)
+    return root
+
+
+def present_startup_failure(app, title, message, *, schedule=None):
+    """Fail-closed açılış yüzeyini kurar ve root'u DÖNDÜRÜR.
+
+    İSTİSNA FIRLATMAZ — fırlatmak, olay döngüsünün hiç başlamaması demekti.
+
+    `message` DAİMA ilgili modülün sabit kullanıcı metni olmalıdır; exception
+    metni, traceback, dosya yolu, tablo adı, rowid, anahtar, parola ya da
+    finansal değer buraya GEÇİRİLMEMELİ. Teknik ayrıntı çağıranın log
+    satırında kalır.
+
+    `schedule` testler için enjekte edilebilir; verilmezse diyalog Kivy'nin
+    `Clock`'u ile İLK KAREDE, yani pencere ve olay döngüsü hazır olduktan
+    sonra açılır.
+    """
+    app._startup_recovery_failure = message
+    app._startup_failure_title = title
+    root = build_startup_failure_root(title, message)
+
+    def _open_dialog(*_args):
+        from kivymd.uix.dialog import MDDialog
+
+        dialog = MDDialog(title=title, text=message, auto_dismiss=False)
+        app._startup_failure_dialog = dialog
+        dialog.open()
+        return dialog
+
+    if schedule is None:
+        from kivy.clock import Clock
+
+        Clock.schedule_once(_open_dialog, 0)
+    else:
+        schedule(_open_dialog)
+    return root
+
+
+def present_startup_recovery_failure(app, message):
+    """Kurtarma hatası — ortak yüzeyin ince sarmalayıcısı."""
+    return present_startup_failure(app, RECOVERY_FAILURE_TITLE, message)
 
 
 def present_schema_too_new_failure(app, message):
-    """Şema kuşağı hatasını kullanıcıya güvenli biçimde gösterir (A-5).
-
-    Kardeşiyle aynı sözleşme: `message` DAİMA
-    `database.init_db.SCHEMA_TOO_NEW_MESSAGE` olmalı, exception metni veya
-    bulunan/desteklenen sürüm numaraları buraya GEÇİRİLMEMELİ. Numaralar
-    geliştirici log'una gider, kullanıcı metnine değil.
-    """
-    from kivymd.uix.dialog import MDDialog
-
-    dialog = MDDialog(title="Veritabanı bu sürümden yeni", text=message)
-    dialog.open()
-    return dialog
+    """Şema kuşağı hatası (A-5) — ortak yüzeyin ince sarmalayıcısı."""
+    return present_startup_failure(app, SCHEMA_TOO_NEW_TITLE, message)
 
 
 def present_data_integrity_failure(app, message):
-    """Veri bütünlüğü hatasını kullanıcıya güvenli biçimde gösterir.
-
-    Kardeşleriyle aynı sözleşme: `message` DAİMA
-    `database.init_db.DATA_INTEGRITY_MESSAGE` olmalı. Tablo adı, rowid,
-    ebeveyn tablo, dosya yolu, şifreli içerik ya da herhangi bir finansal
-    değer buraya GEÇİRİLMEMELİ — hepsi geliştirici log'una gider.
-
-    Bu sınır olmadan `FinancialDataIntegrityError` `build()` içinden ham
-    hâliyle dışarı taşıyordu: kullanıcı güvenli bir ekran yerine çökme
-    görüyordu ve exception metni tablo/rowid taşıyordu.
-    """
-    from kivymd.uix.dialog import MDDialog
-
-    dialog = MDDialog(title="Veritabanı doğrulanamadı", text=message)
-    dialog.open()
-    return dialog
+    """Veri bütünlüğü hatası — ortak yüzeyin ince sarmalayıcısı."""
+    return present_startup_failure(app, DATA_INTEGRITY_TITLE, message)
 
 
 def run_startup_recovery(db_path=None, *, config_path=None):
