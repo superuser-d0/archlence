@@ -80,11 +80,8 @@ class EncryptedFieldInventoryTest(unittest.TestCase):
         )
         # active_debts (debt_name, total_amount, monthly_payment)
         insert_debt("Araç Kredisi", 60_000.0, 5_000.0, 12)
-        # recurring_payments (name, amount).
-        # `is_credit_card=True` ZORUNLU: interceptor kart dışı harcamaları
-        # bilerek atlar (kart dışı tekrarlayanları formun kendi akışı yazar,
-        # ikisi birden çalışsa çift kayıt olurdu). Bayrak atlanınca fonksiyon
-        # sessizce None döner ve bu tablo hiç kapsanmaz.
+
+
         register_subscription_from_transaction(
             card_id, 149.90, "Dijital Platformlar", "Streaming",
             transaction_date="2026-08-01 12:00:00", is_credit_card=True,
@@ -92,11 +89,7 @@ class EncryptedFieldInventoryTest(unittest.TestCase):
         # savings_goals (goal_name)
         SavingsService.create_goal("Tatil", 10_000.0)
 
-        # savings_migration_quarantine (goal_name, payload). GERÇEK yazma
-        # yolu: göç motoru, otomatik taşınamayan bir legacy kaydı karantinaya
-        # alır. Elle INSERT etmek burada işe yaramazdı — bu testin amacı
-        # ÜRETİM yollarının o tabloya gerçekten şifreli veri yazdığını
-        # kanıtlamak.
+
         import json as _json
         from pathlib import Path as _Path
         from services.savings_migration import run_savings_migration
@@ -104,7 +97,7 @@ class EncryptedFieldInventoryTest(unittest.TestCase):
         legacy_json = _Path(self.db_path).with_name("savings_goals.json")
         legacy_json.write_text(
             _json.dumps({"goals": {"data": [
-                # SQL'de karşılığı yok ve üzerinde para var -> karantina.
+
                 {"id": 4242, "name": "Kayıp Fon", "target": 9000.0,
                  "current": 4500.0},
             ]}}),
@@ -190,7 +183,7 @@ class EncryptedFieldInventoryTest(unittest.TestCase):
         """
         from services.backup_service import ENCRYPTED_FIELDS
 
-        # installment_plans tembel oluşturuluyor; önce yazma yollarını çalıştır.
+
         self._exercise_every_encrypting_write_path()
 
         with closing(sqlite3.connect(self.db_path)) as conn:

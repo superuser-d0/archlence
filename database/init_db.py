@@ -5,60 +5,24 @@ from datetime import date
 from database.models import ASSET_PRICE_CACHE_SCHEMA
 from utils.errors import FinancialDataIntegrityError, SchemaTooNewError
 
-# `PRAGMA user_version` — şema kuşağının işareti (denetim bulgusu A-5).
-#
-# Bu değere kadar SIFIRDI, yani veritabanı hangi sürüm tarafından yazıldığını
-# HİÇ söylemiyordu. Sonucu şuydu: eski bir yapı, yeni bir yapının yazdığı
-# profili açıp üzerine yazabilirdi — tanımadığı sütunları görmezden gelerek.
-# Kişisel finans verisinde bu sessiz veri kaybı demek.
-#
-# Kural: şema ileri-uyumsuz biçimde değiştiğinde (sütun/tablo eklendiğinde
-# DEĞİL, eski yapının YANLIŞ okuyacağı bir değişiklik olduğunda) artırılır.
-#
-# 1 = v0.0.9 kuşağı. Mevcut bütün profiller 0 taşıyor ve 0 < 1 olduğu için
-# aşağıdaki reddetme yolu var olan hiçbir kurulumda tetiklenemez; ancak
-# birisi ileride daha yeni bir yapı çalıştırıp sonra geri dönerse devreye girer.
-#
-# 2 = birikim hedeflerinin tek doğruluk kaynağı SQLite kuşağı
-# (docs/SAVINGS_SINGLE_SOURCE_PLAN.md). Bump BİLİNÇLİ ve kuralın "sütun
-# eklemek yetmez" tarafına RAĞMEN yapıldı, çünkü değişen şey yalnız sütunlar
-# değil OKUMA SÖZLEŞMESİ: bu kuşaktan itibaren hedefler yalnız SQL'den
-# okunuyor ve `savings_goals.json` artık veri kaynağı değil. Eski bir yapı bu
-# veritabanını açsaydı hedefleri yine bayat JSON'la birlikte yorumlar ve
-# düzeltilen kimlik-yeniden-kullanım kusurunu geri getirirdi — üstelik
-# kullanıcının parasını yanlış hedefe yazarak. Eski sürüme dönmenin doğru yolu
-# göçün aldığı otomatik güvenlik yedeğidir.
+
 SCHEMA_VERSION = 2
 
-# Kullanıcıya gösterilecek metin. Dosya yolu, sürüm numarası veya exception
-# ayrıntısı İÇERMEZ — `services/startup_recovery.py::USER_MESSAGE` ile aynı
-# gerekçe.
+
 SCHEMA_TOO_NEW_MESSAGE = (
     "Bu veritabanı uygulamanın daha yeni bir sürümü tarafından oluşturulmuş. "
     "Verilerinizi bozmamak için açılış durduruldu; hiçbir dosyaya "
     "dokunulmadı. Lütfen uygulamanın güncel sürümünü kullanın."
 )
 
-# Bütünlük kapısının kullanıcıya gösterdiği metin. `SCHEMA_TOO_NEW_MESSAGE`
-# ile aynı sözleşme: dosya yolu, tablo adı, rowid, şifreli içerik veya
-# finansal değer İÇERMEZ. Teknik ayrıntı yalnız log'a gider.
+
 DATA_INTEGRITY_MESSAGE = (
     "Veritabanı bütünlüğü doğrulanamadı. Verilerinizi korumak için açılış "
     "durduruldu; hiçbir kayıt değiştirilmedi veya silinmedi. Doğrulanmış bir "
     "yedeği geri yükleyin ya da onarım için destek alın."
 )
 
-#: `savings_goals` şemasının TEK tanımı.
-#
-# Taze kurulum bu metinle yaratıyor, göç eden profil ise `goal_uid NOT NULL`
-# kısıtını uygularken tabloyu AYNI metinle yeniden yaratıyor. İki yolun
-# şemasını ayrı ayrı yazmak, aralarında görünmez bir sapma bırakırdı ve
-# `scripts/audit/check_schema_consistency.py`nin "fresh vs upgraded"
-# karşılaştırması bunu ancak CI'da, sebebi belirsiz bir farkla gösterirdi.
-#
-# goal_uid NOT NULL: kalıcı kimlik OPSİYONEL OLAMAZ. Kısıt yine de göçün
-# İKİNCİ adımında uygulanıyor (önce nullable + backfill), çünkü backfill
-# yarıda kalırsa NOT NULL bir şema açılmayan bir profil bırakırdı.
+
 SAVINGS_GOALS_DDL = """
     CREATE TABLE {exists}{table} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -74,7 +38,7 @@ SAVINGS_GOALS_DDL = """
     )
 """
 
-#: Yeniden yaratımda satırların taşınacağı sütunlar (SIRA ÖNEMLİ).
+
 SAVINGS_GOALS_COLUMNS = (
     "id, goal_name, target_amount, current_amount, target_date, status,"
     " goal_uid, color, auto_deposit, created_at"
@@ -101,12 +65,6 @@ def initialize_database():
         conn.close()
 
 
-#: `foreign_key_check`'ten okunacak EN FAZLA ihlal sayısı.
-#
-# `fetchall()` KULLANILMIYOR. Tam sayıyı öğrenmenin bedeli, ihlal sayısı kadar
-# satırı belleğe almak: milyonlarca öksüz satırı olan bozuk bir profilde bu,
-# hata mesajını üretmeye çalışırken sürecin belleğini tüketmek demek. Teşhis
-# için ilk birkaç örnek yeter; mesaj "en az N" der, kesin sayı vermez.
 _FK_VIOLATION_SAMPLE = 5
 
 
@@ -186,15 +144,12 @@ def _preflight_foreign_keys(conn):
 def _initialize_database(conn):
     cursor = conn.cursor()
 
-    # KUŞAK KONTROLÜ HER ŞEYDEN ÖNCE. Tek bir `CREATE TABLE IF NOT EXISTS`
-    # bile çalışmadan önce olmalı: amaç, tanımadığımız bir şemaya HİÇ
-    # dokunmamak. Fail-closed — `run_startup_recovery` ile aynı gerekçe.
+
     found = cursor.execute("PRAGMA user_version").fetchone()[0]
     if found > SCHEMA_VERSION:
         raise SchemaTooNewError(found, SCHEMA_VERSION)
 
-    # BÜTÜNLÜK KAPISI DA HER ŞEYDEN ÖNCE, aynı gerekçeyle: bozuk bir profile
-    # ONU DÜZELTMEYE ÇALIŞMADAN ÖNCE hiç dokunmamak.
+
     _preflight_foreign_keys(conn)
 
     # 1. Hesaplar Tablosu
@@ -210,24 +165,11 @@ def _initialize_database(conn):
         )
     """)
 
-    # Çoklu Hesap / Kredi Kartı sütunları (migration guard).
-    # Mevcut veritabanlarında accounts tablosu yalnızca (id, name, type, balance)
-    # içeriyor; aşağıdaki üç sütun sonradan eklendi. ALTER TABLE ... ADD COLUMN
-    # eski satırlara NULL yazar, bu yüzden account_type hemen eski "type"
-    # değerinden geriye doldurulur ('credit' -> 'credit_card', diğerleri
-    # 'checking'). Böylece hiçbir mevcut hesap türsüz kalmaz.
+
     cursor.execute("PRAGMA table_info(accounts)")
     existing_account_cols = {row[1] for row in cursor.fetchall()}
-    # ŞEMA ADIMI ile VERİ ADIMI AYRI. Eskiden backfill `if column not in
-    # cols` bloğunun İÇİNDEYDİ ve bu, kesintiye karşı savunmasızdı:
-    # `ALTER TABLE` kalıcı olur, backfill patlarsa sonraki açılış sütunu
-    # MEVCUT görüp bloğa hiç girmez ve `account_type` kalıcı olarak NULL
-    # kalırdı (denetim bulgusu P1-2, kanıt: account_type_after_retry=None).
-    #
-    # Artık sütunun varlığı TAMAMLANMA KANITI SAYILMIYOR. Backfill kendi
-    # postcondition'ına bakıyor: "geriye doldurulmamış satır var mı?"
-    # Bu, adımı idempotent ve retry-safe yapıyor — kaç kez kesilirse
-    # kesilsin, bir sonraki açılış eksiği tamamlar.
+
+
     if "account_type" not in existing_account_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN account_type TEXT")
     cursor.execute(
@@ -243,11 +185,11 @@ def _initialize_database(conn):
 
     if "credit_limit" not in existing_account_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN credit_limit REAL DEFAULT 0")
-    # Aynı gerekçe: backfill kendi eksikliğine bakar.
+
     cursor.execute("UPDATE accounts SET credit_limit = 0 WHERE credit_limit IS NULL")
     if "statement_date" not in existing_account_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN statement_date INTEGER")
-        
+
     if "card_number_full" not in existing_account_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN card_number_full TEXT")
     if "expiry_date" not in existing_account_cols:
@@ -255,14 +197,7 @@ def _initialize_database(conn):
     if "cvc_code" not in existing_account_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN cvc_code TEXT")
 
-    # card_number_full/expiry_date/cvc_code artık YAZILMIYOR (bkz.
-    # AccountService.create_account, docs/ROADMAP.md Faz 1 madde 1). CVC ve
-    # son kullanma tarihinin uygulamada hiçbir tüketicisi yoktu — saklamanın
-    # ürünsel bir karşılığı olmadan risk taşıyordu. Tam kart numarası ise
-    # yalnızca son-4-hane + kart ağı GÖSTERİMİ için kullanılıyordu; bu ikisi
-    # artık hesap oluşturulduğu ANDA türetilip ayrı, hassas olmayan
-    # sütunlarda (masked_number, network_logo) saklanıyor — çözülecek ham
-    # numara bir daha diske hiç yazılmıyor.
+
     if "masked_number" not in existing_account_cols:
         cursor.execute("ALTER TABLE accounts ADD COLUMN masked_number TEXT")
     if "network_logo" not in existing_account_cols:
@@ -284,12 +219,7 @@ def _initialize_database(conn):
             "WHERE online_payments_enabled IS NULL"
         )
 
-    # Tek seferlik geri dolgu + temizlik migration'ı. Idempotent: ikinci
-    # çalıştırmada `card_number_full IS NOT NULL` koşulunu karşılayan satır
-    # kalmaz. Önce MEVCUT şifreli kart numarasından masked_number/
-    # network_logo türetilir (kullanıcı kartını yeniden girmek zorunda
-    # kalmasın), SONRA ham PAN/SKT/CVC null'lanır — sıra önemli, tersi
-    # türetmeden önce veriyi kaybederdi.
+
     cursor.execute(
         "SELECT id, card_number_full FROM accounts WHERE card_number_full IS NOT NULL"
     )
@@ -308,34 +238,12 @@ def _initialize_database(conn):
                 last4 = dec_num[-4:] if len(dec_num) >= 4 else dec_num
                 masked_number = f"**** **** **** {last4}"
             except KeyUnavailableError:
-                # ANAHTAR YOKSA DURDUR — ve ham veriyi SİLME. Bu, verinin
-                # bozuk olduğu anlamına GELMEZ: anahtar geri geldiğinde aynı
-                # ciphertext sorunsuz çözülür. Şimdi temizlersek her kartın
-                # maskesi ve ağ logosu kalıcı olarak kaybolur, üstelik hiçbir
-                # şey bozulmamışken. Migration bir sonraki açılışta yeniden
-                # denenir; aşağıdaki NULL'lama adımına hiç ulaşılmaz çünkü
-                # bu istisna dışarı çıkar ve `initialize_database` commit
-                # etmeden kapanır (yarım göç kalmaz). Anahtarsız açılışın
-                # kendisi zaten uygulama genelinde durdurucu bir hata
-                # (`utils/crypto`'nun fail-closed sözleşmesi).
+
+
                 raise
             except (DecryptionError, ValueError, TypeError):
-                # BOZUK/DOĞRULANAMAYAN CIPHERTEXT — devam et. `DecryptionError`
-                # `IntegrityVerificationError`ı da kapsar. Bu satır artık
-                # okunamaz; anahtar yerinde olduğu hâlde açılamıyorsa bir
-                # sonraki açılışta da açılmayacak. Migration'ın VARLIK SEBEBİ
-                # ham PAN'ı diskten kaldırmak; çözülemeyen bir kayıt uğruna
-                # onu diskte bırakmak, kaybedilen tek şey görüntüleme bilgisi
-                # olduğu hâlde asıl riski sürdürürdü.
-                #
-                # Eskiden burada yalnızca (ValueError, TypeError) vardı ve
-                # "decrypt() hiçbir zaman raise etmez" yazıyordu. O not
-                # BAYATLAMIŞTI: `decrypt()` PR #22'den beri tipli istisna
-                # fırlatıyor ve hiçbiri ValueError/TypeError türevi değil —
-                # yani bozuk tek bir kart satırı, temizliği yapmak yerine
-                # AÇILIŞI çökertiyordu (ölçüldü: DecryptionError ve
-                # IntegrityVerificationError `initialize_database`'ten dışarı
-                # çıkıyor, ham PAN da diskte kalıyordu).
+
+
                 from utils.logging_config import get_logger
                 get_logger().exception(f"[VERİ BÜTÜNLÜĞÜ] accounts id={account_id} kart no migration'ı başarısız")
                 masked_number, network_logo = None, None
@@ -348,7 +256,7 @@ def _initialize_database(conn):
         "WHERE card_number_full IS NOT NULL OR expiry_date IS NOT NULL OR cvc_code IS NOT NULL"
     )
 
-    # 2. İşlemler Tablosu
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -393,7 +301,7 @@ def _initialize_database(conn):
         )
     """)
 
-    # 4. Bütçe Planlama Tablosu
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS monthly_budget_plan (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -446,7 +354,7 @@ def _initialize_database(conn):
         "WHERE alert_threshold_pct IS NULL"
     )
 
-    # 5. Aktif Borçlar Tablosu
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS active_debts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -459,13 +367,13 @@ def _initialize_database(conn):
         )
     """)
 
-    # Mevcut veritabanlarında "name" sütununu "debt_name" olarak güncelleme (migration guard)
+
     cursor.execute("PRAGMA table_info(active_debts)")
     existing_debt_cols = {row[1] for row in cursor.fetchall()}
     if "name" in existing_debt_cols and "debt_name" not in existing_debt_cols:
         cursor.execute("ALTER TABLE active_debts RENAME COLUMN name TO debt_name")
 
-    # Borç kartındaki otomatik ödeme talimatı için sütunlar (migration guard)
+
     if "is_auto_pay" not in existing_debt_cols:
         cursor.execute("ALTER TABLE active_debts ADD COLUMN is_auto_pay INTEGER DEFAULT 0")
     if "auto_pay_day" not in existing_debt_cols:
@@ -474,7 +382,6 @@ def _initialize_database(conn):
         cursor.execute("ALTER TABLE active_debts ADD COLUMN last_auto_pay_date TEXT")
 
 
-    # 6. Aktif Varlıklar Tablosu (Hisse, Altın, Tahvil vb.)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS active_assets (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -487,15 +394,13 @@ def _initialize_database(conn):
         )
     """)
 
-    # Mevcut veritabanları için purchase_date sütunu ekleme (migration guard)
+
     cursor.execute("PRAGMA table_info(active_assets)")
     existing_cols = {row[1] for row in cursor.fetchall()}
     if "purchase_date" not in existing_cols:
         cursor.execute("ALTER TABLE active_assets ADD COLUMN purchase_date TEXT")
 
-    # Dinamik TTL fiyat önbelleği. Eski sürüm aynı tablo adını
-    # (price_try REAL, updated_at INTEGER) ile tembel oluşturuyordu; satırları
-    # kaybetmeden yeni DateTime/metaveri sözleşmesine taşı.
+
     cursor.execute(
         "SELECT name FROM sqlite_master "
         "WHERE type='table' AND name='asset_price_cache'"
@@ -518,10 +423,8 @@ def _initialize_database(conn):
                       FROM asset_price_cache_legacy
                 """)
             cursor.execute("DROP TABLE asset_price_cache_legacy")
-        # `source` sütunu (hangi sağlayıcı verdi) sonradan eklendi. Aynı
-        # migration price_service._ensure_cache içinde de var — orası fiyat
-        # cache'ine her erişimin geçtiği kapı, burası ise açılıştaki tek
-        # seferlik yol. İkisi de idempotent; hangisi önce koşarsa koşsun.
+
+
         cursor.execute("PRAGMA table_info(asset_price_cache)")
         if "source" not in {row[1] for row in cursor.fetchall()}:
             cursor.execute(
@@ -530,16 +433,9 @@ def _initialize_database(conn):
         cursor.execute(ASSET_PRICE_CACHE_SCHEMA)
 
 
-    # NOT: Bir ara ayrı bir `subscriptions` tablosu oluşturuluyordu ama hiçbir
-    # yerden okunmuyor/yazılmıyordu. Abonelikler `recurring_payments` üzerinde
-    # yaşıyor (arayüz, radar ve vade motoru hep onu okuyor); ikinci bir boş
-    # tablo tutmak "hangisi doğru?" sorusunu ve sessiz tutarsızlık riskini
-    # getiriyordu, o yüzden kaldırıldı. Var olan kurulumlardaki boş tabloyu da
-    # temizliyoruz — içinde hiç veri üretilmemişti.
     cursor.execute("DROP TABLE IF EXISTS subscriptions")
 
 
-    # 7. Tekrarlanan Ödemeler Tablosu (Kira, Netflix, Spotify vb.)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS recurring_payments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -562,7 +458,7 @@ def _initialize_database(conn):
             "ALTER TABLE recurring_payments ADD COLUMN recurrence_day INTEGER"
         )
     if "transaction_type" not in existing_recurring_cols:
-        # Eski tablodaki bütün kayıtlar abonelik/fatura gideriydi.
+
         cursor.execute(
             "ALTER TABLE recurring_payments ADD COLUMN transaction_type TEXT "
             "NOT NULL DEFAULT 'expense'"
@@ -573,28 +469,12 @@ def _initialize_database(conn):
         WHERE recurrence_day IS NULL
     """)
 
-    # 8. Birikim Hedefleri Tablosu (Yaz Tatili, Araç Peşinatı, Acil Durum Fonu vb.)
-    # goal_name AES şifreli tutulur (kişisel hayal/plan bilgisidir); tutarlar
-    # monthly_budget_plan'daki gibi düz REAL kalır — hedefe para ekleme/çekme
-    # accounts.balance ile aynı SQL işleminde atomik güncellenmek zorunda,
-    # şifreli kolonla "current_amount = current_amount + ?" yazılamazdı.
-    # status: 'aktif' | 'tamamlandi'
-    #
-    # goal_uid: NESİLLER ARASI KALICI KİMLİK (docs/SAVINGS_SINGLE_SOURCE_PLAN.md
-    # §3). Sayısal `id` bu işi YAPAMAZ: `sqlite_sequence` `finance.db`'nin
-    # İÇİNDE olduğu için restore sayacı da geri sarıyor ve restore'dan sonra
-    # açılan hedef, eski bir kaydın id'sini yeniden alıyor
-    # (tests/test_savings_identity_reuse_regression.py). `id` yine de KALIYOR:
-    # `balance_events.entity_id` ona bağlı, kaldırmak defteri kırardı.
+
     cursor.execute(
         SAVINGS_GOALS_DDL.format(table="savings_goals", exists="IF NOT EXISTS ")
     )
 
-    # Migration guard. SIRA ÖNEMLİ: aşağıdaki dört `ALTER TABLE` sütunları
-    # yukarıdaki `CREATE TABLE` ile AYNI sırayla ekliyor.
-    # `scripts/audit/check_schema_consistency.py` taze kurulum ile göç etmiş
-    # profili sütun sütun (ve sırasıyla) karşılaştırıyor; sıra farkı kapıyı
-    # kırardı, üstelik gerçek bir uyumsuzluk olmadan.
+
     cursor.execute("PRAGMA table_info(savings_goals)")
     existing_goal_cols = {row[1] for row in cursor.fetchall()}
     if "goal_uid" not in existing_goal_cols:
@@ -602,9 +482,8 @@ def _initialize_database(conn):
     if "color" not in existing_goal_cols:
         cursor.execute("ALTER TABLE savings_goals ADD COLUMN color TEXT")
     if "auto_deposit" not in existing_goal_cols:
-        # NOT NULL DEFAULT 0 — `auto_deposit` bir kullanıcı TERCİHİ ve
-        # varsayılanı "kapalı". Sütunu eklerken sabit varsayılan vermek
-        # SQLite'ta serbesttir; mevcut satırlar 0 alır.
+
+
         cursor.execute(
             "ALTER TABLE savings_goals "
             "ADD COLUMN auto_deposit INTEGER NOT NULL DEFAULT 0"
@@ -612,24 +491,13 @@ def _initialize_database(conn):
     if "created_at" not in existing_goal_cols:
         cursor.execute("ALTER TABLE savings_goals ADD COLUMN created_at TEXT")
 
-    # UNIQUE ama (henüz) NOT NULL DEĞİL. SQLite'ta UNIQUE birden çok NULL'a
-    # izin verir; bu, backfill tamamlanmadan da veritabanının AÇILABİLİR
-    # kalmasını sağlıyor. Sıra bilinçli (plan §2.3): önce nullable + unique,
-    # sonra backfill, NOT NULL ise ancak backfill'in eksiksizliği ölçüldükten
-    # sonra. Ters sırada, göç yarıda kalırsa açılmayan bir profil kalırdı.
+
     cursor.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_savings_goals_uid "
         "ON savings_goals(goal_uid)"
     )
 
-    # Backfill YALNIZ `goal_uid IS NULL` satırlara yazar. Bu, idempotentliğin
-    # tamamı: aynı migration ikinci kez koştuğunda var olan hiçbir UID
-    # değişmez — değişseydi yedeklerdeki UID'lerle bağ kopar ve restore
-    # sonrası eşleştirme çökerdi.
-    #
-    # Deterministik türetme (ör. ad+tutar hash'i) BİLEREK kullanılmadı: aynı
-    # ad ve tutara sahip iki MEŞRU hedef aynı UID'yi alır, UNIQUE kısıtı göçü
-    # kilitler ve "belirsizlikte otomatik karar verme" ilkesi çiğnenirdi.
+
     cursor.execute("SELECT id FROM savings_goals WHERE goal_uid IS NULL")
     for (goal_id,) in cursor.fetchall():
         cursor.execute(
@@ -638,14 +506,7 @@ def _initialize_database(conn):
             (str(uuid.uuid4()), goal_id),
         )
 
-    # KISIT GEÇİŞİNİN İKİNCİ ADIMI: backfill'in EKSİKSİZ olduğu ölçüldükten
-    # sonra `goal_uid NOT NULL` uygulanır. SQLite `ALTER TABLE` ile kısıt
-    # eklemediği için tablo yeniden yaratılır.
-    #
-    # Sıra bilinçli (plan §2.3): NOT NULL'u backfill'den ÖNCE koymak, göç
-    # yarıda kalırsa AÇILMAYAN bir profil bırakırdı. Kısıt burada, yalnız
-    # "NULL kalmadı" kanıtlandığında uygulanıyor; kanıtlanmazsa şema nullable
-    # kalır ve bir sonraki açılış eksiği tamamlar.
+
     cursor.execute("PRAGMA table_info(savings_goals)")
     goal_columns = {row[1]: row for row in cursor.fetchall()}
     uid_column = goal_columns.get("goal_uid")
@@ -654,12 +515,8 @@ def _initialize_database(conn):
             "SELECT COUNT(*) FROM savings_goals WHERE goal_uid IS NULL"
         )
         if cursor.fetchone()[0] == 0:
-            # SAYAÇ KORUNUR. `DROP TABLE` `sqlite_sequence` satırını da siler
-            # ve yeni tablo sayacı max(id)'ye göre kurar. Aradaki fark teorik
-            # değil: silinmiş bir hedefin id'si defterde
-            # (`balance_events.entity_id`) hâlâ yaşıyor ve sayaç geri
-            # sararsa o id yeniden dağıtılır — düzeltmek için var olduğumuz
-            # kimlik yeniden kullanımının aynısı, bu sefer restore olmadan.
+
+
             cursor.execute(
                 "SELECT seq FROM sqlite_sequence WHERE name = 'savings_goals'"
             )
@@ -672,14 +529,14 @@ def _initialize_database(conn):
                 )
             )
             cursor.execute(
-                f"INSERT INTO savings_goals_uid_migration ({SAVINGS_GOALS_COLUMNS}) "  # nosec B608 - sabit sütun listesi
+                f"INSERT INTO savings_goals_uid_migration ({SAVINGS_GOALS_COLUMNS}) "
                 f"SELECT {SAVINGS_GOALS_COLUMNS} FROM savings_goals"
             )
             cursor.execute("DROP TABLE savings_goals")
             cursor.execute(
                 "ALTER TABLE savings_goals_uid_migration RENAME TO savings_goals"
             )
-            # Index tabloyla birlikte düştü; yeniden kurulmalı.
+
             cursor.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_savings_goals_uid "
                 "ON savings_goals(goal_uid)"
@@ -701,16 +558,7 @@ def _initialize_database(conn):
                     )
             conn.commit()
 
-    # 8b. Göç karantinası — otomatik taşınamayan legacy JSON kayıtları.
-    #
-    # BU TABLO FİNANSAL DEĞİLDİR. Hiçbir bakiye, metrik, defter ya da toplam
-    # sorgusu burayı okumaz ve buradan para hareketi başlatılamaz. Amacı tek:
-    # belirsiz bir kaydı SESSİZCE ATMAK yerine saklayıp kullanıcıya
-    # gösterebilmek — sessiz atma, düzeltmeye çalıştığımız kusurun ta kendisi.
-    #
-    # goal_name ve payload ŞİFRELİ tutulur (savings_goals.goal_name ile aynı
-    # gerekçe: hedef adı ve tutarlar kişisel finans verisidir) ve
-    # `backup_service.ENCRYPTED_FIELDS`'e eklidir.
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS savings_migration_quarantine (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -726,13 +574,7 @@ def _initialize_database(conn):
         )
     """)
 
-    # 8c. Göç işareti (provenance).
-    #
-    # "Gerçek legacy profil" ile "restore sonrasında ortada kalmış BAYAT
-    # JSON" diskte birbirinin AYNI görünür. Ayrımı yapan tek şey bu işaretin
-    # nerede durduğudur: `finance.db`'nin İÇİNDE, yani DB generation'ıyla
-    # birlikte hareket ediyor. İşaret varken bulunan bir JSON tanım gereği
-    # bayattır ve göç EDİLMEZ (plan §2.6).
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS savings_migration_state (
             marker TEXT PRIMARY KEY,
@@ -741,11 +583,7 @@ def _initialize_database(conn):
         )
     """)
 
-    # 9. Finansal Sağlık Skoru Geçmişi (Faz 1 — içgörü motoru)
-    # Skorun kendisi ve bileşenleri düz tutulur: kişisel tutar/açıklama değil,
-    # 0-100 arası türetilmiş bir metrik ve onun ağırlık dökümü. Şifrelenseydi
-    # trend grafiği için her satır tek tek çözülmek zorunda kalırdı.
-    # breakdown_json: {"savings_rate": .., "debt_ratio": .., "volatility": ..}
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS financial_health_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -755,17 +593,13 @@ def _initialize_database(conn):
         )
     """)
 
-    # Migration guard: tabloyu breakdown_json'suz oluşturmuş bir ara sürüm
-    # varsa sütun sonradan eklenir (mevcut satırlarda NULL kalır, okuyucu
-    # tarafı boş döküm olarak tolere eder).
+
     cursor.execute("PRAGMA table_info(financial_health_history)")
     existing_health_cols = {row[1] for row in cursor.fetchall()}
     if "breakdown_json" not in existing_health_cols:
         cursor.execute("ALTER TABLE financial_health_history ADD COLUMN breakdown_json TEXT")
 
-    # Eski sürüm her dashboard yenilemesinde yeni bir satır yazıyordu. Aynı
-    # güne ait gürültüyü temizle, en son hesabı koru ve DB seviyesinde bundan
-    # sonra günde tek kayıt garantisi ver.
+
     cursor.execute("""
         DELETE FROM financial_health_history
         WHERE id NOT IN (
@@ -779,11 +613,7 @@ def _initialize_database(conn):
         ON financial_health_history(substr(date, 1, 10))
     """)
 
-    # 10. Reddedilen Abonelik Adayları (Faz 1 — "sessiz sızıntı" radarı)
-    # candidate_key: kategori + normalize edilmiş ad üzerinden üretilen kararlı
-    # anahtar (bkz. services/insights_service.py::candidate_key). Kullanıcı bir
-    # adayı "bu abonelik değil" diye kapattığında burada işaretlenir ve radar
-    # onu bir daha önermez.
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS recurring_candidate_dismissals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -797,9 +627,7 @@ def _initialize_database(conn):
     if "dismissed_at" not in existing_dismissal_cols:
         cursor.execute("ALTER TABLE recurring_candidate_dismissals ADD COLUMN dismissed_at TEXT")
 
-    # 11. Görülmüş/Gizlenmiş Anomaliler
-    # Anomali gerçek bir transaction satırına dayanır; transaction_id bu
-    # nedenle hash türetmekten daha kararlı ve tekil kimliktir.
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS anomaly_dismissals (
             transaction_id INTEGER PRIMARY KEY,
@@ -807,17 +635,7 @@ def _initialize_database(conn):
         )
     """)
 
-    # 12. Bakiye Olay Defteri (Faz 2 — değişmez hareket kaydı)
-    # accounts.balance ve savings_goals.current_amount'a dokunan HER nokta
-    # buraya bir satır yazar. Kayıt, değişikliği yapan UPDATE ile AYNI cursor
-    # ve AYNI commit içinde yazılır: işlem yarıda kalırsa defter de geri alınır,
-    # yani defter ile gerçek bakiye asla ayrışamaz.
-    #   delta           : bu olayın değeri ne kadar değiştirdiği (işaretli)
-    #   resulting_value : olaydan SONRAKİ değer (replay'i doğrulamak için)
-    #   source          : olayı üreten akış ('transaction', 'savings_deposit', ...)
-    #   ref_id          : varsa ilgili kaydın id'si (transactions.id gibi)
-    # Tutarlar burada DÜZ tutulur: defterin amacı zaman içinde toplam/fark
-    # hesaplamak, şifreli kolonla replay her satırı tek tek çözmek zorunda kalırdı.
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS balance_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -831,7 +649,7 @@ def _initialize_database(conn):
         )
     """)
 
-    # Migration guard: erken bir sürüm ref_id'siz kurmuş olabilir.
+
     cursor.execute("PRAGMA table_info(balance_events)")
     existing_event_cols = {row[1] for row in cursor.fetchall()}
     if "ref_id" not in existing_event_cols:
@@ -839,35 +657,16 @@ def _initialize_database(conn):
     if "resulting_value" not in existing_event_cols:
         cursor.execute("ALTER TABLE balance_events ADD COLUMN resulting_value REAL")
 
-    # Replay her zaman "tarihe göre" tarandığı için ts indeksi şart.
+
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_balance_events_ts ON balance_events(ts)")
 
-    # `transactions.account_id` — foreign key VARDI ama indeksi YOKTU.
-    #
-    # SQLite ebeveyn tarafına (`accounts.id`, zaten PRIMARY KEY) indeks
-    # zorlar, ÇOCUK tarafına zorlamaz. Ölçüldü — indeks yokken account_id
-    # filtreli her sorgu tam tarama yapıyordu:
-    #
-    #     SELECT ... WHERE account_id = ?            -> SCAN transactions
-    #     SELECT COUNT(*) ... WHERE account_id = ?   -> SCAN transactions
-    #
-    # Bu üç yerde geçiyor: hesap ekstresi, `delete_credit_card`'ın bağımlılık
-    # temizliği ve — zorlama artık AÇIK olduğu için — her `accounts` satırının
-    # silinmesi/güncellenmesinde motorun yaptığı çocuk arama. Sonuncusu yeni:
-    # indekssiz bir çocuk tablo, FK zorlamasının maliyetini satır sayısıyla
-    # doğru orantılı hâle getirir.
-    #
-    # `IF NOT EXISTS` — hem taze kurulum hem göç eden profil aynı indeksi alır;
-    # şema tutarlılık kapısı ikisini karşılaştırıyor.
+
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_transactions_account_id "
         "ON transactions(account_id)"
     )
 
-    # 12. Günlük Bakiye Anlık Görüntüsü (Faz 2 — replay kısayolu)
-    # get_balance_at() sıfırdan replay etmek yerine tarihe en yakın snapshot'ı
-    # alıp yalnızca sonrasındaki olayları oynatır. snapshot_date UNIQUE: günde
-    # tek satır, on_start aynı gün ikinci kez çalışsa da tekrar yazmaz.
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS daily_balance_snapshot (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -884,20 +683,7 @@ def _initialize_database(conn):
 
     conn.commit()
 
-    # ── Defter başlangıç çizgisi (backfill) ───────────────────────────────────
-    # Defter boşsa ama hesaplar doluysa, mevcut bakiyeler için birer "açılış"
-    # olayı yazılır. İki durumu birden kapsar:
-    #   * yeni kurulum  — varsayılan hesaplar aşağıda eklendikten sonra,
-    #   * MEVCUT veritabanı — Faz 2 öncesinden gelen bakiyeler.
-    #
-    # Bu satır olmadan `get_balance_at` defteri baştan oynattığında sonucu tam
-    # olarak açılış toplamı kadar eksik çıkar: accounts.balance'a INSERT ile
-    # konan para hiçbir UPDATE üretmediği için defterde karşılığı olmaz.
-    #
-    # DÜRÜSTLÜK NOTU: bu olayın zaman damgası BUGÜNDÜR, çünkü paranın gerçekte
-    # ne zaman girdiği bilinmiyor — defter o tarihten önce yoktu. Bu yüzden
-    # history_service, defter başlangıcından ÖNCEKİ tarihler için "veri yok"
-    # der; sıfır bakiye varmış gibi göstermez.
+
     def _backfill_ledger_baseline():
         """Açılış çizgisi olmayan her varlık için birer baseline olayı yazar.
 
@@ -912,11 +698,7 @@ def _initialize_database(conn):
         """
         from database.db import ACCOUNT, SAVINGS_GOAL, record_balance_event
 
-        # Tablo ve kolon ADLARI SQL'de parametrelenemez (kimlik alanı, değer
-        # değil), dolayısıyla aşağıdaki f-string zorunlu. Güvenliği sağlayan
-        # şey, ikisinin de bu sabit eşlemeden gelmesi — dışarıdan bir değerin
-        # oraya ulaşma yolu yok. Eşleme açıkça yazıldı ki ileride değişken
-        # bir tablo adı geçirilmeye çalışılırsa sessizce çalışmasın.
+
         allowed_columns = {
             "accounts": "balance",
             "savings_goals": "current_amount",
@@ -928,10 +710,8 @@ def _initialize_database(conn):
                     f"Defter baseline'ı yalnızca {sorted(allowed_columns)} "
                     f"tablolarında çalışır; verilen: {table}.{value_column}"
                 )
-            # `nosec B608`: bandit her f-string SQL'i işaretler, tanımlayıcının
-            # nereden geldiğini göremez. Buradaki iki değer de yukarıdaki
-            # `allowed_columns` eşlemesinden geçmek ZORUNDA — muafiyetin
-            # dayanağı o kontrol, "zaten güvenlidir" varsayımı değil.
+
+
             cursor.execute(
                 f"SELECT id, {value_column} AS value FROM {table}"  # nosec B608
             )
@@ -943,7 +723,7 @@ def _initialize_database(conn):
                     (entity_type, entity_id, marker_source),
                 )
                 if cursor.fetchone()[0] > 0:
-                    continue  # açılış çizgisi zaten var
+                    continue
 
                 cursor.execute(
                     "SELECT COALESCE(SUM(delta), 0) AS total, MIN(ts) AS first_ts"
@@ -954,17 +734,12 @@ def _initialize_database(conn):
                 recorded = agg["total"] or 0.0
                 opening = current_value - recorded
 
-                # Yazılan satırın id'si ÇAĞRIDAN alınıyor, çağrıdan sonra
-                # `cursor.lastrowid` okunarak DEĞİL: ikincisi
-                # `record_balance_event`'in içinde tam olarak bir INSERT
-                # olduğu varsayımına dayanıyordu ve o varsayım bu dosyada
-                # görünmüyordu. Yanlış satırı güncellemek, açılış çizgisini
-                # başka bir olayın üstüne yazmak demekti.
+
                 baseline_event_id = record_balance_event(
                     cursor, entity_type, entity_id, opening,
                     opening, marker_source)
-                # Baseline kronolojik olarak mevcut olayların ÖNÜNE geçmeli,
-                # yoksa "o tarihteki bakiye" sorgusu açılışı sonradan görür.
+
+
                 if agg["first_ts"]:
                     cursor.execute(
                         "UPDATE balance_events SET ts = ? WHERE id = ?",
@@ -975,24 +750,24 @@ def _initialize_database(conn):
         _baseline(SAVINGS_GOAL, "savings_goals", "current_amount", "savings_goal_created")
         conn.commit()
 
-    # 4. Varsayılan Hesapları Ekle
+
     cursor.execute("SELECT COUNT(*) FROM accounts")
     if cursor.fetchone()[0] == 0:
-        # Dummy veriler kaldırıldı, başlangıçta hesap oluşturulmayacak.
+
         pass
 
-    # 5. Kapsamlı Varsayılan Kategorileri Ekle (importance verisiyle birlikte)
+
     cursor.execute("SELECT COUNT(*) FROM categories")
     if cursor.fetchone()[0] == 0:
         default_categories = [
-            # GELİR KATEGORİLERİ (Ad, Tür, Önem)
+
             ("Maaş", "income", "main"), ("Avans", "income", "main"), ("Prim", "income", "extra"), ("Mesai", "income", "extra"), ("Kıdem Tazminatı", "income", "extra"), ("İhbar Tazminatı", "income", "extra"),
             ("Freelance", "income", "extra"), ("Danışmanlık", "income", "extra"), ("Proje Bedeli", "income", "extra"), ("Ürün Satışı", "income", "extra"), ("E-Ticaret", "income", "extra"), ("Hak Ediş", "income", "extra"),
             ("Ev Kirası (Gelir)", "income", "extra"), ("Dükkan Kirası", "income", "extra"), ("Araç Kirası", "income", "extra"), ("Faiz Getirisi", "income", "extra"), ("Temettü", "income", "extra"), ("Kripto Kazancı", "income", "extra"), ("Fon Getirisi", "income", "extra"), ("Kupon Ödemesi", "income", "extra"),
             ("Emekli Maaşı", "income", "main"), ("İşsizlik Maaşı", "income", "extra"), ("Çocuk Yardımı", "income", "extra"), ("Burs", "income", "extra"), ("Nafaka", "income", "extra"), ("Devlet Teşviki", "income", "extra"),
             ("Piyango/Loto", "income", "extra"), ("Miras", "income", "extra"), ("Borç Tahsilatı", "income", "extra"), ("Nakit Hediye", "income", "extra"), ("İade", "income", "extra"), ("Varlık Satışı", "income", "extra"),
-            
-            # GİDER KATEGORİLERİ (Ad, Tür, Önem)
+
+
             ("Ev Kirası", "expense", "main"), ("Aidat", "expense", "main"), ("Emlak Vergisi", "expense", "extra"), ("Ev Bakım/Onarım", "expense", "extra"), ("Ev Eşyası", "expense", "extra"),
             ("Elektrik", "expense", "main"), ("Su", "expense", "main"), ("Doğalgaz", "expense", "main"), ("İnternet", "expense", "main"), ("Cep Telefonu", "expense", "main"), ("Dijital Platformlar", "expense", "extra"), ("Dijital Abonelik", "expense", "extra"),
             ("Akaryakıt", "expense", "main"), ("Toplu Taşıma", "expense", "main"), ("Taksi", "expense", "extra"), ("Araç Bakım", "expense", "extra"), ("MTV", "expense", "extra"), ("Sigorta/Kasko", "expense", "extra"), ("Otopark/Köprü", "expense", "extra"),
@@ -1010,7 +785,7 @@ def _initialize_database(conn):
         )
         conn.commit()
 
-    # ── Migration Guard: Varlık Alımı / Varlık Satışı kategorilerini ekle ──────
+
     cursor.execute("SELECT name FROM categories WHERE name='Varlık Alımı'")
     if not cursor.fetchone():
         cursor.execute("INSERT INTO categories(name, type, importance) VALUES(?,?,?)",
@@ -1030,28 +805,9 @@ def _initialize_database(conn):
         )
     conn.commit()
 
-    # Varsayılan hesaplar kurulduktan SONRA çalışmalı ki yeni kurulumda da
-    # açılış bakiyeleri deftere girsin.
+
     _backfill_ledger_baseline()
 
-    # İşaret EN SONDA ve KOŞULSUZ konur: buraya ulaşıldıysa şema bu kuşağa
-    # tam olarak getirilmiş demektir. Koşulsuz olması önemli — hem yeni
-    # kurulum hem de göç etmiş eski profil aynı değeri taşımalı, yoksa
-    # `check_schema_consistency.py`'nin "fresh ile upgraded eşit mi"
-    # karşılaştırması ikisini farklı görürdü. Ortada kesilirse işaret
-    # konmaz ve bir sonraki açılış eksiği tamamlar (idempotent).
-    #
-    # `PRAGMA user_version` parametre kabul etmez; değer modül sabiti.
+
     cursor.execute(f"PRAGMA user_version = {int(SCHEMA_VERSION)}")  # nosec B608
     conn.commit()
-
-    # BURADA İKİNCİ BİR TAM TARAMA YOK, bilerek. Kapı başta koştu ve bu
-    # bağlantıda `PRAGMA foreign_keys=ON` açık (bkz. database/db.py
-    # ::enable_foreign_keys), yani aradaki her yazım zaten motor tarafından
-    # zorlanıyor — sağlıklı bir açılışta ikinci tarama aynı cevabı bulmak için
-    # bütün tabloları yeniden okumak olurdu. Tek fark yaratabilecek durum,
-    # göç adımlarının kendisinin ihlal ÜRETMESİ; o da FK açıkken zaten
-    # `IntegrityError` ile burada değil, kaynağında patlar.
-    # ─────────────────────────────────────────────────────────────────────────
-    # Kapatma ARTIK BURADA DEĞİL: sarmalayıcı `initialize_database`'in
-    # `finally` bloğu yapıyor, böylece hata yolları da kapsanıyor.

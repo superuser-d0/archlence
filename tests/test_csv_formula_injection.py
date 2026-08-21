@@ -33,7 +33,7 @@ from services.migration_service import (
     unescape_csv_text,
 )
 
-# Excel/LibreOffice'in formül olarak yorumladığı başlangıçlar.
+
 DANGEROUS = ("=", "+", "-", "@", "\t", "\r")
 
 
@@ -159,8 +159,8 @@ class CsvExportInjectionTest(unittest.TestCase):
         self._add("normal açıklama")
         export_all_to_csv(str(self.export_path))
         rows = self._rows()
-        # SÜTUN İNDEKSİ BAŞLIKTAN OKUNUYOR, sabit değil: sürüm işareti
-        # kolonu eklendiğinde sabit indeks sessizce yanlış sütunu okurdu.
+
+
         amount_index = CSV_HEADER.index("tutar")
         kind_index = CSV_HEADER.index("kayit_turu")
         islem = [r for r in rows[1:] if r[kind_index] == "islem"][0]

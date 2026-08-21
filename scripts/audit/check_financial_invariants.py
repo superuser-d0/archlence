@@ -26,10 +26,7 @@ import sys
 from decimal import Decimal
 from pathlib import Path
 
-# Türkçe çıktı Windows'ta süreci ÖLDÜRMESİN — stdout yönlendirildiğinde kod
-# sayfası cp1252'ye düşüyor ve 'ı' kodlanamıyor. Gerekçenin tamamı
-# run_tests.py'ın tepesinde; ölçüldü: koruma olmadan GEÇEN bir denetim
-# exit 1 ile kırmızı raporlanıyordu.
+
 for _stream in (sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8", errors="replace")

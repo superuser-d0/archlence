@@ -54,8 +54,8 @@ class DebtTotalMatchesLedgerTest(unittest.TestCase):
         screen.loan_rate = _FakeField(str(rate))
         screen.loan_term = _FakeField(str(months))
         screen.loan_type = _FakeField()
-        # `is_advanced = not self.loan_type.disabled` — True olsun ki ek
-        # masraflar hesaba katılsın; asıl sınamak istediğimiz vaka bu.
+
+
         screen.loan_type.disabled = False
         screen.loan_type_selected = "İhtiyaç"
         screen.custom_expenses = list(custom_expenses)
@@ -91,15 +91,14 @@ class DebtTotalMatchesLedgerTest(unittest.TestCase):
     def test_stored_total_equals_the_instalments_that_will_be_paid(self):
         from database.db import insert_debt
 
-        # Aylık ek masraf: toplam 1.200 TL, 12 aya yayılıyor.
+
         expense = {"name": "Sigorta", "type": "Çok Seferlik",
                    "amount": 1200.0, "term": 12}
         screen = self._calculate(100_000, 3.29, 36, custom_expenses=[expense])
         loan = screen.last_calculated_loan
 
-        # Ek masrafın GÖSTERİLEN toplama girdiğini doğrula — yoksa bu vaka
-        # eski davranışı hiç zorlamaz ve test sessizce anlamsızlaşır.
-        self.assertIn("Toplam Geri Ödeme", screen.loan_result_label.text)
+
+        self.assertIn("Total Repayment", screen.loan_result_label.text)
         self.assertNotAlmostEqual(
             loan["total_amount"],
             loan["monthly_payment"] * loan["total_installments"] + 1200.0,

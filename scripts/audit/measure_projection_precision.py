@@ -4,7 +4,8 @@ A (mevcut float RK4) / B (yüksek hassasiyetli Decimal RK4) / C (analitik
 referans) üçlüsünü aynı vakalar üzerinde koşturur. Üretim kodu
 DEĞİŞTİRİLMEZ; `project_wealth_series` olduğu gibi çağrılır.
 
-Kararın kendisi ve okunmuş hâli: `docs/audits/PROJECTION_FLOAT_AUDIT.md`.
+ÖLÇÜMÜN SONUCU (karar): RK4 çekirdeği bilinçli olarak float kalır — 22
+vakanın 21'inde kuruş aynı çıktı ve Decimal çekirdek 4,1x maliyetliydi.
 
 Bilerek CI kapısı DEĞİL ve test paketine bağlı değil: ürettiği sayılar
 kayan nokta aritmetiğinin özellikleri, uygulamanın verdiği sözler değil.
@@ -24,14 +25,10 @@ import time as _time
 from decimal import Decimal, getcontext, localcontext
 from pathlib import Path
 
-# `python -m scripts.audit.measure_projection_precision` ile koşarken kök
-# `sys.path`'e girer, ama dosya yolu verilerek koşulduğunda girmez ve
-# `from services...` düşer. İkisi de çalışsın.
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-# Türkçe çıktı Windows'ta süreci ÖLDÜRMESİN — stdout yönlendirildiğinde kod
-# sayfası cp1252'ye düşüyor ve 'ı' kodlanamıyor. Gerekçenin tamamı
-# run_tests.py'ın tepesinde.
+
 for _stream in (sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8", errors="replace")
@@ -65,7 +62,6 @@ def decimal_rk4(w0, income, expense, days, r, prec=80):
         return series
 
 
-# ------------------------------------------------------------- C: analitik çözüm
 def analytic(w0, income, expense, days, r, prec=80):
     """dW/dt = rW + c çözümü, yüksek hassasiyetle.
 
@@ -102,7 +98,6 @@ def _reference_is_stable(case, tol=Decimal("1e-30")):
     return abs(a - b) <= tol * max(abs(b), Decimal(1))
 
 
-# ------------------------------------------------------------------------ yardım
 def fiat_str(value):
     return str(Decimal(str(value)).quantize(Decimal("0.01")))
 

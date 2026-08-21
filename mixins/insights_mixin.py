@@ -18,11 +18,9 @@ from kivymd.uix.button import MDFlatButton, MDIconButton
 from kivymd.uix.card import MDCard
 from kivymd.uix.label import MDLabel
 import ui.theme as ftheme
-from ui.i18n import get_language, tr as _t, trf as _tf
+from ui.i18n import tr as _t, trf as _tf
 
 
-# Sağlık skoru bandı -> ftheme anlamsal renk adı. Renk doğrudan yazılmaz ki
-# karanlık/açık tema geçişinde token katmanı devrede kalsın.
 def _score_accent(score):
     if score >= 60:
         return "green"
@@ -46,35 +44,13 @@ _MONTH_NAMES = [
     "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
     "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
 ]
-# Ay adının kendisine eklenen hal eki (ünsüz sertleşmesi + ünlü uyumu):
-# son harf ötümsüzse (p,ç,t,k,s,ş,h,f) "t", ötümlüyse "d"; son ünlü ön
-# (e,i,ö,ü) ise "e", art (a,ı,o,u) ise "a". Örn. "Ağustos" -> ötümsüz+art ->
-# "ta" ("Ağustos'ta"), "Eylül" -> ötümlü+ön -> "de" ("Eylül'de").
-_MONTH_SUFFIXES = [
-    "ta", "ta", "ta", "da", "ta", "da", "da", "ta", "de", "de", "da", "ta",
-]
 _WEEKDAY_NAMES = [
     "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar",
 ]
-# Türkçe ayın-günü hal eki (ünlü uyumu): son hane okunuşuna göre değişir
-# ("altı" -> "sında", "dokuz" -> "unda" vb.). 10/20/30 kendi okunuşlarıyla
-# (on/yirmi/otuz) ayrı ele alınır, aksi halde "20'ında" gibi yanlış bir ek
-# üretilirdi.
-_DAY_SUFFIX_BY_LAST_DIGIT = {
-    1: "inde", 2: "sinde", 3: "ünde", 4: "ünde", 5: "inde",
-    6: "sında", 7: "sinde", 8: "inde", 9: "unda",
-}
-_DAY_SUFFIX_TENS = {10: "unda", 20: "sinde", 30: "unda"}
-
-
-def _turkish_day_ordinal(day):
-    """'26'sında', '1'inde', '9'unda' gibi doğru hal ekiyle günü yazar."""
-    suffix = _DAY_SUFFIX_TENS.get(day) or _DAY_SUFFIX_BY_LAST_DIGIT[day % 10]
-    return f"{day}'{suffix}"
 
 
 def _english_ordinal(day):
-    """'26th', '1st', '3rd' gibi standart İngilizce sıra sayı eki."""
+    """Return the standard English ordinal for a day of the month."""
     if 11 <= day % 100 <= 13:
         suffix = "th"
     else:
@@ -83,17 +59,7 @@ def _english_ordinal(day):
 
 
 def _renewal_description(payment):
-    """Abonelik kartındaki 'her ayın X'inde yenilenir' gibi doğal metni üretir.
-
-    DÜZELTME: Eskiden yalnızca 'aylık · Sonraki ödeme: 2026-08-26' gibi ham
-    tarih gösteriliyordu — kullanıcı özellikle aylık abonelikler için
-    'her ayın bilmem kaçında yenilenir' tarzı okunaklı bir ifade istedi.
-
-    Cümle KALIBI dile göre dallanır (Türkçe/İngilizce kelime sırası farklı
-    olduğundan tek bir şablonu `_t()` ile çevirmek mümkün değil); ay/gün adı
-    gibi SABİT parçalar yine `_t()` üzerinden çevrilir ki mevcut i18n
-    sözlüğüyle tutarlı kalsın.
-    """
+    """Build a natural English renewal description for a subscription."""
     import datetime
 
     frequency = payment.get("frequency")
@@ -105,26 +71,16 @@ def _renewal_description(payment):
 
     day = payment.get("recurrence_day") or due.day
     month_name = _t(_MONTH_NAMES[due.month - 1])
-    is_en = get_language() == "en"
 
     if frequency == "monthly":
-        if is_en:
-            return f"Renews on the {_english_ordinal(day)} of each month"
-        return f"Her ayın {_turkish_day_ordinal(day)} yenilenir"
+        return f"Renews on the {_english_ordinal(day)} of each month"
     if frequency == "yearly":
-        if is_en:
-            return f"Renews every year on {month_name} {_english_ordinal(day)}"
-        month_suffix = _MONTH_SUFFIXES[due.month - 1]
-        return f"Her yıl {day} {month_name}'{month_suffix} yenilenir"
+        return f"Renews every year on {month_name} {_english_ordinal(day)}"
     if frequency == "weekly":
         weekday = _t(_WEEKDAY_NAMES[due.weekday()])
-        return f"Renews every {weekday}" if is_en else f"Her {weekday} günü yenilenir"
-    # biweekly / quarterly gibi sabit bir "ayın/haftanın X'i" ifadesine
-    # oturmayan sıklıklar için sıradaki tarih okunaklı biçimde eklenir.
+        return f"Renews every {weekday}"
     freq_label = _t(_frequency_label(frequency))
-    if is_en:
-        return f"{freq_label}  ·  Next: {month_name} {day}"
-    return f"{freq_label}  ·  Sıradaki: {day} {month_name}"
+    return f"{freq_label}  ·  Next: {month_name} {day}"
 
 
 def _fmt(value):
@@ -169,11 +125,9 @@ class InsightsMixin:
     bölümü tek arka plan turunda hesaplar.
     """
 
-    # Radarın son turda bulduğu adaylar; "Aboneliğe Ekle" ve "Yoksay"
-    # butonları bu listeden çalışır.
+
     _recurring_candidates = []
 
-    # ─── Giriş noktası ───────────────────────────────────────────────────────
 
     def refresh_insights(self, *args):
         """Üç içgörüyü arka planda hesaplar, sonuçları arayüze basar."""
@@ -184,8 +138,8 @@ class InsightsMixin:
 
         def work():
             payload = {}
-            # Üç hesap birbirinden bağımsız: biri patlarsa diğerleri yine
-            # görünsün diye ayrı ayrı korunuyor.
+
+
             try:
                 from services.insights_service import compute_financial_health_score
                 payload["health"] = compute_financial_health_score()
@@ -234,18 +188,13 @@ class InsightsMixin:
         # payload and retry when Home is actually visible.
         try:
             nav = self.root.ids.bottom_nav
-            # KivyMD 1.x, sekmeleri MDBottomNavigation'ın içindeki
-            # ``ids.tab_manager`` ScreenManager'ında tutar. Bu sürümde
-            # ``get_current_tab()`` yok; onu çağırmak AttributeError üretip
-            # payload'ın sonsuza kadar ertelenmesine, kartın da
-            # "Hesaplanıyor..." durumunda kalmasına yol açıyordu.
+
+
             tab_manager = nav.ids.tab_manager
             current_tab = getattr(tab_manager, "current", None)
         except (AttributeError, KeyError):
-            # Yalnızca `ids` erişimi korunuyor: kök/nav henüz kurulmadıysa
-            # AttributeError, id yoksa KeyError (ölçüldü). `current_tab=None`
-            # sonucu payload'ı erteler — bu, sekme bilinmiyorken doğru
-            # davranış, çünkü kartlar görünmeyen bir sekmede kurulmamalı.
+
+
             current_tab = None
         if current_tab != "home_tab":
             self._pending_insights_payload = payload
@@ -277,7 +226,6 @@ class InsightsMixin:
                 lambda dt: self.render_anomalies(payload["anomalies"]), 0.05
             )
 
-    # ─── 1. Finansal sağlık skoru ────────────────────────────────────────────
 
     def render_health_score(self, result):
         """Skoru, etiketini ve bileşen dökümünü anasayfa kartına yazar."""
@@ -298,7 +246,7 @@ class InsightsMixin:
             ids.health_score_value.text_color = ftheme.accent(style, accent)
             ids.health_score_label.text = _t(score_label(score))
 
-            # Bileşenler: kullanıcıya skorun NEDEN o olduğunu göster.
+
             savings = breakdown.get("savings_rate", 0.0) * 100
             debt = breakdown.get("debt_ratio", 0.0) * 100
             volatility = breakdown.get("expense_volatility", 0.0) * 100
@@ -358,7 +306,6 @@ class InsightsMixin:
             from utils.logging_config import get_logger
             get_logger().exception("Sağlık skoru hata durumu çizilemedi")
 
-    # ─── 2. Abonelik radarı ("sessiz sızıntı") ───────────────────────────────
 
     def render_subscription_overview(self, active_subscriptions, candidates):
         """Aktif kayıtları önde, radar adaylarını onların altında gösterir."""
@@ -391,9 +338,8 @@ class InsightsMixin:
             recycler = self.root.ids.active_incomes_rv
             container = self.root.ids.active_incomes_container
         except (AttributeError, KeyError):
-            # Kök widget henüz kurulmadıysa `.ids` erişimi AttributeError,
-            # id gerçekten yoksa KeyError verir (ölçüldü). Daha genişini
-            # yakalamak, KV'de adı değişmiş bir id'yi sessizce yutardı.
+
+
             return
 
         container.clear_widgets()
@@ -413,7 +359,7 @@ class InsightsMixin:
             recycler = self.root.ids.active_subscriptions_rv
             container = self.root.ids.recurring_candidates_container
         except (AttributeError, KeyError):
-            # bkz. render_active_incomes'taki aynı gerekçe.
+
             return
 
         container.clear_widgets()
@@ -444,7 +390,7 @@ class InsightsMixin:
                 self._prefetch_candidate_brand_icons(missing_active)
             return
 
-        # Toplam sızıntıyı en üstte özetle — asıl mesaj bu.
+
         total = sum(c["monthly_cost"] for c in self._recurring_candidates)
         summary = MDLabel(
             text=_tf(
@@ -527,8 +473,8 @@ class InsightsMixin:
                 text_color=self.theme_cls.primary_color,
                 on_release=lambda x, c=cand: self.track_recurring_candidate(c)))
         else:
-            # Savunmacı geri dönüş: gelecekte radarın tanıyıp ödeme motorunun
-            # henüz desteklemediği yeni bir periyot eklenirse gösterilir.
+
+
             note = MDLabel(
                 text=_t("Bu sıklık otomatik takibe alınamıyor."),
                 font_style="Caption",
@@ -554,11 +500,8 @@ class InsightsMixin:
                 if fetch_and_cache_brand_icon(name):
                     any_success = True
             if any_success:
-                # BİRLEŞİK liste geri verilmeli: render_subscription_overview
-                # gelen listeyi transaction_type'a göre YENİDEN böler. Yalnızca
-                # `_active_subscriptions` (gelirler zaten ayıklanmış) geçilirse
-                # `_active_incomes` boş kümeye düşer ve "Aktif Gelirlerim"
-                # kartı, ikon indirmesi başarılı olduğu anda sessizce boşalırdı.
+
+
                 Clock.schedule_once(
                     lambda dt: self.render_subscription_overview(
                         list(getattr(self, "_active_subscriptions", []))
@@ -591,8 +534,8 @@ class InsightsMixin:
                     category=cand["category"],
                     frequency=cand["frequency"],
                     next_due_date=cand["next_due_date"],
-                    # Radardan gelen kayıt otomatik para düşmez: tespit bir
-                    # tahmindir, kullanıcı onaylamadan hesaptan çekilmemeli.
+
+
                     auto_deduct=0,
                 )
             except Exception:
@@ -627,7 +570,7 @@ class InsightsMixin:
         try:
             container = self.root.ids.anomalies_container
         except (AttributeError, KeyError):
-            # bkz. render_active_incomes'taki aynı gerekçe.
+
             return
 
         container.clear_widgets()
@@ -657,9 +600,9 @@ class InsightsMixin:
         text = MDLabel(
             text=_tf(
                 "{category} · {amount}\nBu kategorideki ortalamanın {amount_1} üzerinde ({date})",
-                category=# Kategori, uygulamanın KENDİ sözlüğünden gelen bir etikettir
-        # (init_db'deki varsayılan liste), kullanıcının serbest metni
-        # değil; bu yüzden tam anahtarla çevrilir.
+                category=
+
+
         _t(anomaly['category']),
                 amount=_fmt(anomaly['amount']),
                 amount_1=_fmt(anomaly['deviation']),

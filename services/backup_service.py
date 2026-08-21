@@ -35,57 +35,23 @@ _KEY_LEN = 32
 _AEAD_PREFIX = "AEADv1:"
 _AUTH_CONTEXT = b"archlence-backup-auth-v2"
 
-# ── KURTARMA MATERYALİNİN KDF SINIRLARI ──────────────────────────────────────
-# `iterations` PAKETİN İÇİNDEN gelir, yani paketi veren tarafın kontrolündedir.
-# Eskiden `int(payload["iterations"])` ile alınıp doğrudan PBKDF2'ye
-# veriliyordu; `10**12` yazan bir paket, parola yanlış olsa bile açmayı
-# deneyen makinede süresiz CPU tüketimi başlatıyordu. Sayı bir sınır değil,
-# saldırganın verdiği bir bütçedir — bu yüzden aralık burada sabitlenir.
-#
-# TABAN 100.000: OWASP'ın PBKDF2-HMAC-SHA256 için önerdiği asgari tur sayısı.
-# Bunun altındaki bir paket ya çok eski ya da bilerek zayıflatılmıştır; ikisi
-# de kabul edilmemeli.
-# TAVAN 4.000.000: bugünkü değerin (600.000) yaklaşık 6,6 katı — ileride tur
-# sayısı artırılırsa eski sürümler yeni paketleri hâlâ açabilsin diye geniş
-# bırakıldı, ama sonlu: bu makinede 600.000 tur ~0,2 sn sürüyor, tavan ~1,3 sn
-# demek. Süresiz değil, ölçülebilir.
+
 SUPPORTED_RECOVERY_KDF = "PBKDF2-HMAC-SHA256"
 MIN_RECOVERY_ITERATIONS = 100_000
 MAX_RECOVERY_ITERATIONS = 4_000_000
 
-# ── PAKET SINIRLARI ──────────────────────────────────────────────────────────
-# Bir backup paketi DIŞARIDAN gelir. Kullanıcı onu bir e-postadan, bir USB
-# bellekten ya da bir yedekleme diskinden getirebilir; içeriğinin bizim
-# ürettiğimiz paket olduğu KANITLANANA KADAR düşmanca varsayılır.
-#
-# Eski davranış ölçüldü: 8.514 baytlık bir paket, `finance.db` üyesini
-# 8.388.608 bayta açıyordu ve ret ancak bu yazımdan SONRA geliyordu. Sınır
-# yoksa paket boyutunun bin katı disk (ve bellek) harcanabilir.
-#
-# SEÇİLEN DEĞERLERİN GEREKÇESİ — hepsi gerçek profillerde ölçüldü:
-#   profil            finance.db açılmış      sıkıştırma oranı
-#   boş profil                114.688              23,2
-#   300 işlem                 204.800               5,0
-#   3.000 işlem               991.232               3,1
-#   20.000 işlem            5.988.352               2,8
-# Şifreli alanlar yüksek entropili olduğu için gerçek profillerde oran DÜŞÜK
-# kalıyor; en yüksek meşru oran boş profilde (23,2) görüldü.
+
 MAX_PACKAGE_MEMBERS = 4
 
-# 256 MiB — 20.000 işlem 6 MB ettiğine göre kabaca 850.000 işlemlik bir
-# profile karşılık gelir. Kimsenin ulaşmayacağı kadar yüksek, sonsuz olmayacak
-# kadar sonlu.
+
 MAX_DB_MEMBER_BYTES = 256 * 1024 * 1024
 
-# 4 MiB — `metadata.json` 440 bayt, `key.recovery.json` 234 bayt.
-# `config.json` kullanıcı ayarlarını taşır ve büyüyebilir; yine de bu sınırın
-# yakınına gelmesi için binlerce kat şişmesi gerekir.
+
 MAX_SMALL_MEMBER_BYTES = 4 * 1024 * 1024
 
 MAX_TOTAL_BYTES = MAX_DB_MEMBER_BYTES + 3 * MAX_SMALL_MEMBER_BYTES
 
-# 200 — ölçülen en yüksek MEŞRU oranın (23,2) yaklaşık 8,6 katı. Yukarıdaki
-# 8 KB -> 8 MB bombasının oranı 1.028'di, yani rahatça yakalanıyor.
+
 MAX_COMPRESSION_RATIO = 200
 
 _REQUIRED_MEMBERS = ("finance.db", "metadata.json", "key.recovery.json")
@@ -94,8 +60,6 @@ _ALLOWED_MEMBERS = frozenset(_REQUIRED_MEMBERS + _OPTIONAL_MEMBERS)
 _STAGE_CHUNK = 64 * 1024
 
 
-#: Hash okuma bloğu. 1 MiB, sabit — dosya ne kadar büyürse büyüsün tahsis
-#: değişmez.
 _HASH_CHUNK = 1024 * 1024
 
 
@@ -177,15 +141,14 @@ def _reject_unsafe_members(infos):
             raise IntegrityVerificationError(
                 "Backup paketi dizin girdisi içeriyor."
             )
-        # ZIP'in genel amaç bayrağındaki 0. bit "şifreli". Şifreli bir üyeyi
-        # açmaya çalışmak parola sorar ya da çöp üretir; ikisi de kabul değil.
+
+
         if info.flag_bits & 0x1:
             raise IntegrityVerificationError(
                 "Backup paketi şifreli üye içeriyor."
             )
-        # Unix mod bitleri ZIP'te `external_attr`'ın üst 16 bitinde taşınır.
-        # S_IFLNK, üyenin bir sembolik bağ OLDUĞU anlamına gelir: açıldığında
-        # dosya değil, paketi verenin seçtiği bir yola bağ oluşur.
+
+
         if (info.external_attr >> 16) & 0o170000 == 0o120000:
             raise IntegrityVerificationError(
                 "Backup paketi sembolik bağ içeriyor."
@@ -252,10 +215,8 @@ def _stage_package(package_path, destination):
         with zipfile.ZipFile(package_path, "r") as archive:
             infos = archive.infolist()
             _reject_unsafe_members(infos)
-            # Yol güvenliği ön kontrolden AYRI tutuluyor: isim kümesi zaten
-            # `_ALLOWED_MEMBERS` ile sınırlı olduğu için buraya gelen her isim
-            # düz bir dosya adıdır. Yine de açıkça sınanıyor, çünkü bu iddia
-            # kod değiştikçe sessizce yanlışa dönebilecek türden.
+
+
             for info in infos:
                 _require_plain_member_name(info.filename)
             total = 0
@@ -265,21 +226,12 @@ def _stage_package(package_path, destination):
     except (
         zipfile.BadZipFile, zipfile.LargeZipFile, OSError, EOFError,
         ValueError,
-        # `NotImplementedError` — desteklenmeyen sıkıştırma yöntemi.
-        # `RuntimeError` — zipfile'ın parola isteyen/şifreli üye yolu.
-        # İkisi de PAKETİN İÇERİĞİNDEN doğar, yani bir programlama hatası
-        # değil bozuk/düşmanca girdidir; sözleşme
-        # `IntegrityVerificationError` demek zorunda. `NotImplementedError`
-        # zaten `RuntimeError`'ın alt sınıfı, açıklık için ikisi de yazıldı.
+
+
         NotImplementedError, RuntimeError,
     ) as exc:
-        # Bozuk ZIP ve CRC uyuşmazlığı da buradan geçer: kütüphane
-        # `BadZipFile` fırlatır, sözleşme `IntegrityVerificationError`'dır.
-        #
-        # `MemoryError`, `KeyboardInterrupt` ve `SystemExit` BİLEREK YOK:
-        # ilki `Exception` alt sınıfı olsa da süreç seviyesinde bir durum,
-        # diğer ikisi zaten `BaseException`. Hiçbiri "paket bozuk" demek
-        # değildir ve yutulmamalı.
+
+
         raise IntegrityVerificationError("Backup paketi açılamadı.") from exc
     return staged
 
@@ -330,10 +282,8 @@ ENCRYPTED_FIELDS = {
     "recurring_payments": ("name", "amount"),
     "savings_goals": ("goal_name",),
     "installment_plans": ("description", "total_amount", "monthly_amount"),
-    # Göç karantinası da KİŞİSEL VERİ taşıyor: taşınamayan hedefin adı ve ham
-    # kaydı. Haritaya girmeseydi yedek doğrulaması bu satırları anahtara karşı
-    # hiç sınamaz ve legacy şifreleme taşıması onları atlardı — sessizce
-    # okunamaz hâle gelirlerdi.
+
+
     "savings_migration_quarantine": ("goal_name", "payload"),
 }
 
@@ -407,8 +357,8 @@ def decrypt_recovery_material(payload, passphrase):
     _require_passphrase(passphrase)
     if not isinstance(payload, dict):
         raise IntegrityVerificationError("Backup kurtarma materyali bozuk.")
-    # KDF ADI ÖNCE. Desteklenmeyen bir isim, hangi algoritmanın çalıştırıldığı
-    # konusunda paketi veren tarafa söz hakkı vermek demektir.
+
+
     if payload.get("kdf") != SUPPORTED_RECOVERY_KDF:
         raise IntegrityVerificationError(
             "Backup kurtarma materyalinin KDF'i desteklenmiyor."
@@ -423,9 +373,8 @@ def decrypt_recovery_material(payload, passphrase):
         raise IntegrityVerificationError(
             "Backup kurtarma materyali bozuk."
         ) from exc
-    # UZUNLUKLAR DA PBKDF2'DEN ÖNCE. Yanlış uzunlukta bir nonce/tag zaten
-    # açılamaz; bunu anlamak için önce yüz binlerce tur KDF koşturmanın hiçbir
-    # faydası yok — yalnız maliyeti var.
+
+
     if (
         len(salt) != _SALT_LEN
         or len(nonce) != _NONCE_LEN
@@ -478,16 +427,8 @@ def _sqlite_backup(source_path, destination_path):
 def _integrity_check(db_path):
     with closing(sqlite3.connect(db_path)) as conn:
         result = conn.execute("PRAGMA integrity_check").fetchone()[0]
-        # FOREIGN KEY İHLALİ DE BİR BÜTÜNLÜK KUSURU. `integrity_check` sayfa
-        # ve indeks yapısına bakar, referans bütünlüğüne BAKMAZ — ikisi ayrı
-        # PRAGMA. Zorlama bağlantı başına kapalı olduğu için eski profillerde
-        # öksüz satır birikmiş olabilir; böyle bir veritabanını "doğrulanmış
-        # yedek" diye yayımlamak ya da restore etmek, kusuru taşımaktır.
-        #
-        # SINIRLI OKUMA: paket DIŞARIDAN geliyor, yani ihlal sayısını
-        # belirleyen taraf biz değiliz. `fetchall()` milyonlarca öksüz satırı
-        # olan bir veritabanında hata mesajını üretirken belleği tüketirdi.
-        # Teşhis için ilk örnek yeter.
+
+
         cursor = conn.execute("PRAGMA foreign_key_check")
         try:
             violations = [tuple(row)[:3] for row in cursor.fetchmany(1)]
@@ -632,17 +573,11 @@ def _verify_staged(temp, passphrase):
             "Backup metadata veya kurtarma materyali bozuk."
         ) from exc
 
-    # ŞEKİL DOĞRULAMASI EN ÖNDE — tek bir `.get()` çağrısından, PBKDF2'den,
-    # hash hesabından ve DB açmadan ÖNCE. Bu paket dışarıdan geliyor; JSON
-    # kökünün nesne olduğu bile varsayılamaz.
+
     metadata = _require_mapping(metadata, "metadata")
     recovery = _require_mapping(recovery, "kurtarma materyali")
 
-    # `format_version` GERÇEK int olmalı: `bool` `int`'in alt sınıfı olduğu
-    # için `True == 1`, ve `"2" != 2` sessizce doğru sonucu verse de tip
-    # sözleşmesi açık yazılmalı.
-    # `2.0 == 2` Python'da True'dur, yani salt karşılaştırma float bir sürümü
-    # kabul ederdi. Tip önce sınanıyor.
+
     version = metadata.get("format_version")
     if (
         isinstance(version, bool)
@@ -699,14 +634,7 @@ def verify_backup(package_path, passphrase):
 _JOURNAL_DIRNAME = ".archlence-restore"
 _JOURNAL_NAME = "journal.json"
 
-# Journal'ın kaydettiği state'ler. Sıra önemli: ROLLBACK_GENERATION_READY'den
-# ÖNCE kesilen bir restore hedefe hiç dokunmamıştır, sonrasında kesilen ise
-# yarım bir generation bırakmıştır ve geri alınması gerekir.
 
-# COMMITTED'DEN ÖNCE eski generation canonical'dır; sonrasında YENİ generation
-# canonical'dır. Bu ayrım olmadan, post-verification ile journal silme arasında
-# çöken bir süreç BAŞARILI bir restore'u geri aldırırdı: startup journal'ı
-# görüp "yarım restore" sanıyordu.
 _ROLLBACK_STATES = (
     "STAGED",
     "ROLLBACK_GENERATION_READY",
@@ -715,8 +643,8 @@ _ROLLBACK_STATES = (
     "CONFIG_REPLACED",
     "VERIFIED",
 )
-# Bu state'lerde geri alma YAPILMAZ; yalnızca eski generation artefaktları
-# temizlenir ve temizlik idempotenttir.
+
+
 _COMMITTED_STATES = (
     "COMMITTED",
     "CLEANUP_COMPLETE",
@@ -864,20 +792,15 @@ def recover_interrupted_restore(db_path=DB_NAME, *, key_provider=None,
     savings_json = _savings_json_path(db_path)
 
     if state in _COMMITTED_STATES:
-        # YENİ generation canonical. Restore başarıyla tamamlanmış ve
-        # doğrulanmıştı; süreç yalnızca temizlik sırasında çökmüş. Geri almak
-        # BAŞARILI bir restore'u iptal etmek olurdu.
-        #
-        # FAIL-CLOSED: COMMITTED deniyor ama yeni veritabanı ortada yoksa
-        # ortada anlayamadığımız bir durum var. Sessizce eski generation'a
-        # dönmek de, boş bir profille açmak da yanlış olur.
+
+
         if not db_path.exists():
             raise DataMigrationError(
                 "Restore tamamlanmış görünüyor ama veritabanı bulunamadı; "
                 "profil elle incelenmeli."
             )
-        # Yarım kalan tek iş bayat JSON'un kenara alınmasıysa onu tamamla.
-        # Restore başarılı, yani diskteki JSON ÖNCEKİ generation'dan kalma.
+
+
         _quarantine_stale_savings_json(savings_json)
         _discard_journal(journal_dir)      # idempotent: rmtree(ignore_errors)
         return {
@@ -887,7 +810,7 @@ def recover_interrupted_restore(db_path=DB_NAME, *, key_provider=None,
             "db_path": str(db_path),
         }
 
-    # COMMITTED'den önce: eski generation canonical, geri al.
+
     if old_db.exists():
         if db_path.exists():
             db_path.unlink()
@@ -931,15 +854,8 @@ def restore_backup(
         prefix="archlence-restore-", dir=str(db_path.parent)
     ) as temp_dir:
         temp = Path(temp_dir)
-        # SIRA DEĞİŞTİ VE BU BİLİNÇLİ. Eskiden burada önce güvenlik yedeği
-        # alınıyor, sonra paket açılıyor, sonra `verify_backup` AYNI paketi
-        # İKİNCİ kez açıyordu. Yani saldırgan kontrollü bir paket, hiç
-        # sınanmadan önce hem tam bir `create_backup` turu tetikliyor hem de
-        # iki kez diske açılıyordu.
-        #
-        # Yeni sıra: gelen paketi ÖNCE tek bir staging'de kanıtla, ancak
-        # ondan sonra mevcut profile dokun. Güvenlik yedeği korunuyor —
-        # yalnızca gelen paket kanıtlandıktan SONRA alınıyor.
+
+
         _stage_package(package_path, temp)
         verification = _verify_staged(temp, passphrase)
 
@@ -957,11 +873,7 @@ def restore_backup(
         staged_key.write_bytes(verification["key"])
         os.chmod(staged_key, 0o600)
 
-        # ROLLBACK GENERATION DAYANIKLI BİR DİZİNDE tutulur, geçici dizinde
-        # DEĞİL. Eskiden `old-finance.db` `TemporaryDirectory` içindeydi:
-        # süreç replacement ile doğrulama arasında ÇÖKERSE o dizin silinir ve
-        # geri dönülecek hiçbir şey kalmazdı. Journal ve eski dosyalar artık
-        # profil dizininde yaşıyor, böylece bir sonraki açılış toparlayabilir.
+
         journal_dir = _restore_journal_dir(db_path)
         old_db = journal_dir / "old-finance.db"
         old_config = journal_dir / "old-config.json"
@@ -969,20 +881,13 @@ def restore_backup(
         savings_json = _savings_json_path(db_path)
         try:
             journal_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
-            # Config'in ESKİ hâli, değiştirilmeden ÖNCE saklanır. Eski kod
-            # config'i yazıyor ama rollback yolunda hiç geri almıyordu:
-            # başarısız restore'da DB eski, config yeni kalıyordu — karma
-            # profil (denetim bulgusu P1-1).
-            # `config is not None` AYRI yazılıyor: `had_config` bir bool
-            # olduğu için tip daraltması onun üzerinden taşınmıyor ve
-            # `copy2(Path | None, ...)` type-check'te hata veriyordu. Davranış
-            # aynı — config yoksa ya da dosya mevcut değilse kopyalanmaz.
+
+
             had_config = config is not None and config.exists()
             if config is not None and had_config:
                 shutil.copy2(config, old_config)
-            # Legacy hedef dosyası da AYNI generation'ın parçası. Restore
-            # başarısız olursa config ve DB ile birlikte geri gelir; başarılı
-            # olursa aşağıda karantinaya alınır.
+
+
             had_savings_json = savings_json.exists()
             if had_savings_json:
                 shutil.copy2(savings_json, old_savings)
@@ -1046,9 +951,8 @@ def restore_backup(
                 )
             elif current_key is None and restored_key is not None:
                 provider.delete_key(expected_current=restored_key)
-            # Config ve legacy hedef dosyası da AYNI generation ile geri
-            # alınır: başarısız restore'dan sonra profil, restore hiç
-            # denenmemiş gibi olmalı.
+
+
             _rollback_config(config, old_config, had_config)
             _rollback_savings_json(savings_json, old_savings, had_savings_json)
             _discard_journal(journal_dir)
@@ -1056,13 +960,7 @@ def restore_backup(
                 "Restore başarısız oldu; önceki veriler geri yüklendi."
             ) from exc
 
-        # POST-VERIFICATION BAŞARILI. Buradan itibaren YENİ generation
-        # canonical'dır ve geri alınmamalıdır.
-        #
-        # COMMITTED işareti TEMİZLİKTEN ÖNCE yazılır. Sıra kritik: eskiden
-        # başarıda journal doğrudan siliniyordu, yani bu iki adım arasında
-        # çöken bir süreç journal'ı `CONFIG_REPLACED` durumunda bırakıyor ve
-        # sonraki açılış BAŞARILI bir restore'u geri alıyordu.
+
         _write_journal(
             journal_dir, "VERIFIED", db_path, config,
             had_config, had_savings_json,
@@ -1075,15 +973,13 @@ def restore_backup(
         )
         if _failure_hook:
             _failure_hook("after_committed_marker")
-        # Bayat JSON kenara alınır. COMMITTED'DEN SONRA, çünkü buradan
-        # itibaren YENİ generation canonical: diskte kalan JSON önceki
-        # generation'a ait ve bir daha etkin kaynak olmamalı. Kesilirse
-        # `recover_interrupted_restore` aynı adımı tamamlar (idempotent).
+
+
         stale_savings = _quarantine_stale_savings_json(savings_json)
         if _failure_hook:
             _failure_hook("after_savings_json_quarantined")
-        # Eski generation artefaktlarını temizle. Buradaki her adım
-        # idempotenttir; kesilirse sonraki açılış tamamlar.
+
+
         _discard_journal(journal_dir)
 
     from utils.crypto import _get_aead_key

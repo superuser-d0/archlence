@@ -61,7 +61,8 @@ See the [full changelog](CHANGELOG.md) and
   unusual-spending analysis help turn records into decisions.
 - **Desktop focus:** packaged Windows and Linux options avoid a browser-first
   workflow.
-- **Turkish and English:** both interfaces are maintained in the application.
+- **English-first interface:** the public application surface is maintained in
+  English for a global audience.
 - **Transparent development:** limitations, technical debt, and release work
   are documented openly.
 
@@ -78,7 +79,7 @@ See the [full changelog](CHANGELOG.md) and
 | Investments | Stocks, cryptoassets, precious metals, currencies, price refreshes, and transaction history |
 | Debt and savings | Debt progress, installments, upcoming payments, and savings goals |
 | Data portability | CSV import and export for supported financial records |
-| Localization and desktop experience | Turkish and English interfaces, light and dark themes, and desktop navigation |
+| Desktop experience | English interface, light and dark themes, and desktop navigation |
 
 ## Screenshots
 
@@ -110,7 +111,7 @@ savings goals, and what-if tools for planning.
 
 ### Settings and privacy controls
 
-Manage language, appearance, categories, balance history, backups, and local
+Manage appearance, categories, balance history, backups, and local
 data controls.
 
 | Settings |
@@ -251,7 +252,7 @@ pull requests. Do not open a public issue for a suspected vulnerability; use a
 instead.
 
 See [SECURITY.md](SECURITY.md) for the reporting process and pre-release support
-scope.
+scope. General project contact: `Superkullaniciyapiyor@proton.me`.
 
 ## Roadmap
 

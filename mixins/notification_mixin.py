@@ -26,10 +26,10 @@ from kivymd.uix.list import OneLineListItem, TwoLineListItem
 
 from ui.i18n import tr as _t
 
-#: "Yaklaşan Ödemeler" kartının eşiği (mixins/recurring_mixin.py) ile AYNI.
+
 UPCOMING_WINDOW_DAYS = 7
 
-#: Panelde gösterilecek en fazla satır; gerisi için ilgili ekran var.
+
 MAX_VISIBLE_NOTIFICATIONS = 6
 
 _ROW_HEIGHT = 72
@@ -45,7 +45,7 @@ class NotificationMixin:
         if panel.children:
             self.clear_notifications()
             return
-        # Arama paneli açıksa kapat: ikisi üst üste başlığın altını kaplar.
+
         self.clear_home_search_results()
         self._load_notifications()
 
@@ -71,10 +71,8 @@ class NotificationMixin:
             items, failed = [], False
             try:
                 items = collect_notifications()
-            # EXCEPTION-AUDIT: bilinçli geniş. Bu bir arka plan thread'i;
-            # buradan sızan bir istisna sessizce thread'i öldürür ve panel
-            # sonsuza kadar boş kalır. Yutmuyoruz — loglayıp kullanıcıya
-            # "yüklenemedi" gösteriyoruz.
+
+
             except Exception:
                 from utils.logging_config import get_logger
                 get_logger().exception("Bildirimler toplanamadı")
@@ -124,8 +122,8 @@ class NotificationMixin:
         self.clear_notifications()
         if nav is None:
             return
-        # İkisi de ana sayfada kendi kartına sahip; zil bir kısayol, ayrı bir
-        # ekran değil. Sekme zaten ana sayfaysa bu bir no-op.
+
+
         nav.switch_tab("home_tab")
 
     def clear_notifications(self):
@@ -162,7 +160,7 @@ def collect_notifications(today=None):
         try:
             due = datetime.date.fromisoformat(str(raw_due))
         except (TypeError, ValueError):
-            # Bozuk bir tarih tüm zili düşürmemeli; o satır atlanır.
+
             continue
         days_left = (due - today).days
         if days_left > UPCOMING_WINDOW_DAYS:
@@ -180,8 +178,7 @@ def collect_notifications(today=None):
             "date": str(raw_due),
         })
 
-    # Gecikmiş ve bugünkü olanlar üstte: sıralama tarihe göre, tarihi
-    # olmayanlar en sona.
+
     items.sort(key=lambda entry: (entry.get("date") is None,
                                   str(entry.get("date") or "")))
     return items

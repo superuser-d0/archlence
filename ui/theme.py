@@ -8,33 +8,29 @@ Light/Indigo token'larını birebir geri yükler.
 
 from kivy.utils import get_color_from_hex
 
-# ── Premium Banking renk token'ları ────────────────────────────────────────
-ARCHLENCE_PRIMARY_HEX = "5444E5"    # Ana accent: Indigo/Çivit
+
+ARCHLENCE_PRIMARY_HEX = "5444E5"
 ARCHLENCE_SECONDARY_HEX = "3B2FC3"  # Koyu indigo
-ARCHLENCE_BG_HEX = "F9F9FF"         # Açık tema canvas: slate beyaz
-ARCHLENCE_SURFACE_HEX = "FFFFFF"    # Kart yüzeyleri: saf beyaz
+ARCHLENCE_BG_HEX = "F9F9FF"
+ARCHLENCE_SURFACE_HEX = "FFFFFF"
 ARCHLENCE_TEXT_HEX = "151C27"       # Birincil metin: lacivert-siyah
 
-# ── Karanlık tema yüzey merdiveni ──────────────────────────────────────────
-# Material "dark surface elevation" mantığı: kartlar zeminden ÇİZGİYLE değil,
-# bir tık açık dolguyla ayrışır. Neon kenarlık yerine bu merdiven kullanılır.
-ARCHLENCE_DARK_BG_HEX = "121212"       # Canvas (en dip)
-ARCHLENCE_DARK_SURFACE_HEX = "1E1E1E"  # Kart / diyalog yüzeyi (+1 basamak)
-ARCHLENCE_DARK_ELEVATED_HEX = "262626" # İç içe kart / seçili durum (+2 basamak)
 
-# rgba karşılıkları (Python tarafında grafik/canvas çizimleri için)
+ARCHLENCE_DARK_BG_HEX = "121212"       # Canvas (en dip)
+ARCHLENCE_DARK_SURFACE_HEX = "1E1E1E"
+ARCHLENCE_DARK_ELEVATED_HEX = "262626"
+
+
 ARCHLENCE_PRIMARY = get_color_from_hex(ARCHLENCE_PRIMARY_HEX)
 ARCHLENCE_SECONDARY = get_color_from_hex(ARCHLENCE_SECONDARY_HEX)
 ARCHLENCE_TEXT = get_color_from_hex(ARCHLENCE_TEXT_HEX)
 
-# Tema rol token'ları. Koyu kart yüzeyi Light Mode'da da bilinçli olarak kalır;
-# gerçek bankacılık uygulamalarındaki fiziksel kart metaforunu korur.
+
 ARCHLENCE_BANK_CARD_HEX = "171C25"
 ARCHLENCE_BANK_CARD_TEXT_HEX = "F7F9FC"
 ARCHLENCE_BANK_CARD_MUTED_HEX = "AEB7C6"
 
-# KivyMD'nin dokunulmamış Light/Indigo token'ları; ilk apply çağrısında
-# yakalanır, standarda dönüşte geri yüklenir (premium mutasyonu kalıcı olmasın).
+
 _STANDARD_LIGHT = None
 _STANDARD_INDIGO = None
 
@@ -111,18 +107,17 @@ def apply_premium_theme(theme_cls):
     _ensure_captured()
     _patch_text_color_once()
 
-    # Indigo paletinin ana tonlarını marka renkleriyle ez (primary_hue "500").
+
     colors["Indigo"]["500"] = ARCHLENCE_PRIMARY_HEX
     colors["Indigo"]["700"] = ARCHLENCE_SECONDARY_HEX
     colors["Indigo"]["A700"] = ARCHLENCE_SECONDARY_HEX
-    # Açık tema zeminleri.
+
     colors["Light"]["Background"] = ARCHLENCE_BG_HEX
     colors["Light"]["CardsDialogs"] = ARCHLENCE_SURFACE_HEX
     colors["Light"]["AppBar"] = ARCHLENCE_SURFACE_HEX
     apply_dark_surface_tokens()
 
-    # theme_style'a DOKUNULMAZ: kullanıcı karanlık moddayken palet değiştirince
-    # ekranın beyaza patlamaması için aktif mod korunur.
+
     theme_cls.primary_palette = "Indigo"
     theme_cls.accent_palette = "Indigo"
     theme_cls.accent_hue = "700"
@@ -135,27 +130,20 @@ def apply_standard_theme(theme_cls):
     _ensure_captured()
     _patch_text_color_once()
 
-    # Premium mutasyonlarını geri al — KivyMD'nin dokunulmamış token'ları.
+
     if _STANDARD_LIGHT is not None:
         colors["Light"].update(_STANDARD_LIGHT)
     if _STANDARD_INDIGO is not None:
         colors["Indigo"].update(_STANDARD_INDIGO)
-    # Karanlık yüzey merdiveni marka değil okunabilirlik meselesi; standart
-    # temada da geçerli kalır.
+
+
     apply_dark_surface_tokens()
 
     theme_cls.primary_palette = "Teal"
-    theme_cls.accent_palette = "Amber"  # KivyMD varsayılan accent
+    theme_cls.accent_palette = "Amber"
     theme_cls.accent_hue = "500"
     _refresh(theme_cls)
 
-
-# ── Paylaşılan bileşen stilleri ────────────────────────────────────────────
-# Aşağıdaki yardımcılar hem KV'den (`#:import ftheme ui.theme`) hem Python
-# mixin'lerinden çağrılır. KV tarafında bağlamanın tema değişiminde yeniden
-# hesaplanması için fonksiyonlara `app.theme_cls.theme_style` STRING'i geçilir —
-# `theme_cls` nesnesi geçilirse Kivy bağımlılığı theme_style üzerinde kuramaz ve
-# tema değişince renk güncellenmez.
 
 def _is_dark(style):
     """`theme_style` string'ini ya da bir ThemeManager'ı kabul eder."""
@@ -283,14 +271,8 @@ def make_text_field(hint, theme_cls, filter=None, mode="fill", **kwargs):
         hint_text=hint,
         mode=mode,
         radius=[dp(12), dp(12), dp(12), dp(12)],
-        # Kivy'de `write_tab` VARSAYILAN OLARAK True (ölçüldü) — yani TAB
-        # metnin içine bir sekme karakteri yazar, kullanıcı bunu "imleç 4
-        # boşluk ilerledi" diye görür. Bir tutar/ad alanına sekme yazmak
-        # hiçbir zaman istenmez, o yüzden varsayılan burada kapatılıyor.
-        #
-        # DİKKAT: bu TEK BAŞINA odağı ilerletmez (ölçüldü: write_tab=False
-        # ama focus_next yokken odak yerinde kalıyor). TAB'ın bir sonraki
-        # alana geçmesi için `chain_focus()` ile zincir de kurulmalı.
+
+
         write_tab=False,
     )
     if filter is not None:
@@ -312,7 +294,7 @@ def chain_focus(fields):
     """
     visible = [field for field in fields if field is not None]
     if len(visible) < 2:
-        # Tek alan varsa halka anlamsız; yine de sekme yazılmasın.
+
         for field in visible:
             field.write_tab = False
         return visible
@@ -339,13 +321,8 @@ def restyle_text_fields(root, theme_cls):
                 try:
                     setattr(widget, key, value)
                 except (AttributeError, ValueError):
-                    # Anahtar da değer de `field_style` içindeki sabitler,
-                    # hedef sınıf `isinstance` ile kapalı. Gerçek app ağacında
-                    # ölçüldü: dokuz anahtarın hepsi MDTextField'da gerçek
-                    # birer property (sessiz no-op yok) ve hiçbiri hata
-                    # vermiyor. Kalan yüzey yalnızca sürüm kayması: property
-                    # salt-okunur olursa AttributeError, tipi renk olmaktan
-                    # çıkarsa ValueError.
+
+
                     pass
 
 
@@ -387,8 +364,8 @@ def bind_card_tap(card, callback):
             return False
         if not widget.collide_point(*touch.pos):
             return False
-        # Aynı dokunuş bu widget'a ikinci kez ulaşırsa (grab redispatch'i)
-        # callback'i tekrar çalıştırma.
+
+
         handled_key = f"_archlence_bind_card_tap_{id(widget)}"
         if touch.ud.get(handled_key):
             return False
@@ -402,7 +379,7 @@ def primary_button(text, theme_cls, **kwargs):
     """Ana eylem butonu — dolgu daima aktif temanın primary rengi.
 
     Marka rengi koda gömülmez; `theme_cls.primary_color` premium temada
-    #5444E5, standart temada Teal döner.
+
     """
     from kivymd.uix.button import MDRaisedButton
 
@@ -447,9 +424,6 @@ def danger_button(text, theme_cls, **kwargs):
     return MDRaisedButton(**opts)
 
 
-# Anlam taşıyan (gelir/gider/nötr) özet kartlarının pastel dolguları. Açık
-# temada pastel tonlar, karanlıkta aynı hue'nun koyu yüzey üzerine %10-12
-# opaklıkta uygulanmış hâli — kart hâlâ "yeşil/kırmızı" okunur ama parlamaz.
 _TINTS = {
     "green": ((0.85, 0.95, 0.88, 1), (0.16, 0.62, 0.36, 0.18)),
     "red":   ((0.98, 0.88, 0.88, 1), (0.80, 0.29, 0.29, 0.18)),
@@ -463,15 +437,12 @@ def tint_bg(style, name):
     light, dark = _TINTS.get(name, _TINTS["blue"])
     if not _is_dark(style):
         return list(light)
-    # Koyu yüzeyin üzerine tint'i alfa ile karıştır — düz, opak bir sonuç ver.
+
     base = get_color_from_hex(ARCHLENCE_DARK_SURFACE_HEX)
     a = dark[3]
     return [base[i] * (1 - a) + dark[i] * a for i in range(3)] + [1]
 
 
-# Anlamsal METİN/ikon renkleri. Açık temada koyu-doygun tonlar okunur, aynı
-# tonlar koyu zeminde kontrastı çöküyor (özellikle koyu yeşil/kahve); karanlık
-# için her hue'nun açık, düşük doygunluklu karşılığı verilir.
 _ACCENTS = {
     "green":  ((0.06, 0.55, 0.18, 1), (0.45, 0.87, 0.56, 1)),
     "red":    ((0.78, 0.10, 0.10, 1), (0.98, 0.55, 0.55, 1)),
@@ -508,37 +479,8 @@ def chart_empty(style):
     return [0.80, 0.80, 0.80, 1] if not _is_dark(style) else [0.34, 0.35, 0.39, 1]
 
 
-# ── Grafik seri renkleri (TEK KAYNAK) ──────────────────────────────────────
-# Pasta grafiği, lejant ve zaman grafiği artık bu sözlükten okur. Eskiden
-# palet ÜÇ yerde kopyalanmıştı (ui/charts.py'de iki, ui/components.py'de bir;
-# yanlarında "must match" yorumuyla) ve kaçınılmaz olarak birbirinden ayrıldı:
-# zaman grafiğinde gider MAVİ çizilirken pastada mavi 'Ek Gelir' idi — yan yana
-# duran iki grafikte aynı renk zıt anlam taşıyordu.
-#
-# Renkler göz kararı seçilmedi; ölçülerek seçildi (OKLab ΔE, renk körlüğü
-# simülasyonu, WCAG kontrast). Doğrulama özeti:
-#   Açık tema (yüzey #FFFFFF) — pasta dilim komşulukları + sarma çifti:
-#     CVD ΔE 12.3 · normal görü ΔE 16.9 · 2 dilim 3:1 kontrastın altında
-#   Koyu tema (yüzey #1E1E1E) — aynı komşuluklar:
-#     CVD ΔE 10.7 · normal görü ΔE 17.5 · tüm dilimler ≥ 3:1
-#   Zaman grafiği üçlüsü (gelir/gider/açılış), TÜM çiftler:
-#     Açık CVD ΔE 12.4 · Koyu CVD ΔE 20.0 — ikisi de tüm testleri geçer
-# Karşılaştırma için ESKİ palet: gelir↔açılış normal görüde ΔE 7.6, pastada
-# 'Ana Gelir'↔'Temel Gider' kırmızı-yeşil körlüğünde ΔE 3.4 — yani gelir ile
-# gider birbirinden ayırt EDİLEMİYORDU.
-#
-# 3:1 kontrastın altında kalan dilimler "relief" kuralına tabidir: pasta
-# yüzdeleri dilimin üstüne basar, lejant her kategoriyi metinle etiketler —
-# kimlik hiçbir zaman yalnız renge bırakılmaz.
-#
-# BİLİNÇLİ ÖDÜN: koyu temadaki gelir yeşili (#4CCB7E, OKLCH L 0.753) önerilen
-# koyu-tema parlaklık bandının (0.48–0.67) ÜSTÜNDEDİR. Bandın içinde kalan bir
-# yeşille kırmızı, kırmızı-yeşil renk körlüğünde ΔE 3.1'e düşüyordu (pratikte
-# ayırt edilemez). Finanstaki "gelir yeşil / gider kırmızı" kuralını korumak
-# için band aşımı bilerek kabul edildi: erişilebilirlik testlerinin tamamı
-# geçiyor, aşım yalnızca koyu yüzeydeki canlılık meselesi.
 _CHART_SERIES = {
-    # rol              (açık tema, koyu tema)
+
     "income":          ("00661F", "4CCB7E"),
     "income_extra":    ("57C287", "14884A"),
     "opening":         ("4A3AA7", "9085E9"),
@@ -546,11 +488,7 @@ _CHART_SERIES = {
     "expense_extra":   ("EDA100", "C98500"),
 }
 
-# Pasta dilimlerinin ÇİZİM SIRASI. Sıra kozmetik değil, renk körlüğü
-# güvenliğinin mekanizmasıdır: 'Açılış Bakiyesi' iki gelir ve iki gider dilimi
-# ARASINA konur, böylece yeşil ve kırmızı aileleri hiçbir zaman komşu olmaz.
-# Halka kapandığı için son dilim ilkiyle de temas eder (sarma çifti); o çift de
-# doğrulamaya dahil edildi.
+
 CHART_CATEGORY_ROLES = (
     ("Ana Gelir", "income"),
     ("Ek Gelir", "income_extra"),

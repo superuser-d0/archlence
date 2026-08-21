@@ -78,16 +78,8 @@ class AssetPurchaseService:
         qty = float(quantity)
         if price <= 0 or qty <= 0:
             raise ValueError("Fiyat ve miktar sıfırdan büyük olmalıdır.")
-        # NAKİT tutar kuruşa yuvarlanır. Ham `price * qty` çarpımı hem
-        # bakiyeden düşülüyor hem de işlem tutarı olarak ŞİFRELENİP
-        # SAKLANIYORDU; ikili kayan nokta artıkları böylece deftere kalıcı
-        # giriyordu: 142,30 x 17 -> "2419.1000000000004",
-        # 2.456,78 x 0,12345678 -> "303.3061479684" (on ondalıklı bir LİRA
-        # tutarı). Kullanıcı kuruşu olan bir tutar öder.
-        #
-        # Bilgi kaybı yok: `purchase_price` ve `quantity` ayrı sütunlarda tam
-        # hassasiyetle duruyor, portföy değeri onlardan türetiliyor. Burada
-        # yuvarlanan yalnızca CÜZDANDAN ÇIKAN paradır.
+
+
         invested_amount = float(
             fiat(decimal_from(purchase_price) * decimal_from(quantity))
         )
@@ -104,16 +96,8 @@ class AssetPurchaseService:
         conn = get_connection()
         try:
             cursor = conn.cursor()
-            # Harcama kararı ve onu izleyen yazma AYNI transaction'da olmalı.
-            # Kontrol eskiden buranın DIŞINDA, kendi bağlantısını açan
-            # `check_spending_allowed` ile yapılıyordu: iki eşzamanlı alım
-            # aynı limit anlık görüntüsünü görüp ikisi birden geçebiliyordu
-            # (100 TL limitli kartta borç 120 TL). `transaction_service`
-            # aynı yarışı `467b269` ile böyle kapatmıştı; buradaki yol
-            # kapsam dışında kalmıştı.
-            #
-            # BEGIN IMMEDIATE yazma kilidini HEMEN alır, yani ikinci alım
-            # birincinin commit'ini görene kadar bekler ve güncel borcu okur.
+
+
             cursor.execute("BEGIN IMMEDIATE")
             if deduct_from_balance:
                 AccountService.assert_spending_allowed(
@@ -161,9 +145,8 @@ class AssetPurchaseService:
                     ref_id=transaction_id,
                     source="asset_purchase",
                 )
-            # Commit'e ulaşılmayan her yolda açık transaction, `close()` ile
-            # geri alınır — varlık, işlem ve bakiye ya birlikte kalır ya
-            # hiçbiri kalmaz.
+
+
             conn.commit()
             return {
                 "asset_id": asset_id,

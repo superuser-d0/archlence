@@ -68,7 +68,6 @@ class DashboardMetricsCacheTest(unittest.TestCase):
         TransactionService.add_transaction(
             self.account_id, amount, "expense", category, "test")
 
-    # ── Önbellek gerçekten çalışıyor mu ─────────────────────────────────
 
     def test_second_call_decrypts_nothing(self):
         self._add_expense(100.0)
@@ -78,7 +77,6 @@ class DashboardMetricsCacheTest(unittest.TestCase):
         self.assertGreater(first, 0, "ilk çağrı gerçekten hesaplamalı")
         self.assertEqual(second, 0, "ikinci çağrı hiç çözmemeli")
 
-    # ── Bayat veri göstermemeli — asıl risk bu ──────────────────────────
 
     def test_a_new_transaction_invalidates_the_cache(self):
         self._add_expense(100.0)
@@ -103,7 +101,7 @@ class DashboardMetricsCacheTest(unittest.TestCase):
         from services import asset_service
 
         self._add_expense(100.0, category="Market")
-        self._metrics()  # önbelleği doldur
+        self._metrics()
         revision_before = asset_service.get_financial_data_revision()
 
         asset_service.mark_financial_data_changed()

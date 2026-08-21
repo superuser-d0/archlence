@@ -42,15 +42,14 @@ class _LedgerTestBase(AccountFixtureMixin, unittest.TestCase):
         self._patcher.start()
         from database.init_db import initialize_database
         initialize_database()
-        # Eski seed'in üç hesabı (net 14000.0) — defter/replay testleri gerçek
-        # accounts.balance toplamıyla karşılaştırma yaptığı için gerekli.
+
+
         self.seed_account_ids = self.create_legacy_seed_accounts()
 
     def tearDown(self):
         self._patcher.stop()
         os.unlink(self.db_path)
 
-    # ── yardımcılar ──────────────────────────────────────────────────────────
 
     def _day(self, days_ago):
         return (datetime.now() - timedelta(days=days_ago)).strftime("%Y-%m-%d")
@@ -69,12 +68,8 @@ class _LedgerTestBase(AccountFixtureMixin, unittest.TestCase):
         conn.close()
 
     def _add_snapshot(self, days_ago, total, goals=None):
-        # try/finally ŞART: bu yardımcı bilerek IntegrityError fırlatan bir
-        # senaryoda da çağrılıyor (test_snapshot_date_is_unique). try/finally
-        # olmadan istisna `conn.close()` satırını atlıyor, bağlantı sızıyor ve
-        # Windows dosyayı kilitli tuttuğu için tearDown'daki `os.unlink`
-        # "WinError 32" ile patlıyor. Linux'ta açık dosya silinebildiği için
-        # bu sızıntı görünmüyordu.
+
+
         conn = sqlite3.connect(self.db_path)
         import json
         try:
@@ -165,7 +160,7 @@ class BaselineBackfillTestCase(_LedgerTestBase):
         """
         conn = sqlite3.connect(self.db_path)
         conn.execute("DELETE FROM balance_events")
-        # Açılış çizgisi olmayan, yalnızca bir hareketi olan defter kur
+
         conn.execute(
             "INSERT INTO balance_events (ts, entity_type, entity_id, delta,"
             " resulting_value, source) VALUES (?,?,?,?,?,?)",
@@ -264,7 +259,7 @@ class GetBalanceAtTestCase(_LedgerTestBase):
         self.assertEqual(result["total_balance"], 1200.0)
         self.assertEqual(result["basis"], "snapshot")
         self.assertEqual(result["snapshot_date"], self._day(5))
-        # Snapshot öncesi olaylar tekrar oynatılmamalı
+
         self.assertEqual(result["events_replayed"], 1)
 
     def test_snapshot_day_events_are_not_double_counted(self):
@@ -332,8 +327,8 @@ class DiffBetweenTestCase(_LedgerTestBase):
         self.assertEqual(a["from"], b["from"])
 
     def test_savings_change_is_tracked_separately(self):
-        # Defter başlangıcını sorgulanan aralığın ÖNÜNE çek ki sonuç
-        # "before_ledger" diye kırpılmasın.
+
+
         self._add_event(0.0, days_ago=9, source="account_opened")
         self._add_event(-500.0, days_ago=3, entity_type="account")
         self._add_event(+500.0, days_ago=3, entity_type="savings_goal", entity_id=1)
@@ -343,7 +338,7 @@ class DiffBetweenTestCase(_LedgerTestBase):
         self.assertEqual(d["balance_change"], -500.0)
         self.assertEqual(d["savings_change"], 500.0)
         self.assertFalse(d["truncated"])
-        # Hedef olayı kaynak kırılımına GİRMEMELİ (aynı hareketin diğer ucu)
+
         self.assertEqual(d["by_source"]["test"]["count"], 1)
 
     def test_diff_before_ledger_start_is_marked_truncated(self):
@@ -355,7 +350,7 @@ class DiffBetweenTestCase(_LedgerTestBase):
         self.assertTrue(d["truncated"])
         self.assertIsNone(d["balance_change"])
         self.assertEqual(d["ledger_start"], self._day(2))
-        # Bildiğimiz hareketler yine raporlanmalı
+
         self.assertEqual(d["by_source"]["transaction"]["delta"], 700.0)
 
 
@@ -378,7 +373,7 @@ class SnapshotWritingTestCase(_LedgerTestBase):
     def test_snapshot_captures_current_account_total(self):
         from services.history_service import write_daily_snapshot
 
-        # initialize_database üç varsayılan hesap açar: 2500 + 15000 - 3500
+
         result = write_daily_snapshot()
         self.assertEqual(result["total_balance"], 14000.0)
 
@@ -464,8 +459,7 @@ class RealWriteSitesTestCase(_LedgerTestBase):
         """factory_reset (defter 5/6) — toplu sıfırlama hesap başına olay."""
         from database.db import ACCOUNT, record_balance_event
 
-        # admin_screen.factory_reset gövdesindeki defter mantığının aynısı;
-        # Kivy ekranını başlatmadan davranışı doğrulamak için burada tekrarlanır.
+
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()

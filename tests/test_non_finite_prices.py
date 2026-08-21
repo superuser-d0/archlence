@@ -47,10 +47,10 @@ class FinitePositivePriceContractTest(unittest.TestCase):
         for value in (
             float("nan"), float("inf"), float("-inf"),
             "nan", "inf", "-inf", "Infinity", "NaN",
-            1e400,          # taşma sonucu inf
+            1e400,
             0, 0.0, "0", -1, -0.5, "-3",
             None, "", "  ", "abc", [], {}, object(),
-            True, False,    # bool bir fiyat DEĞİLDİR
+            True, False,
         ):
             with self.subTest(value=repr(value)):
                 self.assertIsNone(finite_positive_price(value))

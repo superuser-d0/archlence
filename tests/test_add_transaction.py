@@ -93,7 +93,6 @@ class TransactionDateStatusTest(AccountFixtureMixin, unittest.TestCase):
         rows = TransactionService.get_transactions_by_period("Hayat Boyu")
         self.assertEqual(rows, [])
 
-    # ─── (b) Geçmiş / bugün ──────────────────────────────────────────────────
 
     def test_past_transaction_is_completed_and_deducted(self):
         before = self._balance()
@@ -119,7 +118,6 @@ class TransactionDateStatusTest(AccountFixtureMixin, unittest.TestCase):
         self._add_on(day_offset=-1, amount=2000.0, tx_type="income")
         self.assertAlmostEqual(self._balance(), before + 2000.0, places=2)
 
-    # ─── (d) Zaman damgası biçimi ────────────────────────────────────────────
 
     def test_stored_dates_keep_full_timestamp_format(self):
         """Tarih-only satır ui/charts.py zaman kovalarını kırıyordu."""
@@ -162,7 +160,7 @@ class TransactionDateWidgetTest(unittest.TestCase):
     def test_label_says_today_for_current_date(self):
         app = self._make_app()
         app.selected_transaction_date = date.today()
-        self.assertIn("Bugün", app._transaction_date_label())
+        self.assertIn("Today", app._transaction_date_label())
 
     def test_label_shows_iso_date_for_other_days(self):
         app = self._make_app()
@@ -177,7 +175,7 @@ class TransactionDateWidgetTest(unittest.TestCase):
 
         self.assertGreater(app.date_hint_label.height, 0)
         self.assertEqual(app.date_hint_label.opacity, 1)
-        self.assertIn("bekleyen", app.date_hint_label.text.lower())
+        self.assertIn("pending", app.date_hint_label.text.lower())
 
     def test_hint_hidden_for_today(self):
         app = self._make_app()
@@ -249,7 +247,7 @@ class TransactionDateWidgetTest(unittest.TestCase):
         def fake_picker(initial, on_save, min_date=None):
             captured["initial"] = initial
             captured["min_date"] = min_date
-            on_save(None, past, None)   # seçici atlansa bile geçmiş gelmesin
+            on_save(None, past, None)
 
         app._open_date_picker = fake_picker
         app.open_transaction_date_picker()

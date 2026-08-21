@@ -114,16 +114,14 @@ tests appropriate to the operation. Demonstrate that:
 Tests should include the failure path that motivated the change, not only the
 successful path.
 
-### UI and localization
+### UI and text
 
-Include screenshots or a short recording for visible UI changes. Check Turkish
-and English, relevant empty/error/loading states, and light/dark appearance when
-the change affects styling. Avoid embedding user-facing text outside the
-localization system.
+Include screenshots or a short recording for visible UI changes. Check relevant
+empty/error/loading states and light/dark appearance when the change affects
+styling. Avoid embedding user-facing text outside the text catalog.
 
-Localization changes should update both languages, preserve format placeholders,
-and include or update translation tests. Use generated sample data in every
-capture.
+Text changes should preserve format placeholders and include or update text
+catalog tests. Use generated sample data in every capture.
 
 ## Pull requests
 
@@ -137,7 +135,7 @@ Before requesting review:
 - [ ] New behavior and failure paths have regression coverage.
 - [ ] Financial-integrity impact is explained.
 - [ ] UI evidence is included or marked not applicable.
-- [ ] Turkish and English were checked where relevant.
+- [ ] English UI text and relevant states were checked.
 - [ ] Documentation and changelog impact were considered.
 - [ ] No real financial data, credentials, keys, or private paths are present.
 - [ ] Security-sensitive details are being handled privately.

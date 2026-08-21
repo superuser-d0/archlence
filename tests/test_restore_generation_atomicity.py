@@ -59,7 +59,7 @@ class RestoreGenerationAtomicityTest(unittest.TestCase):
             "Yedek Hesabı", "checking", initial_balance=1000
         )
 
-        # Yedeğin içeriği: "from-backup" config + 4321 bakiye.
+
         self.config_path.write_text('{"profile":"from-backup"}',
                                     encoding="utf-8")
         self._set_balance(4321.0)
@@ -69,7 +69,7 @@ class RestoreGenerationAtomicityTest(unittest.TestCase):
             config_path=str(self.config_path),
         )
 
-        # Mevcut profil yedekten FARKLI olsun ki rollback ölçülebilsin.
+
         self._set_balance(9999.0)
         self.config_path.write_text('{"profile":"current"}', encoding="utf-8")
         self.before = self._snapshot()
@@ -110,7 +110,6 @@ class RestoreGenerationAtomicityTest(unittest.TestCase):
             _failure_hook=_hook if fault_at else None,
         )
 
-    # ── Başarısız restore: üç dosya da birlikte geri dönmeli ──────────────
 
     def test_every_replacement_fault_rolls_back_the_whole_generation(self):
         for fault in (
@@ -121,8 +120,8 @@ class RestoreGenerationAtomicityTest(unittest.TestCase):
             "after_post_verification",
         ):
             with self.subTest(fault=fault):
-                # Her fault için TAZE profil: önceki fixture kapatılıp
-                # yenisi kuruluyor, aksi halde tempdir orphan kalırdı.
+
+
                 self.tearDown()
                 self.setUp()
                 try:
@@ -159,7 +158,6 @@ class RestoreGenerationAtomicityTest(unittest.TestCase):
             "restore öncesi olmayan config başarısızlıktan sonra kaldı",
         )
 
-    # ── Başarılı restore ─────────────────────────────────────────────────
 
     def test_successful_restore_applies_one_complete_generation(self):
         result = self._restore()
@@ -172,7 +170,6 @@ class RestoreGenerationAtomicityTest(unittest.TestCase):
             "başarılı restore sonrası journal kaldı",
         )
 
-    # ── Yarım kalmış restore: başlangıç kurtarması ───────────────────────
 
     def test_interrupted_restore_is_recovered_on_startup(self):
         """Süreç replacement'tan sonra çökerse sonraki açılış toparlamalı.

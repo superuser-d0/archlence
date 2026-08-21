@@ -24,9 +24,7 @@ from utils.financial_decimal import fiat
 
 SUBSCRIPTION_CATEGORY = "Dijital Abonelik"
 
-# Aboneliğe işaret eden kategoriler. SUBSCRIPTION_CATEGORY kullanıcının açıkça
-# "bu bir abonelik" dediği kategori; diğerleri kredi kartından geçen tipik
-# abonelik kalemleri.
+
 SUBSCRIPTION_CATEGORIES = {
     "Dijital Abonelik",
     "Dijital Platformlar",
@@ -36,18 +34,9 @@ SUBSCRIPTION_CATEGORIES = {
     "Bağış (Düzenli)",
 }
 
-# Açıklamada geçince harcamayı abonelik sayan marka adları. Küçük harfe
-# duyarsız ALT DİZE olarak aranır (bkz. looks_like_subscription): "NETFLIX.COM
-# 12/2026" içinde "netflix" bulunur. Adlar normalize (küçük harf, sade) tutulur;
-# marka LOGOSU ayrı bir sistemdir (services/brand_icon_service.py::_BRANDS) ve
-# oradaki alias'lar bu listeye örnek alındı.
-# DİKKAT: eşleşme düz alt dizedir (kelime sınırı yok). Bu yüzden kısa/yaygın
-# tokenler (tod, gain, calm, steam, fitness...) BİLEREK dışarıda bırakıldı;
-# "again"/"bargain"/"steamed" gibi masum metinlerde yanlış pozitif üretirlerdi.
-# Yalnız ayırt edici (≈5+ harf) adlar listelenir. Kategori sinyali zaten
-# "Dijital Platformlar" gibi durumları kapsıyor; bu liste ikincil bir sinyal.
+
 KNOWN_BRANDS = [
-    # Video / müzik / içerik platformları
+
     "netflix", "spotify", "youtube premium", "youtube music", "amazon prime",
     "prime video", "disney+", "disney plus", "blutv", "exxen", "mubi",
     "deezer", "tabii", "hbo max", "apple music", "apple tv", "apple one",
@@ -55,7 +44,7 @@ KNOWN_BRANDS = [
     "tidal", "soundcloud go", "soundcloud",
     # Kitap / sesli kitap
     "storytel", "audible", "kindle unlimited", "blinkist",
-    # Yazılım / lisans / bulut
+
     "adobe", "creative cloud", "microsoft 365", "office 365", "icloud",
     "google one", "dropbox", "notion", "figma", "canva", "jetbrains",
     "github", "1password", "lastpass", "nordvpn", "expressvpn",
@@ -63,18 +52,18 @@ KNOWN_BRANDS = [
     "protonpass", "proton drive", "protondrive", "proton calendar",
     "protoncalendar", "proton unlimited", "proton duo", "proton family",
     "proton visionary", "proton",
-    # Telekomünikasyon / internet
+
     "türk telekom", "turk telekom", "türktelekom", "turktelekom", "ttnet",
     "vodafone türkiye", "vodafone turkey", "vodafone net", "vodafone",
     "turkcell superonline", "superonline", "turkcell",
     "chatgpt", "openai", "claude", "anthropic", "gemini advanced",
     "slack", "zoom", "linkedin premium", "meta verified",
-    # Eğitim / kurs
+
     "udemy", "coursera", "duolingo", "skillshare",
-    # Spor / sağlık / üyelik
+
     "macfit", "club sporium", "clubsporium", "sporium", "strava",
     "headspace", "spotify premium",
-    # Bağış / üyelik
+
     "patreon", "wikipedia",
     # Oyun
     "playstation plus", "ps plus", "xbox game pass", "game pass",
@@ -150,9 +139,7 @@ def looks_like_subscription(category, description="", is_credit_card=False):
             if str(brand).casefold() in haystack:
                 return True
 
-    # is_credit_card şu an yalnız yukarıdaki sinyallerle birlikte anlamlı;
-    # imzada tutuluyor çünkü çağıran taraf bu bilgiyi zaten hesaplıyor ve
-    # GEMINI marka listesini doldurduğunda kural buradan genişletilecek.
+
     return False
 
 
@@ -175,9 +162,7 @@ def register_subscription_from_transaction(
         insert_recurring_payment,
     )
 
-    # Bu interceptor yalnız kredi kartı harcamaları içindir. Kart dışındaki
-    # açıkça tekrarlanan ödemeler formun recurring akışı tarafından kaydedilir;
-    # onları burada da yakalamak iki ayrı kayıt üretirdi.
+
     if not is_credit_card:
         return None
     if not looks_like_subscription(category, description, is_credit_card):
@@ -219,8 +204,8 @@ def _plain_name(raw):
     try:
         return decrypt(str(raw), SECRET_KEY) or ""
     except KeyUnavailableError:
-        # Anahtar yoksa TÜM kayıtlar etkilenir; satır bazında yutmak toplam
-        # arızayı "hepsi adsız" diye normal veri gibi gösterirdi.
+
+
         raise
     except (DecryptionError, ValueError, TypeError):
         from utils.logging_config import get_logger
@@ -247,11 +232,8 @@ def update_subscription_amount(payment_id, new_amount):
     silme+yeniden kurma vade geçmişini ve `next_due_date` hizasını da
     sıfırlardı. Yalnız tutar güncellenir, vade dokunulmaz.
     """
-    # `float(new_amount)` + `amount <= 0` NaN'i GEÇİRİYORDU: `nan <= 0`
-    # False'tur, `inf <= 0` da öyle. İkisi de şifrelenip kalıcı olarak
-    # yazılıyordu (ölçüldü: `nan` ve `inf` kabul, `-inf`/0/negatif ret).
-    # `fiat` projenin ortak para sınırı — sonlu olmayanı reddeder ve kuruşa
-    # yuvarlar, `insert_recurring_payment` ile aynı sözleşme.
+
+
     try:
         amount = fiat(new_amount)
     except (TypeError, ValueError) as exc:
@@ -360,9 +342,8 @@ def find_current_period_charge(payment_id, today=None):
         except KeyUnavailableError:
             raise
         except (DecryptionError, ValueError, TypeError):
-            # Bu bir ARAMA döngüsü: çözülemeyen aday atlanır, çünkü onu
-            # eşleşme sayamayız. Yine de iz bırakılır — sessizce atlamak,
-            # "eşleşme bulunamadı" ile "veri bozuk" arasındaki farkı siler.
+
+
             from utils.logging_config import get_logger
             get_logger().exception(
                 "[VERİ BÜTÜNLÜĞÜ] aday işlem id=%s açıklaması çözülemedi",
@@ -393,24 +374,8 @@ def refund_current_period_charge(payment_id, today=None):
     charge = find_current_period_charge(payment_id, today=today)
     if not charge:
         return 0.0
-    # PARA SINIRI. Buraya gelen tutar KULLANICI GİRDİSİ DEĞİL, diskte duran
-    # bir kayıttan çözülmüş değer — ve `_plain_amount` onu düz `float()` ile
-    # okuyor, yani `nan`/`inf` istisna üretmeden geçiyor. `inf` ölçülen
-    # sonuç: iade COMMIT ediliyor ve hesap bakiyesi kalıcı olarak `inf`
-    # oluyordu (transaction + defter satırı + marker dahil). `nan` ise
-    # `balance_events.delta` NOT NULL kısıtına takılıp ham bir
-    # `sqlite3.IntegrityError` olarak dışarı çıkıyordu.
-    #
-    # `add_transaction` bu şekilde bir satır YAZAMAZ (`fiat` + `> 0`), yani
-    # bu yalnızca eski bir sürümün ya da dışarıdan düzenlemenin bıraktığı
-    # duruma karşı bir savunma — bu yüzden kullanıcı hatası değil, VERİ
-    # BÜTÜNLÜĞÜ hatası olarak sınıflanıyor (aynı ayrım: budget_service).
-    #
-    # POZİTİFLİK: `transactions.amount` işaretsiz bir büyüklüktür, yön
-    # `type` sütununda taşınır ('expense'/'income'/'payment' —
-    # bkz. adjust_account_balance). Negatif bir tahsilat "ters yönlü
-    # işlem" değil, geçersiz kayıttır; sessizce 0,00 sayılıp "bu ay
-    # tahsilat yok" denmesi, gerçek tahsilatı kullanıcıdan gizlerdi.
+
+
     try:
         amount_decimal = fiat(charge["amount"])
     except (TypeError, ValueError) as exc:
@@ -454,13 +419,10 @@ def refund_current_period_charge(payment_id, today=None):
                 datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             ),
         )
-        # İade işleminin id'si hemen alınıyor — `lastrowid` cursor'a ait ve
-        # `adjust_account_balance` içindeki defter INSERT'ü onu ezer. Bugün
-        # doğru okunuyor (argüman çağrıdan önce değerlendiriliyor) ama araya
-        # tek bir satır eklemek yeter; tahsilat tarafında bozulan tam olarak
-        # bu kalıptı.
+
+
         transaction_id = cursor.lastrowid
-        # Bakiye ve defter aynı commit içinde (adjust_account_balance sözleşmesi).
+
         adjust_account_balance(
             cursor, row["account_id"], "income", amount,
             ref_id=transaction_id, source="subscription_refund",

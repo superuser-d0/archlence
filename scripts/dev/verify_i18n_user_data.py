@@ -1,24 +1,9 @@
-"""Gerçek Kivy ekranında kullanıcı verisi çevriliyor mu — ölçer.
+"""Verify in a real Kivy surface that user-owned text is never translated.
 
-NEDEN VAR: `ui/i18n.py::tr()` eskiden tam eşleşme bulamayınca sözlükteki
-Türkçe parçaları metin içinde değiştiriyordu ve çağıranlar f-string'i ÖNCE
-kurup çeviriye veriyordu. Sonuç, kullanıcının KENDİ VERİSİNİN çevrilmesiydi:
-"Nakit" adlı hesap İngilizce arayüzde "Cash", "Ayarlar" adlı abonelik
-"Settings" görünüyordu.
-
-Birim testi bunu tam olarak yakalayamaz: sözleşme doğru olsa bile bir
-çağrı yeri gözden kaçmış olabilir ve kullanıcı bunu ancak EKRANDA görür.
-Bu betik gerçek `ArchlenceApp`i, gerçek KV dosyalarını ve gerçek bir SQLite
-profilini kullanır.
-
-Ölçtüğü dört şey:
-
-  1. İngilizce arayüzde hesap/kart adı kullanıcının yazdığı gibi duruyor,
-  2. abonelik, birikim hedefi ve borç adları da öyle,
-  3. varlık türü (ENUM) tam ve doğru İngilizceye çevriliyor — "Stock Senedi"
-     gibi yarı çevrilmiş melez YOK,
-  4. dil ÇALIŞMA ANINDA değiştirildiğinde dinamik metinler yeniden üretiliyor
-     ve kullanıcı verisi yine değişmiyor.
+The harness uses the real application, KV files, and a generated SQLite
+profile. It verifies account, subscription, savings-goal, and debt names;
+checks that controlled enum labels are fully English; and confirms that a
+retired locale code still resolves to the English-only public UI.
 
     xvfb-run -a python scripts/dev/verify_i18n_user_data.py --output visual/i18n
 """
@@ -42,7 +27,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 os.environ.setdefault("KIVY_NO_ARGS", "1")
 
-# PROFİL İZOLASYONU IMPORT'TAN ÖNCE (bkz. verify_savings_goal_cards.py).
+
 _SANDBOX = tempfile.mkdtemp(prefix="archlence-i18n-verify-")
 os.environ["ARCHLENCE_HOME"] = _SANDBOX
 os.environ["XDG_DATA_HOME"] = os.path.join(_SANDBOX, "xdg-data")
@@ -56,13 +41,12 @@ from kivy.uix.screenmanager import NoTransition                 # noqa: E402
 from main import ArchlenceApp                                   # noqa: E402
 from ui.components import BentoAccountWidget                    # noqa: E402
 
-#: Sözlükte ANAHTAR olarak da geçen, ama kullanıcının kendi verisi olan adlar.
-#: Kusurun tam olarak vurduğu küme bu.
+
 ACCOUNT_NAMES = ["Nakit", "Ayarlar", "Gelir"]
 GOAL_NAME = "Nakit"
 SUBSCRIPTION_NAME = "Ayarlar"
 
-#: Bunlar kullanıcı verisi DEĞİL, uygulamanın kendi etiketleri — çevrilmeli.
+
 ENUM_EXPECTATIONS = {
     "Hisse": "Stock",
     "Hisse Senedi": "Stock",
@@ -110,7 +94,7 @@ class I18nVerifier(ArchlenceApp):
         self.render_accounts()
         Clock.schedule_once(self._check_english, 1.5)
 
-    # ── 1: hesap adları ekranda değişmemeli ──────────────────────────────
+
     def _account_widget_names(self):
         return [
             widget.account_name
@@ -143,7 +127,6 @@ class I18nVerifier(ArchlenceApp):
 
         Clock.schedule_once(self._check_messages, 0.5)
 
-    # ── 2 + 3: mesajlar ve enum ──────────────────────────────────────────
     def _check_messages(self, _dt):
         from ui.i18n import tr, trf
 
@@ -195,43 +178,42 @@ class I18nVerifier(ArchlenceApp):
             })
         self.observations["enums_en"] = enums
 
-        Clock.schedule_once(self._switch_language, 0.5)
+        Clock.schedule_once(self._check_retired_locale, 0.5)
 
-    # ── 4: çalışma anında dil değişimi ───────────────────────────────────
-    def _switch_language(self, _dt):
+    def _check_retired_locale(self, _dt):
         self.set_language("tr", persist=False)
         self.render_accounts()
-        Clock.schedule_once(self._check_turkish, 1.2)
+        Clock.schedule_once(self._check_english_fallback, 1.2)
 
-    def _check_turkish(self, _dt):
+    def _check_english_fallback(self, _dt):
         from ui.i18n import trf
 
         shown = self._account_widget_names()
-        self.observations["account_names_tr"] = shown
-        self.observations["language_after_switch"] = self.language
+        self.observations["account_names_after_retired_locale"] = shown
+        self.observations["language_after_retired_locale"] = self.language
 
-        if self.language != "tr":
+        if self.language != "en":
             self.findings.append({
-                "step": "dil-degisimi",
-                "reason": "dil çalışma anında değişmedi",
+                "step": "retired-locale",
+                "reason": "unsupported locale did not fall back to English",
             })
         for name in ACCOUNT_NAMES:
             if name not in shown:
                 self.findings.append({
-                    "step": "turkce-hesaplar",
+                    "step": "english-fallback-accounts",
                     "expected": name,
                     "shown": shown,
-                    "reason": "Türkçe arayüzde hesap adı değişmiş",
+                    "reason": "user-owned account name changed after fallback",
                 })
 
-        turkish = trf("{name} aboneliği durduruldu.", language=None,
-                      name=SUBSCRIPTION_NAME)
-        self.observations["message_tr"] = turkish
-        if turkish != "Ayarlar aboneliği durduruldu.":
+        rendered = trf("{name} aboneliği durduruldu.", language=None,
+                       name=SUBSCRIPTION_NAME)
+        self.observations["message_after_retired_locale"] = rendered
+        if rendered != "Ayarlar subscription stopped.":
             self.findings.append({
-                "step": "dil-degisimi",
-                "shown": turkish,
-                "reason": "dil değişiminden sonra şablon yeniden üretilmedi",
+                "step": "retired-locale",
+                "shown": rendered,
+                "reason": "template did not render in English after fallback",
             })
         self._finish()
 

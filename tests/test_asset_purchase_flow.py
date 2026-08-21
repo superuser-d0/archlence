@@ -103,12 +103,11 @@ class AssetPurchaseAtomicityTest(AccountFixtureMixin, unittest.TestCase):
                         (account_id,),
                     ).fetchone()
 
-                # Saklanan metin tam olarak kuruşlu tutar olmalı — ne
-                # "2419.1000000000004" ne de "303.3061479684".
+
                 self.assertEqual(
                     Decimal(decrypt(str(stored), SECRET_KEY)), expected
                 )
-                # Bakiyeden düşülen de aynı tutar olmalı.
+
                 self.assertEqual(
                     Decimal(str(balance)), Decimal("100000.00") - expected
                 )

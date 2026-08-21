@@ -18,8 +18,8 @@ class BudgetTrackingServiceTest(AccountFixtureMixin, unittest.TestCase):
         self.db_patch.start()
         from database.init_db import initialize_database
         initialize_database()
-        # İşlem yazan yardımcılar (_expense) bir hesap gerektirir; varsayılan
-        # hesap seed'i kaldırıldığı için testin kendi hesabını kurması gerekir.
+
+
         self.account_id = self.create_test_account(
             name="Bütçe Testi Vadesiz", balance=1_000_000.0)
 
@@ -133,7 +133,7 @@ class BudgetTrackingServiceTest(AccountFixtureMixin, unittest.TestCase):
             get_effective_limit("Süpermarket", 1, 2026), 800
         )
 
-        # Kapalı kategori önceki ayı görmez.
+
         self._plan(year=2025, month=12, amount=400, category="Ulaşım")
         self._plan(
             year=2026, month=1, amount=250, category="Ulaşım",
@@ -204,7 +204,7 @@ class BudgetTrackingServiceTest(AccountFixtureMixin, unittest.TestCase):
             calculate_monthly_budget(7, 2026)["reserved_recurring"], 0
         )
 
-    # ── Aşama 2, madde 2.1: planı yıl sonuna kadar uygula ────────────────────
+
     def test_apply_plan_copies_concrete_items_to_remaining_months(self):
         from services.budget_service import (
             apply_plan_to_year_end, get_effective_plan_items,
@@ -213,7 +213,7 @@ class BudgetTrackingServiceTest(AccountFixtureMixin, unittest.TestCase):
         self._plan(year=2026, month=10, amount=1200, category="Market")
 
         copied = apply_plan_to_year_end(10, 2026)
-        # Ekim → Kasım, Aralık: 2 kalem × 2 ay = 4 kopya.
+
         self.assertEqual(copied, 4)
         for month in (11, 12):
             cats = {row["category_name"]
@@ -226,13 +226,13 @@ class BudgetTrackingServiceTest(AccountFixtureMixin, unittest.TestCase):
         self._plan(year=2026, month=11, amount=5000, category="Kira")
         first = apply_plan_to_year_end(11, 2026)
         second = apply_plan_to_year_end(11, 2026)
-        self.assertEqual(first, 1)   # yalnız Aralık'a kopyalanır
-        self.assertEqual(second, 0)  # ikinci onay kopya üretmez
+        self.assertEqual(first, 1)
+        self.assertEqual(second, 0)
 
     def test_apply_plan_skips_existing_identity(self):
         from services.budget_service import apply_plan_to_year_end
         self._plan(year=2026, month=11, amount=5000, category="Kira")
-        # Aralık'ta zaten farklı tutarlı bir Kira var; korunmalı, ezilmemeli.
+
         self._plan(year=2026, month=12, amount=9999, category="Kira")
         copied = apply_plan_to_year_end(11, 2026)
         self.assertEqual(copied, 0)
@@ -333,7 +333,7 @@ class PlanItemWriteBoundaryTest(AccountFixtureMixin, unittest.TestCase):
     def test_propagated_copies_are_written_and_are_never_templates(self):
         self._save(is_template=False, propagate_to_months=(9, 10, 8))
         rows = self._rows()
-        # Kaynak ay bir kez yazılır; kendine kopyalanmaz.
+
         self.assertEqual(sorted(r["target_month"] for r in rows), [8, 9, 10])
         self.assertTrue(all(r["is_template"] == 0 for r in rows))
         self.assertTrue(all(r["amount"] == 1500.0 for r in rows))

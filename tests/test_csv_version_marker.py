@@ -62,7 +62,7 @@ class CsvVersionMarkerTest(unittest.TestCase):
             f"{version},islem,2026-01-15,gider,Market,100.00,,{description},\n"
         )
 
-    # ── eski Archlence dosyaları: hiçbir apostrof sökülmez ───────────────
+
     def test_legacy_export_keeps_a_real_leading_apostrophe(self):
         records, skipped = self._parse(self._legacy("'=literal"))
         self.assertEqual(skipped, 0)
@@ -77,7 +77,7 @@ class CsvVersionMarkerTest(unittest.TestCase):
         records, _ = self._parse(self._legacy("normal", category="'@kategori"))
         self.assertEqual(records[0]["category"], "'@kategori")
 
-    # ── işaretli (v2) dosyalar: kaçış geri çözülür ───────────────────────
+
     def test_versioned_rows_are_unescaped(self):
         records, skipped = self._parse(self._versioned("''=literal"))
         self.assertEqual(skipped, 0)
@@ -87,7 +87,7 @@ class CsvVersionMarkerTest(unittest.TestCase):
         self.assertEqual(CSV_HEADER[0], CSV_VERSION_COLUMN)
         self.assertIn(CSV_ESCAPE_VERSION, SUPPORTED_CSV_VERSIONS)
 
-    # ── belirsiz / bozuk / karışık işaret: tahmin YOK ────────────────────
+
     def test_an_unreadable_marker_is_skipped_rather_than_guessed(self):
         for marker in ("", "abc", "0", "99", "2.5", "-2", "  "):
             with self.subTest(marker=marker):
@@ -108,7 +108,7 @@ class CsvVersionMarkerTest(unittest.TestCase):
         self.assertEqual(records[0]["description"], "'=escaped")
         self.assertEqual(skipped, 1)
 
-    # ── başlık normalizasyonu: satır sessizce düşmemeli ──────────────────
+
     def test_uppercase_and_padded_headers_are_read_not_dropped(self):
         for header in ("KAYIT_TURU", " kayit_turu ", "Kayit_Turu"):
             with self.subTest(header=header):
@@ -152,7 +152,7 @@ class CsvVersionMarkerTest(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(skipped, 0)
 
-    # ── üçüncü taraf dosyalar ────────────────────────────────────────────
+
     def test_third_party_csv_apostrophe_is_untouched(self):
         text = (
             "tarih,tur,kategori,tutar,aciklama\n"
@@ -162,7 +162,7 @@ class CsvVersionMarkerTest(unittest.TestCase):
         self.assertEqual(skipped, 0)
         self.assertEqual(records[0]["description"], "'=yabanci-veri")
 
-    # ── normal davranış korunuyor ────────────────────────────────────────
+
     def test_amount_date_and_type_behaviour_is_unchanged(self):
         text = (
             "kayit_turu,tarih,tur,kategori,tutar,aciklama\n"

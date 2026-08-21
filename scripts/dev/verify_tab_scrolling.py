@@ -23,11 +23,7 @@ import os
 import sys
 from pathlib import Path
 
-# Türkçe çıktı Windows'ta süreci ÖLDÜRMESİN — stdout yönlendirildiğinde kod
-# sayfası cp1252'ye düşüyor ve "BAŞARISIZ"ın 'Ş'si kodlanamıyor. Gerekçenin
-# tamamı run_tests.py'ın tepesinde. Bu kapıda özellikle sinsi: kodlanamayan
-# karakter YALNIZCA başarısızlık satırında geçtiği için koruma olmadan kapı
-# yeşilken çalışır, KIRMIZIYA DÖNDÜĞÜ anda kendi raporunu yazamadan çökerdi.
+
 for _stream in (sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8", errors="replace")
@@ -47,9 +43,7 @@ from kivy.uix.scrollview import ScrollView
 
 from main import ArchlenceApp
 
-#: Taşan içeriği olması beklenen sekmeler. "accounts_tab" bu dosyanın
-#: varlık sebebi; diğerleri kontrol grubu — biri kırılırsa hatanın sekmeye
-#: özgü mü yoksa genel mi olduğunu ölçüm anında ayırt edebilmek için.
+
 TABS = ("accounts_tab", "tools_tab", "settings_tab")
 
 
@@ -125,7 +119,7 @@ def _touch_point(page):
     """
     try:
         from kivymd.uix.card import MDCard
-    except ImportError:      # kısıtlı ortam
+    except ImportError:
         MDCard = ()
 
     def _blocked(x, y):
@@ -135,7 +129,7 @@ def _touch_point(page):
                     return True
         return False
 
-    # Hatanın yaşadığı yatay şerit: x'te kayan, y'de kaymayan ScrollView.
+
     strip = next(
         (widget for widget in _walk(page)
          if isinstance(widget, ScrollView)
@@ -146,14 +140,14 @@ def _touch_point(page):
     if strip is not None:
         left, bottom = strip.to_window(strip.x, strip.y)
         right, top = strip.to_window(strip.right, strip.top)
-        # Görünür alanla kesiştir: şerit sayfadan yüksek, ekran dışındaki
-        # kısmına dokunmak anlamsız.
+
+
         page_left, page_bottom = page.to_window(page.x, page.y)
         page_right, page_top = page.to_window(page.right, page.top)
         bottom = max(bottom, page_bottom)
         top = min(top, page_top)
         if top > bottom:
-            # Yatayda kart aralıklarını, dikeyde birkaç şeridi tara.
+
             for x_fraction in (0.5, 0.25, 0.75, 0.12, 0.88, 0.38, 0.62):
                 x = left + (right - left) * x_fraction
                 for y_fraction in (0.5, 0.08, 0.92, 0.3, 0.7):
@@ -181,8 +175,8 @@ class ScrollVerifier(ArchlenceApp):
 
     def on_start(self):
         super().on_start()
-        # Kart şeridinin GERÇEKTEN taşması için birden çok kart gerekiyor;
-        # boş bir profil hatayı gizlerdi.
+
+
         from services.account_service import AccountService
         if not AccountService.get_accounts():
             AccountService.create_account("Vadesiz", "checking", 5000.0)
@@ -227,33 +221,20 @@ class ScrollVerifier(ArchlenceApp):
 
         results = {}
         for label in ("wheel", "drag"):
-            # SAYFANIN TEPESİNDEN ÖLÇÜLÜYOR — kullanıcının sekmeyi açtığında
-            # bulduğu hâl. Ara bir konumdan ölçmek hatayı KAÇIRIYORDU: bu
-            # kapının ilk hâli `scroll_y = 0.5`'ten ölçüyordu ve düzeltme
-            # geri alındığında bile yeşil kalıyordu (ölçüldü).
-            #
-            # HER ÖLÇÜM TAZE BAŞLIYOR. Tekerlek ölçümü eskiden sürüklemenin
-            # HEMEN ARDINDAN koşuyordu; sürüklemenin bıraktığı efekt hâlâ
-            # sönerken `scroll_y` 1.000'den azıcık sapıyor ve Kivy'nin
-            # "zaten uçtayım" erken çıkışı tetiklenmiyordu. Sonuç sahte
-            # yeşildi: kapı, gerçekte ölü olan tekerleği çalışıyor sanıyordu.
-            # Sıra da bu yüzden TEKERLEK ÖNCE: sürükleme her hâlükârda
-            # efekti hareket hâlinde bırakıyor ve sonrasında yapılan hiçbir
-            # `settle` onu tam olarak 1.000'e oturtmuyor (ölçüldü — kapı
-            # sürüklemeden sonra ölçtüğü sürece bozuk şeridi de yeşil
-            # geçiriyordu). Tekerlek, sayfaya hiç dokunulmamış hâlde ölçülür.
+
+
             start = 1.0
             page.scroll_y = start
             _settle(45)
-            # Nokta HER ÖLÇÜMDE yeniden seçiliyor: `scroll_y` sıfırlandıktan
-            # ve düzen oturduktan sonra kartların yeri değişmiş olabilir.
+
+
             point = _touch_point(page)
             if point is None:
                 results[label] = None
                 continue
             x, y = point
             if label == "drag":
-                # AŞAĞI doğru sürükleme: içeriğin alt kısmını açan yön.
+
                 touch = _Touch(x, y)
                 touch.press()
                 Clock.tick()
@@ -262,26 +243,18 @@ class ScrollVerifier(ArchlenceApp):
                     Clock.tick()
                 touch.release()
             else:
-                # `scrollup` — İÇERİĞE DOĞRU olan yön. `scrolldown` YANLIŞ
-                # seçimdi: sayfa tepedeyken Kivy onu her ScrollView'da
-                # reddediyor (`scroll_y >= 1` erken çıkışı), yani hem sağlam
-                # hem bozuk sekmelerde aynı sonucu veriyor — ayırt etmiyor.
-                # Ölçüldü: çalışan sekmelerde `scrollup` -0,0495 hareket
-                # ederken bozuk sekmede 0,0000 kalıyor.
+
+
                 touch = _Touch(x, y, button="scrollup")
                 touch.press()
                 touch.release()
             _settle(40)
             results[label] = abs(page.scroll_y - start) > 1e-4
 
-        # `None` = ÖLÇÜLEMEDİ (kart üstünde olmayan aday nokta bulunamadı),
-        # `False` = ölçüldü ve kaymadı. İkisi bilerek ayrı: ölçemediğimiz bir
-        # durumu başarısızlık saymak, bu kapının tam da düzeltilen kusuruydu.
+
         unmeasured = [key for key, value in results.items() if value is None]
-        # Taşmayan içerik zaten kaymaz; kapı yalnız taşan sekmeler için.
-        # İKİSİ DE ZORUNLU: gerçek makinede bildirilen arıza tam olarak
-        # "ne sürükleme ne tekerlek" idi ve ölçüm bunu doğruladı — düzeltme
-        # geri alındığında dört etkileşimin dördü de ölü.
+
+
         passed = (
             (not overflows)
             or bool(unmeasured)
@@ -305,10 +278,8 @@ class ScrollVerifier(ArchlenceApp):
               f"görünür={entry['viewport_height']} taşıyor={overflows} "
               f"sürükleme={results['drag']} tekerlek={results['wheel']}"
               + (f" ÖLÇÜLEMEDİ={unmeasured}" if unmeasured else ""))
-        # Ekran görüntüsü YARDIMCI bir çıktı, kapının parçası değil; yine de
-        # geniş bir `except` eklenmiyor (projenin istisna kapısı bunu sayıyor
-        # ve haklı olarak reddediyor). Başarısız olabilecek gerçek durumlar
-        # dosya sistemi ve GL yüzeyi kaynaklı: ikisi de OSError/ValueError.
+
+
         try:
             tab.export_to_png(str(self.output / f"{name}.png"))
         except (OSError, ValueError) as error:

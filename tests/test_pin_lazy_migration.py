@@ -18,9 +18,8 @@ import unittest
 from unittest import mock
 
 os.environ.setdefault("KIVY_NO_ARGS", "1")
-# "KIVY_WINDOW=mock" was never a real Kivy provider (bkz. docs/ROADMAP.md
-# Faz 1 madde 2) — main.py artık gerçek pencere kurulamadığında yalnızca
-# ARCHLENCE_HEADLESS=1 açıkça set edildiyse sessizce stub sınıflara düşüyor.
+
+
 os.environ.setdefault("ARCHLENCE_HEADLESS", "1")
 
 
@@ -49,13 +48,6 @@ class _FakeIds(dict):
         return self[name]
 
 
-# PAROLA POLİTİKASI 12 KARAKTER + BÜYÜK/KÜÇÜK/RAKAM/ÖZEL istiyor. Bu dosyanın
-# konusu tembel Argon2id geçişi ve throttle; ikisi de parolanın POLİTİKAYI
-# GEÇTİĞİ durumda anlamlı, çünkü politikayı geçmeyen bir parola bugün zaten
-# zorunlu yenilemeye yönlendiriliyor (bkz.
-# tests/test_password_policy_and_change.py). Eski fixture "2468" kullanıyordu;
-# o PIN artık geçerli bir parola değil, dolayısıyla yükseltme yolunu hiç
-# temsil etmiyor.
 CORRECT_PASSWORD = "Guclu-Parola-2026!"
 WRONG_PASSWORD = "Yanlis-Parola-2026!"
 
@@ -171,7 +163,7 @@ class PinThrottleTest(unittest.TestCase):
             app._handle_failed_login.call_count,
             LoginThrottle.FAILED_ATTEMPT_THRESHOLD - 1,
         )
-        # Hiçbiri kilit mesajıyla çağrılmamış olmalı (eşik altı).
+
         for call in app._handle_failed_login.call_args_list:
             self.assertEqual(call.kwargs, {})
 
@@ -185,18 +177,16 @@ class PinThrottleTest(unittest.TestCase):
             self.ArchlenceApp.check_login(app)
         app._handle_successful_login.assert_not_called()
 
-        # Şimdi DOĞRU PIN'i dener — ama kilit hâlâ aktif olmalı (0 saniye
-        # geçmiş sayılır, gerçek saat kullanılıyor ama lockout süresi en az
-        # birkaç saniye).
+
         app.root.ids.password_input.text = CORRECT_PASSWORD
         self.ArchlenceApp.check_login(app)
 
         app._handle_successful_login.assert_not_called()
         last_call = app._handle_failed_login.call_args
-        self.assertIn("saniye sonra tekrar deneyin", last_call.kwargs["message"])
+        self.assertIn("seconds", last_call.kwargs["message"])
 
     def test_successful_login_resets_throttle_counter(self):
-        # Eşiğin altında (henüz kilitli değil) birkaç başarısız deneme.
+
         throttle_state = {"failed_attempts": 0, "last_failed_at": None}
         app = self._make_fake_app(CORRECT_PASSWORD, throttle_record=throttle_state)
 
@@ -225,8 +215,8 @@ class PinThrottleTest(unittest.TestCase):
         self.ArchlenceApp.check_login(app)
 
         app._handle_successful_login.assert_not_called()
-        # "security" kaydına hiç dokunulmamalı (upgrade dahil) — kilitliyken
-        # PIN doğrulaması hiç çalışmadı.
+
+
         self.assertNotIn("security", app.config_store.put_calls)
 
 

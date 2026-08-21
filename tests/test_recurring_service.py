@@ -26,7 +26,7 @@ class RecurringServiceTest(unittest.TestCase):
         self.assertTrue(apply_category_trigger("Dijital Abonelik", switch))
         self.assertTrue(switch.active)
 
-        # Yardımcı yalnız seçim anında çalışır; kullanıcı sonradan kapatabilir.
+
         switch.active = False
         self.assertFalse(switch.active)
         self.assertFalse(apply_category_trigger("Süpermarket", switch))

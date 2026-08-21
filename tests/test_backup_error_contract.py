@@ -91,7 +91,7 @@ class BackupErrorContractTest(unittest.TestCase):
             self.members = {n: archive.read(n) for n in archive.namelist()}
         self.metadata = json.loads(self.members["metadata.json"])
 
-    # ── yardımcılar ──────────────────────────────────────────────────────
+
     def _resign(self, metadata):
         """Metadata'yı DOĞRU imzalar; erken HMAC reddini devre dışı bırakır.
 
@@ -132,7 +132,7 @@ class BackupErrorContractTest(unittest.TestCase):
         with self.assertRaises(IntegrityVerificationError):
             verify_backup(package, self.PASSPHRASE)
 
-    # ── JSON kök tipleri ─────────────────────────────────────────────────
+
     def test_metadata_root_must_be_an_object(self):
         for label, payload in (
             ("[]", b"[]"), ("null", b"null"), ('"metin"', b'"metin"'),
@@ -153,7 +153,7 @@ class BackupErrorContractTest(unittest.TestCase):
                     self._build({"key.recovery.json": payload})
                 )
 
-    # ── metadata alan tipleri (doğru imzalı) ─────────────────────────────
+
     def test_aead_record_count_must_be_a_real_non_negative_int(self):
         for label, value in (
             ("True", True), ("False", False), ('"12"', "12"), ("2.0", 2.0),
@@ -192,8 +192,8 @@ class BackupErrorContractTest(unittest.TestCase):
         for label, value in (("None", None), ("[]", []), ("42", 42)):
             with self.subTest(value=label):
                 material = dict(self.metadata, authentication_salt=value)
-                # İmzalanamayacağı için ham hâliyle paketlenir; sözleşme yine
-                # `IntegrityVerificationError` demeli.
+
+
                 self._assert_rejected(
                     self._build({"metadata.json": json.dumps(material).encode()})
                 )
@@ -211,10 +211,10 @@ class BackupErrorContractTest(unittest.TestCase):
                         self._resign(material)).encode()})
                 )
 
-    # ── ZIP sıkıştırma yöntemi ───────────────────────────────────────────
+
     def test_an_unsupported_compression_method_is_an_integrity_error(self):
         raw = bytearray(self.package.read_bytes())
-        # Yerel başlık PK\x03\x04 ofset 8, merkezi dizin PK\x01\x02 ofset 10.
+
         for signature, offset in ((b"PK\x03\x04", 8), (b"PK\x01\x02", 10)):
             cursor = 0
             while True:
@@ -226,7 +226,7 @@ class BackupErrorContractTest(unittest.TestCase):
         self.hostile.write_bytes(bytes(raw))
         self._assert_rejected(self.hostile)
 
-    # ── profil ve journal dokunulmadan kalmalı ───────────────────────────
+
     def test_no_rejected_package_touches_the_profile_or_the_journal(self):
         from services.backup_service import _restore_journal_dir
 
@@ -250,7 +250,7 @@ class BackupErrorContractTest(unittest.TestCase):
                 self.assertEqual(self._profile_fingerprint(), before)
                 self.assertFalse(_restore_journal_dir(self.db_path).exists())
 
-    # ── geçerli paket bozulmamalı ────────────────────────────────────────
+
     def test_a_valid_package_still_verifies_and_restores(self):
         verified = verify_backup(self.package, self.PASSPHRASE)
         self.assertEqual(verified["key"], self.key)

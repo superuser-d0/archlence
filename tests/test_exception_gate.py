@@ -93,7 +93,6 @@ class BroadHandlerDetectionTest(unittest.TestCase):
                    "    Exception,\n):\n pass"), [True]
         )
 
-    # ── Dar handler'lar geniş SAYILMAMALI (yanlış pozitif olmasın) ────────
 
     def test_narrow_handlers_are_not_broad(self):
         self.assertEqual(

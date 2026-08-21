@@ -518,10 +518,8 @@ def main():
             ("Emergency Fund", 350_000, 260_000, as_of + timedelta(days=210)),
         ]
         for name, target, current, target_date in goals:
-            # goal_uid ZORUNLU: hedeflerin kalıcı kimliği artık şemanın bir
-            # parçası (bkz. database/init_db.py). Örnek profil de gerçek
-            # profillerle aynı şemayı taşımalı, yoksa "örnekle çalışıyor ama
-            # gerçek profilde patlıyor" farkı üretilir.
+
+
             cursor.execute(
                 """INSERT INTO savings_goals
                    (goal_name, target_amount, current_amount, target_date,
@@ -577,9 +575,8 @@ def main():
         }, indent=2),
         encoding="utf-8",
     )
-    # `savings_goals.json` ARTIK YAZILMIYOR. Hedefler SQLite'ta yaşıyor; bu
-    # dosyayı üretmek örnek profile SAHTE bir legacy artefakt koyar ve
-    # uygulama onu ilk açılışta göç ettirmeye çalışırdı.
+
+
     (profile / SAMPLE_MARKER).write_text(
         f"Synthetic README profile generated through {as_of.isoformat()} with seed {args.seed}\n",
         encoding="utf-8",

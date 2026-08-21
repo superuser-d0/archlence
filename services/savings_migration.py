@@ -1,6 +1,6 @@
 """Eski `savings_goals.json` kayıtlarını SQLite'a taşıyan göç motoru.
 
-NEDEN VAR (docs/SAVINGS_SINGLE_SOURCE_PLAN.md): birikim hedefleri iki yerde
+NEDEN VAR (sözleşme: docs/ARCHITECTURE.md): birikim hedefleri iki yerde
 yaşıyordu — para SQLite'ta, ekrandaki kart `savings_goals.json`'da. JSON hedefi
 yalnız SAYISAL id ile işaretliyordu ve `sqlite_sequence` `finance.db`'nin
 içinde olduğu için restore o sayacı geri sarıyordu: restore'dan sonra açılan
@@ -72,8 +72,7 @@ def _default_db_path():
     """
     return _db.DB_NAME
 
-#: `savings_migration_state` içindeki nihai işaret. Bu satır varsa göç
-#: tamamlanmıştır ve sonradan ortaya çıkan her JSON dosyası BAYATTIR.
+
 MIGRATION_MARKER = "savings_json_to_sql"
 
 _JOURNAL_DIRNAME = ".archlence-savings-migration"
@@ -85,7 +84,7 @@ STATE_APPLIED = "UYGULANDI"
 STATE_VERIFIED = "DOĞRULANDI"
 STATE_RETIRED = "EMEKLİ"
 
-# Karar etiketleri (karantina `reason` sütununa da bu değerler yazılır).
+
 DECISION_MATCH = "match"
 DECISION_INSERT = "insert"
 DECISION_QUARANTINE = "quarantine"
@@ -98,8 +97,7 @@ REASON_INVALID = "okunamayan-kayit"
 REASON_STALE_JSON = "restore-sonrasi-bayat-json"
 REASON_UNREADABLE_FILE = "bozuk-json-dosyasi"
 
-# Kullanıcıya gösterilen metinler. Dosya yolu, exception ayrıntısı ya da
-# traceback İÇERMEZ — `startup_recovery.USER_MESSAGE` ile aynı gerekçe.
+
 QUARANTINE_USER_MESSAGES = {
     REASON_ID_COLLISION:
         "Bu hedefin numarası başka bir hedefe ait görünüyor; otomatik "
@@ -155,7 +153,6 @@ def _retire_path(json_path: Path, suffix: str) -> Path:
     return candidate
 
 
-# ── Journal (restore journal'ıyla aynı desen) ─────────────────────────────
 def _write_journal(db_path, state, detail=None):
     directory = _journal_dir(db_path)
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -189,7 +186,6 @@ def _clear_journal(db_path):
     shutil.rmtree(_journal_dir(db_path), ignore_errors=True)
 
 
-# ── Veritabanı yardımcıları ───────────────────────────────────────────────
 def _connect(db_path):
     conn = sqlite3.connect(str(db_path), timeout=10)
     conn.row_factory = sqlite3.Row
@@ -208,7 +204,7 @@ def migration_completed(db_path=None) -> bool:
                 (MIGRATION_MARKER,),
             ).fetchone()
         except sqlite3.Error:
-            # Tablo yoksa profil bu kuşaktan önce; göç henüz yapılmamıştır.
+
             return False
     return row is not None
 
@@ -348,7 +344,6 @@ def _coerce_record(record):
     }
 
 
-# ── Sınıflandırma ─────────────────────────────────────────────────────────
 def _existing_goals(conn):
     rows = conn.execute(
         "SELECT id, goal_uid, goal_name, target_amount, current_amount,"
@@ -391,8 +386,7 @@ def classify(records, existing):
             duplicated_ids.add(legacy_id)
         seen_ids.add(legacy_id)
 
-    # (karar, kayıt, ek bilgi): ek bilgi MATCH'te eşleşen SQL satırı,
-    # QUARANTINE'de gerekçe kodu, INSERT'te yok.
+
     decisions: list[tuple[str, dict, object]] = []
     for record in records:
         legacy_id = record["legacy_id"]
@@ -405,25 +399,23 @@ def classify(records, existing):
         candidate = by_id.get(legacy_id) if legacy_id is not None else None
         if candidate is not None:
             if candidate["name"] == record["name"]:
-                # Kesin eşleşme: id VE ad birlikte tutuyor.
+
                 decisions.append((DECISION_MATCH, record, candidate))
             else:
-                # §1(b)'nin ürettiği tam durum: id yeniden kullanılmış.
+
                 decisions.append(
                     (DECISION_QUARANTINE, record, REASON_ID_COLLISION))
             continue
 
         if name_amount_index.get(key):
-            # Ad+tutar KANIT DEĞİLDİR: bu, id'si değişmiş AYNI hedef de
-            # olabilir, aynı adla açılmış BAŞKA bir hedef de. Birleştirmek
-            # birini yok eder, INSERT etmek diğerini ikiye böler. İkisi de
-            # otomatik yapılamayacak kadar tehlikeli.
+
+
             decisions.append((DECISION_QUARANTINE, record, REASON_AMBIGUOUS))
             continue
 
         if record["current"] > 0:
-            # Modül docstring'indeki gerekçe: karşılıksız para yoktan var
-            # edilemez.
+
+
             decisions.append(
                 (DECISION_QUARANTINE, record, REASON_UNMATCHED_WITH_BALANCE))
             continue
@@ -489,14 +481,14 @@ def _insert_goal(conn, record, taken_ids):
     if legacy_id is not None and legacy_id not in taken_ids:
         conn.execute(
             f"INSERT INTO savings_goals (id, {columns})"
-            " VALUES (?,?,?,?,?,?,?,?,?,?)",  # nosec B608 - sabit sütun listesi
+            " VALUES (?,?,?,?,?,?,?,?,?,?)",
             (legacy_id, *values),
         )
         taken_ids.add(legacy_id)
     else:
         conn.execute(
             f"INSERT INTO savings_goals ({columns})"
-            " VALUES (?,?,?,?,?,?,?,?,?)",  # nosec B608 - sabit sütun listesi
+            " VALUES (?,?,?,?,?,?,?,?,?)",
             values,
         )
     return goal_uid
@@ -571,8 +563,8 @@ def _safety_snapshot(db_path: Path) -> Path:
     try:
         os.chmod(target, 0o600)
     except OSError:
-        # Windows'ta chmod'un karşılığı sınırlı; kopya zaten kullanıcı veri
-        # dizininde ve canlı veritabanıyla aynı korumada.
+
+
         pass
     return target
 
@@ -599,14 +591,10 @@ def run_savings_migration(*, json_path=None, db_path=None, _failure_hook=None):
     json_path = Path(json_path) if json_path else savings_json_path(db_path.parent)
 
     if not db_path.exists():
-        # Şema hiç kurulmamış: göç kendi başına veritabanı yaratmaz.
+
         return _outcome("no-database")
 
-    # YARIM KALMIŞ BİR KOŞUMU TAMAMLA. Kayıtlar commit edilmiş ve JSON
-    # emekliye ayrılmış ama nihai işaret yazılamadan süreç ölmüşse, dosya
-    # ortada olmadığı için normal akış "yapacak bir şey yok" derdi ve işaret
-    # SONSUZA KADAR eksik kalırdı. O profil, ileride ortaya çıkan bayat bir
-    # JSON'u legacy sanıp göç ettirirdi — tam da engellemeye çalıştığımız şey.
+
     journal = read_journal(db_path)
     if (
         journal
@@ -619,11 +607,7 @@ def run_savings_migration(*, json_path=None, db_path=None, _failure_hook=None):
     if not json_path.exists():
         return _outcome("no-json")
 
-    # BAYAT JSON KURALI. İşaret veritabanının İÇİNDE olduğu için DB
-    # generation'ıyla taşınıyor: işaret varken ortaya çıkan bir JSON, restore
-    # sonrasında geride kalmış bayat bir dosyadır. Onu göç ettirmek, tam da
-    # düzeltmeye çalıştığımız "bayat kayıt güncel veriyle karışıyor" kusurunu
-    # geri getirirdi.
+
     if migration_completed(db_path):
         return _quarantine_stale_json(json_path, db_path, _failure_hook)
 
@@ -644,14 +628,13 @@ def run_savings_migration(*, json_path=None, db_path=None, _failure_hook=None):
             records.append((index, coerced, raw))
 
     if not records and not invalid:
-        # Dosya var ama içi boş: taşınacak bir şey yok. Yine de EMEKLİYE
-        # ayrılır, yoksa her açılışta aynı boş dosya yeniden değerlendirilir.
+
+
         return _retire(db_path, json_path, _outcome("empty"), _failure_hook)
 
     try:
-        # Anahtarı ÖNCE dene. SQL'de hiç hedef yoksa hiçbir çözme yapılmaz ve
-        # arıza ilk YAZIMDA, yani transaction'ın ortasında patlardı. Fail-closed
-        # olması gereken bir durumun yarım bir göçe dönüşmesi demekti.
+
+
         encrypt("anahtar-denemesi", SECRET_KEY)
         with closing(_connect(db_path)) as conn:
             existing = _existing_goals(conn)
@@ -659,9 +642,8 @@ def run_savings_migration(*, json_path=None, db_path=None, _failure_hook=None):
             applied = _applied_markers(conn)
             taken_ids = {goal["id"] for goal in existing}
     except KeyUnavailableError:
-        # Anahtar yoksa hedef adları çözülemez, yani eşleştirme yapılamaz.
-        # Fail-closed: hiçbir karar verilmez, JSON'a dokunulmaz, işaret
-        # yazılmaz. Sonraki açılış yeniden dener.
+
+
         _write_journal(db_path, STATE_READ, {"aborted": "key-unavailable"})
         return _outcome("key-unavailable")
     except (DecryptionError, ValueError, TypeError) as exc:
@@ -688,12 +670,8 @@ def run_savings_migration(*, json_path=None, db_path=None, _failure_hook=None):
 
     result = _outcome("migrated", safety_snapshot=str(snapshot))
     conn = _connect(db_path)
-    # `except Exception` YOK, `try/finally` VAR. Buradaki tek gereksinim
-    # "commit edilmediyse geri al ve bağlantıyı kapat" — bunu geniş bir
-    # handler'la yazmak, kesinti enjeksiyonunun fırlattığı türden yabancı
-    # istisnaları da yutma iznini beraberinde getirirdi. finally her çıkış
-    # yolunda çalışır ve istisnayı olduğu gibi dışarı bırakır; Windows'ta
-    # kapatılmayan bir bağlantı finance.db üzerinde kilit demek.
+
+
     committed = False
     try:
         conn.execute("BEGIN IMMEDIATE")
@@ -781,8 +759,8 @@ def _verify(db_path, before, result):
     if after["balance_events_delta"] != before["balance_events_delta"]:
         raise SavingsMigrationError("Göç defter toplamını değiştirdi.")
     if after["savings_total"] != before["savings_total"]:
-        # INSERT edilen kayıtların birikimi tanım gereği 0 (bkz. modül
-        # docstring'i); toplam değiştiyse para yoktan var edilmiş demektir.
+
+
         raise SavingsMigrationError("Göç birikim toplamını değiştirdi.")
     if missing_uid:
         raise SavingsMigrationError("Göç sonrası kimliksiz hedef kaldı.")

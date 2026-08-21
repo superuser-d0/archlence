@@ -79,8 +79,7 @@ class SavingsStatusUsesKurusPrecision(unittest.TestCase):
         goal_id = self._drifted_completed_goal()
         current, target, status = self._goal_row(goal_id)
 
-        # Önce sapmanın gerçekten oluştuğunu doğrula; oluşmadıysa bu test
-        # ölçmek istediği şeyi ölçmüyor demektir.
+
         self.assertLess(
             current, target,
             "ham değer sapmadı; dizi artık hatayı üretmiyor olabilir",

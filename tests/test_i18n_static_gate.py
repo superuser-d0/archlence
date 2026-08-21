@@ -33,22 +33,18 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SKIP_DIRS = {".venv", "venv", "build", "dist", ".git", "AppDir", "__pycache__",
              ".mypy_cache", ".hypothesis", "node_modules"}
 
-#: Çeviri yapan adlar. `_t`/`translate` `ui.i18n.tr`nin takma adları;
-#: `app.tr`/`self.tr` da aynı fonksiyona iner.
+
 TRANSLATION_NAMES = {"tr", "translate", "_t"}
 TRANSLATION_ATTRS = {"tr", "translate"}
 
-#: Şablon yardımcıları — dinamik ARGÜMAN almazlar, şablon SABİT olmalıdır.
+
 TEMPLATE_HELPERS = {"trf", "_tf", "translate_format"}
 
-#: DAR ve gerekçeli muafiyetler: (dosya, satırdaki fonksiyon/anahtar).
-#:
-#: Yalnız "çeviri fonksiyonunun KENDİSİNİ sınayan" test altyapısı muaf;
-#: üretim kodunda muafiyet YOKTUR.
+
 ALLOWLIST = {
-    # Kapının kendisi: yasak deseni ÜRETİP yakalandığını doğruluyor.
+
     "tests/test_i18n_static_gate.py",
-    # Çeviri motorunun birim testleri bilerek dinamik girdi üretir.
+
     "tests/test_i18n.py",
     "tests/test_i18n_user_data.py",
     "tests/test_chart_localization.py",
@@ -238,7 +234,7 @@ class KvFilesOnlyTranslateLiteralsTest(unittest.TestCase):
     kapı KV'den yeniden açılır.
     """
 
-    #: `app.tr("...")` — çift ya da tek tırnakla başlayan literal.
+
     LITERAL_CALL = re.compile(r"""app\.tr\(\s*["']""")
     ANY_CALL = re.compile(r"app\.tr\(")
 
@@ -394,7 +390,7 @@ class ControlledValuesReachTheTranslatorTest(unittest.TestCase):
 
         self.assertEqual(unused_label_sources(CONTROLLED_LABEL_SOURCES), [])
 
-    # ── Diş testleri: ölçümün kendisi doğru mu ───────────────────────────
+
     def test_a_fake_source_is_reported_as_dead(self):
         from ui.i18n import CONTROLLED_LABEL_SOURCES
 
@@ -410,7 +406,7 @@ class ControlledValuesReachTheTranslatorTest(unittest.TestCase):
         self.assertEqual(
             controlled_sources_in_template_parameters(tree, {"_OLU"}), set()
         )
-        # Doğrudan ifade seviyesinde de: Store bağlamı sayılmaz.
+
         assign = tree.body[0]
         self.assertEqual(
             controlled_sources_in_expression(assign.targets[0], {"_OLU"}),
@@ -518,7 +514,7 @@ class TemplateCatalogueTest(unittest.TestCase):
                 )
         self.assertEqual(mismatched, [], "\n".join(mismatched))
 
-    def test_every_template_renders_in_both_languages(self):
+    def test_every_template_renders_in_english(self):
         """Her şablon gerçekten render edilebiliyor mu (eksik/fazla parametre).
 
         Bu, `trf`nin `TranslationTemplateError` fırlatmasını üretimde ilk kez
@@ -529,7 +525,7 @@ class TemplateCatalogueTest(unittest.TestCase):
 
         for template in sorted(collect_templates()):
             params = {name: "X" for name in placeholders(template)}
-            for language in ("tr", "en"):
+            for language in ("en",):
                 with self.subTest(template=template, language=language):
                     rendered = trf(template, language=language, **params)
                     self.assertNotIn("{", rendered.replace("{X}", ""))

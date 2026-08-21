@@ -12,7 +12,8 @@ For current guarantees and limitations, read the
 
 Do not open a public issue for a suspected vulnerability. Use a
 [private GitHub security advisory](https://github.com/superuser-d0/archlence/security/advisories/new).
-No project security email address is currently published.
+If GitHub is unavailable or unsuitable, email
+`Superkullaniciyapiyor@proton.me`.
 
 Include as much of the following as is safe:
 

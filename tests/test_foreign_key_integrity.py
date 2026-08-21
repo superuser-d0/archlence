@@ -8,7 +8,7 @@ foreign key zorlaması BAĞLANTI BAŞINA ve VARSAYILAN OLARAK KAPALIDIR
     >>> conn.execute("PRAGMA foreign_keys").fetchone()[0]
     0
     >>> conn.execute("INSERT INTO transactions (account_id, ...) VALUES (999999, ...)")
-    # KABUL EDİLDİ
+
     >>> conn.execute("PRAGMA foreign_key_check").fetchall()
     [<ihlal>]
 
@@ -274,12 +274,12 @@ class OrphanedLegacyDatabaseTest(unittest.TestCase):
         with self.assertRaises(FinancialDataIntegrityError) as caught:
             initialize_database()
 
-        # Teşhis edilebilir olmalı: hangi tablo, hangi satır, hangi ebeveyn.
+
         message = str(caught.exception)
         self.assertIn("transactions", message)
         self.assertIn("accounts", str(caught.exception.reason))
 
-        # VE HİÇBİR ŞEY DEĞİŞMEMİŞ OLMALI.
+
         with closing(sqlite3.connect(self.db_path)) as conn:
             after = conn.execute(
                 "SELECT COUNT(*) FROM transactions WHERE account_id = ?",
@@ -298,7 +298,7 @@ class OrphanedLegacyDatabaseTest(unittest.TestCase):
         TransactionService.add_transaction(
             account_id, 10.0, "expense", "Market", "temiz"
         )
-        initialize_database()  # ikinci tur — idempotent olmalı
+        initialize_database()
         with closing(sqlite3.connect(self.db_path)) as conn:
             self.assertEqual(
                 conn.execute("PRAGMA foreign_key_check").fetchall(), []

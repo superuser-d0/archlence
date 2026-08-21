@@ -29,13 +29,10 @@ import time as _time
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHash, VerifyMismatchError
 
-# Argon2 kütüphanesinin kendi varsayılanları (OWASP'ın önerdiği aralıkta:
-# m=65536 KiB [64 MiB], t=3 tur, p=4 paralellik) — burada elle ayarlanmıyor,
-# kütüphanenin kendi güncel önerisine güvenilir.
+
 _hasher = PasswordHasher()
 
-# SHA-256 hex digest'i her zaman TAM 64 karakter ve yalnızca hex rakamları
-# içerir — Argon2id'nin "$argon2id$..." formatıyla asla karışmaz.
+
 _LEGACY_SHA256_LENGTH = 64
 
 
@@ -89,8 +86,8 @@ class SecurityService:
         except VerifyMismatchError:
             return False
         except InvalidHash:
-            # Ne SHA-256 ne geçerli bir Argon2id string'i — bozuk/tanınmayan
-            # bir kayıt. Çökmek yerine güvenli tarafta kal: giriş reddedilir.
+
+
             return False
 
     @staticmethod
@@ -125,23 +122,12 @@ class PasswordPolicy:
 
     MIN_LENGTH = 12
 
-    # ÜST SINIR DA SÖZLEŞMENİN PARÇASI. Politikada üst sınır yokken arayüz
-    # alanları farklı `max_text_length` taşıyordu — parola değiştirme
-    # diyaloğunda 64, kurulum ve giriş alanlarında 32. KivyMD 1.2.0 bu değeri
-    # KESMİYOR, yalnız alanı hata durumuna sokuyor; yani kilitlenme değildi
-    # ama politika "geçerli" derken arayüz kırmızı gösterebiliyordu. Tek sayı,
-    # tek kaynak: üç alan da bunu gösterir, politika da bunu uygular.
-    #
-    # 64: Argon2id girdi uzunluğundan bağımsız çalışır, yani sınır güvenlik
-    # değil kullanılabilirlik/tutarlılık kararıdır. Parola yöneticilerinin
-    # ürettiği uzun parolalar rahatça sığar.
+
     MAX_LENGTH = 64
 
     SPECIAL_CHARS = ".,;:!?-_@#$%^&*()+=/\\|~`'\"<>[]{}"
 
-    #: Üretilebilecek TÜM hata metinleri. `translate()`'e verilebilecek Türkçe
-    #: kaynak anahtarlarıdır ve i18n kapısı bu listeye bakar; buraya bir metin
-    #: eklenip `ui/i18n.py`'ye eklenmezse kapı kırılır.
+
     TOO_SHORT = "Şifre en az 12 karakter olmalıdır."
     TOO_LONG = "Şifre en fazla 64 karakter olabilir."
     NO_UPPER = "Şifre en az 1 büyük harf içermelidir."
@@ -150,7 +136,7 @@ class PasswordPolicy:
     NO_SPECIAL = "Şifre en az 1 özel karakter (örn. . veya ,) içermelidir."
     HAS_EDGE_WHITESPACE = "Şifre başında veya sonunda boşluk içeremez."
 
-    #: Arayüzdeki yardım metni — politikanın kendisiyle aynı kaynaktan.
+
     REQUIREMENTS = (
         "12-64 karakter, 1 büyük harf, 1 küçük harf, 1 rakam ve 1 özel karakter"
     )

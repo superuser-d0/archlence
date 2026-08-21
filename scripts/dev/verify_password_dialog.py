@@ -39,7 +39,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 os.environ.setdefault("KIVY_NO_ARGS", "1")
 
-# PROFİL İZOLASYONU IMPORT'TAN ÖNCE (bkz. verify_i18n_user_data.py).
+
 _SANDBOX = tempfile.mkdtemp(prefix="archlence-pwd-verify-")
 os.environ["ARCHLENCE_HOME"] = _SANDBOX
 os.environ["XDG_DATA_HOME"] = os.path.join(_SANDBOX, "xdg-data")
@@ -108,7 +108,7 @@ class PasswordDialogVerifier(ArchlenceApp):
         self.open_change_pin_dialog()
         Clock.schedule_once(self._check_surface, 1.0)
 
-    # ── 1-4: diyalog gerçekten çizildi mi, maskeli mi, çevrildi mi ────────
+
     def _check_surface(self, _dt):
         dialog = getattr(self, "_change_pin_dialog", None)
         if dialog is None:
@@ -137,9 +137,7 @@ class PasswordDialogVerifier(ArchlenceApp):
                 self._fail("maskeleme", "parola alanı düz metin gösteriyor",
                            shown=field.hint_text)
 
-        # UZUNLUK SINIRI TEK KAYNAKTAN. Diyalog 64, kurulum/giriş alanları 32
-        # gösteriyordu ve politikanın üst sınırı hiç yoktu; üç ekran üç ayrı
-        # sayı taşıyordu.
+
         limits = [field.max_text_length for field in fields]
         self.observations["dialog_max_lengths"] = limits
         for limit in limits:
@@ -163,7 +161,7 @@ class PasswordDialogVerifier(ArchlenceApp):
                        "yardım metni politika kaynağıyla aynı değil",
                        shown=helper, expected=PasswordPolicy.REQUIREMENTS)
 
-        # İngilizce karşılıklar sözlükte gerçekten var mı.
+
         english = {source: tr(source, "en") for source in (
             "Mevcut Şifre", "Yeni Şifre", "Yeni Şifre Tekrar",
             "Şifre Değiştir", PasswordPolicy.REQUIREMENTS,
@@ -179,7 +177,7 @@ class PasswordDialogVerifier(ArchlenceApp):
 
         Clock.schedule_once(self._check_wrong_current, 0.5)
 
-    # ── 5: yanlış mevcut parola hiçbir şeyi değiştirmemeli ───────────────
+
     def _check_wrong_current(self, _dt):
         self._current_pin_input.text = WRONG_PASSWORD
         self._new_pin_input.text = NEW_PASSWORD
@@ -199,14 +197,14 @@ class PasswordDialogVerifier(ArchlenceApp):
             self._finish()
             return
 
-        # Throttle'ı temizle ki doğru parola denemesi kilide takılmasın.
+
         from security.security_service import LoginThrottle
         self.config_store.put(
             "security_throttle", **LoginThrottle.record_success()
         )
         Clock.schedule_once(self._check_correct_change, 0.5)
 
-    # ── 6 + 7: doğru değişiklik ve referansların bırakılması ─────────────
+
     def _check_correct_change(self, _dt):
         self._current_pin_input.text = CURRENT_PASSWORD
         self._new_pin_input.text = NEW_PASSWORD

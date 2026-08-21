@@ -27,27 +27,13 @@ from platformdirs import PlatformDirs
 
 APP_NAME = "Archlence"
 
-# Uygulamanın ARCHLENCE'TAN ÖNCEKİ adı. Ürün adı olarak hiçbir yerde
-# kullanılmıyor; yalnızca o dönemden kalan İKİ ARTEFAKTIN kimliği:
-#
-#   * `<eski ad>_config.json`  — göç edilecek eski ayar dosyasının adı
-#   * `<eski ad>_secure_2026`  — eski AES-256-CBC kayıtlarının çözme parolası
-#
-# İKİSİ DE DEĞİŞTİRİLEMEZ. Dosya adı diskte öyle duruyor; parola ise eski
-# profillerdeki şifreli tutar ve açıklamaların TEK anahtarı — değiştirmek o
-# kayıtları kalıcı olarak okunamaz yapardı.
-#
-# Değer neden base64: kod tabanında eski ürün adının düz metin geçmemesi
-# istendi. Kaynak kodda okunmaması dışında hiçbir güvenlik iddiası YOKTUR —
-# obfuscation değil, isim hijyeni. Değerin bozulmaması
-# `tests/test_legacy_identifiers.py` ile sabitlendi; orada beklenen baytlar
-# açıkça yazılı, yani bu satır yanlışlıkla değişirse test kırılır.
+
 _PRE_RENAME_APP_NAME = base64.b64decode("Zmlub3Jh").decode("ascii")
 
-#: Göç edilecek eski ayar dosyasının adı (bkz. `_PRE_RENAME_APP_NAME`).
+
 LEGACY_CONFIG_FILENAME = f"{_PRE_RENAME_APP_NAME}_config.json"
 
-#: Eski AES-256-CBC kayıtlarının çözme parolası (bkz. `_PRE_RENAME_APP_NAME`).
+
 LEGACY_CBC_PASSWORD = f"{_PRE_RENAME_APP_NAME}_secure_2026"
 
 
@@ -79,30 +65,13 @@ def resource_dir() -> str:
     YANLIŞ olurdu — ikisi de paketlenmiş bir yapıda güvenilir değil.
     """
     if getattr(sys, "frozen", False):
-        # `_MEIPASS`'i PyInstaller ÇALIŞMA ZAMANINDA `sys`'e ekler; standart
-        # `sys` tipinde böyle bir alan yok ve tip denetleyicinin bunu
-        # bilmemesi normal. `getattr` + `cast` yalnızca "frozen yolunda burada
-        # bir `str` bekliyoruz" demenin yolu; varsayılan değer VERİLMİYOR,
-        # çünkü frozen bir yapıda alanın olmaması gerçek bir arıza olurdu ve
-        # sessizce yanlış bir köke düşmek paketlenmiş uygulamayı bozardı.
+
+
         return cast(str, getattr(sys, "_MEIPASS"))
-    # utils/app_paths.py -> utils/ -> repo kökü.
+
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-# Tüm kullanıcı dizinlerini tek bir köke yönlendiren AÇIK geçersiz kılma.
-#
-# NEDEN GEREKLİ: `platformdirs` Windows'ta yolları ORTAM DEĞİŞKENLERİNDEN
-# çözmez — `ctypes` varsa (pratikte hep vardır) `SHGetFolderPathW`i çağıran
-# `get_win_folder_via_ctypes` kullanılır ve LOCALAPPDATA/APPDATA tamamen YOK
-# SAYILIR. Linux/macOS'ta XDG_* değişkenleri işe yarar, Windows'ta yaramaz.
-#
-# Bunun somut bedeli vardı: test paketi kendini gerçek kullanıcı verisinden
-# XDG_* ile ayırıyordu ve bu ayrım Windows'ta HİÇ çalışmıyordu — testler
-# geliştiricinin gerçek `%LOCALAPPDATA%\Archlence` dizinine, yani şifreleme
-# anahtarının yanına yazıyordu. Windows test job'ı eklenince ortaya çıktı.
-#
-# Değişken ayarlı DEĞİLSE davranış eskisiyle birebir aynıdır.
 HOME_OVERRIDE_ENV = "ARCHLENCE_HOME"
 
 
@@ -148,21 +117,7 @@ def migrate_legacy_path(old_path: str, new_path: str) -> bool:
     if new_dir:
         os.makedirs(new_dir, exist_ok=True)
 
-    # TAŞIMA DEĞİL, KOPYALA + EN İYİ ÇABA SİL. `shutil.move` aynı dosya
-    # sisteminde `os.rename`e iner ve bu, KAYNAK DİZİNDE yazma izni ister
-    # (dizin girdisini silmek için). Bu fonksiyonun asıl kullanım senaryosu
-    # ise tam tersi: kaynak, paketlenmiş bir Windows kurulumunda genelde
-    # SALT-OKUNUR olan uygulama kurulum dizini (`Program Files`) — yani
-    # madde 4'ün düzeltmek için var olduğu durumun ta kendisi. Salt-okunur
-    # bir kaynak dizinle ampirik olarak doğrulandı: `shutil.move`
-    # PermissionError fırlatıyordu ve bu, çağrıldığı yerde (build())
-    # yakalanmadığı için uygulamayı hiç açılmadan düşürüyordu.
-    #
-    # Kopyalama başarılı olduktan SONRA eskisini silmeye çalışıyoruz; bu
-    # silme başarısız olursa YUTULUYOR: veri güvenle yeni konumda ve
-    # yukarıdaki `os.path.exists(new_path)` guard'ı sayesinde bir sonraki
-    # açılışta yeniden kopyalanmayacak. Kalan eski dosya bir daha hiç
-    # okunmaz — "biraz çöp" ile "uygulama hiç açılmıyor" arasındaki tercih.
+
     shutil.copy2(old_path, new_path)
     try:
         os.remove(old_path)

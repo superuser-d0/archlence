@@ -119,17 +119,8 @@ class ConcurrentBoundedOperations(_TemporaryProfile):
         card_id = AccountService.create_account(
             "Race card", "credit_card", credit_limit=100.0
         )
-        # Bu kanca TRANSACTION'IN DIŞINDAKİ karara denk gelir ve bugün bu yol
-        # için BİLEREK ATIL: `467b269` kararı `BEGIN IMMEDIATE`'in içine
-        # taşıdığından `add_transaction` artık `check_spending_allowed`
-        # çağırmıyor. Barrier o günden beri hiç tetiklenmiyordu — testin
-        # koruduğu şey mock değil, aşağıdaki invariant'tır.
-        #
-        # Kanca yine de duruyor: kontrol bir gün yeniden transaction'ın
-        # dışına kayarsa iki worker orada buluşur ve bu test kırmızıya döner.
-        # Barrier'ı `assert_spending_allowed`'a taşımak YANLIŞ olurdu —
-        # orası artık yazma kilidinin içinde ve ikinci worker birinciyi
-        # beklediği için barrier kilitlenirdi.
+
+
         original = AccountService.check_spending_allowed
         reached = threading.Barrier(2)
 
@@ -186,11 +177,8 @@ class ConcurrentAssetPurchaseReproduction(_TemporaryProfile):
         card_id = AccountService.create_account(
             "Race card", "credit_card", credit_limit=100.0
         )
-        # Düzeltme öncesi şekli DETERMİNİSTİK olarak açığa çıkaran kanca:
-        # her iki worker da kontrolü bitirmeden hiçbiri yazamaz. Düzeltmeden
-        # SONRA bu yol `check_spending_allowed` çağırmadığı için barrier hiç
-        # tetiklenmez ve iki worker doğal olarak `BEGIN IMMEDIATE` üzerinde
-        # serileşir. Timeout + BrokenBarrierError yutma tam da bu yüzden var.
+
+
         original = AccountService.check_spending_allowed
         reached = threading.Barrier(2)
 
@@ -230,19 +218,19 @@ class ConcurrentAssetPurchaseReproduction(_TemporaryProfile):
             f"debt={card['debt']} worker_failures={failures}"
         )
 
-        # 1) ASIL INVARIANT: borç limiti aşamaz.
+
         self.assertLessEqual(
             card["debt"], 100.0,
             f"iki stale limit kontrolü limiti aştı (borç={card['debt']})",
         )
-        # 2) Yarışan ikiden en az biri REDDEDİLMİŞ olmalı. 60+60 limite
-        #    sığmıyor; ikisi de geçtiyse invariant tesadüfen sağlanmış olurdu.
+
+
         self.assertEqual(
             len(failures), 1,
             f"tam olarak bir alım reddedilmeliydi, sonuç: {failures}",
         )
-        # 3) Reddedilen alımdan PARÇALI durum kalmamalı: varlık, işlem ve
-        #    bakiye olayı tek transaction'da yazılır ya da hiçbiri yazılmaz.
+
+
         self.assertEqual(assets, 1, "reddedilen alımın varlık satırı kalmış")
         self.assertEqual(transactions, 1, "reddedilen alımın işlemi kalmış")
         self.assertEqual(events, 1, "reddedilen alımın bakiye olayı kalmış")

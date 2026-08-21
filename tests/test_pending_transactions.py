@@ -29,8 +29,7 @@ class PendingTransactionTestCase(unittest.TestCase):
         from database.init_db import initialize_database
         initialize_database()
 
-        # init_db artık varsayılan hesap seed'lemiyor (spec 1.4: kullanıcının
-        # eklemediği 2500 TL nakit görünmesin), o yüzden test kendi hesabını kurar.
+
         from database.db import get_connection
         conn = get_connection()
         try:
@@ -49,7 +48,6 @@ class PendingTransactionTestCase(unittest.TestCase):
         self._patcher.stop()
         os.unlink(self.db_path)
 
-    # ─── Yardımcılar ─────────────────────────────────────────────────────────
 
     def _set_balance(self, amount):
         from database.db import get_connection
@@ -238,7 +236,7 @@ class PendingTransactionTestCase(unittest.TestCase):
 
         for column in ("transaction_date", "execution_date"):
             with self.subTest(column=column):
-                # Hata fırlatmadan tam biçimde parse edilebilmeli.
+
                 datetime.strptime(row[column], "%Y-%m-%d %H:%M:%S")
                 self.assertTrue(row[column].startswith(target))
 
@@ -277,15 +275,7 @@ class PendingTransactionTestCase(unittest.TestCase):
 
         self._add(500.0, "income", day_offset=1)
 
-        # Vadesi gelmiş ama hesabı olmayan ikinci bir kayıt.
-        #
-        # ÇIPLAK `sqlite3.connect` KULLANILIYOR, `get_connection()` DEĞİL — ve
-        # bu bilinçli. `get_connection()` artık `PRAGMA foreign_keys=ON` ile
-        # geliyor, yani böyle bir satırı bugün YAZAMIYOR (kısıt tam da bunu
-        # engellemek için). Testin konusu ise satırın nasıl oluştuğu değil,
-        # ZATEN VAR OLAN böyle bir satırın döngüyü öldürmemesi: zorlama
-        # kapalıyken yazılmış eski profillerde bu satırlar duruyor olabilir.
-        # Fixture, o eski sürümün yaptığını birebir taklit ediyor.
+
         import sqlite3 as _sqlite3
         from database.db import DB_NAME, SECRET_KEY
         from utils.crypto import encrypt
@@ -306,7 +296,7 @@ class PendingTransactionTestCase(unittest.TestCase):
 
         settled = TransactionService.settle_due_transactions(today=when)
 
-        # Sağlıklı kayıt yerleşti, yetim kayıt pending kaldı, istisna kaçmadı.
+
         self.assertEqual(settled, 1)
         self.assertAlmostEqual(self._balance(), 500.0, places=2)
         self.assertEqual(self._status_counts().get("completed"), 1)

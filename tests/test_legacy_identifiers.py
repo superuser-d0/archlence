@@ -26,8 +26,7 @@ import unittest
 
 from utils.app_paths import LEGACY_CBC_PASSWORD, LEGACY_CONFIG_FILENAME
 
-# Beklenen değerler base64 olarak yazılı: bu dosyanın kendisi de "eski ad düz
-# metin geçmesin" kuralına uyuyor. Çözülmüş hâlleri testlerde karşılaştırılıyor.
+
 _EXPECTED_CBC_PASSWORD = base64.b64decode("Zmlub3JhX3NlY3VyZV8yMDI2").decode("ascii")
 _EXPECTED_CONFIG_FILENAME = base64.b64decode("Zmlub3JhX2NvbmZpZy5qc29u").decode("ascii")
 

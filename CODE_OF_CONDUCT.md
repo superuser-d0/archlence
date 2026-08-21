@@ -24,9 +24,9 @@ the person remove it safely.
 
 ## Reporting and enforcement
 
-For ordinary conduct concerns, contact the maintainer through an appropriate
-private GitHub channel. For security-sensitive concerns, use the process in
-[SECURITY.md](SECURITY.md). Do not post private evidence in a public issue.
+For ordinary conduct concerns, email `Superkullaniciyapiyor@proton.me`. For
+security-sensitive concerns, use the process in [SECURITY.md](SECURITY.md).
+Do not post private evidence in a public issue.
 
 Maintainers may edit or remove comments, close discussions, reject
 contributions, or temporarily or permanently restrict participation when

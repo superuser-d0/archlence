@@ -18,15 +18,13 @@ from kivymd.uix.list import TwoLineListItem
 from ui.i18n import tr as _t
 from services.search_service import ACCOUNT, CATEGORY, TRANSACTION, search
 
-#: Panelde aynı anda görünecek en fazla satır. Daha uzunu başlığın altını
-#: kaplayıp sayfayı ittiriyor; kullanıcı yazmaya devam ederek daraltır.
+
 MAX_VISIBLE_RESULTS = 5
 
-#: `TwoLineListItem`'ın KivyMD 1.2'deki varsayılan yüksekliği.
+
 _ROW_HEIGHT = 72
 
-#: Yazmayı bitirene kadar bekle. budget_mixin/asset_mixin ile aynı değer;
-#: her tuşta DB'ye gitmek o iki kutuda ölçülmüş bir kasma sebebiydi.
+
 _DEBOUNCE_SECONDS = 0.3
 
 
@@ -50,8 +48,7 @@ class SearchMixin:
             pending.cancel()
         self._home_search_event = None
 
-        # Alan temizlendiyse BEKLEME: panel hemen kapansın, yoksa 300ms
-        # boyunca eski sonuçlar boş kutunun altında asılı kalıyor.
+
         if not str(value or "").strip():
             self.clear_home_search_results()
             return
@@ -59,9 +56,8 @@ class SearchMixin:
         event = None
 
         def _run_if_current(_dt):
-            # Jenerasyon kontrolü: bu olay hâlâ EN SON planlanan mı? Kullanıcı
-            # beklerken yazmaya devam ettiyse eski sorgu sonuçları yeniyi
-            # ezmemeli.
+
+
             if getattr(self, "_home_search_event", None) is event:
                 self._home_search_event = None
                 self.run_home_search(value)
@@ -80,14 +76,12 @@ class SearchMixin:
         if not results:
             item = TwoLineListItem(
                 text=_t("Sonuç bulunamadı"),
-                # Kapsamı SÖYLÜYOR. "Son işlemlerde" boş bir nezaket değil:
-                # açıklama araması en yeni 500 satırla sınırlı ve kullanıcı
-                # eski bir işlemi bulamadığında sebebini burada görüyor.
+
+
                 secondary_text=_t("Hesap, kategori ve son işlemlerde arandı"),
             )
-            # Bulunamadı satırı bir HEDEF DEĞİL; tıklanınca hiçbir yere
-            # gitmemeli. `_no_ripple_effect` KivyMD'nin dalga animasyonunu da
-            # kapatıyor, böylece tıklanabilir görünmüyor.
+
+
             item._no_ripple_effect = True
             panel.add_widget(item)
             panel.height = dp(_ROW_HEIGHT)
@@ -99,9 +93,7 @@ class SearchMixin:
             len(results), MAX_VISIBLE_RESULTS
         )
 
-    #: Sonuç türünden alt satır etiketi. `else` dalıyla ayırt etmek, işlem
-    #: sonuçları eklenince onları sessizce "Kategori" diye etiketlemişti;
-    #: açık eşleme aynı hatayı bir daha yapmayı zorlaştırıyor.
+
     _KIND_LABELS = {
         ACCOUNT: "Hesap",
         CATEGORY: "Kategori",
@@ -114,8 +106,8 @@ class SearchMixin:
             text=str(result.get("name") or ""),
             secondary_text=_t(self._KIND_LABELS.get(kind, "Kategori")),
         )
-        # `result=result` ŞART: döngü değişkenini yakalamak, tüm satırların
-        # son sonuca gitmesi demekti (Python'da klasik geç-bağlama tuzağı).
+
+
         item.bind(
             on_release=lambda _item, result=result:
                 self.open_search_result(result)
@@ -131,14 +123,13 @@ class SearchMixin:
         if kind == ACCOUNT:
             nav.switch_tab("accounts_tab")
         elif kind == TRANSACTION:
-            # İşlem listesi ana sayfada; ayrı bir "işlem detayı" ekranı yok ve
-            # bu turda uydurulmuyor. Zil de aynı şekilde ana sayfaya dönüyor.
+
+
             nav.switch_tab("home_tab")
         else:
             nav.switch_tab("settings_tab")
-            # Kategori listesi tür başına yükleniyor; sonucun kendi türünü
-            # açmazsak kullanıcı gelir kategorisi arayıp gider listesine
-            # düşerdi.
+
+
             category_type = result.get("detail") or "expense"
             self.load_categories(category_type)
         self.clear_home_search_results()

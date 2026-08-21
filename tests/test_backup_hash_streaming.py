@@ -31,8 +31,7 @@ from services.backup_service import (
     verify_backup,
 )
 
-#: Kapı için kullanılan boyutlar. CI'da hızlı kalsın diye küçük ama aradaki
-#: dört kat, doğrusal büyümeyi görünür kılmaya yeter.
+
 SMALL_MIB = 4
 LARGE_MIB = 16
 
@@ -80,13 +79,12 @@ class Sha256FileContractTest(unittest.TestCase):
         small_peak = peak(_sha256_file, small)
         large_peak = peak(_sha256_file, large)
 
-        # DOĞRUSAL DEĞİL: dosya 4 katına çıktığında tepe tahsis 4 katına
-        # çıkmamalı. Eski yaklaşımda bu oran tam olarak 4,0 olurdu.
+
         self.assertLess(
             large_peak, small_peak * 2,
             f"tepe bellek dosyayla büyüdü: {small_peak:,} -> {large_peak:,}",
         )
-        # Ve mutlak olarak da dosyadan çok küçük kalmalı.
+
         self.assertLess(large_peak, LARGE_MIB * 1024 * 1024 // 4)
 
     def test_the_old_approach_is_the_one_that_grows(self):
@@ -128,8 +126,7 @@ class Sha256FileContractTest(unittest.TestCase):
             with self.assertRaises(_Boom):
                 _sha256_file(path)
 
-        # Windows açık handle'ı olan dosyayı sildirmez; silinebiliyorsa
-        # tanıtıcı gerçekten kapanmış demektir.
+
         path.unlink()
         self.assertFalse(path.exists())
         del real_update

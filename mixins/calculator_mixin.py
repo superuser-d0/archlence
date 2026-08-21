@@ -27,20 +27,20 @@ class CalculatorMixin:
 
         if calc_type == "basic":
             self.calc_layout = MDBoxLayout(orientation="vertical", spacing="10dp", size_hint_y=None, height="380dp")
-            
+
             self.calc_input = MDTextField(
                 text=_t(""),
                 hint_text=_t("0"),
-                halign="right", 
-                readonly=True, 
+                halign="right",
+                readonly=True,
                 font_size="28sp",
                 size_hint_y=None,
                 height="60dp"
             )
             self.calc_layout.add_widget(self.calc_input)
-            
+
             self.calc_grid = MDGridLayout(cols=4, spacing="5dp", size_hint_y=1)
-            
+
             buttons = [
                 'C', '(', ')', '/',
                 '7', '8', '9', '*',
@@ -50,17 +50,17 @@ class CalculatorMixin:
                 'sin(', 'cos(', 'tan(', 'log(',
                 'sqrt(', '**', '', '='
             ]
-            
+
             def on_calc_button_press(instance):
                 btn_text = instance.text
                 current_text = self.calc_input.text
-                
+
                 if not btn_text:
                     return
 
                 if current_text == _t("Hata"):
                     current_text = ""
-                
+
                 if btn_text == 'C':
                     self.calc_input.text = ""
                 elif btn_text == '=':
@@ -70,19 +70,15 @@ class CalculatorMixin:
                         )
                         self.calc_input.text = result
                     except (ValueError, SyntaxError, ArithmeticError, TypeError):
-                        # Ölçülen küme: bozuk ifade `SyntaxError` ("2+"),
-                        # sıfıra bölme `ZeroDivisionError` (ArithmeticError
-                        # türevi), izin verilmeyen/alan dışı işlem ise
-                        # `ValueError` (sqrt(-1), log(0), 2**99999, boş girdi).
-                        # Daha genişini yakalamak, hesap makinesinin kendi
-                        # kodundaki bir hatayı da "Hata" metnine çevirirdi.
+
+
                         self.calc_input.text = _t("Hata")
                 else:
                     self.calc_input.text = current_text + btn_text
 
             for btn_text in buttons:
-                # Tuş renkleri temadan gelir: '=' ana eylem (primary), 'C' temizle
-                # (nötr ama vurgulu), rakam/operatör tuşları pasif yüzey.
+
+
                 if btn_text == '=':
                     bg_col = self.theme_cls.primary_color
                     txt_col = (1, 1, 1, 1)
@@ -95,9 +91,9 @@ class CalculatorMixin:
                 else:
                     bg_col = ftheme.muted_bg(self.theme_cls)
                     txt_col = self.theme_cls.text_color
-                
+
                 btn = MDRaisedButton(
-                    text=btn_text, 
+                    text=btn_text,
                     md_bg_color=bg_col,
                     theme_text_color="Custom",
                     text_color=txt_col,
@@ -122,19 +118,19 @@ class CalculatorMixin:
                 ]
             )
             self.calc_dialog.open()
-            
+
         elif calc_type == "interest":
             self.int_layout = MDBoxLayout(orientation="vertical", spacing="15dp", size_hint_y=None, height="280dp")
             self.int_principal = MDTextField(hint_text=_t("Ana Para (₺)"), input_filter="float")
             self.int_rate = MDTextField(hint_text=_t("Yıllık Faiz Oranı (%)"), input_filter="float")
             self.int_days = MDTextField(hint_text=_t("Vade (Gün)"), input_filter="int")
             self.int_result_label = MDLabel(text=_t("Sonuç bekleniyor..."), theme_text_color="Primary", bold=True, halign="center", font_style="Subtitle2")
-            
+
             self.int_layout.add_widget(self.int_principal)
             self.int_layout.add_widget(self.int_rate)
             self.int_layout.add_widget(self.int_days)
             self.int_layout.add_widget(self.int_result_label)
-            
+
             self.int_dialog = MDDialog(
                 title=_t("Faiz Getirisi"), type="custom", content_cls=self.int_layout,
                 buttons=[
@@ -143,31 +139,31 @@ class CalculatorMixin:
                 ]
             )
             self.int_dialog.open()
-            
+
         elif calc_type == "compound":
             self.comp_layout = MDBoxLayout(orientation="vertical", spacing="10dp", size_hint_y=None, height="380dp")
-            
+
             self.comp_mode = MDSegmentedControl(size_hint_x=1)
             self.comp_mode.add_widget(MDSegmentedControlItem(text=_t("Basit")))
             self.comp_mode.add_widget(MDSegmentedControlItem(text=_t("Gelişmiş")))
             self.comp_mode.bind(on_active=self.toggle_compound_mode)
-            
+
             self.comp_principal = MDTextField(hint_text=_t("Ana Para (₺)"), input_filter="float")
             self.comp_rate = MDTextField(hint_text=_t("Yıllık Faiz Oranı (%)"), input_filter="float")
             self.comp_time = MDTextField(hint_text=_t("Süre (Yıl)"), input_filter="int")
-            
-            # Gelişmiş mod için
+
+
             self.comp_deposit = MDTextField(hint_text=_t("Aylık Eklenen Tutar (₺)"), input_filter="float", opacity=0, disabled=True)
-            
+
             self.comp_result_label = MDLabel(text=_t("Sonuç bekleniyor..."), theme_text_color="Primary", bold=True, halign="center", font_style="Subtitle2")
-            
+
             self.comp_layout.add_widget(self.comp_mode)
             self.comp_layout.add_widget(self.comp_principal)
             self.comp_layout.add_widget(self.comp_rate)
             self.comp_layout.add_widget(self.comp_time)
             self.comp_layout.add_widget(self.comp_deposit)
             self.comp_layout.add_widget(self.comp_result_label)
-            
+
             self.comp_dialog = MDDialog(
                 title=_t("Bileşik Faiz"), type="custom", content_cls=self.comp_layout,
                 buttons=[
@@ -176,45 +172,45 @@ class CalculatorMixin:
                 ]
             )
             self.comp_dialog.open()
-            
+
         elif calc_type == "loan":
             self.loan_scroll = ScrollView(size_hint=(1, None), height="400dp")
-            
+
             self.loan_layout = MDBoxLayout(orientation="vertical", spacing="8dp", size_hint_y=None)
             self.loan_layout.bind(minimum_height=self.loan_layout.setter('height'))
-            
+
             self.loan_mode = MDSegmentedControl(size_hint_x=1)
             self.loan_mode.add_widget(MDSegmentedControlItem(text=_t("Basit")))
             self.loan_mode.add_widget(MDSegmentedControlItem(text=_t("Gelişmiş")))
             self.loan_mode.bind(on_active=self.toggle_loan_mode)
-            
+
             self.loan_custom_name = MDTextField(hint_text=_t("Borç/Kredi Adı (Örn: Araba Kredisi)"), max_text_length=30)
             self.loan_amount = MDTextField(hint_text=_t("Kredi Tutarı (₺)"), input_filter="float")
             self.loan_rate = MDTextField(hint_text=_t("Aylık Faiz Oranı (%)"), input_filter="float")
             self.loan_term = MDTextField(hint_text=_t("Vade (Ay - Maks 36)"), input_filter="int")
-            
+
             self.loan_type_selected = "İhtiyaç"
             self.loan_type = MDSegmentedControl(size_hint_x=1, opacity=0, disabled=True)
             self.loan_type.add_widget(MDSegmentedControlItem(text=_t("İhtiyaç")))
             self.loan_type.add_widget(MDSegmentedControlItem(text=_t("Taşıt")))
             self.loan_type.add_widget(MDSegmentedControlItem(text=_t("Konut")))
             self.loan_type.bind(on_active=self.update_loan_type)
-            
+
             self.custom_expenses = []
-            
+
             self.expense_header_layout = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="40dp", opacity=0, disabled=True)
             self.expense_header_label = MDLabel(text=_t("Özel Masraflar (0/10)"), font_style="Caption")
             self.add_expense_btn = MDFlatButton(text=_t("+ EKLE"), on_release=self.open_expense_dialog, text_color=(0.13, 0.59, 0.95, 1))
             self.expense_header_layout.add_widget(self.expense_header_label)
             self.expense_header_layout.add_widget(self.add_expense_btn)
-            
+
             self.expense_list_scroll = ScrollView(size_hint_y=None, height="60dp", opacity=0, disabled=True)
             self.expense_list_layout = MDBoxLayout(orientation="vertical", spacing="4dp", size_hint_y=None)
             self.expense_list_layout.bind(minimum_height=self.expense_list_layout.setter('height'))
             self.expense_list_scroll.add_widget(self.expense_list_layout)
-            
+
             self.loan_result_label = MDLabel(text=_t("Hesaplama bekleniyor..."), theme_text_color="Primary", bold=True, halign="center", font_style="Subtitle2")
-            
+
             self.loan_layout.add_widget(self.loan_mode)
             self.loan_layout.add_widget(self.loan_custom_name)
             self.loan_layout.add_widget(self.loan_amount)
@@ -224,9 +220,9 @@ class CalculatorMixin:
             self.loan_layout.add_widget(self.expense_header_layout)
             self.loan_layout.add_widget(self.expense_list_scroll)
             self.loan_layout.add_widget(self.loan_result_label)
-            
+
             self.loan_scroll.add_widget(self.loan_layout)
-            
+
             self.loan_table_btn = MDRaisedButton(text=_t("TABLO"), on_release=self.show_payment_plan_table, opacity=0, disabled=True, md_bg_color=self.theme_cls.primary_color, elevation=0)
             self.add_debt_btn = MDRaisedButton(text=_t("Borç Olarak Ekle"), on_release=self.add_loan_to_debts, opacity=0, disabled=True, md_bg_color=self.theme_cls.primary_color, elevation=0)
             self.loan_dialog = MDDialog(
@@ -239,7 +235,7 @@ class CalculatorMixin:
                 ]
             )
             self.loan_dialog.open()
-            
+
         elif calc_type == "savings_goal":
             self.sg_auto_deposit = False
             self.sg_layout = MDBoxLayout(orientation="vertical", spacing="10dp", size_hint_y=None, height="420dp")
@@ -300,28 +296,28 @@ class CalculatorMixin:
             r = float(self.comp_rate.text) / 100
             t = int(self.comp_time.text)
             deposit = float(self.comp_deposit.text) if self.comp_deposit.text else 0.0
-            
+
             if p <= 0 or r <= 0 or t <= 0:
                 toast(_t("Lütfen 0'dan büyük değerler girin!"))
                 return
-                
-            # Bileşik faiz (Yıllık bileşme)
+
+
             amount = p * ((1 + r) ** t)
-            
-            # Aylık ekleme varsa
+
+
             if deposit > 0:
                 months = t * 12
                 monthly_rate = r / 12
-                # Gelecek değer formülü: PMT * (((1 + r/n)^(nt) - 1) / (r/n)) * (1+r/n) -> opsiyonel 1+r/n dönemi başı ödeme ise
+
                 amount += deposit * (((1 + monthly_rate)**months - 1) / monthly_rate)
-                
+
             total_invested = p + (deposit * t * 12)
             profit = amount - total_invested
-            
+
             f_invest = f"{total_invested:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             f_profit = f"{profit:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             f_amount = f"{amount:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
-            
+
             self.comp_result_label.text = _tf(
                 "Yatırım: {invested}\nKazanç: + {profit}\nToplam: {amount}",
                 invested=f_invest,
@@ -341,89 +337,74 @@ class CalculatorMixin:
             p = float(self.loan_amount.text)
             r_percent = float(self.loan_rate.text)
             n = int(self.loan_term.text)
-            
+
             if p <= 0 or r_percent <= 0 or n <= 0:
                 toast(_t("Lütfen 0'dan büyük değerler girin!"))
                 return
-            
-            # --- YENİ DİNAMİK VADE KONTROLÜ ---
-            max_term = 36 # Varsayılan (Basit mod veya İhtiyaç)
-            
-            if not self.loan_type.disabled: # Eğer "Gelişmiş" mod açıksa
+
+
+            max_term = 36
+
+            if not self.loan_type.disabled:
                 if self.loan_type_selected == _t("Taşıt"):
                     max_term = 48
                 elif self.loan_type_selected == _t("Konut"):
                     max_term = 120
-                    
+
             if n > max_term:
                 toast(_tf("Seçtiğiniz kredi türü için vade en fazla {max_term} ay olabilir!", max_term=max_term))
                 return
             # -----------------------------------
-                
+
             r = r_percent / 100
             is_advanced = not self.loan_type.disabled
-            
+
             kkdf = 0.15
             bsmv = 0.15
-            
+
             i = r * (1 + kkdf + bsmv)
             emi = p * (i * ((1 + i)**n)) / (((1 + i)**n) - 1)
-            
+
             total_custom_upfront = 0.0
             total_all_recurring = 0.0
-            
+
             if is_advanced:
                 for exp in self.custom_expenses:
                     if exp["type"] == "Tek Seferlik":
                         total_custom_upfront += exp["amount"]
                     else:
                         total_all_recurring += exp["amount"]
-                        
+
             file_expense_taxed = 0.0
             insurance = 0.0
             net_cash = p
-            
+
             total_upfront = 0.0
-            
+
             if is_advanced:
                 file_expense_taxed = (p * 0.005) * 1.15
                 insurance = p * 0.008
                 total_upfront = file_expense_taxed + insurance + total_custom_upfront
                 net_cash = p - total_upfront
-                
-            # GÖSTERİLEN toplam: kredinin gerçek maliyeti, ek masraflar dahil.
+
+
             total_payment = (emi * n) + total_all_recurring
-            # DEFTERE YAZILAN toplam: yalnızca taksitlerin toplamı.
-            #
-            # İkisi bilerek AYRI. Borç kaydı, otomatik taksit döngüsünün
-            # gerçekten yapacağı şeyi modellemeli: o döngü ayda bir `emi`
-            # tutarında işlem yazar ve borcu taksit SAYISI dolunca kapatır.
-            # Ek masraflar bu deftere hiç uğramıyor (kendi vadeleri var ve
-            # ödeme tablosunda `amount / term` olarak ayrıca gösteriliyorlar),
-            # dolayısıyla onları borcun toplamına koymak, aylık ödemenin asla
-            # kapatamayacağı bir bakiye yaratıyordu: 12 taksit ödenmiş, borç
-            # "kapandı" işaretlenmiş, ama kayıtlı toplama hiç ulaşılmamış olurdu.
-            #
-            # Toplam, YUVARLANMIŞ taksitten türetiliyor — `emi * n` üzerinden
-            # değil. `insert_debt` ikisini de ayrı ayrı kuruşa yuvarlıyor ve
-            # iki yuvarlama sırası aynı sonucu vermeyebilir: emi=1,005 ve n=3
-            # için `fiat(emi) * n` = 3,00 ama `fiat(emi * n)` = 3,01. Aradaki
-            # kuruş, otomatik ödeme borcu kapattığında kapanmamış görünürdü.
-            # Bu sırayla değişmez yapısal olarak korunuyor.
+
+
             ledger_total = float(fiat(emi) * n)
-            
+
             f_emi = f"{emi:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             f_total = f"{total_payment:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
-            
+
             res_text = _tf("Temel Taksit: {monthly}\nToplam Geri Ödeme: {total}", monthly=f_emi, total=f_total)
             if is_advanced:
                 f_net = f"{net_cash:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
                 res_text += _tf("\nEle Geçecek: {net} (Tüm Peşin Masraflar Düşülmüş)", net=f_net)
-                
+
             self.loan_result_label.text = res_text
             self.loan_result_label.theme_text_color = "Custom"
             self.loan_result_label.text_color = (0.9, 0.2, 0.3, 1)
-            
+
             self.loan_table_data = []
             kalan = p
             for ay in range(1, n + 1):
@@ -434,16 +415,16 @@ class CalculatorMixin:
                 kalan -= anapara_odenen
                 if kalan < 0.01:
                     kalan = 0
-                
+
                 ek_masraf = 0.0
                 if is_advanced:
                     for exp in self.custom_expenses:
                         if exp["type"] == "Çok Seferlik" and ay <= exp["term"]:
                             ek_masraf += (exp["amount"] / exp["term"])
-                            
+
                 toplam_odeme = emi + ek_masraf
                 faiz_vergi = faiz + _kkdf + _bsmv
-                
+
                 f_ay = str(ay)
                 f_t = f"{emi:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                 f_ek = f"{ek_masraf:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -451,7 +432,7 @@ class CalculatorMixin:
                 f_a = f"{anapara_odenen:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                 f_fv = f"{faiz_vergi:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                 f_bal = f"{kalan:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                
+
                 self.loan_table_data.append((f_ay, f_t, f_ek, f_toplam, f_a, f_fv, f_bal))
 
             if is_advanced:
@@ -460,7 +441,7 @@ class CalculatorMixin:
             else:
                 self.loan_table_btn.opacity = 0
                 self.loan_table_btn.disabled = True
-            
+
             self.add_debt_btn.opacity = 1
             self.add_debt_btn.disabled = False
 
@@ -470,7 +451,7 @@ class CalculatorMixin:
                 "monthly_payment": emi,
                 "total_installments": n
             }
-            
+
         except ValueError:
             toast(_t("Lütfen tüm alanları sayılarla doldurun!"))
 
@@ -478,7 +459,7 @@ class CalculatorMixin:
         """Kredi ödeme planını masaüstüne 'Ödeme_Planı.pdf' olarak dışa aktarır."""
         import os
         from fpdf import FPDF
-        
+
         def _deaccent(text):
             """PDF'in temel 'Helvetica' fontu Türkçe karakterleri desteklemez;
             burada çeviri değil yalnızca ASCII'ye indirgeme yapılır."""
@@ -539,16 +520,11 @@ class CalculatorMixin:
             desk_dir = os.path.join(home_dir, "Desktop")
             if not os.path.exists(desk_dir):
                 desk_dir = home_dir
-        
+
         filepath = os.path.join(desk_dir, "Ödeme_Planı.pdf")
         pdf.output(filepath)
         toast(_tf("PDF kaydedildi: {filepath}", filepath=filepath))
 
-
-    # ── Kredi/faiz hesaplayıcı yardımcıları ──────────────────────────────
-    # Bu metodlar main.py'deki ArchlenceApp gövdesinden taşındı; open_calculator
-    # içindeki buton bind'ları zaten bunlara başvuruyordu, artık aynı sınıfta
-    # tanımlılar. Davranışları değişmedi.
 
     def toggle_compound_mode(self, segment, item):
         """Bileşik faiz hesaplayıcısında basit/gelişmiş mod geçişini yönetir."""
@@ -576,37 +552,37 @@ class CalculatorMixin:
             self.expense_header_layout.disabled = True
             self.expense_list_scroll.opacity = 0
             self.expense_list_scroll.disabled = True
-            
+
     def update_loan_type(self, segment, item):
         """Kredi türü (İhtiyaç/Taşıt/Konut) değiştikçe maksimum vade uyarısını ve ipucunu günceller."""
         self.loan_type_selected = item.text
-        
-        # Seçime göre dinamik hint_text (İpucu) güncellemesi
+
+
         if item.text == _t("İhtiyaç"):
             self.loan_term.hint_text = _t("Vade (Ay - Maks 36)")
         elif item.text == _t("Taşıt"):
             self.loan_term.hint_text = _t("Vade (Ay - Maks 48)")
         elif item.text == _t("Konut"):
             self.loan_term.hint_text = _t("Vade (Ay - Maks 120)")
-        
+
     def open_expense_dialog(self, *args):
         """Krediye özel masraf eklemek için bir diyalog penceresi açar (maks. 10 masraf)."""
         if len(self.custom_expenses) >= 10:
             toast(_t("Maksimum 10 masraf ekleyebilirsiniz."))
             return
-            
+
         self.exp_dialog_layout = MDBoxLayout(orientation="vertical", spacing="10dp", size_hint_y=None, height="260dp")
-        
+
         self.exp_name = MDTextField(hint_text=_t("Masraf Adı (Örn: Ekspertiz)"), max_text_length=30)
-        
+
         self.exp_type_segment = MDSegmentedControl(size_hint_x=1)
         self.exp_type_segment.add_widget(MDSegmentedControlItem(text=_t("Tek Seferlik")))
         self.exp_type_segment.add_widget(MDSegmentedControlItem(text=_t("Çok Seferlik")))
-        
+
         self.exp_amount = MDTextField(hint_text=_t("Toplam Tutar (₺)"), input_filter="float")
-        
+
         self.exp_term = MDTextField(hint_text=_t("Süre (Ay)"), input_filter="int", opacity=0, disabled=True)
-        
+
         def toggle_term_field(segment, item):
             if item.text == _t("Çok Seferlik"):
                 self.exp_term.opacity = 1
@@ -615,14 +591,14 @@ class CalculatorMixin:
                 self.exp_term.opacity = 0
                 self.exp_term.disabled = True
                 self.exp_term.text = ""
-                
+
         self.exp_type_segment.bind(on_active=toggle_term_field)
-        
+
         self.exp_dialog_layout.add_widget(self.exp_name)
         self.exp_dialog_layout.add_widget(self.exp_type_segment)
         self.exp_dialog_layout.add_widget(self.exp_amount)
         self.exp_dialog_layout.add_widget(self.exp_term)
-        
+
         self.expense_dialog = MDDialog(
             title=_t("Özel Masraf Ekle"),
             type="custom",
@@ -638,19 +614,19 @@ class CalculatorMixin:
         """Girilen özel masrafı doğrular ve kredi masrafları listesine ekler."""
         name = self.exp_name.text.strip()
         amount_text = self.exp_amount.text
-        
+
         if not name or not amount_text:
             toast(_t("Lütfen ad ve tutar girin!"))
             return
-            
+
         amount = float(amount_text)
         if amount <= 0:
             toast(_t("Tutar 0'dan büyük olmalı!"))
             return
-            
+
         is_cok = not self.exp_term.disabled
         exp_type = "Çok Seferlik" if is_cok else "Tek Seferlik"
-        
+
         term = 0
         if is_cok:
             if not self.exp_term.text:
@@ -671,7 +647,7 @@ class CalculatorMixin:
             "term": term
         }
         self.custom_expenses.append(exp_data)
-        
+
         self.expense_dialog.dismiss()
         self.update_expense_list_ui()
 
@@ -679,20 +655,20 @@ class CalculatorMixin:
         """Özel masraflar listesi arayüzünü (UI) yeniden çizer."""
         self.expense_list_layout.clear_widgets()
         self.expense_header_label.text = _tf("Özel Masraflar ({count}/10)", count=len(self.custom_expenses))
-        
+
         for idx, exp in enumerate(self.custom_expenses):
             row = MDBoxLayout(orientation="horizontal", size_hint_y=None, height="24dp")
-            
+
             desc = f"{exp['name']} ({exp['type']}) - {exp['amount']} ₺"
             if exp["type"] == "Çok Seferlik":
                 desc += f" / {exp['term']} Ay"
-                
+
             lbl = MDLabel(text=desc, font_style="Caption")
-            
+
             del_btn = MDIconButton(
-                icon="close", 
+                icon="close",
                 icon_size="16sp",
-                size_hint=(None, None), 
+                size_hint=(None, None),
                 size=("24dp", "24dp"),
                 pos_hint={"center_y": 0.5},
                 on_release=lambda x, index=idx: self.remove_custom_expense(index)
@@ -713,18 +689,18 @@ class CalculatorMixin:
             p = float(self.int_principal.text)
             r = float(self.int_rate.text)
             d = int(self.int_days.text)
-            
+
             if p <= 0 or r <= 0 or d <= 0:
                 toast(_t("Lütfen 0'dan büyük değerler girin!"))
                 return
-                
+
             gross_profit = p * r * d / 36500
-            net_profit = gross_profit * 0.95 # Varsayılan %5 stopaj (Vergi)
+            net_profit = gross_profit * 0.95
             total = p + net_profit
-            
+
             f_profit = f"{net_profit:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
             f_total = f"{total:,.2f} ₺".replace(",", "X").replace(".", ",").replace("X", ".")
-            
+
             self.int_result_label.text = _tf(
                 "Net Getiri: + {profit}\nVade Sonu: {total}\n(%5 Stopaj düşülmüştür)",
                 profit=f_profit,
@@ -740,7 +716,7 @@ class CalculatorMixin:
         from kivymd.uix.datatables import MDDataTable
         from kivy.metrics import dp
         from kivymd.uix.boxlayout import MDBoxLayout
-        
+
         table_layout = MDBoxLayout(orientation="vertical")
         self.table = MDDataTable(
             use_pagination=True,
@@ -757,7 +733,7 @@ class CalculatorMixin:
             row_data=self.loan_table_data,
         )
         table_layout.add_widget(self.table)
-        
+
         self.table_dialog = MDDialog(
             title=_t("Ödeme Planı"),
             type="custom",

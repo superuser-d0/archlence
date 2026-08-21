@@ -124,20 +124,7 @@ class FileKeyProvider(KeyProvider):
         directory = os.path.dirname(self._key_path) or "."
         os.makedirs(directory, exist_ok=True)
 
-        # Geçici dosya HEDEFLE AYNI DİZİNDE olmalı: os.link yalnızca aynı
-        # dosya sistemi içinde çalışır.
-        #
-        # 0o600 yalnızca POSIX'te etkilidir; Windows NTFS ACL'lerinde
-        # karşılığı yoktur. Orada koruma, %LOCALAPPDATA%'nın kendi
-        # kullanıcı-profili ACL varsayılanlarından gelir (bkz.
-        # utils/app_paths.py::data_dir) — bu satır Windows'ta ek bir şey
-        # yapmaz.
-        # mkstemp: hem SÜREÇLER hem de AYNI SÜREÇTEKİ THREAD'ler arasında
-        # benzersiz ad üretir ve dosyayı 0o600 ile açar. Adı yalnızca
-        # os.getpid()'den türetmek yetmezdi — bu uygulama yoğun biçimde
-        # thread kullanıyor (açılışta kripto ısıtma thread'i ile veri
-        # thread'i ilk şifre çözmeyi aynı anda tetikleyebilir) ve aynı
-        # süreçteki iki thread aynı geçici adı seçip çarpışırdı.
+
         fd, tmp_path = tempfile.mkstemp(
             dir=directory, prefix=os.path.basename(self._key_path) + ".", suffix=".tmp"
         )
@@ -145,15 +132,14 @@ class FileKeyProvider(KeyProvider):
             with os.fdopen(fd, "wb") as f:
                 f.write(key)
                 f.flush()
-                # Anahtar, hedef yola bağlanmadan ÖNCE fiilen diskte olmalı;
-                # aksi hâlde ani bir güç kesintisi "dosya var ama içi boş"
-                # durumunu kalıcılaştırabilirdi.
+
+
                 os.fsync(f.fileno())
             try:
                 os.link(tmp_path, self._key_path)
             except FileExistsError:
-                # Yarışı başka bir süreç kazandı. Onun anahtarı geçerli
-                # olandır ve os.link sıralaması sayesinde TAM yazılmıştır.
+
+
                 return self._read_existing()
         finally:
             try:
@@ -180,11 +166,8 @@ class KeyringKeyProvider(KeyProvider):
         self.service = service
         self.username = username
         if keyring_module is None:
-            # AYRI İSİM: `import keyring as keyring_module` parametrenin
-            # kendisini gölgeliyordu. Aynı ad önce enjekte edilen bağımlılık
-            # (testlerde sahte bir modül), sonra gerçek modül oluyordu —
-            # okurken hangisinin bağlı olduğu belli değil, tip denetleyici de
-            # haklı olarak yeniden tanım diyor.
+
+
             try:
                 import keyring as _keyring
             except ImportError as exc:
@@ -312,25 +295,8 @@ class DpapiKeyProvider(FileKeyProvider):
                 "Anahtar DPAPI ile korunamadı."
             ) from exc
         stored = super()._create_atomically(protected)
-        # YARIŞI KAYBEDEN, KAZANANIN ANAHTARINI DÖNDÜRMELİ. Üst sınıf tam
-        # da bunun için `os.link` sıralaması kullanıyor: bağlamayı başka bir
-        # yazar kazandıysa `_read_existing()` ile DİSKTEKİ anahtarı döndürüyor
-        # ve `FileKeyProvider` bu sözleşmeye uyuyor.
-        #
-        # Buradaki eski ifade `super()._create_atomically(protected) and key`
-        # idi: üst sınıf ne döndürürse döndürsün, sonuç HER ZAMAN bizim
-        # ürettiğimiz `key` oluyordu. Yani yarışı kaybeden süreç/thread,
-        # diske HİÇ YAZILMAMIŞ bir anahtarla şifrelemeye devam ediyordu ve o
-        # veriler süreç kapandığında kalıcı olarak okunamaz hâle geliyordu —
-        # üst sınıftaki "sessiz anahtar imhası" notunun anlattığı arıza, DPAPI
-        # alt sınıfında geri gelmişti. Yol Windows'a özgü, ama koşulabilir:
-        # yarış dalı enjekte edilen bir protector ile her platformda ölçülüyor
-        # (tests/test_windows_platform_contracts.py).
-        #
-        # Ayrım kimlikle yapılıyor: üst sınıf başarı yolunda KENDİSİNE VERİLEN
-        # nesneyi geri döndürüyor, yarış yolunda ise diskten okunmuş yeni bir
-        # nesne. Değer karşılaştırması burada yanlış olurdu — korunmuş blob ile
-        # çözülmüş anahtar zaten farklı baytlar, eşitlik hiçbir şey söylemez.
+
+
         if stored is protected:
             return key
         return stored
@@ -342,8 +308,8 @@ class DpapiKeyProvider(FileKeyProvider):
                 "DPAPI anahtarı değişti; işlem iptal edildi."
             )
         protected = self._protector.protect(key)
-        # File provider protected blob'u anahtar sanmamalı; replacement
-        # dosyasını burada doğrudan ve atomik olarak değiştir.
+
+
         directory = os.path.dirname(self._key_path) or "."
         fd, staged = tempfile.mkstemp(dir=directory, suffix=".replacement")
         try:

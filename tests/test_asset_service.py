@@ -33,7 +33,7 @@ class SymbolNormalizationTests(unittest.TestCase):
 
     def test_frankfurter_base_none_for_non_try_or_crypto(self):
         from services.asset_service import _frankfurter_base_for
-        # TRY dışı çapraz kur yanlış fiyatlanmasın diye elenir.
+
         for code in ("GBPUSD=X", "BTC-USD", "GC=F", "", None):
             self.assertIsNone(_frankfurter_base_for(code))
 
@@ -73,7 +73,7 @@ class LivePriceMatchingTests(unittest.TestCase):
         ]
         with mock.patch("requests.get", side_effect=self._fake_get):
             prices = asset_service._fetch_live_try_prices(assets)
-        # Anahtar TAM kod olmalı (eski hata: hiç eşleşmiyordu -> {}).
+
         self.assertEqual(prices["BTC-USD"], 3_000_000.0)
         self.assertEqual(prices["ETH-USD"], 90_000.0)
         self.assertAlmostEqual(prices["USDTRY=X"], 50.0)          # 1/0.02
@@ -96,8 +96,8 @@ class NonTryFilterAndCacheTests(unittest.TestCase):
         self._patcher.start()
         from database.init_db import initialize_database
         initialize_database()
-        # Demo tohumu TL dışı varlıklar da içerir; testi izole tutmak için
-        # active_assets tablosunu boşaltıp kendi kayıtlarımızı ekliyoruz.
+
+
         from database.db import get_connection
         conn = get_connection()
         conn.execute("DELETE FROM active_assets")
@@ -115,12 +115,8 @@ class NonTryFilterAndCacheTests(unittest.TestCase):
         insert_asset("Bitcoin", "BTC-USD", "Kripto", 1.0, 0.5)
         insert_asset("Türk Lirası", "TRY", "Döviz", 1.0, 1000.0)     # elenir (TRY)
         insert_asset("Nakit TL", "TL", "Döviz", 1.0, 500.0)          # elenir (TL)
-        # SIFIR MİKTARLI SATIR DOĞRUDAN SQL İLE yazılıyor: `insert_asset`
-        # artık sıfır/negatif miktarı reddediyor (üretim yolu
-        # `create_purchase` da öyle) ve satış tamamen boşalan varlığı
-        # SİLİYOR. Yani böyle bir satır ancak ESKİ bir yapının ya da
-        # dışarıdan düzenlemenin mirasıdır — ve okuma tarafının onu elemesi
-        # tam olarak bu yüzden hâlâ ölçülmesi gereken bir davranış.
+
+
         conn = get_connection()
         conn.execute(
             "INSERT INTO active_assets (asset_name, asset_code, asset_type,"
@@ -135,7 +131,7 @@ class NonTryFilterAndCacheTests(unittest.TestCase):
         self.assertIn("BTC-USD", codes)
         self.assertNotIn("TRY", codes)
         self.assertNotIn("TL", codes)
-        self.assertNotIn("ETH-USD", codes)  # miktarı 0
+        self.assertNotIn("ETH-USD", codes)
 
     def test_price_cache_round_trip(self):
         from services.asset_service import _store_prices, _read_cached_prices
@@ -170,7 +166,7 @@ class FallbackToCacheTests(unittest.TestCase):
     def test_uses_cached_price_when_live_fetch_fails(self):
         import threading
         from services import asset_service
-        # Önce önbelleğe son bilinen fiyatı yaz.
+
         asset_service._store_prices({"BTC-USD": 3_000_000.0})
         done = threading.Event()
         out = {}
@@ -178,7 +174,7 @@ class FallbackToCacheTests(unittest.TestCase):
         def _fail(_assets):
             raise RuntimeError("offline")
 
-        # Canlı fiyat ve yfinance yedeği başarısız; yalnızca önbellek kalır.
+
         with mock.patch.object(asset_service, "_fetch_live_try_prices", _fail), \
              mock.patch.object(asset_service, "fetch_current_price", return_value=None):
             asset_service.fetch_active_non_try_total(lambda r: (out.update(r), done.set()))
@@ -229,13 +225,7 @@ class Bist100PriceParsingTests(unittest.TestCase):
         import numpy as np
         import pandas as pd
 
-        # Bozulma biçimleri:
-        #   THYAO.IS -> NaN  (hata değil, math.isnan ile eleniyor)
-        #   GARAN.IS -> None (TypeError)
-        #   BAD.IS   -> metin (ValueError)
-        #   YOK.IS   -> sütun hiç yok (KeyError)
-        # AKBNK BİLEREK EN SONDA: bir tip kümeden düşerse döngü ondan önce
-        # kırılır ve sağlam fiyat da kaybolur.
+
         row = pd.Series({
             "AKBNK.IS": 42.5,
             "THYAO.IS": np.nan,
@@ -247,7 +237,7 @@ class Bist100PriceParsingTests(unittest.TestCase):
             ["THYAO", "GARAN", "BAD", "YOK", "AKBNK"],
             lambda *a, **k: _FrameStub(row),
         )
-        # Bozuk hücreler sessizce elenmeli, SONRAKİ sağlam kod yine fiyatlanmalı.
+
         self.assertEqual(prices, {"AKBNK": 42.5})
         self.assertFalse(outer_error, "hücre hatası dış bloğa kaçmamalı")
 
@@ -265,7 +255,7 @@ class Bist100PriceParsingTests(unittest.TestCase):
             ["AKBNK", "THYAO"],
             lambda *a, **k: _FrameStub(np.float64(42.5)),
         )
-        self.assertEqual(prices, {})  # çökmeden, boş ama TAMAMLANMIŞ sonuç
+        self.assertEqual(prices, {})
         self.assertFalse(outer_error, "skaler şekil dış bloğa kaçmamalı")
 
 

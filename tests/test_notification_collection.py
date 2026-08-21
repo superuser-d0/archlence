@@ -17,12 +17,6 @@ os.environ.setdefault("KIVY_NO_ARGS", "1")
 os.environ.setdefault("ARCHLENCE_HEADLESS", "1")
 
 
-# İMPORT MODÜL DÜZEYİNDE DEĞİL — `notification_mixin` KivyMD'yi çekiyor ve
-# KivyMD import anında `dp(400)` çağırıyor. Pencere/metrik henüz kurulmamışken
-# bu `TypeError: must be real number, not NoneType` veriyor ve test
-# DISCOVERY'si sırasında koştuğu için TÜM paketi düşürüyor (ölçüldü: 150 hata).
-# Depodaki diğer KivyMD'ye dokunan testler de aynı sebeple import'u metot
-# içinde yapıyor.
 def _module():
     from mixins import notification_mixin
     return notification_mixin
@@ -80,13 +74,13 @@ class CollectNotificationsTest(unittest.TestCase):
             {"name": "Gecikmiş", "next_due_date": _due(-3)},
         ])
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["subtitle"], "Gecikti")
+        self.assertEqual(rows[0]["subtitle"], "Overdue")
 
     def test_due_today_is_labelled_separately(self):
         rows = self._run(recurring=[
             {"name": "Bugünkü", "next_due_date": _due(0)},
         ])
-        self.assertEqual(rows[0]["subtitle"], "Bugün")
+        self.assertEqual(rows[0]["subtitle"], "Today")
 
     def test_rows_are_ordered_oldest_first(self):
         """Gecikmiş olan en üstte görünmeli."""

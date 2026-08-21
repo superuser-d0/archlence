@@ -35,24 +35,13 @@ from database.db import (
 from utils.crypto import decrypt
 from utils.errors import DecryptionError, KeyUnavailableError
 
-# ── FORMAT İŞARETİ ───────────────────────────────────────────────────────────
-# `kayit_turu` YENİ FORMATI KANITLAMAZ. v0.0.12 ve daha eski Archlence
-# export'larında da o kolon vardı, ama kaçış sözleşmesi YOKTU. Importer
-# yalnız `kayit_turu`'na bakarak "bu bizim yeni formatımız" dediğinde eski bir
-# dosyadaki GERÇEK kullanıcı apostrofunu soyuyordu — ölçüldü:
-#
-#     eski export:  aciklama = '=gercek-kullanici-metni
-#     içe aktarım:  aciklama =  =gercek-kullanici-metni     <-- apostrof KAYIP
-#
-# Bu yüzden format artık AÇIKÇA ve SÜRÜMLÜ olarak işaretleniyor. İşaret satır
-# başına taşınıyor (yalnız başlıkta değil): bir dosya elle düzenlenip
-# satırları karıştırılmış olabilir ve her satır kendi sözleşmesini taşımalı.
+
 CSV_VERSION_COLUMN = "_archlence_csv_version"
 
-#: Bu sürümün ürettiği kaçış sözleşmesi. Kaçış kuralları değişirse artar.
+
 CSV_ESCAPE_VERSION = 2
 
-#: Geri çözülebilen sürümler. Tanınmayan bir sürüm TAHMİN EDİLMEZ.
+
 SUPPORTED_CSV_VERSIONS = frozenset({2})
 
 CSV_HEADER = [
@@ -61,11 +50,10 @@ CSV_HEADER = [
     "detay",
 ]
 
-#: `kayit_turu` sütununun tanıdığı kayıt türleri. Bunların dışındaki bir değer
-#: bozuk satır demektir ve SESSİZCE ATLANMAZ — `skipped` sayacına girer.
+
 _RECORD_KINDS = frozenset({"islem", "varlik", "borc", "tekrarlanan"})
 
-# Jenerik CSV başlıklarını alan adlarına eşleme (küçük harfe indirilmiş halleriyle)
+
 _COLUMN_ALIASES = {
     "tarih": "tarih", "date": "tarih",
     "tur": "tur", "tür": "tur", "type": "tur",
@@ -84,30 +72,12 @@ _DATE_FORMATS = [
 ]
 
 
-# ── CSV FORMÜL ENJEKSİYONU ───────────────────────────────────────────────────
-# Excel ve LibreOffice bir hücrenin İLK karakterine bakıp onu formül sayar.
-# Dosyanın salt veri olması bunu değiştirmez: `=1+1` yazan bir hücre açılışta
-# hesaplanır, `=cmd|'/c calc'!A1` ise DDE üzerinden dış komut çalıştırmayı
-# dener. Kullanıcı bir işlem açıklamasına `=1+1` yazdıysa bu Archlence'ın
-# hatası değildir; o değeri elektronik tabloya FORMÜL olarak teslim etmek
-# Archlence'ın hatasıdır.
-#
-# Sekme ve satır başı da listede: bunlar hücre sınırını kaydırıp değeri komşu
-# hücreye taşıyabiliyor, yani "sadece görüntü" meselesi değil.
 _FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
 
-# Kaçış karakteri. Tek başına apostrof eklemek YETMEZ — geri çözme belirsiz
-# kalır: dosyadaki `'=x` hem kaçırılmış `=x` hem de kullanıcının kendi yazdığı
-# `'=x` olabilir. Bu yüzden apostrofla BAŞLAYAN değerler de kaçırılır. Sonuç
-# tek anlamlı: dosyada apostrofla başlayan her değerin başına tam olarak BİR
-# apostrof eklenmiştir, geri çözme tam olarak BİRİNİ soyar.
+
 _CSV_ESCAPE_CHAR = "'"
 
-# KOLON SÖZLEŞMESİ — koruma yalnızca kullanıcı kontrollü METİN kolonlarına
-# uygulanır. `tutar` ve `miktar` uygulamanın kendi ürettiği sayılardır;
-# apostrof eklemek onları elektronik tabloda sayı olmaktan çıkarır ve
-# kullanıcının dosyayla yapacağı ilk işi (toplam almak) bozardı. `kayit_turu`
-# ve `tarih` de sabit biçimli, uygulama üretimi değerlerdir.
+
 _CSV_TEXT_COLUMNS = ("tur", "kategori", "aciklama", "detay")
 _CSV_TEXT_INDEXES = tuple(
     CSV_HEADER.index(column) for column in _CSV_TEXT_COLUMNS
@@ -143,7 +113,6 @@ def _escape_row(row):
     return escaped
 
 
-#: "İşaret var ama yorumlanamıyor" — tahmin etmek yerine satır atlanır.
 _AMBIGUOUS = object()
 
 
@@ -174,10 +143,8 @@ def get_export_path():
         desktop = os.path.join(home, candidate)
         if os.path.isdir(desktop):
             return os.path.join(desktop, "archlence_export.csv")
-    # docs/ROADMAP.md Faz 1 madde 4. Eskiden BASE_DIR'a (uygulamanın kendi
-    # kurulum dizini) düşerdi — paketlenmiş bir Windows kurulumunda bu
-    # genelde salt-okunur, Masaüstü bulunamazsa dışa aktarım burada
-    # sessizce başarısız olurdu.
+
+
     from utils.app_paths import data_dir
     return os.path.join(data_dir(), "archlence_export.csv")
 
@@ -188,9 +155,8 @@ def _dec(value):
     try:
         return decrypt(str(value), SECRET_KEY)
     except KeyUnavailableError:
-        # Anahtar yoksa HİÇBİR alan çözülemez ve kullanıcı BAŞTAN SONA BOŞ
-        # bir CSV indirir — verisini kaybettiğini sanır. Tek bozuk satırı
-        # tolere etmek başka, tüm dışa aktarımın sessizce boşalması başka.
+
+
         raise
     except (DecryptionError, ValueError, TypeError):
         from utils.logging_config import get_logger
@@ -205,13 +171,7 @@ def export_all_to_csv(path=None):
     path = path or get_export_path()
     rows_out = []
 
-    # `managed_connection` ŞART, çıplak `get_connection()` DEĞİL: aşağıdaki
-    # `_dec()` çağrıları anahtar erişilemediğinde KeyUnavailableError
-    # fırlatıyor ve eski kodda `conn.close()` fonksiyonun sonunda tek başına
-    # duruyordu — araya giren her istisnada bağlantı sızıyordu. Windows'ta
-    # sızan bağlantı dosyayı kilitli tutuyor (CI bunu WinError 32 ile
-    # yakaladı); Linux'ta sessizce sızıyordu. Bu, database/db.py'deki
-    # `managed_connection` docstring'inin anlattığı hatanın aynısı.
+
     with managed_connection() as conn:
         cursor = conn.cursor()
 
@@ -271,20 +231,12 @@ def export_all_to_csv(path=None):
     fd, staged = tempfile.mkstemp(prefix=".archlence-export-", dir=target.parent)
     fd_handed_off = False
     try:
-        # `os.fchmod` WINDOWS'TA YOK. Korumasız çağrı orada `AttributeError`
-        # fırlatıyordu, yani CSV dışa aktarma Windows'ta HİÇ çalışmıyordu —
-        # bu koruma (`c2ae4c1`) eklendiğinden beri. Linux'ta test edildiği
-        # için görülmedi.
-        #
-        # DÜRÜST SINIR: POSIX mod bitleri Windows'ta karşılığı olmayan bir
-        # kavram. Orada dosya, üst dizinin ACL'sini devralır ve bu çağrı
-        # atlandığında dosya "yalnız sahibine açık" OLMAZ. Windows tarafında
-        # ACL ile daraltma ayrı bir iş; burada sessizce korunuyormuş gibi
-        # davranmıyoruz (bkz. CHANGELOG "on POSIX systems").
+
+
         if hasattr(os, "fchmod"):
             os.fchmod(fd, 0o600)
         with os.fdopen(fd, "w", newline="", encoding="utf-8-sig") as f:
-            # Bu noktadan sonra fd'nin sahibi `f`; kapatmak ONUN işi.
+
             fd_handed_off = True
             writer = csv.writer(f)
             writer.writerow(CSV_HEADER)
@@ -293,13 +245,11 @@ def export_all_to_csv(path=None):
         os.replace(staged, target)
         if hasattr(os, "fchmod"):
             os.chmod(target, 0o600)
-    # EXCEPTION-AUDIT: bilinçli geniş — staged dosyanın silinmesi HER hata
-    # türünde çalışmalı (şifresi çözülmüş finansal veri diskte kalmasın).
-    # Handler yutmuyor, yeniden fırlatıyor.
+
+
     except Exception:
-        # fd'yi ÖNCE kapat. Windows açık bir dosyayı sildirmez: `fchmod`
-        # patladığında fd hâlâ açıktı ve temizlik `PermissionError [WinError
-        # 32]` ile ikinci kez kırılıyordu — asıl hatayı da gizleyerek.
+
+
         if not fd_handed_off:
             try: os.close(fd)
             except OSError: pass
@@ -338,13 +288,8 @@ def parse_transactions_csv(path):
         reader = csv.DictReader(f)
         if not reader.fieldnames:
             return [], 0
-        # BAŞLIK NORMALİZASYONU TEK YERDE. Eskiden `field_map` başlıkları
-        # küçük harfe indirip kırpıyor, ama `kayit_turu` DOĞRUDAN
-        # `row.get("kayit_turu")` ile okunuyordu. `DictReader`'ın anahtarları
-        # HAM başlıklar olduğu için `KAYIT_TURU` ya da ` kayit_turu ` yazan bir
-        # dosyada bu okuma hep `None` dönüyordu: her satır "islem değil" sayılıp
-        # SESSİZCE düşüyordu — `skipped` bile artmıyordu, yani kullanıcı hiçbir
-        # şeyin içeri girmediğini ancak listeye bakarak anlıyordu. Ölçüldü.
+
+
         header_map = {}
         for name in reader.fieldnames:
             key = (name or "").strip().lower()
@@ -359,13 +304,7 @@ def parse_transactions_csv(path):
         type_col = header_map.get("kayit_turu")
         version_col = header_map.get(CSV_VERSION_COLUMN)
 
-        # KAÇIŞ YALNIZ İŞARETLİ SATIRLARDA GERİ ÇÖZÜLÜR.
-        #
-        # `kayit_turu`'nun varlığı yeni formatı KANITLAMAZ: o kolon v0.0.12 ve
-        # daha eski export'larda da vardı, kaçış sözleşmesi ise yoktu. İşaret
-        # yoksa hiçbir apostrof sökülmez — ne eski Archlence dosyasında ne de
-        # üçüncü taraf bir CSV'de. İkisinde de baştaki apostrof KULLANICININ
-        # kendi verisidir.
+
         def _text(row, key, unescape):
             raw = row.get(field_map.get(key, ""), "") or ""
             return unescape_csv_text(raw) if unescape else raw
@@ -375,9 +314,8 @@ def parse_transactions_csv(path):
             if version_col is not None:
                 version = _row_escape_version(row.get(version_col))
                 if version is _AMBIGUOUS:
-                    # İşaret var ama okunamıyor ya da desteklenmiyor. Satırın
-                    # kaçırılmış olup olmadığını BİLMİYORUZ; tahmin etmek ya
-                    # gerçek apostrofu yer ya da formülü içeri alır.
+
+
                     skipped += 1
                     continue
                 unescape = version is not None
@@ -385,12 +323,12 @@ def parse_transactions_csv(path):
             if type_col is not None:
                 kayit_turu = (row.get(type_col) or "").strip().lower()
                 if kayit_turu not in _RECORD_KINDS:
-                    # Tanınmayan/boş kayıt türü: bozuk satır. Sessizce
-                    # düşürmek yerine sayılıyor.
+
+
                     skipped += 1
                     continue
                 if kayit_turu != "islem":
-                    continue  # varlık/borç/tekrarlanan satırları işlem değildir
+                    continue
 
             raw_tur = _text(row, "tur", unescape).strip().lower()
             if raw_tur in _INCOME_WORDS:
@@ -408,23 +346,12 @@ def parse_transactions_csv(path):
 
             raw_amount = (row.get(field_map.get("tutar", ""), "") or "").strip()
             try:
-                # "1.234,56" Türk biçimini de kabul et
+
                 if "," in raw_amount and raw_amount.count(",") == 1:
                     raw_amount = raw_amount.replace(".", "").replace(",", ".")
                 amount = float(raw_amount)
-                # math.isfinite ŞART: float("inf") ve float("nan") ikisi de
-                # Python'da SORUNSUZ ayrıştırılır ve İKİSİ DE `<= 0`
-                # koşulunu geçmez (IEEE 754: nan ile yapılan her
-                # karşılaştırma False'tur, inf zaten <= 0 değildir). Yani bu
-                # guard tek başına ikisini de KABUL ediyordu. Böyle tek bir
-                # satır içeri alınınca adjust_account_balance'ın
-                # `balance = balance + ?` işlemi hesabı kalıcı olarak
-                # zehirliyor: inf/nan sonraki HER SUM(balance) üzerinden
-                # yayılıyor, yani uygulamadaki her Net Servet rakamı bozuluyor
-                # ve kullanıcı ilgili satırı elle bulup silene kadar düzelmiyor.
-                # Elle giriş yolu bu sınıfa karşı zaten korunuyordu
-                # (utils/formatters.py::read_amount + input_filter); aynı
-                # disiplin CSV yoluna hiç uygulanmamıştı.
+
+
                 if not math.isfinite(amount) or amount <= 0:
                     raise ValueError
             except ValueError:
@@ -463,8 +390,8 @@ def import_transactions_from_csv(path, account_id=DEFAULT_ACCOUNT_ID):
             category=rec["category"],
             description=rec["description"] or rec["category"],
             transaction_date=rec["date"],
-            # Geçmişi olduğu gibi yeniden kuruyoruz: gerçekte limiti zorlamış bir
-            # kart harcaması da içeri alınabilmeli, içe aktarım reddedilmemeli.
+
+
             enforce_credit_limit=False,
         )
         net_delta += rec["amount"] if rec["type"] == "income" else -rec["amount"]

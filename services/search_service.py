@@ -6,7 +6,7 @@ ikisi de düz metin (bkz. account_service.py'nin tepesindeki not: hesap adı
 bir sınır: o alanlar AES ile şifreli tutuluyor, yani orada arama yapmak filtreyi
 SQL'e itmek yerine bir çalışma kümesini belleğe çözmek demek. 50.000 işlemli bir
 profilde tüm veriyi çözmek 1,1 sn sürüyor (docs/performance/benchmark-results-windows.json).
-Bu tur o maliyeti almıyor; kararın kaydı docs/ROADMAP.md Phase 2'de.
+Bu tur o maliyeti almıyor; kararın ölçümlü kaydı CHANGELOG.md'de (v0.0.12).
 
 TÜRKÇE KATLAMA BU DOSYANIN ASIL İŞİ. Depoda hâlihazırda arama yapan iki yer
 (mixins/budget_mixin.py, mixins/asset_mixin.py) düz `.casefold()` kullanıyor ve
@@ -20,36 +20,14 @@ import unicodedata
 
 from database.db import managed_connection
 
-#: Tek çağrıda dönecek en fazla sonuç. Açılır liste bundan uzunsa zaten
-#: kullanışlı olmaktan çıkar; kullanıcı yazmaya devam ederek daraltır.
+
 DEFAULT_LIMIT = 20
 
 ACCOUNT = "account"
 CATEGORY = "category"
 TRANSACTION = "transaction"
 
-#: İşlem açıklamalarında aranırken çözülecek EN YENİ satır sayısı.
-#:
-#: BU SAYI BİR GÜVENLİK/PERFORMANS TAKASI, keyfi bir sabit değil. Açıklamalar
-#: AEAD ile şifreli tutuluyor, yani filtre SQL'e itilemiyor: eşleştirmek için
-#: satırları belleğe çözmek gerekiyor. Üç seçenek vardı ve ikisi reddedildi:
-#:
-#:   * Yazma-zamanı arama indeksi — en hızlısı, ama düz-metne yakın veriyi
-#:     diske geri koyuyor ve açıklamaları şifrelemenin amacını ortadan
-#:     kaldırıyor. Kendi tehdit incelemesi olmadan alınacak bir karar değil;
-#:     ALINMADI.
-#:   * Tüm veriyi çözmek — 50.000 işlemde 1,1 sn ölçüldü
-#:     (docs/performance/benchmark-results-windows.json). Her tuş vuruşunda
-#:     kabul edilemez.
-#:   * SINIRLI PENCERE — seçilen bu. En yeni N satır çözülüyor.
-#:
-#: 500 ölçülerek seçildi: bu makinede 200/500/1000 satır sırasıyla
-#: 7,3 / 17,5 / 34,8 ms. 500, tek kare bütçesinin (33 ms) altında kalıyor ve
-#: yavaş bir makinede 3 kat yavaşlasa bile donma değil, düşen bir kare üretir.
-#: 1000 zaten sınırda olduğu için seçilmedi.
-#:
-#: BEDELİ AÇIK: bu pencereden eski bir işlem açıklamasıyla BULUNAMAZ. Hesap ve
-#: kategori araması bu sınırdan etkilenmez; onlar düz metin ve SQL'de filtreleniyor.
+
 DEFAULT_DESCRIPTION_WINDOW = 500
 
 
@@ -126,10 +104,8 @@ def match_names(query, items):
         rank = _rank(needle, normalize(item.get("name")))
         if rank is None:
             continue
-        # `position` beraberlik bozucu: eşit puanlı sonuçlar çağıranın
-        # verdiği sırayı korur (hesaplarda vadesiz-önce, kategorilerde
-        # alfabetik). Sıralamanın kararlı olması testleri de deterministik
-        # kılıyor.
+
+
         scored.append((rank, position, dict(item)))
     scored.sort(key=lambda entry: (entry[0], entry[1]))
     return [item for _rank_value, _position, item in scored]
@@ -183,8 +159,8 @@ def search_transactions(query, limit=DEFAULT_LIMIT,
             "detail": row[3] or "",
             "date": row[4],
         })
-        # Sıra zaten en yeniden eskiye; `limit` dolunca kalanları çözmenin
-        # anlamı yok ve çözme bu döngüdeki tek pahalı iş.
+
+
         if len(results) >= limit:
             break
     return results
@@ -202,9 +178,8 @@ def search(query, limit=DEFAULT_LIMIT):
 
     with managed_connection() as conn:
         cursor = conn.cursor()
-        # Vadesizler önce, sonra kredi kartları — AccountService.get_accounts
-        # ile aynı sıra, böylece açılır listedeki sıra hesaplar ekranıyla
-        # tutarlı görünüyor.
+
+
         cursor.execute(
             "SELECT id, name, account_type FROM accounts "
             "ORDER BY CASE WHEN account_type = 'credit_card' THEN 1 ELSE 0 END, id"
@@ -221,15 +196,7 @@ def search(query, limit=DEFAULT_LIMIT):
             for row in cursor.fetchall()
         ]
 
-    # Kümeler AYRI eşleştirilip sonra birleştiriliyor: hesaplar kategorilerden,
-    # kategoriler de işlemlerden önce gelsin diye. Tek listede eşleştirmek,
-    # alfabetik olarak öne düşen bir kategoriyi kullanıcının kendi hesabının
-    # üstüne çıkarabilirdi.
-    #
-    # İŞLEMLER EN SONA: en pahalı küme onlar (çözme gerektiriyor) ve en
-    # gürültülüsü — 500 satırlık pencerede bir kelime çok kez geçebilir.
-    # Hesap/kategori isabetleri kullanıcının aradığı şey olma ihtimali daha
-    # yüksek ve onlar tepede kalıyor.
+
     results = match_names(query, accounts) + match_names(query, categories)
     if len(results) < limit:
         results += search_transactions(query, limit=limit - len(results))

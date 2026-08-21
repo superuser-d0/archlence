@@ -113,7 +113,6 @@ class RestoreCommittedRecoveryTest(unittest.TestCase):
         )
         return payload["state"]
 
-    # ── COMMITTED'DEN ÖNCE: geri al ──────────────────────────────────────
 
     def test_crash_before_committed_marker_rolls_back(self):
         self._restore_crashing_at("before_committed_marker")
@@ -130,7 +129,6 @@ class RestoreCommittedRecoveryTest(unittest.TestCase):
         )
         self.assertFalse(self.journal.exists())
 
-    # ── COMMITTED SONRASI: koru, yalnızca temizle ────────────────────────
 
     def test_crash_after_committed_marker_keeps_the_new_generation(self):
         self._restore_crashing_at("after_committed_marker")
@@ -197,14 +195,13 @@ class RestoreCommittedRecoveryTest(unittest.TestCase):
             recover_interrupted_restore(
                 db_path=self.db_path, config_path=str(self.config_path)
             )
-        # Sessizce eski generation'a DÖNMEMELİ ve journal silinmemeli.
+
         self.assertTrue(
             self.journal.exists(),
             "fail-closed olması gereken durumda journal silindi",
         )
         self.assertFalse(self.db_path.exists())
 
-    # ── Başarılı restore journal bırakmamalı ─────────────────────────────
 
     def test_a_clean_successful_restore_leaves_no_journal(self):
         restore_backup(

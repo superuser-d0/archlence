@@ -17,16 +17,14 @@ limitsiz eski bir migration kaydı, servis katmanının reddedeceği durumlar da
 
 from database.db import ACCOUNT, get_connection, record_balance_event
 
-# Eski seed'in üç hesabı: (ad, tür, bakiye, hesap_türü, limit, kesim_günü).
-# balance İŞARETLİDİR: kredi kartı borcu negatif bakiyedir
-# (bkz. database/db.py::adjust_account_balance).
+
 LEGACY_SEED_ACCOUNTS = [
     ("Nakit", "cash", 2500.0, "checking", 0, None),
     ("Banka", "bank", 15000.0, "checking", 0, None),
     ("Kredi Kartı", "credit", -3500.0, "credit_card", 20000, 15),
 ]
 
-# Eski seed'in net toplamı (2500 + 15000 - 3500) — bunu bekleyen testler için.
+
 LEGACY_SEED_TOTAL = 14000.0
 
 
@@ -60,11 +58,8 @@ class AccountFixtureMixin:
                  credit_limit, statement_date),
             )
             account_id = cursor.lastrowid
-            # Üretimdeki AccountService.create_account her hesap için açılış
-            # ('account_opened') defter olayı yazar. Fixture bunu atlarsa defter
-            # replay'i gerçek accounts.balance toplamından sapar ve defter
-            # testleri sahte biçimde başarısız olur — o yüzden aynı sözleşmeyi
-            # aynı commit içinde uyguluyoruz.
+
+
             record_balance_event(
                 cursor, ACCOUNT, account_id, float(balance), float(balance),
                 "account_opened",

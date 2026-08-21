@@ -254,7 +254,7 @@ class ForcedRenewalTest(AuthFlowTestBase):
         self.assertEqual(self.screen_manager.current, "pin_setup")
         self.assertNotEqual(self.screen_manager.current, "home")
         self.assertTrue(self.app.password_renewal_required)
-        # Zayıf parola YÜKSELTİLMEZ — kullanıcı zaten yenileyecek.
+
         self.assertEqual(self.store.writes and self.store.get("security")[
             "pin_hash"], self.store.get("security")["pin_hash"])
 
@@ -294,7 +294,7 @@ class ForcedRenewalTest(AuthFlowTestBase):
         self.assertNotEqual(new_hash, stored)
         self.assertTrue(SecurityService.verify_password(STRONG, "x", new_hash))
         self.assertFalse(self.app.password_renewal_required)
-        # Throttle sıfırlanmalı ve yeniden giriş istenmeli.
+
         self.assertEqual(
             self.store.get("security_throttle")["failed_attempts"], 0
         )
@@ -399,10 +399,10 @@ class ChangePasswordTest(AuthFlowTestBase):
         self.assertFalse(
             SecurityService.verify_password(STRONG, "x", security["pin_hash"])
         )
-        # Tek bir `security` yazımı olmalı — yarım kalmış çok adımlı güncelleme yok.
+
         security_writes = [k for k, _ in self.store.writes if k == "security"]
         self.assertEqual(len(security_writes), 1)
-        # Throttle temizlenir, alanlar temizlenir, yeniden giriş istenir.
+
         self.assertEqual(
             self.store.get("security_throttle")["failed_attempts"], 0
         )

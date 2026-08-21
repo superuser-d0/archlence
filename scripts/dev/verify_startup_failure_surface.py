@@ -53,7 +53,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 os.environ.setdefault("KIVY_NO_ARGS", "1")
 
-# PROFİL İZOLASYONU IMPORT'TAN ÖNCE (bkz. verify_i18n_user_data.py).
+
 _SANDBOX = tempfile.mkdtemp(prefix="archlence-startup-verify-")
 os.environ["ARCHLENCE_HOME"] = _SANDBOX
 os.environ["XDG_DATA_HOME"] = os.path.join(_SANDBOX, "xdg-data")
@@ -76,13 +76,13 @@ from main import ArchlenceApp                                 # noqa: E402
 from services.startup_recovery import DATA_INTEGRITY_TITLE    # noqa: E402
 from utils.errors import ArchlenceError                       # noqa: E402
 
-#: Kullanıcı metninde ASLA bulunmaması gereken teknik parçalar.
+
 FORBIDDEN_IN_USER_TEXT = (
     "traceback", "sqlite", "rowid", "finance.db", "account_id",
     "transactions", "journal", _SANDBOX.lower(),
 )
 
-#: `on_start`'ın hata yüzeyi etkinken çalıştırmaması gereken adımlar.
+
 FORBIDDEN_STARTUP_STEPS = (
     "purge_logs", "vacuum_database", "write_daily_balance_snapshot",
     "setup_dynamic_months", "safe_refresh_charts",
@@ -141,19 +141,19 @@ def main():
     }
     findings = []
 
-    # 1. `runTouchApp` gerçekten çağrılıyor mu?
+
     real_run_touch_app = kivy.base.runTouchApp
 
     def spy_run_touch_app(*call_args, **call_kwargs):
         observed["run_touch_app_called"] = True
-        # Olay döngüsünü GERÇEKTEN çalıştır, sonra kontrollü kapat.
+
         Clock.schedule_once(lambda _dt: _measure_and_stop(), 1.5)
         return real_run_touch_app(*call_args, **call_kwargs)
 
     kivy.base.runTouchApp = spy_run_touch_app
     kivy.app.runTouchApp = spy_run_touch_app
 
-    # 2. Diyalog OLAY DÖNGÜSÜ BAŞLADIKTAN SONRA mı açılıyor?
+
     real_open = MDDialog.open
 
     def spy_open(self, *call_args, **call_kwargs):
@@ -164,7 +164,7 @@ def main():
 
     MDDialog.open = spy_open
 
-    # 3. `on_start` veri yükleme adımlarına dokunuyor mu?
+
     for name in FORBIDDEN_STARTUP_STEPS:
         if hasattr(ArchlenceApp, name):
             setattr(
@@ -189,12 +189,8 @@ def main():
     try:
         app.run()
     except ArchlenceError as exc:
-        # DAR KÜME, bilerek: bu kapının ölçtüğü şey üç AÇILIŞ hatasının
-        # (`StartupRecoveryError`, `SchemaTooNewError`,
-        # `FinancialDataIntegrityError`) `build()`'dan dışarı taşıyıp
-        # taşımadığı ve üçü de `ArchlenceError` altında. Başka bir istisna
-        # gerçek bir kusurdur ve bu betiği gürültüyle düşürmeli, sessizce
-        # "bulgu" satırına dönüşmemeli.
+
+
         observed["build_raised"] = type(exc).__name__
     finally:
         kivy.base.runTouchApp = real_run_touch_app

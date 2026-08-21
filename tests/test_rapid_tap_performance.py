@@ -81,7 +81,7 @@ class CalendarRapidTapTest(unittest.TestCase):
                 "Gün seçimi ızgarayı yeniden kurmamalı; yalnız etkilenen "
                 "hücreler yeniden boyanmalı.",
             )
-            # 12 hızlı dokunuş, debounce sayesinde TEK bir DB thread'i açmalı.
+
             self.assertEqual(thread.call_count, 0, "Debounce öncesi thread açılmamalı.")
             clock.advance()
             self.assertEqual(
@@ -102,7 +102,7 @@ class CalendarRapidTapTest(unittest.TestCase):
             app._style_calendar_day_cell.reset_mock()
             app._select_calendar_day(d2)
 
-        # Eski seçim söndürülür + yeni seçim yakılır = tam 2 boyama.
+
         self.assertEqual(app._style_calendar_day_cell.call_count, 2)
 
 
@@ -123,7 +123,7 @@ class BudgetRapidMonthTapTest(unittest.TestCase):
             for month in range(1, 13):
                 app.change_budget_month(month)
 
-            # Durum ataması ANINDA olmalı — çağıran hemen okuyabilsin.
+
             self.assertEqual(app.active_budget_month, 12)
             self.assertEqual(app.load_budget_list.call_count, 0)
 
@@ -153,9 +153,8 @@ class CategoryToggleRapidTapTest(unittest.TestCase):
 
         clock = _FakeClock()
         conn = mock.MagicMock()
-        # `update_category_importance` bağlantıyı `managed_connection()` ile
-        # alıyor (düz `get_connection()` + `conn.close()` değil), bu yüzden
-        # patch'lenen de context manager olmalı.
+
+
         managed = mock.MagicMock()
         managed.return_value.__enter__.return_value = conn
         with mock.patch.object(archlence_main, "Clock", clock), \
@@ -163,7 +162,7 @@ class CategoryToggleRapidTapTest(unittest.TestCase):
             for index in range(10):
                 app.update_category_importance(f"Kategori {index}", index % 2 == 0)
 
-            # Tercih ANINDA yazılmalı — kaybolmamalı.
+
             self.assertEqual(conn.cursor.return_value.execute.call_count, 10)
             self.assertEqual(app.safe_refresh_charts.call_count, 0)
             clock.advance()

@@ -117,7 +117,7 @@ class MigrationRetrySafetyTest(unittest.TestCase):
             with self.assertRaises(OSError):
                 initialize_database()
 
-        # Sütun eklendi ama backfill yapılamadı — tam kritik ara durum.
+
         self.assertTrue(
             self._has_column("account_type"),
             "test kurulumu ALTER'ı uygulayamadı; vaka geçersiz",
@@ -127,7 +127,7 @@ class MigrationRetrySafetyTest(unittest.TestCase):
             "test kurulumu backfill'i durduramadı; vaka geçersiz",
         )
 
-        # Kesintiden sonraki normal açılış eksiği tamamlamalı.
+
         initialize_database()
         self.assertEqual(self._account_types(), ["credit_card", "checking"])
 

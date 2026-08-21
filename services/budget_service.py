@@ -124,12 +124,8 @@ def get_reserved_recurring_items(target_month, target_year):
         if not occurrences:
             continue
         if not payment.get("amount_is_valid", True):
-            # Burası TOPLAM üretiyor: `reserved_amount` aylık bütçe rezervine
-            # giriyor. Çözülemeyen bir tutar 0,00 sayılırsa rezerv sessizce
-            # eksik çıkar ve kullanıcı bütçesinde olmayan bir boşluk görür.
-            # Görüntü listeleri aynı kaydı "Bilinmeyen Ödeme" olarak
-            # göstermeye devam eder (bkz. db.get_active_recurring_payments);
-            # yanlış olan TOPLAM reddediliyor, listeler değil.
+
+
             raise FinancialDataIntegrityError(
                 "recurring_payments", payment.get("id"), "amount"
             )
@@ -174,10 +170,6 @@ def calculate_monthly_budget(target_month, target_year=None):
     }
 
 
-#: `monthly_budget_plan.type` sütununda kabul edilen değerler. İki eski
-#: Türkçe değer de listede: düzenleme akışı mevcut satırın türünü OLDUĞU GİBİ
-#: geri yazıyor (bkz. mixins/budget_mixin.py, `bp_selected_type = row["type"]`),
-#: yani eski bir kaydı açıp kaydetmek onları yeniden gönderiyor.
 PLAN_ITEM_TYPES = ("income", "expense", "Gelir", "Gider")
 
 
@@ -265,8 +257,8 @@ def save_plan_item(
                  int(item_id), month, year),
             )
         else:
-            # Bir ŞABLONU düzenlemek yeni bir aylık kalem üretir; şablonun
-            # kendisi yerinde kalır. Kopya bu yüzden şablon DEĞİLDİR.
+
+
             cursor.execute(
                 "INSERT INTO monthly_budget_plan"
                 " (type,name,amount,target_month,target_year,category_name,"
@@ -346,8 +338,8 @@ def apply_plan_to_year_end(source_month, source_year):
 def _actual_category_totals(target_month, target_year):
     conn = get_connection()
     try:
-        # "Gerçekleşen" harcama = bakiyeye işlenmiş harcama. İleri tarihli
-        # (pending) kayıt henüz para çıkışı değil, bütçe ilerlemesini şişirmemeli.
+
+
         rows = conn.execute(
             "SELECT id, category, amount FROM transactions "
             "WHERE type IN ('expense', 'Gider') "

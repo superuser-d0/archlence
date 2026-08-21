@@ -75,7 +75,6 @@ class PendingMixin:
 
     _pending_dialog = None
 
-    # ─── Ana sayfa özet kartı ────────────────────────────────────────────────
 
     def load_pending_transactions(self, *args):
         """Bekleyenleri arka planda okur ve özet kartını günceller."""
@@ -99,7 +98,7 @@ class PendingMixin:
             card = self.root.ids.pending_tx_card
             summary = self.root.ids.pending_tx_summary
         except (AttributeError, KeyError):
-            # Kök widget henüz kurulmadıysa AttributeError, id yoksa KeyError.
+
             return
 
         if not self._pending_cache:
@@ -136,7 +135,6 @@ class PendingMixin:
         card.opacity = 1
         card.disabled = False
 
-    # ─── Yönetim diyaloğu ────────────────────────────────────────────────────
 
     def open_pending_transactions(self, *args):
         """Bekleyen işlemleri satır başına iptal/ertele eylemleriyle listeler."""
@@ -254,9 +252,7 @@ class PendingMixin:
         def on_save(_picker, selected_date, _range):
             self._apply_pending_reschedule(item, selected_date.isoformat())
 
-        # HistoryMixin'deki seçici, Python 3.14'te kaldırılan ast.Str API'si için
-        # gereken yamayı ve TR/EN başlıkları zaten kuruyor; ikinci bir kopya
-        # çıkarmak o yamanın tek bir yerde durmasını bozardı.
+
         self._open_date_picker(initial, on_save)
 
     def _apply_pending_reschedule(self, item, new_date):
@@ -265,9 +261,8 @@ class PendingMixin:
                 from services.transaction_service import TransactionService
                 updated = TransactionService.reschedule_pending_transaction(
                     item["id"], new_date)
-                # Tarih bugüne/geçmişe çekildiyse işlem hemen bakiyeye geçer;
-                # uzlaştırmayı burada tetiklemek "tarihi bugüne aldım ama
-                # bakiyem değişmedi" durumunu önler.
+
+
                 settled = TransactionService.settle_due_transactions()
             except Exception:
                 from utils.logging_config import get_logger
@@ -316,9 +311,9 @@ class PendingMixin:
 
         for method_name in (
             "safe_refresh_charts",       # bakiye, gelir/gider, projeksiyon
-            "load_recent_transactions",  # işlenen kayıt listeye düşsün
-            "render_accounts",           # hesap kartlarındaki bakiye
-            "refresh_insights",          # sağlık skoru / radar
+            "load_recent_transactions",
+            "render_accounts",
+            "refresh_insights",
         ):
             method = getattr(self, method_name, None)
             if method is None:

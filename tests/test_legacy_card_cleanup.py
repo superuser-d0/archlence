@@ -154,7 +154,7 @@ class LegacyCardCleanupPolicyTest(unittest.TestCase):
             "anahtar geçici olarak yokken şifreli veri silindi",
         )
 
-        # Anahtar döndüğünde göç kaldığı yerden tamamlanır.
+
         initialize_database()
         card = self._card()
         self.assertIsNone(card["card_number_full"])

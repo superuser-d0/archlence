@@ -46,7 +46,7 @@ def _make_app():
             ))
             self.refreshed = []
 
-        # _refresh_pending_views'ın aradığı yüzeyler
+
         def safe_refresh_charts(self):
             self.refreshed.append("charts")
 
@@ -86,7 +86,6 @@ class PendingSummaryCardTest(AccountFixtureMixin, unittest.TestCase):
         from services.transaction_service import TransactionService
         return TransactionService.get_pending_transactions()
 
-    # ─── Kart görünürlüğü ────────────────────────────────────────────────────
 
     def test_card_stays_hidden_when_nothing_pending(self):
         """Boş 'hiç yok' kartı dashboard'da yer israfı olurdu."""
@@ -266,8 +265,8 @@ class PendingRowLabelTest(unittest.TestCase):
             "type": "expense",
             "execution_date": (date.today() + timedelta(days=1)).isoformat(),
         })
-        self.assertIn("bugün", today_text)
-        self.assertIn("yarın", tomorrow_text)
+        self.assertIn("today", today_text)
+        self.assertIn("tomorrow", tomorrow_text)
 
     def test_unparseable_date_falls_back_to_raw_value(self):
         text = self._row_text({

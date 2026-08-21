@@ -115,7 +115,6 @@ class BudgetMixin:
 
         self._budget_month_refresh_event = Clock.schedule_once(refresh, 0.12)
 
-    # ─── Bütçe özeti (saf hesap) ─────────────────────────────────────────────
 
     @staticmethod
     def compute_budget_summary(month, year):
@@ -189,7 +188,7 @@ class BudgetMixin:
             "tavsiye_ikonu": icon,
         }
 
-    # ── Planlayıcı görünümü (Araçlar karesinden açılan diyalog) ──────────────
+
     def show_budget_planner(self):
         """Bütçe planlayıcı açılırken yükleniyor ekranı gösterir, ardından paneli kurar."""
         from kivymd.uix.dialog import MDDialog
@@ -199,7 +198,7 @@ class BudgetMixin:
             auto_dismiss=False,
         )
         self._budget_loading_dialog.open()
-        
+
         from kivy.clock import Clock
         Clock.schedule_once(lambda dt: self._build_budget_planner(), 0)
 
@@ -229,8 +228,8 @@ class BudgetMixin:
 
         panel = Factory.BudgetPlannerPanel()
         self._budget_planner_panel = panel
-        # Panelin detay listesini load_budget_list'e bağla (bu bağ olmadan
-        # liste hiç dolmuyordu — bp_list_container hiçbir yerde atanmıyordu).
+
+
         self.bp_list_container = panel.ids.get("budget_detailed_list")
 
         self.bp_planner_dialog = MDDialog(
@@ -242,8 +241,8 @@ class BudgetMixin:
         )
 
         def _clear_panel_ref(*_args):
-            # Diyalog kapanınca canlı panel referansı bayatlar; _planner_ids
-            # kapalı bir panele yazmaya çalışmasın.
+
+
             if getattr(self, "_budget_planner_panel", None) is panel:
                 self._budget_planner_panel = None
                 self.bp_list_container = None
@@ -251,14 +250,14 @@ class BudgetMixin:
         self.bp_planner_dialog.bind(on_dismiss=_clear_panel_ref)
         self.bp_planner_dialog.open()
 
-        # Panel ağaca girdikten sonra doldur (ids şimdi erişilebilir).
+
         self.setup_dynamic_months()
         self.change_budget_month(
             getattr(self, "active_budget_month", datetime.date.today().month),
             getattr(self, "active_budget_year", datetime.date.today().year),
         )
 
-    # ── "Bunu mevcut planınız olarak kullanmak ister misiniz?" (madde 2.1) ───
+
     def confirm_plan_as_current(self, *args):
         """Kullanıcı sabit gelir/gider/yatırımlarını girdikten sonra planı
         onaylatır; onaylanırsa bu ayın kalemleri yıl sonuna (Aralık) kadar
@@ -352,9 +351,8 @@ class BudgetMixin:
             orientation="vertical", size_hint_y=None, height=dp(48),
             padding=dp(3), radius=[dp(12)],
             elevation=0, md_bg_color=ftheme.muted_bg(self.theme_cls),
-            # DÜZELTME (madde 1.5): karanlık temada seçili olmayan segment
-            # (Gider/Gelir) sınırsız düz metne benziyordu. bkz.
-            # ui/theme.py::segment_track_line.
+
+
             line_color=ftheme.segment_track_line(self.theme_cls),
         )
         self.bp_type_segment = MDSegmentedControl(
@@ -380,9 +378,8 @@ class BudgetMixin:
             md_bg_color=ftheme.elevated_bg(self.theme_cls),
             line_color=ftheme.card_line(self.theme_cls),
         )
-        # DÜZELTME: MDCard'ın `on_release` olayı yok (ripple_behavior yalnız
-        # görsel efekt verir) — bind(on_release=...) sessizce hiç ateşlenmiyordu.
-        # bkz. ui/theme.py::bind_card_tap.
+
+
         ftheme.bind_card_tap(
             self.bp_category_button, self.open_budget_category_menu
         )
@@ -426,16 +423,15 @@ class BudgetMixin:
             theme_text_color="Custom",
             text_color=self.theme_cls.primary_color,
         )
-        # input_filter maskeleme tarafından kurulur; Kivy'nin "float" filtresi
-        # binlik ayraç noktalarıyla çakışıyor (bkz. utils/formatters).
+
+
         self.bp_amount_input = attach_amount_mask(MDTextField(
             hint_text=_t("Tutar"),
             size_hint_y=None, height=dp(58),
             padding=[dp(12), dp(12), dp(8), dp(12)],
         ))
-        # DÜZELTME (madde 1.6): aynı `on_release`-yok sorunu — bkz.
-        # ui/theme.py::bind_card_tap. Bu satır olmadan tıklama alanı yalnız
-        # MDTextField'ın kendi (dar) sınırlarına iniyordu.
+
+
         ftheme.bind_card_tap(
             amount_row,
             lambda: setattr(self.bp_amount_input, 'focus', True),
@@ -468,7 +464,7 @@ class BudgetMixin:
         self.bp_rollover_switch, rollover_row = self._switch_row(
             _t("Geçen ayın kalanını/aşımını devret"), MDSwitch, MDLabel
         )
-        # Veri katmanıyla uyumu korur; görünür karşılığı frekans seçimidir.
+
         self.bp_template_switch = MDSwitch()
         self.bp_repeat_switch, repeat_row = self._switch_row(
             _t("Mevcut kalemi diğer aylara da uygula"), MDSwitch, MDLabel
@@ -517,8 +513,8 @@ class BudgetMixin:
             md_bg_color=(0, 0, 0, 0),
             ripple_behavior=True,
         )
-        # DÜZELTME (madde 1.7 — "Daha fazla seçenek" tepki vermiyordu): aynı
-        # `on_release`-yok sorunu — bkz. ui/theme.py::bind_card_tap.
+
+
         ftheme.bind_card_tap(
             self.bp_advanced_button, self._toggle_budget_advanced
         )
@@ -620,8 +616,8 @@ class BudgetMixin:
 
         def update(_dt):
             dialog.update_height()
-            # MDDialog container'ı yeni içerik yüksekliğini bir sonraki layout
-            # turunda hesaplar; modal boyutunu o hesap tamamlanınca uygula.
+
+
             Clock.schedule_once(apply_size, 0.05)
 
         Clock.schedule_once(update, 0)
@@ -661,11 +657,8 @@ class BudgetMixin:
             free.bind(on_release=lambda _item: self._select_budget_category(None))
             listing.add_widget(free)
             for category in categories:
-                # `casefold()` DEĞİL: Türkçe'de yanlış sonuç veriyordu.
-                # `"I".casefold()` → `"i"` ama `"ı".casefold()` → `"ı"`, yani
-                # "ISI" yazan kullanıcı "ısı" kategorisini bulamıyordu.
-                # `matches()` ı/İ/I/i'yi aynı yere indirir ve aksanları da
-                # katlar (bkz. services/search_service.py).
+
+
                 if not matches(query, category, _t(category)):
                     continue
                 item = OneLineListItem(text=_t(category))
@@ -675,11 +668,7 @@ class BudgetMixin:
                 )
                 listing.add_widget(item)
 
-        # DÜZELTME (kasma): her tuş vuruşunda tüm listeyi yeniden çizmek —
-        # asset_mixin.py'deki BIST/kripto arama kutusunda aynı sebeple
-        # zaten düzeltilmiş kasmanın ta kendisi, buraya hiç uygulanmamıştı.
-        # Kullanıcı yazmayı bitirene kadar (300ms sessizlik) yeniden çizimi
-        # ertele — asset_mixin.py::_on_search ile birebir aynı desen.
+
         previous_search = getattr(
             self, "_budget_category_search_event", None,
         )
@@ -822,10 +811,8 @@ class BudgetMixin:
             text_col = MDBoxLayout(
                 orientation="vertical", size_hint_x=1,
             )
-            # Aşama 2, madde 1.4: gelir kalemleri sağa, gider kalemleri sola
-            # hizalanmalı. halign tek başına yeterli değil — MDLabel varsayılan
-            # olarak text_size'ı boyutuna bağlamaz, bu yüzden hizalama görünür
-            # olması için genişliğe bind edilmesi gerekiyor.
+
+
             align = "right" if item["type"] == "income" else "left"
 
             def _aligned_label(**kwargs):
@@ -893,10 +880,6 @@ class BudgetMixin:
             size_hint_y=None, height=dp(34),
         ))
 
-    # `open_subscription_management` artık mixins/subscription_mixin.py'de
-    # gerçek bir yönetim diyaloğu olarak yaşıyor (iptal/iade/zam). Buradaki
-    # yalnız toast gösteren stub kaldırıldı; MRO'da BudgetMixin önce geldiği
-    # için burada durması gerçek uygulamayı gölgeliyordu.
 
     # ── CRUD ─────────────────────────────────────────────────────────────────
     def save_budget_item(self, *args):
@@ -908,8 +891,8 @@ class BudgetMixin:
             toast(_t("Kalem adı boş olamaz!"))
             return
         try:
-            # read_amount kanonik değeri okur; maskelenmiş "1.500" metnini
-            # float() 1.5 diye okurdu.
+
+
             amount = read_amount(self.bp_amount_input)
             threshold = int(self.bp_alert_input.text or 80)
             if amount <= 0 or not 1 <= threshold <= 100:
@@ -938,10 +921,8 @@ class BudgetMixin:
         rollover = bool(self.bp_rollover_switch.active)
 
         def db_task():
-            # SQL ARTIK BURADA DEĞİL. Bu yazma, para tutan tabloların içinde
-            # servis sınırından geçmeyen tek yoldu; doğrulama yalnızca
-            # yukarıdaki arayüz kontrolüydü. Kural artık `budget_service` ile
-            # birlikte, diğer bütün parasal sınırlarla aynı yerde.
+
+
             from services.budget_service import save_plan_item
             try:
                 save_plan_item(
@@ -959,9 +940,8 @@ class BudgetMixin:
                     propagate_to_months=propagate_targets,
                 )
             except ValueError as exc:
-                # Servis sınırı reddetti. `exc` adı except bloğundan çıkarken
-                # temizlendiği için mesaj kopyalanıyor (aynı gerekçe:
-                # subscription_mixin._apply_price_update).
+
+
                 message = str(exc)
                 from kivy.clock import Clock
                 Clock.schedule_once(
@@ -986,10 +966,8 @@ class BudgetMixin:
         Widget'lar diyalog kapandıysa artık başka bir forma ait olabilir, o
         yüzden her erişim tolere edilir.
         """
-        # Başarı bildirimi (Aşama 2, madde 1.9): tek seferlik bütçe kalemi
-        # eklendiğinde/güncellendiğinde kullanıcı hiçbir geri bildirim almıyordu.
-        # editing_item_id sıfırlanmadan ÖNCE okunur; mesaj ekleme/güncelleme
-        # ayrımını yansıtsın.
+
+
         was_edit = getattr(self, "editing_item_id", None) is not None
         toast(_t("Bütçe kalemi güncellendi!" if was_edit
                  else "Bütçe kalemi eklendi!"))
@@ -1003,9 +981,8 @@ class BudgetMixin:
                 try:
                     field.text = ""
                 except AttributeError:
-                    # `text` StringProperty; "" her zaman geçerli. Kalan tek
-                    # yüzey, alanın MDTextField DIŞINDA (ör. salt-okunur
-                    # AliasProperty taşıyan) bir nesne tutması.
+
+
                     pass
 
         def rebuild_list(_dt):

@@ -35,9 +35,7 @@ import argparse
 import sys
 from pathlib import Path
 
-# Türkçe çıktı Windows konsolunu ÖLDÜRMESİN. `run_tests.py` bu dersi uzun uzun
-# anlatıyor: cp1252 konsol 'ğ'/'ş' kodlayamaz ve `print` UnicodeEncodeError
-# fırlatır — bu script tam olarak öyle çökmüştü, kontrolü tamamladıktan SONRA.
+
 for _stream in (sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8", errors="replace")
@@ -49,7 +47,7 @@ LAZY_IMPORT_PAIRS = (
     ("win32file", "win32timezone"),
 )
 
-#: Uzantı modüllerinin dosya olarak göründüğü son ekler.
+
 _EXTENSION_SUFFIXES = (".pyd", ".so", ".dll")
 
 
@@ -65,8 +63,8 @@ def _packaged_names(bundle_dir: Path):
             continue
         suffix = path.suffix.lower()
         if suffix in _EXTENSION_SUFFIXES:
-            # "win32file.pyd" ve "timezones.cp312-win_amd64.pyd" — ikisi de
-            # ilk noktaya kadar olan kısımla adlandırılır.
+
+
             names.add(path.name.split(".")[0])
         elif suffix == ".exe":
             archives.append(path)

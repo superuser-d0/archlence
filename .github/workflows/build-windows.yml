@@ -1,36 +1,12 @@
 name: Build Windows EXE
 
-# Sadece Windows runner'da çalışır çünkü PyInstaller çapraz derleme yapamaz.
-#
-# main'i HEDEFLEYEN PR'larda da çalışır. Bu bilerek eklendi: workflow uzun süre
-# yalnızca `push: main` ile tetikleniyordu, yani paketleme hataları ancak
-# main'e GİRDİKTEN SONRA görülebiliyordu. Pratikte bunun bedeli ödendi —
-# derlemeyi tamamen kilitleyen OpenGL hatası (bkz. archlence.spec'teki
-# KIVY_GL_BACKEND notu) ilk commit'ten beri main'de duruyordu ve her
-# derlemenin 6 saatlik varsayılan zaman aşımına kadar asılı kalmasına yol
-# açıyordu; kimse fark etmedi çünkü kırılmayı merge öncesi gösterecek bir
-# sinyal yoktu.
-#
-# Maliyet artık ihmal edilebilir: donma düzeltildikten sonra derleme ~3 dakika
-# sürüyor (PyInstaller adımı ~1 dk).
-#
-# İKİ artifact üretir:
-#   - Archlence-Windows: ham "onedir" klasörü (.exe + DLL/kaynak klasörü) —
-#     geliştirici/debug amaçlı, elle zip açıp klasör bütünlüğünü koruma
-#     gerektirir.
-#   - Archlence-Setup: installer/archlence.iss ile üretilen TEK dosyalık
-#     ArchlenceSetup.exe — son kullanıcı/test için, çift tıklayıp kurar,
-#     Başlat Menüsü kısayolu ve kaldırıcı otomatik gelir, yönetici izni
-#     gerektirmez (kullanıcı başına kurulum).
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
   workflow_dispatch: {}
-  # release.yml bu workflow'u ÇAĞIRIR (derleme tarifini kopyalamak yerine).
-  # Kopyalamak, ANGLE/Inno Setup/smoke-test adımlarının zamanla iki dosyada
-  # birbirinden ayrışması demekti; tek kaynak burada kalıyor.
+
   workflow_call:
     inputs:
       version:
@@ -39,10 +15,6 @@ on:
         type: string
         default: "0.0.12"
 
-# Arka arkaya push'ta eski derleme iptal edilsin; iki Windows runner'ını aynı
-# anda meşgul etmenin anlamı yok. PR'larda github.ref `refs/pull/<no>/merge`
-# olduğundan her PR kendi grubunu alır; yeni commit push'lanınca o PR'ın eski
-# derlemesi iptal olur, başka PR'lar etkilenmez.
 concurrency:
   group: build-windows-${{ github.ref }}
   cancel-in-progress: true
@@ -50,84 +22,39 @@ concurrency:
 jobs:
   build-windows:
     runs-on: windows-latest
-    # Bu sınır olmadan takılan bir adım varsayılan 360 dakikaya kadar runner'ı
-    # meşgul ediyor ve elle iptal gerekiyor (34 dakikalık "PyInstaller ile
-    # derle" adımı böyle oluşmuştu).
+
     timeout-minutes: 30
 
     steps:
       - name: Kodu çek
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
-          # Upgrade smoke `previous_release.py` ile GERÇEK önceki yayını
-          # seçiyor, o da `git tag` okuyor. Etiket yoksa adım "önceki yayın
-          # yok" deyip kendini ATLAR — sessizce yeşil, hiçbir şey doğrulamadan.
-          #
-          # `fetch-depth: 0`, `fetch-tags: true` DEĞİL: ikincisi tests.yml'de
-          # ölçüldü ve checkout ref'i SHA olarak fetch ederken `--tags`
-          # eklemiyor. Bu job etiketsiz de geçiyordu, ama NEDEN geçtiği
-          # açıklanamadı; açıklanamayan bir davranışa dayanmaktansa diğer
-          # job'larla aynı kesin garantiyi kullanıyor.
+
           fetch-depth: 0
 
       - name: Python kur
-        # KARAR (kilitli — kasıtlı, 2026-07-29): paketleme için Python 3.12,
-        # yerel geliştirme ortamının (3.14.6) BİLEREK gerisinde tutuluyor.
-        # Kivy 2.3.1/PyInstaller/kivy_deps.angle'ın en geniş test edilmiş ve
-        # stabil olduğu sürüm bandı budur; daha yeni bir Python'a geçmek
-        # burada ikili uyumluluk/DLL riskini test etmeden almak demektir.
-        # Değiştirilecekse bilinçli, ayrı bir karar olmalı — sürüm burada
-        # ve build-linux.yml/tests.yml'de TUTARLI tutulmalı.
+
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
           cache: pip   # bağımlılıkları her koşuda baştan indirmesin
 
       - name: Bağımlılıkları kur
-        # requirements-runtime.txt: paketlenmiş .exe'nin çalışması için gerekli
-        # olanlar. flake8 gibi lint araçlarını (requirements-dev.txt) burada
-        # kurmaya gerek yok — build zaten onları archlence.spec'in excludes
-        # listesinde ayrıca hariç tutuyor.
+
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements-runtime.txt
           pip install pyinstaller kivy_deps.sdl2 kivy_deps.glew kivy_deps.angle
 
       - name: PyInstaller ile derle
-        # --noconfirm: dist/ zaten varsa PyInstaller "silinsin mi? (y/N)" diye
-        # sorup girdi bekler; CI'da bu, sonsuza kadar asılı kalmak demektir.
-        # --log-level WARN: INFO binlerce "analyzing module ..." satırı basıp
-        # gerçek uyarıları gömüyordu.
-        #
-        # KIVY_GL_BACKEND=angle_sdl2: archlence.spec'teki `collect_all("kivymd")`
-        # kivymd'yi gerçekten import ediyor, bu da Kivy'nin Window/GL
-        # singleton'ını tetikliyor. Runner'da gerçek GPU yok — native sürücü
-        # yalnızca OpenGL 1.1 veriyor (Kivy 2.0 istiyor), süreç CRITICAL ile
-        # çöküp temiz kapanmıyor ve analiz adımı asılı kalıyor. Bu, her
-        # derlemenin başından beri 6 saatte zaman aşımına uğramasının GERÇEK
-        # sebebiydi (bkz. archlence.spec'in başındaki not). ANGLE, GPU
-        # olmadan da OpenGL ES'i DirectX'e çevirip 2.0+ bağlam sağlıyor.
+
         env:
           KIVY_GL_BACKEND: angle_sdl2
         run: pyinstaller --noconfirm --log-level WARN archlence.spec
         timeout-minutes: 20
 
       - name: "Smoke test: Archlence.exe gerçekten açılıyor mu"
-        # Bu adım build-windows.yml'in eskiden hiç sahip olmadığı tek şeydi:
-        # derleme başarısı EXE'nin gerçekten çalıştığının kanıtı DEĞİL — az
-        # yukarıdaki KIVY_GL_BACKEND notunun tarif ettiği tam senaryo (Window
-        # sessizce None kalıp süreç "başarıyla" kapanması) yalnızca derleme
-        # ADIMINI değil, ÇALIŞMA ANINI da etkiler. Bu yüzden `KIVY_GL_BACKEND`
-        # burada da (yalnızca derleme adımında değil) set ediliyor — aksi
-        # halde bu smoke test, gerçek bir regresyon olmadan da GDI Generic/
-        # OpenGL 1.1 yüzünden yanlışlıkla kırmızı yanabilirdi.
-        #
-        # Kontrol ettikleri: (1) süreç 10 saniye sonra hâlâ ayakta mı (kendi
-        # kendine sessizce kapanmadı mı — PR #16'daki asıl hata TAM BUDUR),
-        # (2) main.py'nin platformdirs tabanlı crash.log'una bu çalıştırma
-        # sırasında yeni bir şey yazılmadı mı (yakalanmış ama sessiz kalan
-        # bir istisna sinyali). İkisi de geçerse süreç temizlenip adım OK
-        # döner; geçmezse crash.log'un son satırları basılıp adım kırmızı olur.
+
         shell: pwsh
         env:
           KIVY_GL_BACKEND: angle_sdl2
@@ -162,16 +89,7 @@ jobs:
           Write-Host "Smoke test geçti: Archlence.exe 10 saniye sonra hâlâ çalışıyordu, crash.log'a yeni yazı yok."
 
       - name: "Paketleme bütünlüğü: pywin32'nin tembel importu da pakette mi"
-        # NEDEN VAR: Kivy'nin dosya seçicisi `win32file`'ı kullanıyor, pywin32
-        # ise zaman dönüşümünü ÇAĞRI ANINDA `win32timezone`'u import ederek
-        # yapıyor. PyInstaller ilkini görüp ikincisini göremiyor ve sonuç,
-        # dosya seçici açılır açılmaz uygulamanın tamamen çökmesi oluyordu
-        # (gerçek Windows 11 makinesinde ölçüldü, v0.0.9 RC).
-        #
-        # Kontrolün kendisi `scripts/check_frozen_lazy_imports.py` içinde:
-        # kabuktan bağımsız, Linux'ta birim testi var (bu adımın ilk hâli
-        # `shell: pwsh` altında bash heredoc kullanıyordu ve PowerShell'de
-        # ayrıştırma hatası veriyordu).
+
         run: python scripts/check_frozen_lazy_imports.py dist/Archlence
 
       - name: Paket içeriği ve secret taraması
@@ -185,25 +103,7 @@ jobs:
           if-no-files-found: error
 
       - name: Inno Setup ile tek dosyalık kurulum paketi oluştur
-        # windows-latest runner'ında Chocolatey zaten kurulu — Inno Setup'ı
-        # ayrıca indirip kurmaya gerek yok. ISCC.exe'yi PATH üzerinden DEĞİL,
-        # tam yoluyla çağırıyoruz: choco'nun PATH'e eklediği değişiklik aynı
-        # `run:` adımının (aynı kabuk oturumu) İÇİNDE her zaman hemen
-        # görünmeyebiliyor — bilinen bir Chocolatey/PowerShell pürüzü.
-        #
-        # NEDEN: dist/Archlence/ bir "onedir" çıktısı (.exe + yanında DLL/
-        # kaynak klasörü, bkz. archlence.spec) — son kullanıcı zip açıp
-        # klasör bütünlüğünü kendi koruma zorunda kalmasın diye installer/
-        # archlence.iss bunu TEK bir ArchlenceSetup.exe'ye sarmalıyor.
-        #
-        # /DMyAppVersion: `workflow_call` ile gelen sürüm; yoksa MERKEZİ
-        # KAYNAKTAN (`utils/version.py`) okunur.
-        #
-        # Eskiden burada `${{ inputs.version || '0.0.1' }}` vardı. `inputs`
-        # yalnızca `workflow_call` ile doludur, yani her normal push/PR
-        # derlemesi installer'ı **0.0.1** olarak damgalıyordu — uygulamanın
-        # gerçek sürümüyle alakasız, sabit ve sessizce yanlış bir değer.
-        # Sabit fallback kaldırıldı; artık tek bir sürüm kaynağı var.
+
         run: |
           $version = "${{ inputs.version }}"
           if ([string]::IsNullOrWhiteSpace($version)) {
@@ -226,46 +126,17 @@ jobs:
 
       - name: "Upgrade smoke: önceki sürüm profilini yeni sürümle aç"
         shell: pwsh
-        # ADIM DÜZEYİNDE ZAMAN AŞIMI: `Invoke-Bounded` yalnızca kurulum
-        # SÜREÇLERİNİ sınırlıyor; adımda süresiz bekleyebilen başka
-        # operasyonlar da var (aşağıdaki `Get-ChildItem -Recurse`). Bu adım
-        # sağlıklıyken ~1-2 dakika sürüyor, dolayısıyla 10 dakika bol bir
-        # tavan. Asıl kazancı şu: adım düzeyinde zaman aşımına uğrayan bir
-        # adım LOG'UNU KORUR. 2026-08-05'te askıda kalan job elle iptal
-        # edilince GitHub log üretemedi ve askının nerede olduğu ölçülemedi.
+
         timeout-minutes: 10
         env:
           KIVY_GL_BACKEND: angle_sdl2
-          # Yükseltmenin sınanacağı TABAN sürüm. Boş bırakılırsa adım
-          # açıkça uyarı basıp atlanır.
-          #
-          # NEDEN PARAMETRİK: burada eskiden bir sürüm etiketi ve onun
-          # SHA-256'sı SABİT yazılıydı. O release silindiğinde indirme 404
-          # döndü ve TÜM Windows derlemesi (dolayısıyla yayın) kırıldı —
-          # testin kendisiyle ilgisi olmayan bir sebeple.
-          #
-          # v0.0.2 ile dolduruldu: taban artık v0.0.1, GitHub'dan yeniden
-          # indirilip doğrulanmış SHA-256'sıyla (bkz. o release'in kendi
-          # SHA256SUMS.txt'i). Bu, "v0.0.1 -> v0.0.2 yükseltme kullanıcı
-          # verisini koruyor mu" kapısının GERÇEKTEN çalıştığı ilk sürümdür.
-          #
-          # ARTIK SABİT DEĞİL. Taban, `scripts/previous_release.py` ile
-          # HEDEF SÜRÜMDEN türetiliyor: 0.0.9 için v0.0.8, 0.0.8 için v0.0.7.
-          #
-          # Sabit `v0.0.1` "önceki sürümden yükseltme" iddiasını
-          # DOĞRULAMIYORDU: kullanıcıların gerçekte izlediği v0.0.8 -> v0.0.9
-          # yolu hiç sınanmıyor, bunun yerine sekiz sürüm eskisi test
-          # ediliyordu. Beklenen SHA-256 de artık sabit değil; tabanın KENDİ
-          # yayınındaki SHA256SUMS.txt'ten okunuyor, böylece her sürümde elle
-          # güncelleme gerekmiyor.
+
           UPGRADE_BASELINE_TAG: ""
           UPGRADE_BASELINE_ASSET: ""
           UPGRADE_BASELINE_SHA256: ""
         run: |
           $ErrorActionPreference = "Stop"
 
-          # Tabanı hedef sürümden türet. Aday yoksa helper AÇIK hata verir —
-          # sessizce bir sürüme düşmez.
           $target = (python -c "from utils.version import APP_VERSION; print(APP_VERSION)").Trim()
           git fetch --tags --quiet
           $baseline = (python scripts/previous_release.py --target $target).Trim()
@@ -278,17 +149,9 @@ jobs:
           $env:UPGRADE_BASELINE_ASSET = "ArchlenceSetup-$baselineVersion.exe"
           Write-Host "Yükseltme tabanı: $baseline -> $target"
 
-          # Beklenen hash tabanın KENDİ yayınından; sabit sabit değil.
           $sumsUrl = "https://github.com/${{ github.repository }}/releases/download/$baseline/SHA256SUMS.txt"
           try {
-            # `.Content` METİN OLMAK ZORUNDA. GitHub yayın varlıklarını
-            # `application/octet-stream` ile sunuyor (302 sonrası
-            # objects.githubusercontent.com) ve PowerShell 7 metin olmayan
-            # content-type'ta `.Content`'i `byte[]` döndürüyor. O hâlde
-            # aşağıdaki `-split` bayt SAYILARINI diziyor, hiçbiri dosya adına
-            # uymuyor ve adım "manifestte bulunamadı" diyerek yanlış sebeple
-            # kırılıyor — manifest doğruyken. İlk gerçek koşumda tam olarak
-            # bu oldu.
+
             $response = Invoke-WebRequest $sumsUrl -TimeoutSec 180
             $sums = if ($response.Content -is [byte[]]) {
               [System.Text.Encoding]::UTF8.GetString($response.Content)
@@ -306,22 +169,6 @@ jobs:
           }
           $env:UPGRADE_BASELINE_SHA256 = ($line -split "\s+")[0]
 
-          # Inno Setup kurulum/kaldırma çağrıları SÜRESİZ bekliyordu
-          # (`Start-Process -Wait`). Kurulum askıda kalırsa adım, job'ın
-          # 30 dakikalık sınırına kadar oturuyor: 2026-08-05'te bir runner
-          # tam da böyle takıldı ve "Upgrade smoke" 23 dakika sürdü, sonunda
-          # elle iptal edilmesi gerekti. Sınırlı bekleme, askıyı 2 dakikada
-          # NET bir hataya çeviriyor.
-          #
-          # Zaman aşımından sonra İKİNCİ ve YİNE SINIRLI bir bekleme:
-          # .NET'te `ExitCode`'un dolu olması için çıkışın tam olarak
-          # işlenmiş olması gerekir, yalnızca `WaitForExit(ms)` bunu
-          # garanti etmez. Ama ARGÜMANSIZ `WaitForExit()` bu iş için
-          # tehlikeli: süreç çıkmış olsa bile, devraldığı handle'ları hâlâ
-          # açık tutan ÇOCUK süreçler varsa süresiz bekler — Inno Setup
-          # rutin olarak çocuk süreç açar. Yani askıyı sınırlamak için
-          # eklenen yardımcının içinde yeni bir sınırsız bekleme oluyordu.
-          # Sınırlı ikinci bekleme her iki ihtiyacı da karşılıyor.
           function Invoke-Bounded {
             param($Proc, [int]$TimeoutSeconds, [string]$Label)
             if (-not $Proc.WaitForExit($TimeoutSeconds * 1000)) {
@@ -337,11 +184,7 @@ jobs:
           $oldInstaller = Join-Path $env:RUNNER_TEMP $env:UPGRADE_BASELINE_ASSET
           $url = "https://github.com/${{ github.repository }}/releases/download/$($env:UPGRADE_BASELINE_TAG)/$($env:UPGRADE_BASELINE_ASSET)"
           try {
-            # -TimeoutSec ZORUNLU: PowerShell'de varsayılan değer 0'dır ve
-            # 0 "SÜRESİZ" demektir. Bağlantı kurulup veri akmayı keserse
-            # `Invoke-WebRequest` sonsuza kadar bekler. Bu, adımdaki
-            # `Start-Process` çağrılarından bağımsız ikinci bir sınırsız
-            # bekleme noktasıydı; sınırlı bekleme çalışması onu atlamıştı.
+
             Invoke-WebRequest $url -OutFile $oldInstaller -TimeoutSec 180
           } catch {
             Write-Host "::error::Taban sürüm indirilemedi: $url"
@@ -402,35 +245,13 @@ jobs:
 
       - name: "Smoke test: installer kur, çalıştır ve kaldır"
         shell: pwsh
-        # Gerekçe için yukarıdaki "Upgrade smoke" adımının notuna bakınız.
+
         timeout-minutes: 10
         env:
           KIVY_GL_BACKEND: angle_sdl2
-        # crash.log kontrolü yukarıdaki ham .exe smoke testinde vardı, BURADA
-        # YOKTU: kurulu uygulama ayakta kalıp yakalanmış bir istisnayı
-        # loglarsa, "erken kapandı mı" kontrolü bunu göremez. Aynı boşluk
-        # build-linux.yml'deki AppImage testinde de vardı; ikisi de eşitlendi.
-        #
-        # DİKKAT: crash.log dosya olarak HER ZAMAN vardır (main.py import
-        # edilirken boş açılıyor), o yüzden varlığına değil BOYUT ARTIŞINA
-        # bakılıyor — ham .exe adımındaki kalıbın aynısı.
+
         run: |
-          # Inno Setup kurulum/kaldırma çağrıları SÜRESİZ bekliyordu
-          # (`Start-Process -Wait`). Kurulum askıda kalırsa adım, job'ın
-          # 30 dakikalık sınırına kadar oturuyor: 2026-08-05'te bir runner
-          # tam da böyle takıldı ve "Upgrade smoke" 23 dakika sürdü, sonunda
-          # elle iptal edilmesi gerekti. Sınırlı bekleme, askıyı 2 dakikada
-          # NET bir hataya çeviriyor.
-          #
-          # Zaman aşımından sonra İKİNCİ ve YİNE SINIRLI bir bekleme:
-          # .NET'te `ExitCode`'un dolu olması için çıkışın tam olarak
-          # işlenmiş olması gerekir, yalnızca `WaitForExit(ms)` bunu
-          # garanti etmez. Ama ARGÜMANSIZ `WaitForExit()` bu iş için
-          # tehlikeli: süreç çıkmış olsa bile, devraldığı handle'ları hâlâ
-          # açık tutan ÇOCUK süreçler varsa süresiz bekler — Inno Setup
-          # rutin olarak çocuk süreç açar. Yani askıyı sınırlamak için
-          # eklenen yardımcının içinde yeni bir sınırsız bekleme oluyordu.
-          # Sınırlı ikinci bekleme her iki ihtiyacı da karşılıyor.
+
           function Invoke-Bounded {
             param($Proc, [int]$TimeoutSeconds, [string]$Label)
             if (-not $Proc.WaitForExit($TimeoutSeconds * 1000)) {
@@ -460,11 +281,7 @@ jobs:
           $crashLogDir = python -c "from utils.app_paths import log_dir; print(log_dir())"
           $crashLogPath = Join-Path $crashLogDir "crash.log"
           $beforeSize = if (Test-Path $crashLogPath) { (Get-Item $crashLogPath).Length } else { 0 }
-          # KULLANICI VERİSİ DİZİNİ. Kaldırmadan SONRA hâlâ durduğunu
-          # doğrulayacağız: `installer/archlence.iss` içinde bilerek
-          # `UninstallDelete` YOK — kaldırma programı siler, kişisel finans
-          # verisini silmez. Bu bugüne kadar yalnızca "o satırın yokluğu"yla
-          # garanti ediliyordu; biri onu eklerse hiçbir kapı uyarmıyordu.
+
           $dataDir = python -c "from utils.app_paths import data_dir; print(data_dir())"
 
           $proc = Start-Process -FilePath $exe -WorkingDirectory $installDir -PassThru
@@ -488,9 +305,7 @@ jobs:
           if ($exitedEarly -or $crashLogGrew) {
             exit 1
           }
-          # Uygulama gerçekten açıldığına göre profilini de kurmuş olmalı.
-          # Bu, aşağıdaki kaldırma kontrolünün ANLAMLI olması için ön koşul:
-          # olmayan bir dizinin "korunduğunu" doğrulamak hiçbir şey söylemez.
+
           $dbPath = Join-Path $dataDir "finance.db"
           if (-not (Test-Path $dbPath)) {
             Write-Host "::error::Kurulu uygulama açıldı ama kullanıcı profilini ($dbPath) oluşturmadı."
@@ -506,9 +321,7 @@ jobs:
             Write-Host "::error::Kaldırma doğrulanamadı."
             exit 1
           }
-          # KALDIRMA KULLANICI VERİSİNE DOKUNMAMALI. Bir kullanıcının
-          # uygulamayı kaldırıp yeniden kurması, tüm finansal geçmişini
-          # kaybetmesi anlamına gelmemeli.
+
           if (-not (Test-Path $dbPath)) {
             Write-Host "::error::Kaldırma kullanıcı veritabanını SİLDİ ($dbPath). installer/archlence.iss'e UninstallDelete eklenmiş olabilir."
             exit 1
@@ -523,18 +336,7 @@ jobs:
       - name: "Kurulum kapsamı: VARSAYILAN hedef kullanıcı profili altında mı"
         shell: pwsh
         timeout-minutes: 5
-        # Yukarıdaki smoke testi `/DIR=` ile AÇIK bir hedef veriyor; bu
-        # yalnızca "verilen dizine kuruluyor" der, ürünün asıl iddiasını
-        # ("kullanıcı başına kurulum, yönetici izni gerekmiyor" —
-        # installer/archlence.iss: PrivilegesRequired=lowest,
-        # DefaultDirName={localappdata}\Programs\Archlence) DOĞRULAMAZ.
-        # Burada hedef VERİLMİYOR: Inno Setup'ın kendi varsayılanı ölçülüyor.
-        #
-        # NOT — bunun ÖLÇMEDİĞİ şey: runner yönetici haklarıyla koşuyor,
-        # dolayısıyla "standart kullanıcı da kurabiliyor" iddiası burada
-        # KANITLANMAZ. Kanıtlanan tek şey kurulumun makine geneli bir konuma
-        # (Program Files) gitmediği. Standart kullanıcıyla kurulum gerçek
-        # makine turuna ait.
+
         run: |
           $installer = (Resolve-Path "installer_output\ArchlenceSetup.exe").Path
           $setup = Start-Process -FilePath $installer -PassThru `

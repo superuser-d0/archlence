@@ -66,8 +66,8 @@ class _ProfileFixture(unittest.TestCase):
                 (_ORPHAN_ACCOUNT, "x", "expense", "Eski", "öksüz",
                  "2026-01-01 00:00:00"),
             )
-            # Şema göçünün geri yazacağı bir öğeyi kaldır: kapı gerçekten
-            # ÖNCE durduysa bu kategori geri gelmemeli.
+
+
             conn.execute("DELETE FROM categories WHERE name = 'Varlık Alımı'")
             conn.execute("PRAGMA user_version = 1")
             conn.commit()
@@ -216,7 +216,7 @@ class StartupPresentationTest(_ProfileFixture):
         def present(_app, message):
             shown["message"] = message
             _app._startup_recovery_failure = message
-            return object()  # gerçek presenter güvenli root döndürür
+            return object()
 
         loaded = []
         with mock.patch(
@@ -236,9 +236,8 @@ class StartupPresentationTest(_ProfileFixture):
                 mock.patch("services.background_task_manager.BackgroundTaskManager"), \
                 mock.patch("services.startup_recovery.run_startup_recovery",
                            lambda *a, **k: None):
-            # `build()` ARTIK FIRLATMIYOR: güvenli root döndürüyor, çünkü
-            # fırlatınca Kivy'nin olay döngüsü hiç başlamıyor ve hata ekranı
-            # kullanıcıya çizilmiyordu.
+
+
             root = main.ArchlenceApp.build(app)
         return app, shown, loaded, root
 

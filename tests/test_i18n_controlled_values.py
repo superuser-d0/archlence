@@ -114,7 +114,7 @@ class AssetTypeSelectionTest(_LanguageCase):
         AssetMixin._select_asset_type_main(app, "Altın", _Button())
 
         self.assertEqual(app._asset_selected_type, "Altın")
-        # Uygulamanın gerçekten yaptığı karşılaştırma.
+
         self.assertTrue(app._asset_selected_type == "Altın")
 
     def test_the_legacy_handler_also_translates(self):
@@ -131,7 +131,7 @@ class AssetTypeSelectionTest(_LanguageCase):
         self.assertEqual(button.text, "Type: Currency")
         self.assertEqual(app._asset_selected_type, "Döviz")
 
-    def test_turkish_mode_keeps_the_turkish_label(self):
+    def test_retired_locale_code_falls_back_to_english(self):
         from mixins.asset_mixin import AssetMixin
 
         self.in_turkish()
@@ -140,7 +140,7 @@ class AssetTypeSelectionTest(_LanguageCase):
 
         AssetMixin._select_asset_type_main(app, "Hisse", button)
 
-        self.assertEqual(button.text, "Tür Seç: Hisse")
+        self.assertEqual(button.text, "Select Type: Stock")
 
     def test_no_turkish_fragment_survives_in_english(self):
         """Genel kural: İngilizce çıktıda Türkçe enum parçası kalmamalı."""
@@ -175,11 +175,11 @@ class AssetDialogTitleTest(_LanguageCase):
                 self.assertTrue(title.startswith("Add New "), title)
                 self.assertNotIn(turkish, title)
 
-    def test_the_title_stays_turkish_in_turkish(self):
+    def test_the_title_stays_english_for_a_retired_locale_code(self):
         from mixins.asset_mixin import asset_form_title
 
         self.in_turkish()
-        self.assertEqual(asset_form_title("Altın"), "Yeni Altın Ekle")
+        self.assertEqual(asset_form_title("Altın"), "Add New Gold")
 
 
 class GoldTypeSelectionTest(_LanguageCase):
@@ -202,19 +202,19 @@ class GoldTypeSelectionTest(_LanguageCase):
                 self.assertTrue(rendered.startswith("Gold Type: "), rendered)
                 self.assertNotIn("Altın", rendered)
 
-    def test_turkish_mode_keeps_the_turkish_gold_label(self):
+    def test_retired_locale_code_keeps_the_english_gold_label(self):
         from mixins.asset_mixin import AssetMixin, gold_type_button_text
 
         self.in_turkish()
         first = AssetMixin._GOLD_TYPES[0][0]
-        self.assertEqual(gold_type_button_text(first), "Altın Türü: Gram Altın")
+        self.assertEqual(gold_type_button_text(first), "Gold Type: Gram Gold")
 
 
 class RecurringCandidateTest(_LanguageCase):
     """ÜRETİM YOLU: abonelik adayı kartının başlık ve ayrıntı üreticileri."""
 
     CANDIDATE = {
-        "name": "Nakit",            # KULLANICI VERİSİ — çevrilmemeli
+        "name": "Nakit",
         "frequency": "monthly",
         "category": "Dijital Platformlar",
         "average_amount": 100.0,
@@ -269,18 +269,17 @@ class RecurringCandidateTest(_LanguageCase):
         self.in_english()
         text = recurring_candidate_detail(self.CANDIDATE, self._format_amount)
 
-        # Karşılık sözlükten gelir (ürün kararı); sabitlenen şey kategorinin
-        # İngilizce cümlede Türkçe KALMAMASI.
+
         self.assertIn(tr("Dijital Platformlar"), text)
         self.assertNotIn("Dijital Platformlar", text)
         self.assertNotIn("Kategori:", text)
 
-    def test_turkish_mode_keeps_the_turkish_labels(self):
+    def test_retired_locale_code_keeps_the_english_labels(self):
         from mixins.insights_mixin import recurring_candidate_title
 
         self.in_turkish()
         self.assertEqual(
-            recurring_candidate_title(self.CANDIDATE), "Nakit  ·  aylık"
+            recurring_candidate_title(self.CANDIDATE), "Nakit  ·  monthly"
         )
 
 
@@ -338,12 +337,12 @@ class LedgerSourceLabelTest(_LanguageCase):
         self.assertEqual(ledger_source_text("bilinmeyen_kaynak", 1),
                          "bilinmeyen_kaynak (1)")
 
-    def test_turkish_mode_keeps_the_turkish_basis(self):
+    def test_retired_locale_code_keeps_the_english_basis(self):
         from mixins.history_mixin import balance_detail_text
 
         self.in_turkish()
         text = balance_detail_text(self.RESULT, self._format_amount)
-        self.assertIn("Günlük snapshot", text)
+        self.assertIn("Daily snapshot", text)
 
 
 class SecureOperationErrorTest(_LanguageCase):
@@ -411,15 +410,13 @@ class RecurringQuestionTest(_LanguageCase):
         self.in_english()
         self.assertEqual(len(recurring_period_prompt(True).split("\n\n")), 2)
 
-    def test_turkish_mode_shows_the_turkish_pair(self):
-        from mixins.transaction_mixin import (
-            RECURRING_PERIOD_PROMPTS, recurring_period_prompt,
-        )
+    def test_retired_locale_code_shows_the_english_pair(self):
+        from mixins.transaction_mixin import recurring_period_prompt
 
         self.in_turkish()
-        question, detail = RECURRING_PERIOD_PROMPTS[True]
-        self.assertEqual(recurring_period_prompt(True),
-                         f"{question}\n\n{detail}")
+        text = recurring_period_prompt(True)
+        self.assertIn("Should this month's income", text)
+        self.assertNotIn("Bu ayki", text)
 
 
 if __name__ == "__main__":

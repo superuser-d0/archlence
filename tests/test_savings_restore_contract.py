@@ -1,6 +1,6 @@
 """Restore sözleşmesi: hedefler tek generation olarak geri geliyor (dilim 4).
 
-Sabitlenen şeyler (docs/SAVINGS_SINGLE_SOURCE_PLAN.md §5):
+Sabitlenen şeyler (docs/ARCHITECTURE.md):
 
   * Backup → BOŞ profil → restore, hedefin BÜTÜN alanlarını geri getiriyor:
     goal_uid, ad, hedef tutarı, biriken tutar, hedef tarihi, durum,
@@ -167,7 +167,7 @@ class StaleJsonIsNeverReactivatedTest(_RestoreProfile):
 
         SavingsService.create_goal("Araba Fonu", 20000.0)
         self.backup()
-        # Restore ÖNCESİ profilde duran legacy dosya.
+
         self.json_path.write_text(
             json.dumps({"goals": {"data": [
                 {"id": 1, "name": "Tatil Fonu", "target": 10000.0,
@@ -254,8 +254,7 @@ class InterruptedRestoreRecoveryTest(_RestoreProfile):
         with self.assertRaises(DataMigrationError):
             self.restore(_failure_hook=boom)
 
-        # Rollback restore çağrısının İÇİNDE tamamlandı; kurtarma yapacak iş
-        # bulmamalı ve JSON restore öncesi hâliyle durmalı.
+
         outcome = recover_interrupted_restore(db_path=self.db_path)
         self.assertFalse(outcome["recovered"])
         self.assertTrue(self.json_path.exists())
@@ -273,7 +272,7 @@ class InterruptedRestoreRecoveryTest(_RestoreProfile):
         with self.assertRaises(RuntimeError):
             self.restore(_failure_hook=boom)
 
-        # Süreç burada ölmüş sayılıyor: JSON hâlâ yerinde, journal COMMITTED.
+
         self.assertTrue(self.json_path.exists())
 
         outcome = recover_interrupted_restore(db_path=self.db_path)
@@ -292,7 +291,7 @@ class ForeignProfileRestoreTest(_RestoreProfile):
     def test_numeric_id_collision_does_not_misattribute_a_goal(self):
         from services.savings_service import SavingsService
 
-        # BAŞKA profil: kendi finance.db'sinde id=1 olan farklı bir hedef.
+
         foreign_root = self.root / "foreign"
         foreign_root.mkdir()
         foreign_db = foreign_root / "finance.db"

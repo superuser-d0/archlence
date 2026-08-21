@@ -60,8 +60,8 @@ class AssetSaleCashAmountTest(unittest.TestCase):
             asset_id = conn.execute(
                 "SELECT id FROM active_assets"
             ).fetchone()[0]
-            # Bakiye SATIŞTAN HEMEN ÖNCE ölçülüyor: alım da bakiyeden
-            # düştüğü için açılış bakiyesinden ölçmek net K/Z verirdi.
+
+
             before_sale = conn.execute(
                 "SELECT balance FROM accounts WHERE id=?", (account_id,)
             ).fetchone()[0]
@@ -87,14 +87,14 @@ class AssetSaleCashAmountTest(unittest.TestCase):
         }
 
     def test_proceeds_are_quantised_to_kurus(self):
-        # 2.456,78 x 0,12345678 = 303.3061479684 ham float olarak — on
-        # ondalıklı bir LİRA tutarı deftere yazılıyordu.
+
+
         result = self._sell(2000.0, 0.12345678, 2456.78)
         self.assertEqual(result["stored"], Decimal("303.31"))
         self.assertEqual(Decimal(str(result["returned"])), Decimal("303.31"))
 
     def test_binary_artefact_never_reaches_the_ledger(self):
-        # 142,30 x 17 float'ta 2419.1000000000004 üretir.
+
         result = self._sell(100.0, 17.0, 142.30)
         self.assertEqual(result["stored"], Decimal("2419.10"))
 

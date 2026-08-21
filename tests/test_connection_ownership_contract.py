@@ -5,8 +5,9 @@ SAYIYOR. O ölçüm iki nedenle kırılgan: (1) yalnız Linux'ta `/proc` ile
 çalışır, (2) sızan `sqlite3.Connection` nesneleri statement cache üzerinden
 referans döngüsüne girdiği için descriptor'lar generational GC'ye kadar
 ayakta kalır — yani FD deltası "sızıntı yok"u değil "GC henüz koşmadı"yı da
-gösterebilir. Tam olarak bu belirsizlik, P2-7 denetim bulgusunun yanlış
-yorumlanmasına yol açtı (bkz. docs/audits/V0_0_9_PRE_WINDOWS_GATE.md).
+gösterebilir. Tam olarak bu belirsizlik, geçmiş bir denetim bulgusunun
+yanlış yorumlanmasına yol açtı: sızıntı sanılan şey ölçüm probe'unun
+kendisiydi.
 
 Buradaki testler bunun yerine AÇMA/KAPAMA SAYIYOR: `sqlite3.connect`
 sarmalanır, her açılan bağlantı kaydedilir, blok sonunda
@@ -147,7 +148,7 @@ class OwnershipContractTest(_TempProfile):
 
         with connection_ledger() as ledger:
             with self.assertRaises(ValueError):
-                # Var olmayan hesap: adjust_account_balance bilerek fırlatır.
+
                 TransactionService.add_transaction(
                     999_999, 1.0, "expense", "T", "d",
                     transaction_date="2026-08-01 10:00:00",
@@ -164,7 +165,7 @@ class OwnershipContractTest(_TempProfile):
         with managed_connection() as conn:
             cursor = conn.cursor()
             adjust_account_balance(cursor, account_id, "income", 50.0)
-            # Callee kapatmış olsaydı burası ProgrammingError verirdi.
+
             balance = cursor.execute(
                 "SELECT balance FROM accounts WHERE id=?", (account_id,)
             ).fetchone()[0]
@@ -270,7 +271,7 @@ class OwnershipContractTest(_TempProfile):
                         transaction_date="2026-08-01 10:00:00",
                         detect_subscription=False,
                     )
-            except Exception as exc:  # pragma: no cover - hata teşhisi
+            except Exception as exc:  # pragma: no cover - diagnostic path
                 errors.append(exc)
 
         with connection_ledger() as ledger:
@@ -416,10 +417,8 @@ class ProductionUsesNoNonClosingContextManagerTest(unittest.TestCase):
                              "`with conn:` kapatmamalı — sözleşme bu")
             self.assertEqual(len(ledger.leaked), 10)
         finally:
-            # SIZDIRILANLARI BURADA KAPAT. Testin amacı sızıntıyı GÖSTERMEK,
-            # ama Windows açık handle'ı olan dosyayı sildirmiyor: temizlik
-            # `PermissionError [WinError 32]` ile patlıyordu. Linux bunu
-            # affettiği için yalnız Windows CI'da görüldü.
+
+
             for conn in opened:
                 try:
                     conn.close()

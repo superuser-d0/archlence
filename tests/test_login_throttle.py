@@ -112,7 +112,7 @@ class StateTransitionTest(unittest.TestCase):
         state = LoginThrottle.record_success()
         self.assertFalse(LoginThrottle.is_locked(state, now=now))
 
-        # Sıfırlama sonrası tek bir yeni başarısız deneme yeniden kilitlememeli.
+
         state = LoginThrottle.record_failure(state, now=now)
         self.assertFalse(LoginThrottle.is_locked(state, now=now))
 

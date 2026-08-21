@@ -2,8 +2,8 @@
 
 NEDEN VAR: kilit kontrolü `main.py`'ın sonundaki `__main__` bloğunda duruyordu.
 Python o bloğa gelene kadar modülün tamamını çalıştırır — `kivy.core.window`
-import edildiği anda da SDL penceresi açılır. Sonuç fiziksel Windows
-makinesinde ölçüldü (bkz. WINDOWS_RC_CHECKLIST.md §2.4): ikinci örnek
+import edildiği anda da SDL penceresi açılır. Sonuç fiziksel bir Windows
+makinesinde ölçüldü: ikinci örnek
 başlatıldığında kullanıcı önce BOŞ SİYAH BİR PENCERE görüyor, "zaten
 çalışıyor" uyarısı ancak onun üstüne geliyor ve kutu kapatılana kadar orada
 duruyor. Koddaki "Kivy/SQLite başlangıcından önce" notu paketlenmiş yapıda
@@ -47,7 +47,7 @@ class SingleInstanceRunsBeforeTheWindow(unittest.TestCase):
             acquire, window_import,
             "Kilit, `kivy.core.window` import'undan SONRA alınıyor. Bu sırayla "
             "ikinci örnek önce boş bir pencere açar, uyarı kutusu onun üstüne "
-            "gelir (WINDOWS_RC_CHECKLIST.md §2.4).",
+            "gelir.",
         )
 
     def test_lock_is_acquired_before_any_kivy_import(self):

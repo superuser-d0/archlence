@@ -57,8 +57,6 @@ def _day_end(date_str):
     return f"{date_str} 23:59:59"
 
 
-# ── Snapshot yazımı ────────────────────────────────────────────────────────
-
 def _compute_current_totals(cursor):
     """Şu anki hesap toplamı ve hesap/hedef dökümü."""
     cursor.execute("SELECT id, balance FROM accounts")
@@ -67,9 +65,8 @@ def _compute_current_totals(cursor):
         cursor.execute("SELECT id, current_amount FROM savings_goals")
         goals = {str(r["id"]): (r["current_amount"] or 0.0) for r in cursor.fetchall()}
     except sqlite3.Error:
-        # savings_goals eski bir DB'de henüz mevcut olmayabilir — DB
-        # hatası kategorisi, decrypt ile ilgisi yok (bkz. docs/ROADMAP.md
-        # Faz 2 "except ayrımı").
+
+
         goals = {}
     return sum(accounts.values()), accounts, goals
 
@@ -118,8 +115,6 @@ def write_daily_snapshot(force=False):
         conn.close()
 
 
-# ── Geçmişe bakış ──────────────────────────────────────────────────────────
-
 def ledger_start_date(cursor=None):
     """Defterdeki en eski olayın tarihi ('YYYY-MM-DD') ya da defter boşsa None.
 
@@ -127,11 +122,8 @@ def ledger_start_date(cursor=None):
     hareketi kaydetmiyordu, o dönem için elimizde veri YOK. Sıfır döndürmek
     "hiç paranız yoktu" demek olurdu — bu yanlış olurdu.
     """
-    # SAHİPLİK AÇIK YAZILIYOR. Eskiden `own = cursor is None` bayrağı ve
-    # `conn = get_connection() if own else None` ile kuruluyordu; çalışma
-    # zamanında doğruydu (bayrak ile `conn is not None` birebir korele) ama
-    # ilişkiyi yalnız insan görebiliyordu. İki dalı ayırmak aynı davranışı
-    # veriyor ve bağlantıyı kimin kapattığını okunur kılıyor.
+
+
     if cursor is None:
         conn = get_connection()
         try:
@@ -190,7 +182,7 @@ def get_balance_at(date):
     try:
         cursor = conn.cursor()
 
-        # Defter başlamadan önceki bir tarih soruluyorsa dürüst cevap "bilmiyorum".
+
         start = ledger_start_date(cursor)
         if start is not None and date_str < start:
             return {
@@ -210,15 +202,14 @@ def get_balance_at(date):
             savings = sum(
                 float(v) for v in (snapshot["breakdown"].get("savings_goals") or {}).values()
             )
-            # Snapshot o günün SONU değil, yazıldığı AN'ı temsil eder; bu yüzden
-            # snapshot gününün olaylarını da replay'e dahil etmek çift sayıma
-            # yol açardı. Sınırı snapshot gününün sonundan başlatıyoruz.
+
+
             lower = _day_end(snapshot["snapshot_date"])
             basis = "snapshot"
         else:
             total = 0.0
             savings = 0.0
-            lower = ""            # defterin başı
+            lower = ""
             basis = "replay"
 
         cursor.execute(
@@ -269,14 +260,7 @@ def diff_between(date_a, date_b):
     start = get_balance_at(a)
     end = get_balance_at(b)
 
-    # Başlangıç tarihi defterden eskiyse DEĞİŞİM HESAPLANAMAZ: karşılaştırma
-    # noktası yok.
-    #
-    # Aralığı defterin başlangıcına "kırpmak" cazip ama yanlış olurdu — o
-    # durumda defterin ilk günündeki hareketler başlangıç durumunun içinde
-    # kalır ve değişim olarak sayılmaz. Uydurma bir karşılaştırma noktası
-    # üretmek yerine değişimi None bırakıyoruz; bildiğimiz hareketleri
-    # (by_source) yine gösteriyoruz, çağıran `truncated` ile durumu anlatır.
+
     truncated = start["basis"] == "before_ledger"
 
     conn = get_connection()
@@ -293,9 +277,8 @@ def diff_between(date_a, date_b):
 
     by_source: dict[str, dict[str, float]] = {}
     for r in rows:
-        # Kaynak kırılımı hesap tarafına bakar: "bu dönemde parayı ne hareket
-        # ettirdi" sorusunun cevabı hesap deltalarıdır (hedef olayları aynı
-        # hareketin diğer ucu, tekrar saymamak için dışarıda).
+
+
         if r["entity_type"] != ACCOUNT:
             continue
         key = r["source"] or "bilinmiyor"
@@ -322,8 +305,8 @@ def diff_between(date_a, date_b):
         ),
         "by_source": by_source,
         "event_count": len(rows),
-        # True ise istenen başlangıç tarihi defterden eskiydi ve aralık
-        # defterin başlangıcına kırpıldı.
+
+
         "truncated": truncated,
         "ledger_start": end.get("ledger_start"),
     }

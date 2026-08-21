@@ -66,7 +66,7 @@ Important contracts include:
   `goal_uid` (UUIDv4), every card operation is verified against it, and the
   service refuses fail-closed when the numeric id and the uid disagree. The
   numeric id remains as the internal key because `balance_events.entity_id`
-  depends on it. See `docs/SAVINGS_SINGLE_SOURCE_PLAN.md`.
+  depends on it.
 
 Financial-logic pull requests should prove these contracts with regression
 tests covering success, rollback, and failure paths.
@@ -98,20 +98,32 @@ Background work must report failures through the persistent logger and return
 UI updates through Kivy's scheduling boundary. It must not mutate widgets from
 a worker thread.
 
-## Localization and UI
+## Text catalog and UI
 
-`ui/` owns shared Kivy components, charts, theme values, and Turkish/English
-translation data. `mixins/` coordinate dialogs, screens, and user actions.
+`ui/` owns shared Kivy components, charts, theme values, and the English text
+catalog. `mixins/` coordinate dialogs, screens, and user actions.
 Reusable business rules belong in `services/`, not in translated strings or
 widget callbacks.
 
-UI changes should be checked in both languages, light and dark themes where
-relevant, and representative display scaling. Include screenshots or a short
-recording in the pull request.
+UI changes should be checked in English, light and dark themes where relevant,
+and representative display scaling. Include screenshots or a short recording
+in the pull request.
 
-### Translation contract
+The home search field is the project's own `SearchBar` component — one rounded
+surface plus one rounded border — rather than KivyMD's `MDTextField` with
+`mode: "round"`, which draws its right cap as a half ellipse the middle
+rectangle does not fully cover and leaves a visible vertical seam. The home
+`ScrollView` also keeps its visual bar indicator disabled while wheel and touch
+scrolling stay available. `scripts/dev/verify_search_bar_visual.py` measures
+both in a real SDL window across light/dark, focus/unfocus, resize, and
+high-DPI, and runs in CI; do not replace the component with a stock round text
+field without re-running it.
 
-Turkish source text is the lookup key. Two functions, one rule between them:
+### Text catalog contract
+
+Legacy catalog source text remains the internal lookup key so existing stored
+labels and migrations stay compatible. The public UI supports English only.
+Two functions share one rule:
 
 - `tr(text)` performs an **exact key match only**. Unknown text returns
   unchanged. It never rewrites fragments inside a longer string.
@@ -119,9 +131,9 @@ Turkish source text is the lookup key. Two functions, one rule between them:
   the parameters. Parameter values never pass through the translator again.
 
 ```python
-# wrong — the user's own data reaches the translator
+# Wrong: user data reaches the catalog lookup.
 _t(f"{payment['name']} aboneliği durduruldu.")
-# right — the sentence is translated, the name is inserted afterwards
+# Right: translate the template, then insert the user-owned name.
 _tf("{name} aboneliği durduruldu.", name=payment["name"])
 ```
 
@@ -149,15 +161,15 @@ Further rules:
   verified placeholder set and an order-independent result. It is **not**
   that `str.format` would re-interpret an inserted value: it does not
   (`"{x}".format(x="{test}") == "{test}"`).
-- Placeholder **sets** must match between Turkish and English; the order is
-  free, and English word order usually differs
+- Placeholder **sets** must match between the legacy source key and English;
+  the order is free, and English word order may differ
   (`"{name} hesabı eklendi."` → `"Account added: {name}"`).
 - User data entering a `markup=True` widget goes through
   `ui.i18n.escape_markup` first.
 - `tests/test_i18n_static_gate.py` enforces all of this: f-strings, string
   concatenation and `%`/`str.format()` results cannot be passed to a
   translation function (in `.py` or `.kv`), every template exists in the
-  English dictionary with matching placeholders and renders in both languages,
+  English dictionary with matching placeholders and renders in English,
   and user-supplied name fields cannot be handed to `tr()`.
 
 ## Test and CI boundaries
@@ -166,9 +178,15 @@ Further rules:
 headless environment before Kivy imports and preserves test reporting and exit
 status.
 
+Discovery covers `tests/` only. `scripts/audit/` holds diagnostic and
+adversarial reproduction tools that are deliberately outside the suite —
+some are expected to be red until the behaviour they reproduce is fixed, and
+the ones that are real gates (schema consistency, version mutation matrix)
+are wired into CI as their own steps.
+
 The Tests workflow runs the suite on Linux and Windows. Linux jobs also enforce
 critical lint rules, the broad-exception baseline, selected type checks, version
-consistency, and visual contracts across Turkish/English and two DPI settings.
+consistency, and English visual contracts across two DPI settings.
 Packaging workflows separately build and smoke-test the Windows installer and
 Linux AppImage.
 
@@ -189,4 +207,4 @@ Before changing a boundary, answer these questions:
 3. Does a failure preserve the previous database and key state?
 4. Are external data source, age, and failure behavior still visible?
 5. Does the change need a migration or previous-release compatibility test?
-6. Are Turkish/English and packaged-runtime behavior covered where relevant?
+6. Are English UI and packaged-runtime behavior covered where relevant?

@@ -36,7 +36,7 @@ class SecureDataUiFlowTest(unittest.TestCase):
             app._create_verified_backup("uzun-kurtarma-parolasi")
         create.assert_called_once()
         self.assertTrue(any(
-            "doğrulandı" in str(call.args[0])
+            "verified" in str(call.args[0]).lower()
             for call in toast.call_args_list
         ))
 
@@ -55,8 +55,8 @@ class SecureDataUiFlowTest(unittest.TestCase):
             )
         self.assertFalse(app.refreshed)
         messages = [str(call.args[0]) for call in toast.call_args_list]
-        self.assertTrue(any("mevcut veri korundu" in item for item in messages))
-        self.assertFalse(any("Restore tamamlandı" in item for item in messages))
+        self.assertTrue(any("current data was preserved" in item for item in messages))
+        self.assertFalse(any("Restore completed" in item for item in messages))
 
     def test_migration_success_includes_count_and_backup_path(self):
         app = _App()
@@ -73,7 +73,7 @@ class SecureDataUiFlowTest(unittest.TestCase):
         ) as toast:
             app._run_legacy_migration("uzun-kurtarma-parolasi")
         self.assertTrue(any(
-            "4 alan" in str(call.args[0])
+            "4 fields" in str(call.args[0])
             for call in toast.call_args_list
         ))
 
@@ -93,7 +93,7 @@ class SecureDataUiFlowTest(unittest.TestCase):
             app._export_key_recovery("uzun-kurtarma-parolasi")
         export.assert_called_once()
         self.assertTrue(any(
-            "doğrulandı" in str(call.args[0])
+            "verified" in str(call.args[0]).lower()
             for call in toast.call_args_list
         ))
 
@@ -113,8 +113,8 @@ class SecureDataUiFlowTest(unittest.TestCase):
                 "/tmp/tampered.json", "uzun-kurtarma-parolasi"
             )
         messages = [str(call.args[0]) for call in toast.call_args_list]
-        self.assertTrue(any("içe aktarılamadı" in item for item in messages))
-        self.assertFalse(any("içe aktarıldı" in item for item in messages))
+        self.assertTrue(any("could not be imported" in item for item in messages))
+        self.assertFalse(any("verified and imported" in item for item in messages))
 
 
 if __name__ == "__main__":

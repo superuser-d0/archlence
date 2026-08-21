@@ -65,10 +65,10 @@ class WalletSyncTest(unittest.TestCase):
         AccountService.create_account(
             "Nakit Cüzdanım", "checking", initial_balance=5000
         )
-        # Hiç işlem yok → eski davranışta ana sayfa toplamı 0 kalıyordu.
+
         self.assertEqual(self._transaction_cashflow(), 0.0)
         self.assertEqual(DashboardService.get_opening_baseline(), 5000.0)
-        # Ana sayfa formülü (nakit-akışı + taban) gerçek bakiyeye eşit olmalı.
+
         home_total = self._transaction_cashflow() + DashboardService.get_opening_baseline()
         self.assertEqual(home_total, DashboardService.get_total_balance())
 

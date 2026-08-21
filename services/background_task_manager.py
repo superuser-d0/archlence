@@ -51,15 +51,8 @@ class BackgroundTaskManager:
         def run():
             try:
                 result = work(task.cancel_event)
-            # BİLEREK GENİŞ (incelendi, daraltılmayacak): burası havuzun
-            # yalıtım sınırı. Buradan kaçan HER istisna, `on_error`
-            # geri çağrısının hiç çalışmaması ve arayüzün o iş için sonsuza
-            # kadar "yükleniyor" durumunda kalması demektir. Daraltmak,
-            # yalnızca listelenmeyen bir hata türünde bu sonucu üretir —
-            # yani daraltmanın kazancı (programlama hatasını görünür kılmak)
-            # burada zararına dönüşür. İstisna yutulmuyor: `on_error`
-            # çağrılarak çağırana teslim ediliyor.
-            # EXCEPTION-AUDIT: bilinçli geniş — havuzun yalıtım sınırı.
+
+
             except Exception as exc:
                 self._deliver(
                     key,

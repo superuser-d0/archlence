@@ -37,9 +37,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 os.environ.setdefault("KIVY_NO_ARGS", "1")
 
-# PROFİL İZOLASYONU IMPORT'TAN ÖNCE. `utils.app_paths` yolları ortam
-# değişkeninden çözüyor; `main` import edildikten sonra ayarlamak, betiği
-# geliştiricinin GERÇEK finans verisi üzerinde çalıştırırdı.
+
 _SANDBOX = tempfile.mkdtemp(prefix="archlence-savings-verify-")
 os.environ["ARCHLENCE_HOME"] = _SANDBOX
 os.environ["XDG_DATA_HOME"] = os.path.join(_SANDBOX, "xdg-data")
@@ -105,20 +103,14 @@ class SavingsCardVerifier(ArchlenceApp):
         self.root.ids.screen_manager.current = "home"
         nav = self.root.ids.bottom_nav
         nav.ids.tab_manager.transition = NoTransition()
-        # Hedef kartlarının kabı hangi sekmedeyse ORAYA geç. Sekme adını
-        # sabit yazmak, kap ileride başka bir sekmeye taşınırsa betiği sessizce
-        # yanlış yerde ölçtürürdü (ölçüldü: kap "home_tab"da değil,
-        # "assets_tab"da yaşıyor).
+
+
         tab = self._container_tab_name()
         self.observations["container_tab"] = tab
         if tab:
             nav.switch_tab(tab)
-        # BELLEĞİ ÖNCE SQL'DEN TAZELE. `savings_goals` açılışta arka plan
-        # tazelemesiyle doluyor; `_enter` o tazelemeden ÖNCE koşarsa liste
-        # boş oluyor ve render hiçbir kart çizmiyordu (ölçüldü: beş koşumun
-        # üçünde `goals_in_memory` doluyken `cards_rendered=1`). Bu bir ÖLÇÜM
-        # YARIŞIYDI; `load_savings_goals` zaten üretimin kendi yeniden yükleme
-        # yolu, yani kapı hâlâ gerçek kod yolunu çalıştırıyor.
+
+
         self.load_savings_goals()
         self.render_savings_goals(0)
         self._render_deadline = 0
@@ -137,15 +129,8 @@ class SavingsCardVerifier(ArchlenceApp):
         Bekleme SINIRLI: kartlar gerçekten hiç çizilmezse kapı yine kırmızı
         verir, yani dişleri kaybolmuyor.
         """
-        # Beklenen sayı TOHUMDAN geliyor, bellekteki listeden değil: liste
-        # henüz dolmamışsa `0 >= 0` ile döngü hemen çıkar ve kapı boş ekranı
-        # "tamam" sanardı.
-        #
-        # ÜST ÜSTE İKİ kez doğru sayıyı görmek şart. Arka plan dashboard
-        # tazelemesi kendi `render_savings_goals` çağrısını yapıyor ve o çağrı
-        # kabı ÖNCE temizleyip kartları frame başına bir tane yeniden çiziyor;
-        # tek ölçüm o yeniden çizimin ortasına düşebiliyordu (ölçüldü:
-        # cards_rendered=1, container_children=1, hedefler bellekte tam).
+
+
         expected = len(SEED)
         drawn = len(self._cards())
         self._render_deadline += 1
@@ -277,7 +262,7 @@ class SavingsCardVerifier(ArchlenceApp):
 
         Clock.schedule_once(self._deposit, 0.5)
 
-    # ── 3: yatırma sonrası kart yeni değeri gösteriyor mu ────────────────
+
     def _deposit(self, _dt):
         goal = next(
             (g for g in self.savings_goals if g["name"] == "Tatil Fonu"), None
@@ -324,7 +309,7 @@ class SavingsCardVerifier(ArchlenceApp):
             })
         Clock.schedule_once(self._delete, 0.5)
 
-    # ── 4: silme sonrası kart kalkıyor mu ────────────────────────────────
+
     def _delete(self, _dt):
         goal = next(
             (g for g in self.savings_goals if g["name"] == "Tatil Fonu"), None

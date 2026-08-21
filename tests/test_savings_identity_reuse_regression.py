@@ -1,7 +1,7 @@
 """Kimlik yeniden kullanımı: restore sonrası para YANLIŞ hedefe gidiyor.
 
-ÖLÇÜLEN KUSUR (docs/SAVINGS_SINGLE_SOURCE_PLAN.md §1b). Birikim hedefleri iki
-yerde yaşıyor: para SQLite'ta, ekrandaki kart ise `savings_goals.json`'da. JSON
+ÖLÇÜLEN KUSUR (sözleşme: docs/ARCHITECTURE.md). Birikim hedefleri iki yerde
+yaşıyordu: para SQLite'ta, ekrandaki kart ise `savings_goals.json`'da. JSON
 hedefi yalnızca SQL satırının SAYISAL id'siyle işaretliyor.
 
 `sqlite_sequence` `finance.db` dosyasının İÇİNDE. Restore dosyayı bütün olarak
@@ -107,7 +107,7 @@ class IdentityReuseAfterRestoreTest(unittest.TestCase):
             "Vadesiz", "checking", initial_balance=5000.0
         )
 
-    # ── yardımcılar ──────────────────────────────────────────────────────
+
     def _sqlite_sequence(self):
         with closing(sqlite3.connect(self.db_path)) as conn:
             row = conn.execute(
@@ -161,17 +161,17 @@ class IdentityReuseAfterRestoreTest(unittest.TestCase):
             safety_backup_path=Path(self._tmp.name) / "safety.archlence-backup",
         )
 
-    # ── asıl senaryo ─────────────────────────────────────────────────────
+
     def test_stale_card_cannot_fund_a_goal_that_reused_its_id(self):
-        # 1) İlk SQL hedefi: id = 1.
+
         first_id = SavingsService.create_goal("Araba Fonu", 20000.0)
         self.assertEqual(first_id, 1)
 
-        # 2) Backup — sayaç 1'de.
+
         self._backup()
         self.assertEqual(self._sqlite_sequence(), 1)
 
-        # 3) Backup SONRASI "Tatil Fonu": id = 2, JSON kartı da id = 2.
+
         holiday_id = SavingsService.create_goal("Tatil Fonu", 10000.0)
         self.assertEqual(holiday_id, 2)
         stale_card = {
@@ -184,7 +184,7 @@ class IdentityReuseAfterRestoreTest(unittest.TestCase):
             "created_at": "2026-01-05",
         }
 
-        # 4) Eski backup restore edilir; sayaç 1'e geri sarar.
+
         self._restore()
         self.assertEqual(
             self._sqlite_sequence(), 1,
@@ -196,7 +196,7 @@ class IdentityReuseAfterRestoreTest(unittest.TestCase):
             "restore edilen DB yalnız yedekteki hedefi taşımalı",
         )
 
-        # 5) Restore sonrası yeni hedef aynı sayısal id'yi yeniden alır.
+
         new_id = SavingsService.create_goal("Yeni Hedef", 3000.0)
         self.assertEqual(
             new_id, holiday_id,
@@ -206,12 +206,7 @@ class IdentityReuseAfterRestoreTest(unittest.TestCase):
         balance_before = self._balance()
         ledger_before = self._ledger_rows()
 
-        # 6) Kullanıcı ekranda hâlâ duran BAYAT "Tatil Fonu" kartından yatırıyor.
-        #
-        # Önce PARANIN ne olduğuna bakılıyor, hata mesajına değil: kusurun
-        # kendisi paranın yanlış hedefe yazılması. Sıra ters olsaydı kırmızı
-        # koşumda yalnız "ValueError not raised" görünür, asıl kanıt —
-        # bakiyenin gerçekten değişmesi — raporda hiç yer almazdı.
+
         app = self._app_with_stale_card(stale_card)
         refusal = None
         try:
@@ -219,7 +214,7 @@ class IdentityReuseAfterRestoreTest(unittest.TestCase):
         except ValueError as exc:
             refusal = exc
 
-        # 7) Para hiçbir yere gitmemeli ve kullanıcı anlaşılır bir hata görmeli.
+
         amounts = self._goal_amounts()
         self.assertEqual(
             amounts.get("Yeni Hedef"), 0.0,
@@ -260,7 +255,7 @@ class IdentityReuseAfterRestoreTest(unittest.TestCase):
         SavingsService.create_goal("Araba Fonu", 20000.0)
         self._backup()
 
-        # Boş profil: hedef satırlarını sil, JSON da yok.
+
         with closing(sqlite3.connect(self.db_path)) as conn:
             conn.execute("DELETE FROM savings_goals")
             conn.commit()

@@ -66,7 +66,7 @@ class StartupRecoveryContractTest(unittest.TestCase):
             ctx.exception.outcome,
             RecoveryOutcome.MANUAL_INTERVENTION_REQUIRED,
         )
-        # Bozuk journal SESSİZCE SİLİNMEMELİ — elle inceleme gerekiyor.
+
         self.assertTrue(self.journal.exists())
 
     def test_unknown_state_fails_closed(self):
@@ -152,15 +152,14 @@ class StartupCallOrderTest(unittest.TestCase):
                 archlence_main, "initialize_database",
                 _record("database_init"),
             ),
-            # build()'in geri kalanını erken durdur: sıradaki ilk adım
-            # config okuması, orada kontrollü çıkıyoruz.
+
+
             mock.patch.object(
                 archlence_main, "JsonStore",
                 _record("config_store", side_effect=_StopBuild()),
             ),
-            # Presenter gerçek Kivy widget'ı kuruyor; bu testin ilgi alanı
-            # SIRA, gösterim değil. Sahte presenter yine de GERÇEK sözleşmeyi
-            # taklit ediyor: güvenli bir root döndürüyor.
+
+
             mock.patch(
                 "services.startup_recovery.present_startup_recovery_failure",
                 lambda app, message, *a, **k: _record_failure(app, message),
@@ -175,10 +174,7 @@ class StartupCallOrderTest(unittest.TestCase):
             patch.start()
         self.addCleanup(lambda: [p.stop() for p in patches])
 
-        # `build()` ARTIK FIRLATMIYOR: açılış hatasında minimal ve güvenli
-        # bir root döndürüyor (bkz. services/startup_recovery.py — "AÇILIŞ
-        # HATASI YÜZEYİ"). Bu yüzden hem dönen root hem de kontrollü
-        # `_StopBuild` istisnası kaydediliyor.
+
         raised = None
         root = None
         try:
@@ -205,8 +201,8 @@ class StartupCallOrderTest(unittest.TestCase):
                 "test", outcome=RecoveryOutcome.MANUAL_INTERVENTION_REQUIRED
             )
         )
-        # Fırlatmak yerine güvenli root dönüyor — olay döngüsünün başlaması
-        # için tek yol bu.
+
+
         self.assertIsNone(raised, f"build() beklenmedik biçimde fırlattı: {raised!r}")
         self.assertIsNotNone(root, "açılış hatasında güvenli root dönmedi")
         self.assertNotIn(
@@ -237,7 +233,7 @@ class RecoveryFailurePresentationTest(unittest.TestCase):
         def _presenter(app, message):
             shown.append(message)
             app._startup_recovery_failure = message
-            return object()  # gerçek presenter root döndürür
+            return object()
 
         app = archlence_main.ArchlenceApp.__new__(archlence_main.ArchlenceApp)
         patches = [
@@ -268,8 +264,7 @@ class RecoveryFailurePresentationTest(unittest.TestCase):
 
         root = app.build()
 
-        # FIRLATMIYOR: `build()` fırlatınca Kivy `runTouchApp()`'e hiç
-        # ulaşmıyor ve açılan diyalog ekrana çizilmiyordu.
+
         self.assertIsNotNone(root, "açılış hatasında güvenli root dönmedi")
         self.assertEqual(len(shown), 1, "presenter cagrilmadi")
         self.assertEqual(shown[0], USER_MESSAGE)

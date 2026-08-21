@@ -115,7 +115,7 @@ class MigrationMixin:
                     if skipped:
                         msg += f", {skipped} satır atlandı"
                     toast(msg)
-                    # Bakiye, grafikler ve işlem listesi yeni kayıtları yansıtsın
+
                     self.refresh_dashboard_data()
                     self.safe_refresh_charts()
                     if hasattr(self, "generate_financial_advice"):
@@ -136,22 +136,22 @@ class MigrationMixin:
         from kivymd.uix.list import MDList, OneLineIconListItem, IconLeftWidget
         from kivymd.uix.boxlayout import MDBoxLayout
         from kivy.metrics import dp
-        
+
         content = MDBoxLayout(
             orientation="vertical", size_hint_y=None, height=dp(448)
         )
         md_list = MDList()
-        
+
         export_item = OneLineIconListItem(text=_t("CSV Olarak Dışa Aktar"))
         export_icon = IconLeftWidget(icon="file-export-outline")
         export_item.add_widget(export_icon)
         export_item.bind(on_release=lambda x: self._on_export_selected(self._data_privacy_dialog))
-        
+
         import_item = OneLineIconListItem(text=_t("CSV'den İçe Aktar"))
         import_icon = IconLeftWidget(icon="file-import-outline")
         import_item.add_widget(import_icon)
         import_item.bind(on_release=lambda x: self._on_import_selected(self._data_privacy_dialog))
-        
+
         md_list.add_widget(export_item)
         md_list.add_widget(import_item)
 
@@ -190,10 +190,8 @@ class MigrationMixin:
         recovery_import_item = OneLineIconListItem(
             text=_t("Anahtar Kurtarma Paketi İçe Aktar")
         )
-        # "key-arrow-left" MDI setinde YOK — boş görünüyordu. Dışa aktarma
-        # "key-arrow-right" ile eşleşiyor; içe aktarmanın simetriği olmadığı
-        # için anahtarı ekleme anlamı taşıyan "key-plus" kullanılıyor
-        # (geçersiz ad artık tests/test_icon_names.py tarafından yakalanır).
+
+
         recovery_import_item.add_widget(IconLeftWidget(icon="key-plus"))
         recovery_import_item.bind(
             on_release=lambda _x: self._on_recovery_import_selected(
@@ -203,9 +201,8 @@ class MigrationMixin:
         rotation_item = OneLineIconListItem(
             text=_t("Şifreleme Anahtarını Döndür")
         )
-        # "key-sync" de MDI setinde YOK. "key-change" anahtar döndürmeyi tam
-        # karşılıyor ama Ayarlar'daki "Şifre Değiştir" satırı onu kullanıyor;
-        # iki farklı işlem aynı ikonu taşımasın diye "lock-reset" seçildi.
+
+
         rotation_item.add_widget(IconLeftWidget(icon="lock-reset"))
         rotation_item.bind(
             on_release=lambda _x: self._on_key_rotation_selected(
@@ -220,7 +217,7 @@ class MigrationMixin:
         md_list.add_widget(recovery_import_item)
         md_list.add_widget(rotation_item)
         content.add_widget(md_list)
-        
+
         self._data_privacy_dialog = MDDialog(
             title=_t("Veriler ve Gizlilik"),
             type="custom",
@@ -488,27 +485,7 @@ class MigrationMixin:
         from kivy.uix.filechooser import FileChooserListView
         from kivy.metrics import dp
 
-        # SEÇİCİ YEDEKLERİN DURDUĞU YERDE AÇILIYOR, EV DİZİNİNDE DEĞİL.
-        #
-        # `_create_verified_backup` yedeği `data_dir()/backups` altına yazıyor;
-        # Windows'ta bu `%LOCALAPPDATA%\Archlence\backups`, yani `AppData`nın
-        # İÇİNDE. `AppData` klasörünün Hidden özniteliği var ve Kivy'nin dosya
-        # seçicisi gizli girdileri varsayılan olarak listelemiyor
-        # (`show_hidden` bu kod tabanında hiçbir yerde set edilmiyor).
-        #
-        # Sonuç gerçek bir Windows 11 makinesinde ölçüldü: seçici ev dizininde
-        # açılıyor, `AppData` listede hiç görünmüyor ve kullanıcı KENDİ
-        # yedeğine uygulamanın içinden ULAŞAMIYOR. Finans uygulamasında geri
-        # yükleme yolunun kapalı olması ciddi bir kusur.
-        #
-        # Bu, `win32timezone` düzeltmesinin YARATTIĞI bir sorun DEĞİL: o
-        # düzeltmeden önce seçici hiç listeleme yapamadan uygulamayı
-        # çökertiyordu (`is_hidden` içinde ModuleNotFoundError), yani gizli
-        # dizin filtresi zaten hiç görülemiyordu. Çökme kalkınca altındaki
-        # erişim sorunu görünür oldu.
-        #
-        # Ev dizinine geri düşülüyor: yedek klasörü henüz oluşmamışsa (hiç
-        # yedek alınmamışsa) var olmayan bir yola açmak seçiciyi boş bırakır.
+
         chooser = FileChooserListView(
             path=restore_chooser_path(),
             filters=["*.backup", "*.archlence-backup", "*.zip"],
@@ -560,13 +537,8 @@ class MigrationMixin:
                 "Restore tamamlandı. Güvenlik backup'ı:\n{safety_backup_path}",
                 safety_backup_path=result['safety_backup_path'],
             ))
-            # HEDEFLER SQL'DEN YENİDEN OKUNUR — yeniden başlatma gerekmez.
-            # Restore `finance.db`yi bütün olarak değiştiriyor; bellekteki
-            # `savings_goals` restore ÖNCESİ generation'ı gösteriyor ve
-            # tazelenmezse kullanıcı artık var olmayan hedeflerin kartlarına
-            # bakıyor olurdu. Kart işlemleri `goal_uid` ile doğrulandığı için
-            # böyle bir kart parayı yanlış hedefe yazdıramaz; yine de EKRANIN
-            # doğru olması gerekiyor.
+
+
             try:
                 self.load_savings_goals()
                 self.render_savings_goals(0)
@@ -643,7 +615,7 @@ class MigrationMixin:
             "%s", message,
             exc_info=(type(exc), exc, exc.__traceback__),
         )
-        # `message` çağrı yerlerinden gelen KONTROLLÜ uygulama metni
-        # ("Backup oluşturulamadı" gibi), kullanıcı verisi değil.
+
+
         toast(_tf("{message}. Ayrıntılar uygulama loguna kaydedildi.",
                   message=_t(message)))

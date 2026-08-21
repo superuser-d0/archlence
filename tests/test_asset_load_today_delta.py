@@ -112,10 +112,10 @@ class TodayDeltaFailureTest(unittest.TestCase):
     def _assert_survives(self, error):
         app = self._app(error)
         self._run_load(app)
-        # Asıl sözleşme: liste ÇİZİLDİ ve yükleme TAMAMLANDI.
+
         self.assertTrue(app.rendered, f"{type(error).__name__}: liste çizilmedi")
         self.assertTrue(app.finished, f"{type(error).__name__}: yükleme bitmedi")
-        # today_delta bilinçli olarak None'a düşer; liste bundan etkilenmez.
+
         self.assertIsNone(app.finished[-1])
 
     def test_sqlite_error_does_not_strand_the_asset_list(self):

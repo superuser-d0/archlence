@@ -32,7 +32,7 @@ class RecurringMixin:
         generation = self._recurring_load_generation
 
         def apply_result(payments):
-            # Hızlı ekran geçişlerinde eski worker yeni sonucu ezmesin.
+
             if generation != getattr(self, "_recurring_load_generation", 0):
                 return
             self.render_upcoming_payments(payments)
@@ -62,9 +62,8 @@ class RecurringMixin:
             ]
 
             if not visible:
-                # Yükseklik açıkça veriliyor: kart içeriğe uyduğu için
-                # (ui/dashboard.kv, upcoming_payments_card) size_hint_y=1 olan
-                # bir etiket kapsayıcıya sıfır yükseklik katkısı yapardı.
+
+
                 lbl = MDLabel(
                     text=_t("Yaklaşan ödeme bulunmuyor."),
                     theme_text_color="Secondary",
@@ -189,18 +188,15 @@ class RecurringMixin:
         def process():
             try:
                 from services.account_service import AccountService
-                # Hiç hesap yoksa (onboarding tamamlanmamış) yazılacak bir yer
-                # de yok; denemek yalnızca "hesap bulunamadı" hatası üretirdi.
+
+
                 if not AccountService.has_any_account():
                     return
 
                 today = datetime.date.today()
                 ui_needs_refresh = False
 
-                # 0. VADESİ GELEN İLERİ TARİHLİ İŞLEMLER
-                # Kullanıcının ileri tarih seçerek girdiği maaş/fatura kayıtları
-                # o güne kadar bakiyeye işlenmez; vadesi gelenler burada
-                # bakiyeye aktarılır. İdempotent, her açılışta güvenle çağrılır.
+
                 try:
                     if TransactionService.settle_due_transactions():
                         ui_needs_refresh = True
@@ -208,23 +204,15 @@ class RecurringMixin:
                     from utils.logging_config import get_logger
                     get_logger().exception("Bekleyen işlemler işlenemedi")
 
-                # 1. MEVCUT TEKRARLANAN ÖDEMELER (Kira, Faturalar vb.)
+
                 payments = get_active_recurring_payments()
                 due_auto = [
                     p for p in payments
                     if p["auto_deduct"] and datetime.date.fromisoformat(p["next_due_date"]) <= today
                 ]
                 for p in due_auto:
-                    # HER ÖDEME KENDİ BAŞINA KORUNUR. Eskiden bu çağrı
-                    # korumasızdı ve tüm rutini saran dıştaki tek
-                    # `except Exception` yakalıyordu — yani vadesi gelen
-                    # ödemelerden BİRİ patlarsa (ör. tutarsız bir account_id),
-                    # istisna kendisinden SONRAKİ bütün tekrarlanan ödemeleri
-                    # ve aşağıdaki otomatik borç taksitlerinin TAMAMINI da
-                    # atlayarak yukarı kaçıyordu. Kullanıcının kirası/faturası
-                    # o açılışta sessizce hiç işlenmiyordu; tek iz, paketlenmiş
-                    # derlemede (console=False) hiçbir yere gitmeyen bir
-                    # print()'ti. Artık bozuk kayıt yalnızca kendini atlar.
+
+
                     try:
                         process_due_recurring_payment(p)
                         ui_needs_refresh = True
@@ -234,8 +222,8 @@ class RecurringMixin:
                             f"Tekrarlanan ödeme işlenemedi (id={p.get('id')}), "
                             "diğerleri sürdürülüyor"
                         )
-                
-                # 2. OTOMATİK BORÇ/KREDİ TAKSİT ÖDEMELERİ
+
+
                 debts = get_active_debts()
                 current_month_str = today.strftime("%Y-%m")
 
@@ -247,10 +235,7 @@ class RecurringMixin:
                     if remaining <= 0:
                         continue
 
-                    # 29-31 Taksit Tuzağı: auto_pay_day 31 seçilip ay 30 (veya Şubat
-                    # 28/29) çekiyorsa today.day hiçbir zaman 31'e ulaşamaz ve taksit
-                    # sessizce atlanırdı. Ayın gerçek son gününü aşmayan güvenli bir
-                    # ödeme günü kullan.
+
                     days_in_month = calendar.monthrange(today.year, today.month)[1]
                     effective_pay_day = min(debt.get("auto_pay_day") or 1, days_in_month)
                     if today.day < effective_pay_day:
@@ -258,14 +243,9 @@ class RecurringMixin:
 
                     last_pay_str = debt.get("last_auto_pay_date")
                     if last_pay_str == current_month_str:
-                        continue  # bu ay zaten çekilmiş
+                        continue
 
-                    # Birikmiş Dönem Kaybı: uygulama birkaç ay açılmadıysa, son çekilen
-                    # ay ile şu an arasında kaç ay atlandığını hesaplayıp aradaki
-                    # taksitleri geriye dönük düş (recurring_mixin'deki abonelik
-                    # telafi mantığıyla aynı fikir: son bilinen tarihten şimdiye kaç
-                    # periyot geçtiğini say). last_auto_pay_date hiç set edilmemişse
-                    # (ilk otomatik ödeme) geriye dönük referans yok, sadece bu ayı öde.
+
                     if last_pay_str:
                         last_year, last_month = (int(x) for x in last_pay_str.split("-"))
                         months_missed = (today.year - last_year) * 12 + (today.month - last_month)
@@ -274,14 +254,8 @@ class RecurringMixin:
                     months_missed = max(1, months_missed)
 
                     installments_to_pay = min(months_missed, remaining)
-                    # `is_active` ARTIK BURADA HESAPLANMIYOR: borcun kapanıp
-                    # kapanmadığına `DebtPaymentService.pay_auto` aynı
-                    # transaction içinde karar veriyor. Buradaki kopya
-                    # kullanılmıyordu ve servisinkinden sapabilirdi.
 
-                    # Yukarıdaki tekrarlanan ödeme döngüsüyle AYNI gerekçe:
-                    # tek bir bozuk borç kaydı, kendisinden sonraki borçların
-                    # otomatik taksitlerini sessizce iptal etmemeli.
+
                     try:
                         DebtPaymentService.pay_auto(
                             debt['id'], DEFAULT_ACCOUNT_ID,
@@ -295,19 +269,18 @@ class RecurringMixin:
                             "diğerleri sürdürülüyor"
                         )
 
-                # 3. ORTAK UI SENKRONİZASYONU
+
                 if ui_needs_refresh:
                     Clock.schedule_once(lambda dt: self.load_recent_transactions(), 0)
                     Clock.schedule_once(lambda dt: self.safe_refresh_charts(), 0)
-                    
-                    # UI üzerindeki ilerleme çubuğu (progress bar) ve kalan taksit yazısını yenile
+
+
                     if hasattr(self, 'load_active_debts'):
                         Clock.schedule_once(lambda dt: self.load_active_debts(), 0)
-                        
+
                 Clock.schedule_once(lambda dt: self.load_upcoming_recurring(), 0)
-                # Bekleyen özeti bu thread bittikten SONRA okunmalı: burada
-                # uzlaştırılan ileri tarihli işlemler artık bekleyen değil,
-                # açılışta paralel okunsa listede hayalet kayıt görünürdü.
+
+
                 if hasattr(self, "load_pending_transactions"):
                     Clock.schedule_once(
                         lambda dt: self.load_pending_transactions(), 0)

@@ -7,16 +7,10 @@ import unittest
 
 from utils.app_paths import log_dir
 
-# Testler tests/ altında; main.py proje kökünde. Kök, çalışma dizininden değil
-# bu dosyanın konumundan türetilir ki test her yerden çalıştırılabilsin.
+
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# GitHub Actions'ın ubuntu-latest runner'ı gibi gerçek CI ortamlarının hiçbir
-# görüntüleme altyapısı yok (DISPLAY yok, XDG_RUNTIME_DIR yok, Xvfb yok) —
-# ampirik olarak doğrulandı (PR #16'nın CI çalışması). "Gerçek bir pencere
-# sağlayıcısı gerçekten kuruluyor mu" testi böyle bir ortamda anlamsız: kurulacak
-# gerçek bir şey yok. Bu, gerçek bir masaüstü oturumu (ör. yerel geliştirme)
-# olduğunda hâlâ regresyon koruması sağlar, CI'da sessizce atlanır.
+
 _HAS_REAL_DISPLAY = bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
 
 
@@ -27,10 +21,8 @@ def _run(script, extra_env=None, strip_display=False, cwd=None):
     env.pop("KIVY_NO_ARGS", None)
     env.pop("SDL_VIDEODRIVER", None)
     if strip_display:
-        # CI runner'ları (ör. GitHub Actions ubuntu-latest) gibi: HİÇBİR
-        # display sunucusu yok, yalnızca ARCHLENCE_HEADLESS + main.py'nin
-        # kendi SDL_VIDEODRIVER=dummy/KIVY_WINDOW=sdl2 varsayılanlarına
-        # güveniliyor.
+
+
         env.pop("DISPLAY", None)
         env.pop("WAYLAND_DISPLAY", None)
     env.setdefault("PYTHONPATH", PROJECT_ROOT)
@@ -105,11 +97,7 @@ class StartupImportTest(unittest.TestCase):
             msg="pencere kurulamayınca sessizce (exit 0) çıkmamalı",
         )
 
-        # docs/ROADMAP.md Faz 1 madde 4: crash.log artık PROJECT_ROOT'ta
-        # değil, platformdirs'in log dizininde. _run()'ın alt süreci
-        # os.environ.copy()'den başladığı için (XDG_*/HOME değişmiyor),
-        # log_dir()'in BURADA (aynı makine, aynı ortam) çözdüğü yol, alt
-        # sürecin gerçekte yazdığı yolla aynı olmalı.
+
         crash_log = os.path.join(log_dir(), "crash.log")
         with open(crash_log, encoding="utf-8") as f:
             tail = f.read()[-2000:]
@@ -191,9 +179,9 @@ class WorkingDirectoryIndependenceTest(unittest.TestCase):
             completed = _run(
                 """
                 import os
-                # realpath: Windows'ta %TEMP% 8.3 kısa biçimde gelebiliyor
-                # (or. RUNNER~1 gibi) ve ebeveyn surecteki uzun bicimle
-                # metin olarak eşleşmiyordu. İki taraf da aynı biçime çekilir.
+
+
+
                 before = os.path.realpath(os.getcwd())
                 import main
                 after = os.path.realpath(os.getcwd())
@@ -205,8 +193,8 @@ class WorkingDirectoryIndependenceTest(unittest.TestCase):
                 strip_display=True,
             )
         self.assertEqual(completed.returncode, 0, msg=completed.stderr)
-        # normcase: Windows'ta sürücü harfi/ayraç büyük-küçük farkı eşleşmeyi
-        # bozmasın (POSIX'te normcase kimlik fonksiyonudur, etkisi yok).
+
+
         stdout = os.path.normcase(completed.stdout)
         self.assertIn(
             os.path.normcase(f"BEFORE={os.path.realpath(wrong_cwd)}"), stdout)

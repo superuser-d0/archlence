@@ -25,10 +25,8 @@ def fetch_top_100_cryptos(callback):
             return
 
         url = "https://api.coingecko.com/api/v3/coins/markets"
-        # `str | int`: sözlük her ikisini karıştırıyor ve annotation olmadan
-        # `dict[str, object]` çıkarılıyor — `requests` bunu kabul etmiyor.
-        # En dar doğru tip bu; `object`/`Any` ile genişletmek çağrının
-        # gerçekten ne gönderdiğini gizlerdi.
+
+
         params: dict[str, str | int] = {
             "vs_currency": "usd",
             "order": "market_cap_desc",
@@ -36,7 +34,7 @@ def fetch_top_100_cryptos(callback):
             "page": 1,
             "sparkline": "false"
         }
-        
+
         try:
             # User-Agent is added to prevent simple blocks from Cloudflare
             headers = {
@@ -45,7 +43,7 @@ def fetch_top_100_cryptos(callback):
             response = requests.get(url, params=params, headers=headers, timeout=10)
             response.raise_for_status()
             data = response.json()
-            
+
             cryptos = []
             for item in data:
                 cryptos.append({
@@ -54,7 +52,7 @@ def fetch_top_100_cryptos(callback):
                     "price": item.get("current_price", 0.0),
                     "image": item.get("image", "")
                 })
-                
+
             _crypto_cache["data"] = cryptos
             _crypto_cache["timestamp"] = now
             callback(cryptos)

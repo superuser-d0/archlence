@@ -96,22 +96,7 @@ _asset_data_cache: _AssetDataCache = {
 _warmup_lock = threading.Lock()
 _warmup_generation = 0
 
-# Bakiyeye dokunan bir yazım oldu ama snapshot henüz tazelenmedi mi?
-#
-# NEDEN: `render_accounts` hız için hiç SQL çalıştırmaz, yalnızca
-# `_asset_data_cache`ten çizer. Bu, yazan her akışın snapshot'ı elle
-# tazelemesini şart koşuyordu ve akışların ÇOĞU bunu yapmıyordu: yalnızca işlem
-# ekleme (transaction_mixin) ve kart silme (invalidate_asset_data_cache) doğru
-# davranıyordu. Hesap ekleme, kart borcu ödeme, birikim hedefine para atma ve
-# otomatik ödeme talimatları bakiyeyi DB'de değiştirip ekranda ESKİ değeri
-# bırakıyordu — kullanıcının gördüğü "hesap ekledim, toplam güncellendi ama
-# listedeki bakiye eski" hatası buydu. (Ana sayfadaki toplam tutarlı
-# görünüyordu çünkü o `_compute_dashboard_metrics` ile her seferinde DB'den
-# taze okunuyor; liste ise RAM'den geliyordu — sayılar değil, OKUMA YOLLARI
-# ayrışmıştı.)
-#
-# Çözüm tek tek çağrı noktalarına tazeleme eklemek değil (unutulmaya devam
-# ederdi): yazan taraf bayrağı DÜŞÜRÜR, okuyan taraf gerekiyorsa tazeler.
+
 _account_cache_stale = False
 _financial_data_revision = 0
 
@@ -172,9 +157,8 @@ def invalidate_asset_data_cache(deleted_account_id=None, deleted_card_debt=0.0):
     """Eski worker'ı iptal edip snapshot'tan silinen kartı atomik çıkarır."""
     global _asset_data_cache, _warmup_generation, _account_cache_stale
     global _financial_data_revision
-    # Snapshot burada zaten cerrahi olarak yeniden kuruluyor; bayrağı düşürmek
-    # `render_accounts`'ın üstüne bir de tam tazeleme yapmasını önler (silme
-    # yolundaki solma animasyonu bu cerrahi güncellemeye bağlı).
+
+
     _account_cache_stale = False
     _financial_data_revision += 1
     with _warmup_lock:
@@ -199,16 +183,8 @@ def invalidate_asset_data_cache(deleted_account_id=None, deleted_card_debt=0.0):
             recent_raw = previous.get("recent")
             recent_dict = recent_raw if isinstance(recent_raw, dict) else {}
             recent = dict(recent_dict)
-            # ANAHTAR TİPİ: `str(account_id)` DEĞİL. Üretici
-            # `recent[account["id"]]` ile yazıyor ve `id` sqlite3'ten int
-            # geliyor; string anahtar hiçbir zaman eşleşmiyordu, yani silinen
-            # hesabın işlemleri snapshot'ta kalıyordu.
-            #
-            # Bugün ekrana yanlış bir şey çizilmiyor: hesap aynı işlemde
-            # `accounts` listesinden de çıkıyor ve arayüz yalnız o listeyi
-            # dolaşıyor. Sorun, snapshot'ın profili artık tarif etmeyen bir
-            # durum taşıması — ve `recent` bir gün `accounts`'tan bağımsız
-            # okunursa bunun sessiz kalmaması.
+
+
             recent.pop(account_id, None)
             _asset_data_cache = {
                 "summary": summary,
@@ -246,7 +222,7 @@ def start_data_warmup(callback=None):
             _asset_data_cache["accounts"] = accounts
             _asset_data_cache["recent"] = recent
             _asset_data_cache["active_assets_result"] = result
-            # Son alan olarak yazılır; UI yalnız eksiksiz snapshot görür.
+
             _asset_data_cache["ready"] = True
         if callback:
             from kivy.clock import Clock
@@ -262,26 +238,23 @@ def start_data_warmup(callback=None):
             for account in accounts:
                 if account["account_type"] == "credit_card" or account.get("has_card_number", False):
                     recent[account["id"]] = TransactionService.get_recent_for_account(account["id"], limit=3)
-            
+
             def on_non_try(res):
                 publish(summary, accounts, recent, res)
 
             fetch_active_non_try_total(on_non_try)
-        # BİLEREK GENİŞ (incelendi, daraltılmayacak): aşağıdaki yorumun
-        # gerekçesi tam da budur — bu blok, ne olursa olsun bir terminal
-        # snapshot yayımlanmasını GARANTİ eder. Daraltmak, listelenmeyen bir
-        # hata türünde `publish` çağrısının hiç yapılmaması ve arayüzün
-        # sonsuza kadar spinner'da kalması demek olurdu.
+
+
         except Exception as e:
             _log().error("Data warm-up failed: %s", e, exc_info=True)
-            # Hata durumunda da terminal snapshot yayımlanır; UI spinner/polling
-            # döngüsünde sonsuza dek kalmaz.
+
+
             publish(
                 {"cash": 0, "card_debt": 0, "net": 0}, [], {},
                 {"total": 0.0, "asset_count": 0, "priced_count": 0,
                  "cached_count": 0, "complete": True, "error": str(e)},
             )
-            
+
     threading.Thread(target=worker, daemon=True).start()
 
 
@@ -292,7 +265,7 @@ def refresh_account_cache_snapshot():
     böylece eski açılış snapshot'ını değil yeni DB durumunu görür.
     """
     global _asset_data_cache, _account_cache_stale
-    # Taze snapshot yazılıyor: bekleyen bayat işareti varsa düşer.
+
     _account_cache_stale = False
     from services.account_service import AccountService
     from services.transaction_service import TransactionService
@@ -320,8 +293,7 @@ def refresh_account_cache_snapshot():
         }
     return _asset_data_cache
 
-# USD/TRY kuru için modül seviyesinde, kısa ömürlü önbellek — Altın/Kripto
-# fiyatlarını her seferinde ayrı bir yfinance isteğiyle çevirmemek için.
+
 class _RateCache(TypedDict):
     """Kur/fiyat önbelleği — `None` olabilen DEĞER ile her zaman sayı olan
     ZAMAN damgasını ayrı tutar.
@@ -341,13 +313,11 @@ class _PriceCache(TypedDict):
 
 
 _usdtry_cache: _RateCache = {"rate": None, "time": 0.0}
-_USDTRY_CACHE_TTL = 300  # 5 dakika — uygulamadaki diğer fiyat önbellekleriyle tutarlı
+_USDTRY_CACHE_TTL = 300
 
-# Fiziksel altın türleri için gerçek bir yfinance sembolü yok; bu dahili
-# sembollerin fiyatı gram altın (GC=F) fiyatının standart piyasa çarpanıyla
-# türetilir (ör. Çeyrek Altın ≈ 1,75 gram karşılığı).
+
 GOLD_TYPE_MULTIPLIERS = {
-    "GOLD-ONS": GRAMS_PER_TROY_OUNCE,  # 1 ons = ~31.10 gram karşılığı
+    "GOLD-ONS": GRAMS_PER_TROY_OUNCE,
     "GOLD-CEYREK": 1.75,
     "GOLD-YARIM": 3.5,
     "GOLD-TAM": 7.0,
@@ -376,7 +346,7 @@ def _fetch_usdtry_rate() -> float | None:
                 return rate
     except Exception:
         _log().exception("USD/TRY kuru çekilemedi")
-    return _usdtry_cache["rate"]  # varsa bayat değeri döndür, yoksa None
+    return _usdtry_cache["rate"]
 
 
 def _normalize_to_try(raw_price: float, asset_type: str) -> float | None:
@@ -394,45 +364,41 @@ def _normalize_to_try(raw_price: float, asset_type: str) -> float | None:
     return raw_price * usdtry  # Kripto
 
 
-# ─── Sembol normalleştirme & aday oluşturma ────────────────────────────────────
-
 def get_ticker_candidates(asset_code: str, asset_type: str) -> list:
     """Kullanıcının girdiği kod için olası Yahoo Finance sembollerini döndürür."""
     code = asset_code.strip().upper()
     candidates = []
-    
+
     if asset_type == "Hisse":
         if not code.endswith(".IS") and "." not in code:
-            candidates.append(f"{code}.IS") # Önce BIST
+            candidates.append(f"{code}.IS")
             candidates.append(code)         # Sonra Amerikan vb.
         else:
             candidates.append(code)
-            
+
     elif asset_type == "Altın":
         if code in ["ALTIN", "GOLD", "GRAM", "XAU", "GLD"]:
             candidates.extend(["GC=F", "XAUUSD=X"])
         else:
             candidates.append(code)
-            
+
     elif asset_type == "Döviz":
         if len(code) == 3:
             candidates.extend([f"{code}TRY=X", f"{code}USD=X"])
         if not code.endswith("=X"):
             candidates.append(f"{code}=X")
         candidates.append(code)
-        
+
     elif asset_type in ["Kripto", "Crypto"]:
         if "-" not in code:
             candidates.append(f"{code}-USD")
         candidates.append(code)
-        
+
     else:
         candidates.append(code)
-        
+
     return candidates
 
-
-# ─── Tek bir varlık için canlı fiyat çek ─────────────────────────────────────
 
 def _fetch_gold_gram_price_try() -> float | None:
     """Güncel gram altın (GC=F) fiyatını ₺ cinsinden döndürür; 5 dakika
@@ -447,7 +413,7 @@ def _fetch_gold_gram_price_try() -> float | None:
         _gold_gram_cache["price"] = price
         _gold_gram_cache["time"] = now
         return price
-    return _gold_gram_cache["price"]  # varsa bayat değeri döndür, yoksa None
+    return _gold_gram_cache["price"]
 
 
 def fetch_current_price(asset_code: str, asset_type: str) -> float | None:
@@ -470,7 +436,7 @@ def fetch_current_price(asset_code: str, asset_type: str) -> float | None:
     import yfinance as yf
     import logging
 
-    # yfinance ve önbellek kütüphanelerinin stderr loglarını tamamen sustur
+
     logging.getLogger("yfinance").setLevel(logging.CRITICAL)
     logging.getLogger("requests_cache").setLevel(logging.CRITICAL)
     logging.getLogger("urllib3").setLevel(logging.CRITICAL)
@@ -488,15 +454,8 @@ def fetch_current_price(asset_code: str, asset_type: str) -> float | None:
                         return _normalize_to_try(price, "Altın" if asset_type == "Altın" else "Kripto")
                     return price
         except Exception as exc:
-            # EXCEPTION-AUDIT: bilinçli geniş — yfinance + requests +
-            # pandas, üç ayrı üçüncü parti yüzeyi tek blokta.
-            # BİLEREK geniş: tek blokta üç ayrı üçüncü parti yüzeyi var —
-            # yfinance'in `YFException` ailesi, altındaki requests/OSError ve
-            # üstündeki pandas indeksleme. Kümeyi eksik yazmak, kütüphane
-            # sürümü değişince aday-deneme döngüsünü sessizce kırar.
-            # Sessiz `pass` yerine debug'a düşürüldü: aday sembollerin
-            # ELENMESİ normal akış, hata değil — ama fiyat hiç bulunamadığında
-            # nedenin izi kalmalı.
+
+
             _log().debug(
                 "%s için '%s' adayı fiyat vermedi: %r",
                 asset_code, ticker_sym, exc)
@@ -504,10 +463,6 @@ def fetch_current_price(asset_code: str, asset_type: str) -> float | None:
     return None
 
 
-
-# ─── BIST 100 toplu fiyat çekme (hisse seçim listesi için) ───────────────────
-
-# BIST kodu olmayan istisnalar → doğrudan Yahoo Finance sembolü
 _BIST_SYMBOL_OVERRIDES = {"USDTR": "USDTRY=X"}
 
 
@@ -546,10 +501,8 @@ def fetch_bist100_prices(codes: list, callback) -> None:
                     if not math.isnan(price) and not math.isinf(price):
                         prices[code] = price
                 except (KeyError, IndexError, TypeError, ValueError):
-                    # Ölçülen pandas yüzeyi: sembol satırda yoksa KeyError;
-                    # yf.download TEK ticker'da Series yerine skaler döndüğünde
-                    # IndexError ("invalid index to scalar variable");
-                    # hücre None ise TypeError; metin ("n/a") ise ValueError.
+
+
                     pass
         except Exception as e:
             _log().error("BIST100 fiyat çekme hatası: %s", e, exc_info=True)
@@ -594,13 +547,8 @@ def calculate_pnl(current_price: float, purchase_price: float, quantity: float) 
         purchase = decimal_from(purchase_price)
         units = decimal_from(quantity)
     except (ValueError, TypeError):
-        # Sonlu olmayan ya da sayı olmayan girdi. Eskiden bu yol sessizce
-        # `nan`/`inf` DÖNDÜRÜYORDU — üstelik `nan` için "başabaş", `inf` için
-        # "kâr" diyerek; ikisi de ekrana ve `total +=` toplamalarına sızıyordu.
-        # Fırlatmak da doğru değil: iki çağıran da bu çağrıyı korumasız bir
-        # döngüde yapıyor, yani tek bozuk satır TÜM portföy yüklemesini
-        # düşürürdü. Çağıranların fiyatlanamayan varlık için zaten ürettiği
-        # ve işlediği biçim döndürülüyor.
+
+
         return {
             "pnl_amount": None, "pnl_pct": None,
             "total_value": None, "total_cost": None,
@@ -614,9 +562,7 @@ def calculate_pnl(current_price: float, purchase_price: float, quantity: float) 
         ((current - purchase) / purchase) * 100 if purchase > 0 else Decimal("0")
     )
 
-    # Karar HAM orandan veriliyor, yuvarlanmışından değil: %0,004 kâr eden bir
-    # varlık "başabaş" görünmemeli. `test_signal_comes_from_the_unrounded_ratio`
-    # bunu kilitliyor.
+
     if pnl_ratio > 0:
         signal = "profit"
     elif pnl_ratio < 0:
@@ -633,14 +579,12 @@ def calculate_pnl(current_price: float, purchase_price: float, quantity: float) 
     }
 
 
-# ─── Renk kodlaması (KivyMD rgba) ────────────────────────────────────────────
-
 PNL_COLORS = {
-    "profit":    [0.08, 0.86, 0.29, 1],   # yeşil
-    "loss":      [0.95, 0.22, 0.22, 1],   # kırmızı
-    "breakeven": [0.99, 0.86, 0.02, 1],   # sarı
+    "profit":    [0.08, 0.86, 0.29, 1],
+    "loss":      [0.95, 0.22, 0.22, 1],
+    "breakeven": [0.99, 0.86, 0.02, 1],
     "pending":   [0.65, 0.65, 0.65, 1],   # gri (veri bekleniyor)
-    "error":     [0.9, 0.2, 0.2, 1],      # kırmızı (bağlantı hatası)
+    "error":     [0.9, 0.2, 0.2, 1],
 }
 
 
@@ -710,8 +654,6 @@ def _store_cached_portfolio(enriched):
         conn.close()
 
 
-# ─── Tüm portföy için toplu fiyat çekme (threading destekli) ─────────────────
-
 def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                                 cache_callback=None, force_refresh=False) -> None:
     """
@@ -753,10 +695,8 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
             try:
                 env = dict(os.environ)
                 env["ARCHLENCE_ASSET_PRICE_CHILD"] = "1"
-                # cwd=proje kökü ŞART: `-m services.asset_price_worker` modülü
-                # bulmak için proje kökünün sys.path'te olmasını ister. Uygulama
-                # başka bir dizinden başlatılırsa (ya da paketlenmişse) alt süreç
-                # ModuleNotFoundError ile ölüyordu — DEVNULL bunu gizliyordu.
+
+
                 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
                 proc = subprocess.run(
                     [sys.executable, "-m", "services.asset_price_worker", output_path],
@@ -764,8 +704,8 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                     stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                     timeout=70, check=False, env=env, cwd=project_root,
                 )
-                # Sessiz ölümü artık logluyoruz: dönüş kodu 0 değilse veya
-                # stderr doluysa neden görünür olsun (eskiden hiç iz kalmıyordu).
+
+
                 if proc.returncode != 0:
                     _log().error(
                         "Fiyat worker'ı hata kodu %s ile döndü: %s",
@@ -785,10 +725,8 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                 if enriched:
                     _store_cached_portfolio(enriched)
                 callback(enriched)
-            # EXCEPTION-AUDIT: bilinçli geniş — izole alt süreç sınırı.
-            # BİLEREK GENİŞ (incelendi): izole alt süreç sınırı. Aşağıdaki
-            # `callback(stale or [])`'in HER durumda çalışması gerekiyor;
-            # daraltmak, arayüzün sonuç beklerken asılı kalmasına yol açar.
+
+
             except Exception as exc:
                 _log().error("İzole fiyat worker hatası: %s", exc, exc_info=True)
                 callback(stale or [])
@@ -821,10 +759,7 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
         logging.getLogger("requests_cache").setLevel(logging.CRITICAL)
         logging.getLogger("urllib3").setLevel(logging.CRITICAL)
 
-        # Her varlık için toplu indirmede kullanılacak tek yfinance sembolünü
-        # belirle (get_ticker_candidates'ın ilk/en olası adayı). GOLD-* dahili
-        # sembollerin gerçek bir ticker'ı yok — id -> None ile işaretlenir,
-        # bunun yerine GC=F'nin (varsa) toplu isteğe dahil edilmesi sağlanır.
+
         ticker_by_id: dict[int, str | None] = {}
         needs_gold_gram = False
         for asset in assets:
@@ -864,7 +799,7 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                 return None
             return price
 
-        raw_prices = {}  # yfinance sembolü -> ham kapanış fiyatı (USD veya doğrudan ₺)
+        raw_prices = {}
         if unique_tickers:
             try:
                 if len(unique_tickers) == 1:
@@ -886,19 +821,12 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                         price = _last_close(close_df, sym)
                         if price is not None:
                             raw_prices[sym] = price
-            # BİLEREK GENİŞ (incelendi): tek blokta ÜÇ farklı üçüncü parti
-            # yüzeyi var — yfinance (kendi `YFException` ailesi), altında
-            # requests (OSError ailesi) ve pandas indeksleme (`data["Close"]`,
-            # `_last_close`: KeyError/IndexError/TypeError, bozuk frame'de
-            # AttributeError). Bu kümeyi eksik yazmak, şu an nazikçe bozulup
-            # boş fiyatla devam eden yolu thread ölümüne çevirir; kütüphane
-            # sürümü değiştiğinde de sessizce kırılır. Hata zaten loglanıyor
-            # ve akış eksik fiyatlarla güvenle sürüyor.
+
+
             except Exception as e:
                 _log().error("Portföy fiyat çekme hatası: %s", e, exc_info=True)
 
-        # Gram altın (₺) fiyatı: toplu istekten geldiyse onu kullan (ve
-        # önbelleğe yaz), gelmediyse tekil/önbellek yedeğine düş.
+
         gram_gold_try = None
         if "GC=F" in raw_prices:
             gram_gold_try = _normalize_to_try(raw_prices["GC=F"], "Altın")
@@ -918,13 +846,8 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                 if gram_gold_try is not None:
                     current_price = gram_gold_try * GOLD_TYPE_MULTIPLIERS[code]
             else:
-                # AYRI İSİM: yukarıdaki `sym` toplu indirmede kullanılan
-                # ticker dizesi ve asla None olmuyor; buradaki arama ise
-                # None dönebiliyor (GOLD-* dahili sembollerin gerçek bir
-                # ticker'ı yok, `ticker_by_id` onları None ile işaretliyor).
-                # Aynı adı iki farklı sözleşme için kullanmak, tip
-                # denetleyicinin de gösterdiği gibi, ikisini karıştırmayı
-                # kolaylaştırıyordu.
+
+
                 asset_ticker = ticker_by_id.get(asset["id"])
                 raw = raw_prices.get(asset_ticker) if asset_ticker else None
                 if raw is not None:
@@ -958,8 +881,8 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
         try:
             _worker_impl()
         except Exception as exc:
-            # Import, bozuk satır veya beklenmeyen matematik hatası dahil her
-            # durumda UI'ın loading durumunu kapatacak final callback gönderilir.
+
+
             _log().error(
                 "Portföy fiyatlandırma tamamlanamadı: %s", exc, exc_info=True)
             fallback = _error_entries()
@@ -968,13 +891,8 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
                     try:
                         item_callback(entry)
                     except Exception:
-                        # EXCEPTION-AUDIT: bilinçli geniş — garantili
-                        # tamamlanma sınırı (hata dalının kendisi).
-                        # BİLEREK geniş: burası zaten HATA dalı. Tek amacı
-                        # aşağıdaki final `callback(fallback)`'e ulaşmak —
-                        # tek bir satırın callback'i patlarsa arayüz sonsuza
-                        # kadar spinner'da kalır. Daraltmanın kazancı burada
-                        # zararına dönüşür.
+
+
                         pass
             try:
                 callback(fallback)
@@ -985,11 +903,6 @@ def fetch_portfolio_with_prices(assets: list, callback, item_callback=None,
     threading.Thread(target=_worker, daemon=True).start()
 
 
-# ─── Hesaplarım Bento özeti ──────────────────────────────────────────────────
-
-# Bare kripto sembolü → CoinGecko coin id. Depoda kod çoğu zaman yfinance
-# biçiminde ('BTC-USD') tutulduğu için eşleştirmeden ÖNCE alıntı eki
-# (-USD/-USDT/-TRY …) soyulur; bkz. _coingecko_id_for.
 COINGECKO_IDS = {
     "BTC": "bitcoin", "ETH": "ethereum", "ETC": "ethereum-classic",
     "USDT": "tether", "USDC": "usd-coin", "BNB": "binancecoin",
@@ -1003,7 +916,7 @@ COINGECKO_IDS = {
 _PRICE_TIMEOUT = (3.05, 8.0)
 _PRICE_CACHE_TABLE = "asset_price_cache"
 
-# Kripto kodundan CoinGecko id çözerken soyulacak alıntı/karşı-para ekleri.
+
 _CRYPTO_QUOTE_SUFFIXES = ("-USDTRY", "-USDT", "-USDC", "-BUSD", "-USD", "-TRY", "-EUR")
 
 
@@ -1055,9 +968,8 @@ def get_active_non_try_assets() -> list:
 
     conn = get_connection()
     try:
-        # Fonksiyonlu filtre normal asset_code indeksini kullanamaz. Aynı WHERE
-        # ifadesine sahip partial index, TL dışı aktif portföy taramasını id
-        # sırasından doğrudan karşılar.
+
+
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_active_assets_non_try
                 ON active_assets(id DESC)
@@ -1078,8 +990,8 @@ def get_active_non_try_assets() -> list:
             quantity = float(decrypt(row["quantity"], SECRET_KEY))
             purchase_price = float(decrypt(row["purchase_price"], SECRET_KEY))
         except KeyUnavailableError:
-            # Anahtar yoksa TÜM varlıklar etkilenir; satır bazında yutmak
-            # toplam arızayı boş portföy gibi gösterirdi.
+
+
             raise
         except (DecryptionError, ValueError, TypeError) as e:
             _log().error(
@@ -1153,7 +1065,7 @@ def _fetch_live_try_prices(assets: list[dict]) -> dict[str, float]:
     prices: dict[str, float] = {}
     errors = []
 
-    # ── Kripto: tam kod → CoinGecko coin id (alıntı eki soyularak) ──
+
     crypto_ids = {}
     for asset in assets:
         code = (asset.get("asset_code") or "").strip().upper()
@@ -1170,8 +1082,8 @@ def _fetch_live_try_prices(assets: list[dict]) -> dict[str, float]:
             response.raise_for_status()
             payload = response.json()
             for full_code, coin_id in crypto_ids.items():
-                # Sonluluk sınaması: `float("inf") > 0` True'dur
-                # (bkz. services/price_guard.py).
+
+
                 price = finite_positive_price(
                     payload.get(coin_id, {}).get("try"))
                 if price is not None:
@@ -1179,8 +1091,7 @@ def _fetch_live_try_prices(assets: list[dict]) -> dict[str, float]:
         except (requests.RequestException, ValueError, TypeError) as exc:
             errors.append(exc)
 
-    # ── Döviz: tam kod → 3 harfli baz (USDTRY=X → USD). Frankfurter TRY→baz
-    #    kurunu verir; 1 birim dövizin TL değeri = 1 / (TRY başına baz). ──
+
     fiat_bases = {}
     for asset in assets:
         if asset.get("asset_type") not in ("Döviz", "Forex"):
@@ -1239,11 +1150,8 @@ def fetch_active_non_try_total(callback, progress_callback=None) -> None:
         try:
             assets = get_active_non_try_assets()
         except (sqlite3.Error, OSError, ArchlenceError) as exc:
-            # `get_active_non_try_assets` yalnızca DB okur ve çözer: sorgu
-            # hataları sqlite3.Error, veri dizini erişimi OSError, anahtar/
-            # şifre çözme sorunları ArchlenceError türevi (KeyUnavailableError,
-            # DecryptionError) — bunlar satır içindeki (ValueError, TypeError)
-            # korumasına TAKILMAZ, buraya kadar gelir.
+
+
             _log().exception("TL dışı varlık listesi okunamadı")
             callback({"total": 0.0, "asset_count": 0, "priced_count": 0,
                       "cached_count": 0, "complete": True, "error": str(exc)})
@@ -1254,7 +1162,7 @@ def fetch_active_non_try_total(callback, progress_callback=None) -> None:
                       "cached_count": 0, "complete": True})
             return
 
-        # UI hiçbir ağ isteğini beklemeden 0 TL şablonunu gösterebilir.
+
         if progress_callback is not None:
             progress_callback({
                 "total": 0.0, "asset_count": len(assets), "priced_count": 0,
@@ -1273,14 +1181,10 @@ def fetch_active_non_try_total(callback, progress_callback=None) -> None:
             for asset in assets
         ]
         prices = get_cached_prices(symbol for symbol, _kind in requested)
-        # Tek çağrı bütün vadesi dolmuş sembolleri bir batch worker'a toplar.
+
         fetch_prices_async(requested, callback=None)
-        # Toplam Decimal'de birikiyor. Eskiden her pozisyon
-        # `float(quantity) * float(price)` ile çarpılıp float bir akümülatöre
-        # ekleniyordu; çarpım yuvarlama sınırına düştüğünde ikili gösterim
-        # yarım kuruşu yutuyordu — 15 kripto x 0,045 TL tam olarak 0,675 eder
-        # ama ekranda 0,67 görünüyordu. Uydurma bir sınır değil: miktar ve
-        # fiyat, uygulamanın kendi hassasiyet politikası içinde.
+
+
         total = Decimal("0")
         priced_count = 0
         for asset in assets:
@@ -1291,19 +1195,16 @@ def fetch_active_non_try_total(callback, progress_callback=None) -> None:
             try:
                 value = decimal_from(asset["quantity"]) * decimal_from(price)
             except (ValueError, TypeError):
-                # Sonlu olmayan miktar/fiyat. Fırlatmak bu döngüyü ve onunla
-                # birlikte ARKA PLAN THREAD'İNİ düşürürdü; callback hiç
-                # çağrılmaz ve arayüz sonsuza kadar bekler. Fiyatlanamayan
-                # varlıkla aynı muamele: sayılmadan atlanıyor.
+
+
                 _log().warning(
                     "[VERİ BÜTÜNLÜĞÜ] %s toplama alınamadı: miktar=%r fiyat=%r",
                     symbol, asset.get("quantity"), price,
                 )
                 continue
             priced_count += 1
-            # Pozisyon başına ERKEN yuvarlama YOK: `fiat(value)` toplamak,
-            # her varlığın ayrı ayrı kuruşlandığı anlamına gelirdi ve böyle
-            # bir iş kuralı yok. Kesinlik sonda, çıktı sınırında daraltılıyor.
+
+
             total += value
             if progress_callback is not None:
                 progress_callback({

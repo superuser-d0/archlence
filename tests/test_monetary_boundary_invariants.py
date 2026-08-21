@@ -37,8 +37,7 @@ from tests.test_connection_ownership_contract import connection_ledger
 
 NON_FINITE = (float("nan"), float("inf"), float("-inf"))
 
-# Durumu okunan tablolar: bir reddin GERÇEKTEN hiçbir şey yazmadığını
-# göstermek için tek tek sayılırlar.
+
 STATE_TABLES = (
     "accounts", "transactions", "balance_events", "active_assets",
     "recurring_payments", "recurring_operation_markers", "savings_goals",
@@ -65,7 +64,7 @@ def no_connection_opened_inside_a_transaction():
                 if existing.in_transaction:
                     violations.append(existing)
             except sqlite3.ProgrammingError:
-                continue  # kapanmış bağlantı
+                continue
         conn = real_connect(*args, **kwargs)
         live.append(conn)
         return conn
@@ -196,14 +195,14 @@ class NonFiniteRejectionMatrix(_MonetaryProfile):
                 process_due_recurring_payment(dict(self.payment, amount=v))),
             ("db.insert_debt/total", lambda v: insert_debt("D", v, 10.0, 12)),
             ("db.insert_debt/monthly", lambda v: insert_debt("D2", 100.0, v, 12)),
-            # Üretim yolu `create_purchase`; bu yardımcı yine de aynı
-            # sözleşmeye tabi, çünkü aynı iki sütuna yazıyor.
+
+
             ("db.insert_asset/price", lambda v:
                 insert_asset("A", "A", "Altın", v, 1.0)),
             ("db.insert_asset/quantity", lambda v:
                 insert_asset("A", "A", "Altın", 1.0, v)),
-            # Bütçe planı: para tutan tablolar içinde servis sınırından
-            # geçmeyen son yoldu; SQL arayüz karışımında duruyordu.
+
+
             ("budget.save_plan_item", lambda v:
                 save_plan_item(
                     item_type="expense", name="Market", amount=v,
@@ -371,7 +370,7 @@ class LedgerReferenceInvariant(_MonetaryProfile):
         from database.db import ACCOUNT
         from database.init_db import initialize_database
 
-        # Açılış olayını sil: göç, eksik açılış çizgisini yeniden kurar.
+
         conn = sqlite3.connect(self.db_path)
         try:
             conn.execute("DELETE FROM balance_events WHERE source='account_opened'")

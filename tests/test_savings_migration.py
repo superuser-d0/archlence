@@ -142,7 +142,7 @@ class _MigrationProfile(unittest.TestCase):
             "Vadesiz", "checking", initial_balance=5000.0
         )
 
-    # ── yardımcılar ──────────────────────────────────────────────────────
+
     def write_json(self, goals):
         self.json_path.write_text(
             json.dumps({"goals": {"data": goals}}, ensure_ascii=False),
@@ -318,7 +318,7 @@ class MatchingProfileTest(_MigrationProfile):
         self._blank_legacy_fields(self.goal_id)
         self.write_json([{
             "id": self.goal_id, "name": "Araba Fonu", "target": 20000.0,
-            "current": 999999.0,  # JSON tutarı YOK SAYILMALI
+            "current": 999999.0,
             "color": "red", "auto_deposit": True, "created_at": "2025-12-01",
         }])
         result = self.migrate()
@@ -563,7 +563,7 @@ class FailureInjectionTest(_MigrationProfile):
                 except injected:
                     pass
 
-                # Yeniden koşum: eksik ne kaldıysa tamamlamalı.
+
                 self.migrate()
 
                 goals = self.by_name()

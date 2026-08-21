@@ -9,14 +9,14 @@ from ui.i18n import EN, get_language, set_language, tr
 
 class I18nTestCase(unittest.TestCase):
     def tearDown(self):
-        set_language("tr")
+        set_language("en")
 
     def test_language_fallback_and_switch(self):
         self.assertEqual(set_language("en"), "en")
         self.assertEqual(tr("Ayarlar"), "Settings")
         self.assertEqual(tr("Bilinmeyen metin"), "Bilinmeyen metin")
-        self.assertEqual(set_language("unsupported"), "tr")
-        self.assertEqual(get_language(), "tr")
+        self.assertEqual(set_language("unsupported"), "en")
+        self.assertEqual(get_language(), "en")
 
     def test_dynamic_ui_sentences_are_translated(self):
         """Dinamik cümleler artık ŞABLONDAN kuruluyor.
@@ -39,11 +39,8 @@ class I18nTestCase(unittest.TestCase):
         )
         self.assertEqual(tr("Maaş"), "Salary")
 
-    def test_what_if_labels_have_real_turkish_translations(self):
+    def test_retired_locale_codes_fall_back_to_english(self):
         set_language("tr")
-        self.assertEqual(tr("What-If\nSandbox"), "Varsayım\nAlanı")
-        self.assertEqual(tr("What-If Sandbox"), "Varsayım Alanı")
-        set_language("en")
         self.assertEqual(tr("What-If\nSandbox"), "What-If\nSandbox")
         self.assertEqual(tr("What-If Sandbox"), "What-If Sandbox")
 
@@ -73,7 +70,7 @@ class I18nTestCase(unittest.TestCase):
         # Sabit etiketler TAM ANAHTAR olarak duruyor.
         self.assertEqual(tr("Değişim (Bugün)"), "Change (Today)")
         self.assertEqual(tr("Nakit / Vadesiz"), "Cash / Checking")
-        # Sayı taşıyan cümle ise şablon + parametre.
+
         self.assertEqual(
             trf("{count} TL dışı varlık • Canlı değer", count=3),
             "3 non-TRY assets • Live value",

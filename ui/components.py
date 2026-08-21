@@ -50,7 +50,7 @@ class _WheelPassthroughMixin:
     """
 
     def on_scroll_start(self, touch, check_children=True):
-        # Önce çocuklar denensin; iç içe kaydırma sırası bozulmasın.
+
         if check_children:
             touch.push()
             touch.apply_transform_2d(self.to_local)
@@ -68,7 +68,7 @@ class _WheelPassthroughMixin:
         button = touch.button
         if button not in ("scrollup", "scrolldown"):
             return True
-        # Çarpışma dışındaki durumları taban sınıf kendi defterine yazsın.
+
         if not self.collide_point(*touch.pos):
             return True
         viewport = self._viewport
@@ -76,7 +76,7 @@ class _WheelPassthroughMixin:
             return False
         if viewport.height <= self.height:
             return False
-        # Sınırda kalan yön de ebeveyne devredilir.
+
         if button == "scrolldown" and self.scroll_y >= 1:
             return False
         if button == "scrollup" and self.scroll_y <= 0:
@@ -199,8 +199,8 @@ class SubscriptionRow(RecycleDataViewBehavior, MDCard):
     renewal_text = StringProperty("")
     icon_source = StringProperty("")
     is_income = BooleanProperty(False)
-    # Düzenle/Kaldır diyalogları ham kaydı ister (id, tutar, sıklık...).
-    # Satır geri dönüştürüldüğünde bu referans da tazelenir.
+
+
     payment = ObjectProperty(allownone=True)
 
     def refresh_view_attrs(self, rv, index, data):
@@ -221,8 +221,8 @@ class SubscriptionRow(RecycleDataViewBehavior, MDCard):
             from kivymd.uix.fitimage import FitImage
             slot.add_widget(FitImage(
                 source=self.icon_source,
-                # Servis tüm kabul edilen kaynakları 128px'e normalize eder;
-                # mipmap burada 32dp'ye küçültme kalitesini iyileştirir.
+
+
                 mipmap=True,
                 radius=[dp(16)] * 4,
                 size_hint=(None, None),
@@ -274,14 +274,14 @@ class RightButtonsContainer(IRightBodyTouch, MDBoxLayout):
     """Liste öğelerinin sağ tarafında hizalanan buton grubunu (düzenle/sil) tutan taşıyıcı bileşen."""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Sabit genişlik şart: adaptive_width açık kalırsa KivyMD, liste öğesi
-        # ilk çizildiğinde container'ı 0 genişliğe daraltıp butonları gizliyor.
+
+
         self.adaptive_width = False
         self.size_hint_x = None
         self.width = dp(120)
         self.spacing = dp(8)
-        # Sağdan 24dp boşluk: silme (çöp kutusu) butonu ekran kenarına yapışmasın
-        # ve liste öğesinin kendi dokunma alanıyla çakışmasın diye.
+
+
         self.padding = [0, 0, dp(24), 0]
 
 
@@ -448,7 +448,7 @@ Builder.load_string('''
     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
     line_color: ftheme.card_line(app.theme_cls.theme_style)
 
-    # Üst Kısım: Siyah Grafik Kart
+
     MDFloatLayout:
         size_hint_y: None
         height: "170dp"
@@ -501,7 +501,7 @@ Builder.load_string('''
             halign: "left"
             adaptive_height: True
 
-        # Sabit en-boy oranı ile Visa/Mastercard Logosu
+
         Image:
             source: root.network_logo if root.network_logo else "assets/blank.png"
             opacity: 1 if root.network_logo else 0
@@ -511,7 +511,7 @@ Builder.load_string('''
             size: "40dp", "24dp"
             pos_hint: {"right": 0.92, "y": 0.12}
 
-    # Orta Kısım: Başlık ve Rozet
+
     MDBoxLayout:
         size_hint_y: None
         height: "30dp"
@@ -541,7 +541,7 @@ Builder.load_string('''
             theme_text_color: "Secondary"
             on_release: app.open_card_settings(self, root.account_id)
 
-    # Limit / Borç Bilgileri
+
     MDBoxLayout:
         size_hint_y: None
         height: "40dp"
@@ -666,7 +666,7 @@ Builder.load_string('''
         size_hint_y: None
         height: "16dp"
 
-    # AccountMixin._fill_card_recent dolduruyor (tarih · açıklama · tutar).
+
     MDBoxLayout:
         id: recent_container
         orientation: "vertical"
@@ -894,7 +894,7 @@ Builder.load_string('''
         size_hint_y: None
         height: "16dp"
 
-    # AccountMixin._fill_card_recent dolduruyor (tarih · açıklama · tutar).
+
     MDBoxLayout:
         id: recent_container
         orientation: "vertical"
@@ -940,8 +940,8 @@ Builder.load_string('''
 
 <ActiveAssetsBentoWidget>:
     size_hint_y: None
-    # 16dp padding (üst+alt) + 88dp metin bloğu = 120dp; içerik tam sığar,
-    # taşma/preslenme olmadan dikeyde ortalanır.
+
+
     height: "120dp"
     padding: "16dp"
     spacing: "14dp"
@@ -952,7 +952,7 @@ Builder.load_string('''
     md_bg_color: ftheme.tint_bg(app.theme_cls.theme_style, 'green')
     line_color: ftheme.card_line(app.theme_cls.theme_style)
 
-    # Simge kartı: satırın dikey merkezine sabitlenir.
+
     MDCard:
         size_hint: None, None
         size: "52dp", "52dp"
@@ -961,10 +961,10 @@ Builder.load_string('''
         elevation: 0
         md_bg_color: ftheme.elevated_bg(app.theme_cls.theme_style)
 
-        # MDIcon kendi boyutunu texture'a (~27dp) sabitler ve dikey MDCard
-        # (BoxLayout) içinde tek çocuk olarak sol-alta düşer — simge tepside
-        # 'yamuk' görünürdü. AnchorLayout tepsiyi doldurup glyph'i her iki
-        # eksende kusursuz merkezler.
+
+
+
+
         AnchorLayout:
             anchor_x: "center"
             anchor_y: "center"
@@ -977,9 +977,9 @@ Builder.load_string('''
                 text_color: ftheme.accent(app.theme_cls.theme_style, 'green')
                 font_size: "27sp"
 
-    # Metin bloğu da tam olarak simge ile AYNI eksende (center_y: 0.5)
-    # ortalanır; böylece cüzdan simgesi metin bloğunun dikey merkeziyle
-    # kusursuz hizalanır (eskiden blok yukarı yaslıydı, simge düşük görünüyordu).
+
+
+
     MDBoxLayout:
         orientation: "vertical"
         spacing: "2dp"
@@ -1096,15 +1096,15 @@ Builder.load_string('''
         size_hint_y: None
         height: "22dp"
 
-# ── Premium Birikim Hedefi Kartı ────────────────────────────────────────────
-# Aktif temaya uyumlu premium yüzey; Light'ta beyaz, Dark'ta gece yüzeyi.
-# Bütün metin/ikon/buton boyutları sabit veya adaptive — yatay yamulma yok.
+
+
+
 <SavingsGoalCard>:
     size_hint_x: 1
     adaptive_height: True
     padding: 0
-    # Flat banking UI: açık temada kirli halo oluşturan KivyMD gölgesi yok.
-    # Ayrım Light Mode'da aşağıdaki ince card_line ile sağlanır.
+
+
     elevation: 0
     radius: [dp(20)]
     md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
@@ -1118,7 +1118,7 @@ Builder.load_string('''
         radius: [dp(20)]
         md_bg_color: ftheme.card_bg(app.theme_cls.theme_style)
 
-        # ── Başlık: ikon + hedef adı (sola yaslı, keskin) + yüzde ──
+
         MDBoxLayout:
             orientation: "horizontal"
             size_hint_y: None
@@ -1169,7 +1169,7 @@ Builder.load_string('''
                 pos_hint: {"center_y": 0.5}
                 on_release: app.open_delete_savings_goal_dialog(root.goal_index, root)
 
-        # ── İlerleme çubuğu: value = biriken/hedef * 100 ──
+
         MDProgressBar:
             value: root.progress
             max: 100
@@ -1177,7 +1177,7 @@ Builder.load_string('''
             size_hint_y: None
             height: "6dp"
 
-        # ── Durum / tahmini süre (sönük, tek satır) ──
+
         MDLabel:
             text: root.status_text
             font_style: "Caption"
@@ -1189,7 +1189,7 @@ Builder.load_string('''
             size_hint_y: None
             height: "18dp"
 
-        # ── Tutarlar: Toplanan (sol) | Hedef (sağ) ──
+
         MDBoxLayout:
             orientation: "horizontal"
             size_hint_y: None
@@ -1223,7 +1223,7 @@ Builder.load_string('''
                     bold: True
                     halign: "right"
 
-        # ── Tek, sağa yaslı, tema-primary 'Biriktir' butonu ──
+
         AnchorLayout:
             anchor_x: "right"
             anchor_y: "center"
@@ -1240,9 +1240,9 @@ Builder.load_string('''
                 text_color: ftheme.on_primary(app.theme_cls.theme_style)
                 on_release: app.add_funds_to_goal(root.goal_index)
 
-# ── Mini Kart Önizlemesi (işlem formunda seçili ödeme yöntemi) ───────────────
-# Kartlarım estetiğinin küçültülmüş prototipi: koyu yüzey, sol ikon tepsisi,
-# ad + son 4 hane, sağda Güncel Limit/Bakiye. Salt bilgilendirme amaçlıdır.
+
+
+
 <MiniCardPreviewWidget>:
     size_hint_y: None
     height: "74dp"
@@ -1302,7 +1302,7 @@ Builder.load_string('''
             size_hint_y: None
             height: "18dp"
 
-    # Sağ: Güncel Limit / Güncel Bakiye
+
     MDBoxLayout:
         orientation: "vertical"
         spacing: "2dp"
@@ -1337,7 +1337,7 @@ class MiniCardPreviewWidget(MDCard):
     info_label = StringProperty("Güncel Bakiye")
     info_value = StringProperty("₺0,00")
     icon = StringProperty("credit-card-outline")
-    # Kredi kartı için teal, vadesiz hesap için yeşil vurgular (mixin atar).
+
     accent_color = ColorProperty((0.30, 0.80, 0.75, 1))
 
 class SavingsGoalCard(MDCard):
@@ -1394,11 +1394,3 @@ class BentoAccountWidget(MDCard):
 class ActiveAssetsBentoWidget(MDCard):
     balance = StringProperty("Hesaplanıyor…")
     status_text = StringProperty("Canlı portföy değeri yükleniyor")
-
-
-# NOT: Buradaki `HorizontalStripScrollView` kaldırıldı; işini dosyanın
-# başındaki `PassthroughScrollView` devraldı (aynı kapı, daha geniş kapsam —
-# yalnız "Kartlarım" şeridi değil, kart içindeki bütün listeler). Yatay şerit
-# için davranış birebir aynı: dikey kaydırma yapmayan bir ScrollView dikey
-# tekerleği sahiplenmez, `False` döner ve olay sayfaya kalır. Sürükleme yolu
-# hâlâ `scroll_type: ["bars"]` ile kapatılıyor (bkz. ui/dashboard.kv).

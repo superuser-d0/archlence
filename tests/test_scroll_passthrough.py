@@ -55,7 +55,7 @@ class _Finger:
 class WheelPassthrough(unittest.TestCase):
 
     def test_content_fits_gives_wheel_to_parent(self):
-        # Boş/kısa liste: 200dp içerik, 300dp kutu.
+
         scroller = _FakeScroller(viewport_height=200, height=300)
         for button in ("scrollup", "scrolldown"):
             with self.subTest(button=button):
@@ -68,7 +68,7 @@ class WheelPassthrough(unittest.TestCase):
                 self.assertTrue(scroller._wheel_can_scroll(_Wheel(button)))
 
     def test_boundary_direction_goes_to_parent(self):
-        # Tepedeyken yukarı, dipteyken aşağı: yön ebeveyne devredilir.
+
         at_top = _FakeScroller(viewport_height=900, height=300, scroll_y=1.0)
         self.assertFalse(at_top._wheel_can_scroll(_Wheel("scrolldown")))
         self.assertTrue(at_top._wheel_can_scroll(_Wheel("scrollup")))
@@ -87,8 +87,8 @@ class WheelPassthrough(unittest.TestCase):
         )
 
     def test_non_wheel_and_non_colliding_touches_reach_the_base_class(self):
-        # Parmak/sürükleme dokunuşu ile kutu dışındaki tekerlek, taban sınıfın
-        # kendi defterini tutabilmesi için erken dönüşle kesilmemeli.
+
+
         scroller = _FakeScroller(viewport_height=200, height=300)
         self.assertTrue(scroller._wheel_can_scroll(_Finger()))
 

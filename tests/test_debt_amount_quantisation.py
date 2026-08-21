@@ -60,8 +60,7 @@ class DebtAmountQuantisationTest(unittest.TestCase):
         monthly = _annuity_payment(100_000.0, 3.29, months)
         total = monthly * months
 
-        # Girdinin gerçekten ham olduğunu doğrula — yoksa test bir şey
-        # kanıtlamaz ve sessizce anlamsızlaşır.
+
         self.assertGreater(
             len(str(monthly).split(".")[1]), 2,
             "Hesaplanan taksit zaten yuvarlanmışsa vaka geçersiz",
@@ -72,7 +71,7 @@ class DebtAmountQuantisationTest(unittest.TestCase):
 
         self.assertEqual(stored_monthly, Decimal("5493.32"))
         self.assertEqual(stored_total, Decimal("197759.52"))
-        # Ondalık basamak sayısı da kuruşu aşmamalı.
+
         self.assertLessEqual(-stored_monthly.as_tuple().exponent, 2)
         self.assertLessEqual(-stored_total.as_tuple().exponent, 2)
 

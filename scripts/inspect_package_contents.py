@@ -22,7 +22,8 @@ FORBIDDEN_PARTS = {
 }
 TEXT_PATTERNS = {
     "developer-home": re.compile(
-        rb"/home/cem|\\\\Users\\\\cem|Documents[/\\\\]archlence",
+        rb"/home/[^/\x00]{1,64}/|\\\\Users\\\\[^\\\x00]{1,64}\\\\|"
+        rb"Documents[/\\\\]archlence",
         re.IGNORECASE,
     ),
     "private-key": re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
@@ -39,9 +40,8 @@ def inspect_files(files):
             findings.append(f"forbidden-name:{name}")
         if lowered & FORBIDDEN_PARTS:
             findings.append(f"development-content:{name}")
-        # PyInstaller Python kaynaklarını PYZ/bytecode içine koyar; yalnız metin
-        # uzantılarına bakmak geliştirici yolunu veya token'ı ikili içinde
-        # kaçırır. Bütün dosyaları byte deseniyle tara.
+        # PyInstaller stores Python sources in PYZ/bytecode. Scan every file as
+        # bytes so developer paths and tokens cannot hide inside binaries.
         if len(content) <= 100_000_000:
             for label, pattern in TEXT_PATTERNS.items():
                 if pattern.search(content):
@@ -74,8 +74,7 @@ def main():
     else:
         files = [(target.name, target.read_bytes())]
     findings = inspect_files(files)
-    # Windows runner stdout'u bazı imajlarda cp1252'dir; kalite kapısının
-    # kendi durum metni yüzünden çökmesini önlemek için CLI çıktısı ASCII.
+    # Some Windows runners use cp1252 stdout. Keep gate output ASCII-safe.
     print(f"Inspected files: {len(files)}")
     if findings:
         print("\n".join(findings))

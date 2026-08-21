@@ -84,7 +84,7 @@ class SchemaVersionMarkerTest(_TempProfile):
         from database.init_db import initialize_database
 
         initialize_database()
-        initialize_database()  # aynı işaretle ikinci açılış
+        initialize_database()
 
     def test_marker_is_not_written_when_setup_fails_midway(self):
         """Yarım kalan kurulum kendini "tamamlandı" diye işaretlemez."""
@@ -195,11 +195,7 @@ class UserMessageIsSafeTest(unittest.TestCase):
             def open(self):
                 captured["opened"] = True
 
-        # DİYALOG ARTIK ERTELENİYOR. `build()` içinde senkron açmak,
-        # açılmasına rağmen ekrana hiç çizilmemesi demekti: Kivy `build()`
-        # dönmeden `runTouchApp()`'i çağırmıyor, yani olay döngüsü henüz
-        # başlamamış oluyor. Sözleşmenin ölçülen kısmı aynı — sunucuya
-        # exception metni değil SABİT metin gidiyor mu.
+
         scheduled = []
 
         class _App:
@@ -235,7 +231,7 @@ class UserMessageIsSafeTest(unittest.TestCase):
             )
             self.assertIsNotNone(root, "güvenli root dönmedi")
             self.assertEqual(len(scheduled), 1, "diyalog ertelenmedi")
-            scheduled[0]()  # olay döngüsünün ilk karesini taklit et
+            scheduled[0]()
 
         self.assertEqual(captured["text"], SCHEMA_TOO_NEW_MESSAGE)
         self.assertTrue(captured["opened"])

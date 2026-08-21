@@ -83,7 +83,7 @@ class BackupPackageLimitTest(unittest.TestCase):
             config_path=str(self.config_path),
         )
 
-    # ── yardımcılar ──────────────────────────────────────────────────────
+
     def _valid_members(self):
         with zipfile.ZipFile(self.package) as archive:
             return {name: archive.read(name) for name in archive.namelist()}
@@ -119,7 +119,7 @@ class BackupPackageLimitTest(unittest.TestCase):
             safety_backup_path=self.safety,
         )
 
-    # ── 1. sıkıştırma oranı / boyut sınırları ────────────────────────────
+
     def test_zip_bomb_is_rejected_before_the_payload_reaches_disk(self):
         members = self._valid_members()
         members["finance.db"] = b"\0" * (8 * 1024 * 1024)
@@ -181,7 +181,7 @@ class BackupPackageLimitTest(unittest.TestCase):
                 clone.header_offset = info.header_offset
                 clone.CRC = info.CRC
                 clone.compress_size = info.compress_size
-                # YALAN: gerçek boyut 4 MiB üzeri, başlık 64 bayt diyor.
+
                 clone.file_size = min(info.file_size, 64)
                 infos.append(clone)
             return infos
@@ -190,7 +190,7 @@ class BackupPackageLimitTest(unittest.TestCase):
             with self.assertRaises(IntegrityVerificationError):
                 verify_backup(self.hostile, self.PASSPHRASE)
 
-    # ── 2. üye kümesi ve yol güvenliği ───────────────────────────────────
+
     def test_unexpected_member_is_rejected(self):
         members = self._valid_members()
         members["notlar.txt"] = b"merhaba"
@@ -235,7 +235,7 @@ class BackupPackageLimitTest(unittest.TestCase):
     def test_symlink_member_is_rejected(self):
         members = self._valid_members()
         info = zipfile.ZipInfo("config.json")
-        # S_IFLNK | 0777 — ZIP'in sembolik bağ gösterimi.
+
         info.external_attr = (0o120777 << 16)
         info.create_system = 3
         members["config.json"] = (info, b"/etc/passwd")
@@ -257,7 +257,7 @@ class BackupPackageLimitTest(unittest.TestCase):
         with self.assertRaises(IntegrityVerificationError):
             verify_backup(self.hostile, self.PASSPHRASE)
 
-    # ── 3. restore: tek açma, dokunulmamış profil ────────────────────────
+
     def test_restore_stages_the_incoming_package_only_once(self):
         opens = []
         real_init = zipfile.ZipFile.__init__
@@ -348,7 +348,7 @@ class _SizeSpy:
 def _flip_encryption_bit(path, member_name):
     """Merkezi dizindeki ve yerel başlıktaki 'şifreli' bayrağını açar."""
     raw = bytearray(path.read_bytes())
-    # Yerel dosya başlığı: PK\x03\x04, genel amaç bayrağı ofset 6'da.
+
     cursor = 0
     while True:
         cursor = raw.find(b"PK\x03\x04", cursor)
@@ -360,7 +360,7 @@ def _flip_encryption_bit(path, member_name):
             flags = struct.unpack_from("<H", raw, cursor + 6)[0]
             struct.pack_into("<H", raw, cursor + 6, flags | 0x1)
         cursor += 4
-    # Merkezi dizin başlığı: PK\x01\x02, genel amaç bayrağı ofset 8'de.
+
     cursor = 0
     while True:
         cursor = raw.find(b"PK\x01\x02", cursor)

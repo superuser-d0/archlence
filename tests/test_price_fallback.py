@@ -21,7 +21,7 @@ from zoneinfo import ZoneInfo
 
 
 ISTANBUL = ZoneInfo("Europe/Istanbul")
-# Hafta içi, BIST açık — TTL'in "piyasa kapalı" dalına düşmemek için.
+
 WEEKDAY_NOON = datetime(2026, 7, 22, 12, 0, tzinfo=ISTANBUL)
 
 
@@ -53,7 +53,6 @@ class PriceFallbackTest(unittest.TestCase):
         self.db_patch.stop()
         os.unlink(self.db_path)
 
-    # ── Sağlayıcı birimleri ─────────────────────────────────────────────
 
     def test_coingecko_fallback_returns_usd_not_try(self):
         """KRİTİK: CoinGecko TRY de verebilir, ama yfinance USD veriyor.
@@ -91,7 +90,7 @@ class PriceFallbackTest(unittest.TestCase):
             out = price_providers.fetch_fallback_prices(["THYAO.IS", "GC=F"])
 
         self.assertEqual(out, {})
-        get.assert_not_called()  # kapsam dışıysa ağa hiç çıkma
+        get.assert_not_called()
 
     def test_one_provider_failing_does_not_block_the_other(self):
         from services import price_providers
@@ -107,9 +106,8 @@ class PriceFallbackTest(unittest.TestCase):
                 ["BTC-USD", "USDTRY=X"])
 
         self.assertNotIn("BTC-USD", out)
-        self.assertIn("USDTRY=X", out)  # kısmi sonuç > hiç sonuç
+        self.assertIn("USDTRY=X", out)
 
-    # ── price_service ile bütünleşme ────────────────────────────────────
 
     def _fetch(self, symbols, yahoo_result, fallback_result):
         """Çekimi çalıştırır ve sonucu CACHE'ten okur.
@@ -142,7 +140,7 @@ class PriceFallbackTest(unittest.TestCase):
             yahoo_result={"USDTRY=X": 40.0},          # kripto YOK
             fallback_result={"BTC-USD": (95_000.0, "CoinGecko")},
         )
-        # 95_000 USD × 40 TL/USD — çevrim matematiği değişmeden çalışmalı.
+
         self.assertAlmostEqual(prices["BTC"], 3_800_000.0)
 
     def test_usdtry_fallback_rescues_crypto_conversion(self):
@@ -183,7 +181,7 @@ class PriceFallbackTest(unittest.TestCase):
         )
         status = price_service.get_price_status(
             "BTC", "CRYPTO", now=WEEKDAY_NOON)
-        # Fiyat İKİ ticker'ın çarpımı; ikisi farklı sağlayıcıdan geldi.
+
         self.assertEqual(status.source, "CoinGecko + Yahoo Finance")
 
     def test_status_stays_yahoo_when_yahoo_answered(self):
@@ -206,11 +204,7 @@ class PriceFallbackTest(unittest.TestCase):
         sütunun eklenmesi mevcut veriyi kaybetmemeli."""
         from services import price_service
 
-        # Sütunu düşürüp sürüm-öncesi durumu birebir kur.
-        # `closing()` ŞART: `with sqlite3.connect(...)` yalnızca işlemi
-        # yönetir, bağlantıyı KAPATMAZ. Açık kalan bağlantı Windows'ta
-        # tearDown'daki `os.unlink`i WinError 32 ile düşürür (Linux açık
-        # dosyanın silinmesine izin verdiği için yerelde fark edilmiyordu).
+
         with closing(sqlite3.connect(self.db_path)) as conn:
             conn.execute("DROP TABLE IF EXISTS asset_price_cache")
             conn.execute("""
@@ -230,7 +224,7 @@ class PriceFallbackTest(unittest.TestCase):
         status = price_service.get_price_status(
             "ASELS", "STOCK", now=WEEKDAY_NOON)
         self.assertEqual(status.source, "Yahoo Finance")
-        self.assertIsNotNone(status.price)  # veri kaybolmadı
+        self.assertIsNotNone(status.price)
 
         with closing(sqlite3.connect(self.db_path)) as conn:
             columns = {

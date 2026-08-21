@@ -45,7 +45,6 @@ class SubscriptionFlowTest(AccountFixtureMixin, unittest.TestCase):
         self._patcher.stop()
         os.unlink(self.db_path)
 
-    # ─── Yardımcılar ─────────────────────────────────────────────────────────
 
     def _add_subscription(self, name="Netflix", amount=149.99,
                           frequency="monthly", due=None, day=15):
@@ -68,7 +67,6 @@ class SubscriptionFlowTest(AccountFixtureMixin, unittest.TestCase):
         from database.db import get_active_recurring_payments
         return {p["name"] for p in get_active_recurring_payments()}
 
-    # ─── Kalıcı iptal ────────────────────────────────────────────────────────
 
     def test_cancel_deactivates_without_deleting_row(self):
         """Kalıcı iptal: aktif listeden çıkar ama satır korunur.
@@ -95,7 +93,6 @@ class SubscriptionFlowTest(AccountFixtureMixin, unittest.TestCase):
         from services.recurring_service import cancel_subscription
         self.assertFalse(cancel_subscription(9999))
 
-    # ─── Sadece bu ay (bir dönem atla) ───────────────────────────────────────
 
     def test_skip_advances_due_date_and_keeps_subscription_active(self):
         """'Sadece bu ay için sil': gelecek aylar kaybedilmez."""
@@ -122,7 +119,6 @@ class SubscriptionFlowTest(AccountFixtureMixin, unittest.TestCase):
         cancel_subscription(payment["id"])
         self.assertIsNone(skip_next_occurrence(payment["id"]))
 
-    # ─── Zam / fiyat düzenleme (spec 5.2) ────────────────────────────────────
 
     def test_amount_can_be_edited_without_recreating(self):
         from database.db import get_active_recurring_payments
@@ -146,7 +142,6 @@ class SubscriptionFlowTest(AccountFixtureMixin, unittest.TestCase):
         with self.assertRaises(ValueError):
             update_subscription_amount(payment["id"], 0)
 
-    # ─── İade (spec 3.2) ─────────────────────────────────────────────────────
 
     def test_refund_returns_this_months_charge_to_balance(self):
         from database.db import process_due_recurring_payment

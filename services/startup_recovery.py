@@ -44,42 +44,12 @@ class StartupRecoveryError(DataMigrationError):
         self.outcome = outcome
 
 
-# Kullanıcıya gösterilecek metin. Journal içeriği, dosya yolu, anahtar veya
-# finansal veri İÇERMEZ — kurtarma hatası mesajı bir sızıntı yüzeyi olmamalı.
 USER_MESSAGE = (
     "Önceki bir geri yükleme işlemi yarıda kalmış ve otomatik olarak "
     "onarılamadı. Verileriniz olduğu gibi korundu; hiçbir dosyanın üzerine "
     "yazılmadı. Devam etmeden önce yedekleme/kurtarma belgelerine bakın."
 )
 
-
-# ── AÇILIŞ HATASI YÜZEYİ ─────────────────────────────────────────────────────
-# Üç açılış hatası (kurtarma, şema kuşağı, veri bütünlüğü) TEK bir yüzeyi
-# paylaşır.
-#
-# ÖLÇÜLEN KUSUR: bu üç yol `MDDialog.open()` çağırıp sonra istisnayı yeniden
-# fırlatıyordu. Kivy'nin `App.run()` sırası şu:
-#
-#     _run_prepare()      -> self.build() çağrılır, root Window'a eklenir
-#     runTouchApp()       -> OLAY DÖNGÜSÜ burada başlar
-#
-# `build()` fırlatınca `_run_prepare` yarıda kalır ve `runTouchApp()`'e HİÇ
-# ulaşılmaz. Gerçek Kivy penceresiyle ölçüldü:
-#
-#     build() istisna firlatti mi : FinancialDataIntegrityError
-#     runTouchApp CAGRILDI MI     : False
-#     app.root                    : None
-#     MDDialog.open() cagrildi mi : ['Veritabanı doğrulanamadı']
-#
-# Yani diyalog nesnesi oluşturuluyor ve `open()` çağrılıyor — bir mock-call
-# testi bunu YEŞİL görürdü — ama olay döngüsü hiç başlamadığı için ekrana
-# tek bir piksel çizilmiyor. Kullanıcının gördüğü şey bir traceback.
-#
-# YENİ SÖZLEŞME: `build()` fırlatmaz. Minimal ve güvenli bir root DÖNDÜRÜR;
-# mesaj o root'un kendisinde yazılıdır (olay döngüsü başlar başlamaz
-# görünür) ve ayrıca ilk karede bir diyalog açılır. Uygulama bu noktadan
-# sonra normal kullanıma DEVAM EDEMEZ: `on_start` erken çıkar, hiçbir
-# finansal ekran ve veri yükleme yolu çalışmaz.
 
 RECOVERY_FAILURE_TITLE = "Geri yükleme tamamlanamadı"
 SCHEMA_TOO_NEW_TITLE = "Veritabanı bu sürümden yeni"
@@ -97,16 +67,7 @@ def build_startup_failure_root(title, message):
     from kivy.uix.boxlayout import BoxLayout
     from kivy.uix.label import Label
 
-    # DÜZ KIVY WIDGET'LARI, KivyMD DEĞİL — bilinçli. KivyMD widget'ları
-    # kurulurken `App.get_running_app().theme_cls`'e bakar ve tema makinesi
-    # `build()` içinde hatanın oluştuğu noktada henüz hazır olmayabilir
-    # (kurtarma hatası config okunmadan ÖNCE oluşuyor).
-    #
-    # `dp()`/`sp()` DE KULLANILMIYOR: ikisi de Kivy'nin metrik/pencere
-    # başlatmasına bağlı ve pencere kurulamadıysa `dpi2px` `TypeError`
-    # fırlatıyor. Bu yüzeyin tek işi "bir şeyler bozuldu" demek; bozulduğunu
-    # bildirdiği makineye bağımlı olmamalı. Bedeli, ölçünün DPI ile
-    # ölçeklenmemesi — bir mesaj ekranı için kabul edilebilir.
+
     root = BoxLayout(orientation="vertical", padding=32, spacing=16)
 
     heading = Label(
@@ -211,7 +172,7 @@ def run_startup_recovery(db_path=None, *, config_path=None):
             outcome=RecoveryOutcome.MANUAL_INTERVENTION_REQUIRED,
         ) from exc
     except OSError as exc:
-        # Geri alma sırasındaki dosya sistemi hatası da fail-closed.
+
         raise StartupRecoveryError(
             USER_MESSAGE,
             outcome=RecoveryOutcome.MANUAL_INTERVENTION_REQUIRED,

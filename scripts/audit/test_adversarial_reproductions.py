@@ -219,12 +219,7 @@ class RecurringIdempotencyReproduction(_TemporaryProfile):
         self.assertFalse(degraded["amount_is_valid"])
         from database.db import process_due_recurring_payment
 
-        # v0.0.9'un non-finite/geçersiz tutar reddi (998584e) bozuk zarfı
-        # `FinancialDataIntegrityError`'dan ÖNCE, servis sınırında ValueError
-        # ile reddediyor. Beklenen tip genişletildi: önemli olan hangi tipin
-        # fırlatıldığı değil, işlemin FAIL-CLOSED olması ve vadeyi
-        # ilerletmemesi. Tip daraltması testin gerçek değişmezi kaçırmasına
-        # yol açıyordu (ERROR olarak düşüyordu).
+
         caught = None
         try:
             process_due_recurring_payment(degraded)
@@ -305,11 +300,7 @@ class CrossTransactionAtomicityReproduction(_TemporaryProfile):
 
                 before = self._asset_state(asset_id, account_id)
 
-                # HOOK'UN GERÇEKTEN TETİKLENDİĞİNİ SAY. Yalnızca son
-                # duruma bakmak yetmez: patch yanlış sembole bağlanırsa
-                # fault hiç çalışmaz, işlem normal tamamlanır ve test
-                # YANLIŞ SEBEPLE kırmızı/yeşil olur. Bu tam olarak bu
-                # dosyada bir kez yaşandı (bkz. bfb2b37).
+
                 fired = []
 
                 def _fault(point, _target=hook_point):

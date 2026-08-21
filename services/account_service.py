@@ -19,8 +19,7 @@ from utils.financial_decimal import fiat
 CHECKING = "checking"
 CREDIT_CARD = "credit_card"
 
-# UI'daki tür seçici bu iki değeri gösterir; anahtarlar DB'ye yazılan
-# account_type değerleridir, değerler kullanıcıya gösterilen Türkçe etiketlerdir.
+
 ACCOUNT_TYPE_LABELS = {
     CHECKING: "Nakit / Vadesiz",
     CREDIT_CARD: "Kredi Kartı",
@@ -86,7 +85,7 @@ class AccountService:
                 raise ValueError("Mevcut borç negatif olamaz.")
             if initial_balance > credit_limit:
                 raise ValueError("Mevcut borç, kart limitini aşamaz.")
-            # İşaretli konvansiyon: borç negatif bakiyedir.
+
             balance = -initial_balance
             legacy_type = "credit"
         else:
@@ -94,11 +93,8 @@ class AccountService:
             credit_limit = 0.0
             statement_date = None
             legacy_type = "bank"
-            
-        # Ham numara YALNIZCA türetim için tutulur, hiçbir zaman şifrelenip
-        # INSERT'e geçmez. Boş bırakılan/tanınmayan bir numara sessizce
-        # None'a düşer — arayüz zaten "**** **** **** 0000" göstermeye
-        # hazırdı, bu davranış değişmedi.
+
+
         masked_number = None
         network_logo = None
         if card_number_full:
@@ -143,7 +139,7 @@ class AccountService:
             return NETWORK_LOGOS.get("Troy", "")
         if num.startswith("4"):
             return NETWORK_LOGOS.get("Visa", "")
-        if num[0] in ("5", "2"):   # Mastercard 51-55 ve 2221-2720 aralıkları
+        if num[0] in ("5", "2"):
             return NETWORK_LOGOS.get("Mastercard", "")
         return ""
 
@@ -156,9 +152,7 @@ class AccountService:
         balance = float(row["balance"] or 0)
         credit_limit = float(row["credit_limit"] or 0)
 
-        # masked_number/network_logo hesap oluşturulduğu ANDA türetilip
-        # saklanır (bkz. create_account) — burada artık şifre çözme YOK,
-        # ham kart numarası zaten diskte hiç yok.
+
         has_masked_number = bool(
             "masked_number" in row.keys() and row["masked_number"]
         )
@@ -203,9 +197,8 @@ class AccountService:
             "network_logo": network_logo,
             "is_frozen": is_frozen,
             "online_payments_enabled": online_payments_enabled,
-            # Arayüz hangi kart widget'ını çizeceğine buna bakarak karar verir.
-            # Maskelenmiş metni ("**** **** **** 0000") karşılaştırmak kırılgandı:
-            # numarası gerçekten 0000 ile biten bir kart kartsız sanılırdı.
+
+
             "has_card_number": has_masked_number,
         }
 
@@ -299,8 +292,7 @@ class AccountService:
         finally:
             conn.close()
 
-        # render_accounts SQL okumaz; tercih bir sonraki çizimde geri
-        # dönmesin diye mevcut snapshot da aynı anda güncellenir.
+
         from services.asset_service import refresh_account_cache_snapshot
         refresh_account_cache_snapshot()
         return True
@@ -362,33 +354,24 @@ class AccountService:
         except (TypeError, ValueError) as exc:
             raise ValueError("Geçersiz tutar.") from exc
 
-        # `account_type` eski kayıtlarda boş olabiliyor; o zaman legacy `type`
-        # sütunu ('credit') tek göstergedir. Bu geri düşüş
-        # `transaction_service`'ten geldi ve korunuyor — kaldırılırsa eski bir
-        # kartta limit HİÇ uygulanmaz.
+
         account_type = row["account_type"] or (
             "credit_card" if row["type"] == "credit" else CHECKING
         )
         if account_type != CREDIT_CARD:
-            # Vadesizde gider kullanılabilir bakiyeyle sınırlı DEĞİL:
-            # kullanıcı bilerek hesabı eksiye düşürebilir.
+
+
             return
-        # Limit 0 = "belirlenmemiş", yasak değil. Migration'dan gelen eski kartlar
-        # credit_limit=0 ile geliyor; bunları limitsiz saymazsak kullanıcının
-        # mevcut kartından yapacağı HER harcama reddedilirdi.
+
+
         limit = fiat(row["credit_limit"] or 0)
         if limit <= 0:
             return
-        # Borç ham `balance` sütununun İŞARETLİ değerinden türetiliyor
-        # (bkz. adjust_account_balance); `available_limit` gibi türetilmiş bir
-        # alan get_account'a, yani AYRI bir bağlantıya ihtiyaç duyardı ve
-        # kontrolü tekrar transaction'ın dışına taşırdı.
+
+
         debt = fiat(max(0.0, -float(row["balance"] or 0)))
-        # Karşılaştırma kuruş hassasiyetinde. `amount` üretilmiş bir değer
-        # olabilir (varlık alımında fiyat x miktar gibi) ve bir kuruşun
-        # milyonda biri kadar aşan bir harcama, hata mesajında AYNI iki
-        # tutarı gösterip reddedilirdi: "kullanılabilir limit 1.000,00 ₺,
-        # harcama 1.000,00 ₺". Kullanıcının çözemeyeceği bir ret.
+
+
         if fiat(debt + amount) > limit:
             raise ValueError(
                 f"Limit yetersiz: kullanılabilir limit "
@@ -427,16 +410,8 @@ class AccountService:
     @staticmethod
     def pay_credit_card_debt(credit_card_id, source_account_id, amount):
         """Kredi kartı borcunu vadesiz hesaptan öder."""
-        # `float(amount)` + `amount <= 0` NaN'i GEÇİRİYORDU ve `amount > debt`
-        # de geçiriyor (`nan > x` False). Ölçüldü: NaN İLK SQL UPDATE'e kadar
-        # ulaşıyor, kaynak hesabın bakiyesini transaction İÇİNDE NULL'a
-        # çeviriyordu (SQLite NaN'i NULL olarak saklar); kalıcı bozulma
-        # olmuyordu çünkü ikinci UPDATE'in koşulu tutmayıp ValueError
-        # fırlatıyor ve commit'e ulaşılmadan bağlantı kapanıyordu. Yine de
-        # projenin sözleşmesi bu: sonlu olmayan tutar HİÇBİR yazmadan önce,
-        # servis sınırında reddedilir (bkz. scripts/audit/
-        # test_phase2_nonfinite_matrix.py). `fiat` ortak primitif; kuruşa
-        # yuvarlaması da doğru — ödenen para kuruşludur.
+
+
         try:
             amount = float(fiat(amount))
         except (TypeError, ValueError) as exc:
@@ -464,9 +439,7 @@ class AccountService:
         try:
             cursor = conn.cursor()
 
-            # Bakiyeler doğrulamadan sonra değişmiş olabilir. UPDATE koşulları
-            # işlemi atomik tutar ve kartı pozitif bakiyeye geçiren fazla ödemeyi
-            # engeller.
+
             cursor.execute(
                 "UPDATE accounts SET balance = balance - ?"
                 " WHERE id = ? AND account_type = ?",
@@ -482,18 +455,18 @@ class AccountService:
             )
             if cursor.rowcount != 1:
                 raise ValueError("Ödeme mevcut kart borcunu aşamaz.")
-            
-            # balance_events için history tetikle
+
+
             from database.db import record_balance_event, ACCOUNT
             cursor.execute("SELECT balance FROM accounts WHERE id = ?", (source_account_id,))
             new_source_balance = cursor.fetchone()["balance"]
             record_balance_event(cursor, ACCOUNT, source_account_id, -amount, new_source_balance, "card_payment")
-            
+
             cursor.execute("SELECT balance FROM accounts WHERE id = ?", (credit_card_id,))
             new_card_balance = cursor.fetchone()["balance"]
             record_balance_event(cursor, ACCOUNT, credit_card_id, amount, new_card_balance, "card_payment")
 
-            # İşlemi transactions tablosuna yaz
+
             from services.transaction_service import SECRET_KEY
             from utils.crypto import encrypt
             import datetime
@@ -501,15 +474,13 @@ class AccountService:
             enc_amount = encrypt(str(amount), SECRET_KEY)
             desc = f"{card['name']} Borç Ödemesi"
             enc_desc = encrypt(desc, SECRET_KEY)
-            
+
             cursor.execute("""
                 INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (source_account_id, enc_amount, "expense", "Borç Ödeme", enc_desc, date_now))
 
-            # Kartın kendi ekstresinde ödeme görünsün. "payment" tipi genel
-            # gelir metriklerine katılmaz; yalnızca kart hareketinde yeşil artı
-            # olarak sunulur.
+
             cursor.execute("""
                 INSERT INTO transactions (account_id, amount, type, category, description, transaction_date)
                 VALUES (?, ?, ?, ?, ?, ?)
@@ -534,8 +505,7 @@ class AccountService:
             if card is None:
                 raise ValueError("Kredi kartı bulunamadı.")
 
-            # Eski/minimal veritabanı şemalarında tablo bulunmayabilir. Güncel
-            # şemada mevcutsa silme aynı transaction'ın zorunlu parçasıdır.
+
             has_installment_table = cursor.execute(
                 """SELECT 1 FROM sqlite_master
                    WHERE type = 'table' AND name = 'installment_plans'"""
@@ -564,10 +534,8 @@ class AccountService:
             if cursor.rowcount != 1:
                 raise ValueError("Kredi kartı bulunamadı.")
             conn.commit()
-            # UI dışından yapılan servis çağrıları da mümkündür. Silme yolu
-            # balance_events'i bilinçli olarak kaldırdığı için normal
-            # record_balance_event choke point'inden geçmez; cache'i burada
-            # açıkça bayatlatmak zorundayız.
+
+
             from services.asset_service import mark_account_cache_stale
             mark_account_cache_stale()
         except Exception:

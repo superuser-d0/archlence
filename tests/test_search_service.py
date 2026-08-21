@@ -159,10 +159,8 @@ class SearchAgainstDatabaseTest(unittest.TestCase):
             "account_type TEXT)"
         )
         conn.execute("CREATE TABLE categories (name TEXT, type TEXT)")
-        # `search()` artık işlem açıklamalarına da bakıyor. Tablonun BURADA da
-        # olması gerekiyor ve bu doğru olan: gerçek şemada `transactions` her
-        # zaman var, servisin eksik tabloyu tolere etmesi gerçek bir şema
-        # sorununu gizlerdi.
+
+
         conn.execute(
             "CREATE TABLE transactions (id INTEGER PRIMARY KEY, "
             "account_id INTEGER, description TEXT, category TEXT, "

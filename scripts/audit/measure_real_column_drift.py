@@ -28,20 +28,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-# Docstring bu scripti `python scripts/audit/measure_real_column_drift.py` diye
-# çalıştırmayı söylüyor ama o yolla ÇALIŞMIYORDU: Python `sys.path[0]`'ı
-# scriptin kendi dizini (`scripts/audit`) yapıyor, depo kökü hiç girmiyor ve
-# `from utils...` `ModuleNotFoundError` veriyordu. `PYTHONPATH` elle
-# ayarlanmadan koşmayan bir tanı aracı, pratikte hiç koşmayan bir tanı aracıdır.
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from contextlib import closing
 from decimal import Decimal
 from pathlib import Path
 from unittest import mock
 
-# Türkçe çıktı Windows'ta süreci ÖLDÜRMESİN — stdout yönlendirildiğinde kod
-# sayfası cp1252'ye düşüyor ve 'ı' kodlanamıyor. Gerekçenin tamamı
-# run_tests.py'ın tepesinde.
+
 for _stream in (sys.stdout, sys.stderr):
     try:
         _stream.reconfigure(encoding="utf-8", errors="replace")
@@ -130,7 +124,7 @@ def measure_business_decisions():
 
         print("\n=== 4. Karar sinirlari (gercek servisler) ===")
 
-        # --- 4a. Vadesiz hesap: 10.000 x 0,01 birikimle tam 100,00 olmali
+
         account_id = AccountService.create_account("Drift", "checking",
                                                    initial_balance=0.0)
         with closing(get_connection()) as conn, conn:

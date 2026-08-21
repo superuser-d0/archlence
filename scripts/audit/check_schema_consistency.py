@@ -146,29 +146,14 @@ def _semantic_snapshot(db_path, decrypt, legacy_password):
 
 
 def _configure_isolated_home(profile):
-    # `ARCHLENCE_HOME` BİLEREK SET EDİLMİYOR.
-    #
-    # O değişkeni YALNIZCA güncel kod tanıyor (`app_paths.HOME_OVERRIDE_ENV`);
-    # v0.0.1-v0.0.8 bilmiyor. Set edildiğinde iki kuşak profilin FARKLI
-    # yerlerine bakıyordu: eski kod `$XDG_DATA_HOME/Archlence`, güncel kod
-    # `$ARCHLENCE_HOME/data`. Sonuç: eski worker anahtarı bir yere yazıyor,
-    # güncel worker onu bulamayıp YENİSİNİ üretiyor ve eski verinin AEAD
-    # etiketini doğrulayamıyor — "MAC check failed". Yani matris migration'ı
-    # değil, kendi kurduğu anahtar uyuşmazlığını ölçüyordu.
-    #
-    # XDG değişkenleri her iki kuşakta da geçerli; onlarla izolasyon tam ve
-    # iki taraf aynı dosyayı görüyor. Bu bir ÜRÜN hatası değil: gerçek bir
-    # kurulumda `ARCHLENCE_HOME` set edilmez ve her iki sürüm de
-    # `~/.local/share/Archlence` yolunu çözer.
+
+
     os.environ.pop("ARCHLENCE_HOME", None)
     os.environ["XDG_DATA_HOME"] = str(profile / "xdg-data")
     os.environ["XDG_CACHE_HOME"] = str(profile / "xdg-cache")
     os.environ["XDG_CONFIG_HOME"] = str(profile / "xdg-config")
-    # KIVY DA İZOLE EDİLMELİ. XDG dizinleri ayrılıyordu ama Kivy kendi
-    # durumunu `~/.kivy` altında tutuyor ve orası paylaşık kalıyordu: aynı
-    # profil için önce ESKİ sürümün kodu, sonra GÜNCEL kod çalışıyor, yani
-    # ikinci koşum birincinin yazdığı Kivy config'ini okuyor. Bu, izolasyon
-    # iddiasındaki gerçek bir boşluktu.
+
+
     os.environ["KIVY_HOME"] = str(profile / "kivy-home")
 
 
@@ -240,22 +225,8 @@ def _current_worker(args):
     first = _db_schema(db_path)
     initialize_database()
     second = _db_schema(db_path)
-    # UYGULAMA KATMANI GÖÇ ETMİŞ DB'YE KARŞI YÜKLENEBİLMELİ.
-    #
-    # Burada eskiden `import main` vardı, gerekçesi "GUI penceresi açmadan
-    # anlamlı olan başlangıç parçası" idi. Ampirik olarak DOĞRU DEĞİLDİ:
-    # `main` Kivy'yi import ediyor, Kivy import anında Window kuruyor ve
-    # ekransız bir runner'da sağlayıcı bulamayınca `sys.exit(1)` çağırıyor.
-    # Worker kendi hatasını üretemeden ölüyordu.
-    #
-    # `import main` bu kapıya ayrıca bir şey KATMIYORDU: modül ağacının
-    # import edilebilirliğini `tests/test_startup_import.py` zaten headless
-    # olarak, hem Linux hem Windows CI job'ında doğruluyor. Üstelik `main`
-    # import anında veritabanına dokunmuyor (şema kurulumu `build()` içinde),
-    # yani "göç etmiş DB'ye karşı import" ile düz import arasında fark yoktu.
-    #
-    # Bu kapı için ASIL anlamlı kontrol, veriye dokunan katmanın yüklenip
-    # göç etmiş şemaya karşı çalışabilmesi. O katman Kivy'siz.
+
+
     import importlib
 
     for module in (
@@ -273,9 +244,7 @@ def _current_worker(args):
     ):
         importlib.import_module(module)
 
-    # Kivy'nin HİÇ yüklenmediğini de sabitle: ileride servis katmanına bir
-    # GUI bağımlılığı sızarsa bu kapı yine ekran isteyecek duruma düşer ve
-    # aynı tur baştan başlar.
+
     if "kivy" in sys.modules:
         raise SystemExit(
             "Migration matrisi worker'ı Kivy yükledi; bu kapı GUI'siz "
@@ -304,29 +273,19 @@ def _subprocess(worker, code_root, db_path, profile, result):
         "--profile", str(profile),
         "--result", str(result),
     ]
-    # HEADLESS SÖZLEŞMESİ WORKER'A DA GEÇMELİ. `run_tests.py` bu dört
-    # değişkeni kendisi kuruyor; buradaki alt süreçler kurmuyordu ve CI'da
-    # Kivy'nin girdi sağlayıcı taraması `kivy.input.providers.mtdev`'i import
-    # edip `libmtdev.so.1` yükleyemeyince patlıyordu ("Couldn't connect to X
-    # server" da aynı kökten). Geliştirici makinesinde kütüphane ve X sunucusu
-    # var, o yüzden yalnızca CI'da görüldü.
+
+
     environment = {
         **os.environ,
         "KIVY_NO_ARGS": "1",
         "ARCHLENCE_HEADLESS": "1",
         "KIVY_WINDOW": "sdl2",
     }
-    # Kivy artık yüklenmiyor (bkz. `_current_worker`), ama uygulama kodunun
-    # herhangi bir yerinde bir GUI import'u kalırsa süreç en azından
-    # deterministik davransın diye headless sözleşmesi korunuyor.
+
+
     environment["SDL_VIDEODRIVER"] = "dummy"
-    # ANAHTAR SAĞLAYICISI DETERMİNİSTİK OLMALI. Linux'ta OS keyring varsa
-    # anahtar profil dizininde DEĞİL, kullanıcının keyring'inde tutuluyor —
-    # ve orada her iki worker da aynı anahtarı aldığı için yukarıdaki yol
-    # uyuşmazlığı geliştirici makinesinde GÖRÜNMÜYORDU; hata yalnız
-    # keyring'i olmayan runner'da çıkıyordu. D-Bus adresi kaldırılınca
-    # Secret Service devre dışı kalıyor ve harness her yerde aynı (dosya
-    # tabanlı) yolu izliyor.
+
+
     environment.pop("DBUS_SESSION_BUS_ADDRESS", None)
 
     completed = subprocess.run(
@@ -397,8 +356,8 @@ def _main(args):
     try:
         return _run_matrix(args, created_worktrees)
     finally:
-        # YALNIZCA bu koşumun kurduklarını kaldır. Önceden var olan bir
-        # worktree'yi silmek, geliştiricinin elle kurduğu ortamı bozardı.
+
+
         for worktree in created_worktrees:
             subprocess.run(
                 ["git", "worktree", "remove", "--force", str(worktree)],

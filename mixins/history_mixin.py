@@ -26,7 +26,6 @@ def _fmt(value):
     return f"₺{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-# Defterdeki teknik kaynak adlarının insan-okunur karşılıkları.
 _SOURCE_LABELS = {
     "transaction": "Gelir/gider işlemleri",
     "income": "Gelir işlemleri",
@@ -133,8 +132,7 @@ class HistoryMixin:
                 return
             Clock.schedule_once(lambda dt: self._render_history(content, result), 0)
 
-        # Dialog açılış animasyonunun ilk karelerini sorgu/decrypt işiyle
-        # yarıştırma; yükleme metni görünürken işi animasyon bitince başlat.
+
         Clock.schedule_once(
             lambda dt: threading.Thread(target=work, daemon=True).start(), 0.4
         )
@@ -146,11 +144,8 @@ class HistoryMixin:
         raporları (bu modülün kendi kullanımı) sınırsız kalır; sınırı yalnız
         işlem tarihi seçicisi kullanır (bkz. TransactionMixin).
         """
-        # Picker modülü import sırasında Window sağlayıcısı ister; uygulamanın
-        # headless import/test yolunu bozmamak için yalnız etkileşim anında yükle.
-        # Kivy 2.3.1 parser'ı Python 3.14'te kaldırılan ast.Str API'sini hâlâ
-        # kullanıyor; picker KV dosyaları ilk kez burada parse edildiği için
-        # eski AST sözleşmesini dar kapsamlı olarak geri sağla.
+
+
         import ast
         if not hasattr(ast, "Str"):
             ast.Str = ast.Constant
@@ -160,8 +155,8 @@ class HistoryMixin:
         picker_kwargs = {}
         if min_date is not None:
             picker_kwargs["min_date"] = min_date
-            # MDDatePicker, başlangıç tarihi min_date'in gerisindeyse açılışta
-            # tutarsız duruma düşer; başlangıcı sınıra çekiyoruz.
+
+
             if initial_date < min_date:
                 initial_date = min_date
         picker = MDDatePicker(
@@ -314,9 +309,8 @@ class HistoryMixin:
             change = result["balance_change"]
 
             if change is None:
-                # Defter istenen tarihten sonra başlamış: karşılaştırma noktası
-                # yok. "₺0 → ₺X" göstermek kullanıcıya o tarihte parası yokmuş
-                # gibi okunurdu; bunun yerine durumu açıkça söylüyoruz.
+
+
                 headline = MDLabel(
                     text=_fmt(result["balance_to"]),
                     font_style="H5",
@@ -385,7 +379,7 @@ class HistoryMixin:
                 container.add_widget(empty)
                 return
 
-            # En çok hareket ettiren kaynaktan aza doğru.
+
             ordered = sorted(by_source.items(), key=lambda kv: abs(kv[1]["delta"]),
                              reverse=True)
             for source, info in ordered[:5]:

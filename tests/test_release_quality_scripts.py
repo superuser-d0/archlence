@@ -15,7 +15,7 @@ class ReleaseQualityScriptsTest(unittest.TestCase):
     def test_package_scan_rejects_user_data_and_embedded_secrets(self):
         findings = inspect_files([
             ("finance.db", b""),
-            ("app.bin", b"/home/cem/Documents/archlence"),
+            ("app.bin", b"/home/example-user/Documents/archlence"),
             ("other.bin", b"ghp_" + b"A" * 40),
         ])
         self.assertTrue(any(item.startswith("forbidden-name:") for item in findings))

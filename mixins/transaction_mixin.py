@@ -22,11 +22,6 @@ def _fmt(value):
         return "₺0,00"
 
 
-#: Tekrarlayan işlem diyaloğunun sabit soru/açıklama çiftleri.
-#:
-#: KONTROLLÜ UYGULAMA METNİ — kullanıcı verisi değil; tam anahtarla
-#: çevrilirler. Modül seviyesinde duruyorlar ki hem üretim hem testler AYNI
-#: kaynaktan okusun.
 RECURRING_PERIOD_PROMPTS = {
     True: (
         "Bu ayki gelir hesaba eklensin mi?",
@@ -64,38 +59,24 @@ class TransactionMixin:
         ve isteğe bağlı "tekrarlanan ödeme" alanları (isim, sıklık, otomatik düş)."""
         from kivymd.uix.selectioncontrol import MDSwitch
 
-        # DÜZELTME (doğruluk hatası): "Gider" segmenti aşağıda İLK eklenen
-        # (satır ~86) ve KivyMD'nin kendi göstergesi bunu varsayılan olarak
-        # görsel açıdan aktif gösteriyor — ama MDSegmentedControl'ün kendi
-        # kaynağı (`on_press_segment`) `on_active`'i YALNIZCA gerçek bir
-        # dokunuşla tetikliyor, hiçbir varsayılan senkronizasyon yok.
-        # `self.selected_type` burada "income" olarak kalsaydı: kullanıcı
-        # "Gider" zaten seçili görünüyor diye sekmeye hiç dokunmadan tutarı
-        # girip kaydederse, işlem SESSİZCE gelir olarak kaydedilirdi —
-        # ekranda gördüğünün tam tersi. Python durumu, görsel varsayılanla
-        # (Gider) eşleşecek şekilde burada kuruluyor.
+
         self.selected_type = "expense"
         self.selected_category = _t("Kategori Seç")
         self.selected_frequency = "monthly"
 
-        # AŞAMALI GÖSTERİM: içerik artık sabit yükseklikli değil, adaptive.
-        # Abonelik alanları gizlenince kutu küçülür, açılınca büyür; diyalog
-        # kendini _toggle_recurring_fields içindeki update_height ile yeniden
-        # ölçer. spacing 15 -> 18: temel alanların çevresi biraz daha ferah.
+
         dialog_layout = MDBoxLayout(
             orientation="vertical", spacing=dp(18),
             size_hint_y=None, adaptive_height=True,
             padding=[dp(16), dp(4), dp(16), dp(4)],
         )
-        # filter="float" VERİLMEZ: maskeleme '.'yi binlik ayraç olarak ekliyor,
-        # Kivy'nin float filtresi ise onu ondalık nokta sayıp ikincisini
-        # reddediyor — ikisi birlikte çalışmaz. attach_amount_mask kendi
-        # filtresini kurar (yalnız rakam + tek ondalık ayraç).
+
+
         self.amount_input = attach_amount_mask(ftheme.make_text_field(
             _t("Miktar (₺)"), self.theme_cls,
             size_hint_y=None, height=dp(48),
         ))
-        
+
         from kivymd.uix.card import MDCard
         self.amount_card = MDCard(
             size_hint_y=None, height=dp(56),
@@ -105,19 +86,14 @@ class TransactionMixin:
         )
         self.amount_card.md_bg_color = self.theme_cls.bg_dark if self.theme_cls.theme_style == "Dark" else self.theme_cls.bg_light
         self.amount_card.add_widget(self.amount_input)
-        # DÜZELTME (Aşama 2, madde 1.6 — "ince çizgiye basmadıkça yazamıyorum"):
-        # MDCard'ın `on_release` olayı yok (ripple_behavior yalnız görsel
-        # efekt verir; ButtonBehavior'dan gelmez) — bind(on_release=...)
-        # sessizce hiç ateşlenmiyordu, dolayısıyla tıklanabilir alan asla
-        # MDTextField'ın kendi dar sınırlarının ÖTESİNE genişlemiyordu.
-        # bkz. ui/theme.py::bind_card_tap.
+
+
         ftheme.bind_card_tap(
             self.amount_card,
             lambda: setattr(self.amount_input, 'focus', True),
         )
 
-        # Segment ve butonlara açık yükseklik: adaptive konteynerde her çocuğun
-        # size_hint_y=None + net height olmalı, yoksa kutu doğru ölçülmez.
+
         self.type_segment = MDSegmentedControl(
             size_hint_x=1, size_hint_y=None, height="48dp",
             segment_color=self.theme_cls.primary_color,
@@ -131,11 +107,7 @@ class TransactionMixin:
             size_hint_y=None, height=dp(44), on_release=self.open_category_menu,
         )
 
-        # ── İşlem tarihi ────────────────────────────────────────────────────
-        # Varsayılan bugün; kullanıcı geçmiş (unutulmuş harcama) ya da gelecek
-        # (maaş/fatura günü) bir tarih seçebilir. Gelecek tarih seçilirse işlem
-        # bakiyeye HEMEN yansımaz, bekleyenler listesine düşer — bunu kullanıcı
-        # kaydetmeden önce bilmeli, o yüzden altta canlı bir ibare gösteriyoruz.
+
         import datetime as _datetime
         self.selected_transaction_date = _datetime.date.today()
         self.date_button = ftheme.secondary_button(
@@ -143,9 +115,8 @@ class TransactionMixin:
             size_hint_x=1, size_hint_y=None, height=dp(44),
             on_release=self.open_transaction_date_picker,
         )
-        # Boş MDLabel yer kaplamasın: yalnız gelecek tarihte açılır
-        # (height/opacity toggle — MDLabel bu deseni destekliyor, MDTextField
-        # ve MDSegmentedControl kendi yüksekliğini ezdiği için desteklemiyor).
+
+
         self.date_hint_label = MDLabel(
             text="",
             font_style="Caption",
@@ -164,10 +135,7 @@ class TransactionMixin:
         self._date_box.add_widget(self.date_button)
         self._date_box.add_widget(self.date_hint_label)
 
-        # Ödeme yöntemi: işlemin HANGİ hesaptan/karttan geçeceği.
-        # Buradan seçilen hesabın id'si add_transaction'a gider; kredi kartı
-        # seçilirse tutar aynı commit içinde karta borç olarak işlenir
-        # (database/db.py::adjust_account_balance işaret konvansiyonu).
+
         self.selected_account_id = None
         self.account_button = ftheme.primary_button(
             _t("Ödeme Yöntemi"), self.theme_cls,
@@ -176,23 +144,19 @@ class TransactionMixin:
         )
         self._load_payment_methods()
 
-        # Ödeme yöntemi butonunun HEMEN ALTINDAKİ dinamik alan: mini kart
-        # önizlemesi + (Gider+kredi kartında) taksit bloğu bu kutuda yaşar.
-        # Sabit bir konteyner kullanmak, dialog_layout'ta kırılgan index
-        # hesabı yapmadan ekleme/çıkarma sırasını garanti eder.
+
         self._below_payment_box = MDBoxLayout(
             orientation="vertical", size_hint_y=None, adaptive_height=True, spacing=dp(12),
         )
         self._mini_card_preview = MiniCardPreviewWidget()
         self._below_payment_box.add_widget(self._mini_card_preview)
 
-        # Tekrarlanan ödeme mi? (Kira, Netflix, Spotify vb. her ay tekrar eden giderler)
-        # Switch açılınca aşağıdaki abonelik alanları belirir.
+
         recurring_row = MDBoxLayout(
             orientation="horizontal", size_hint_y=None, height="44dp", spacing="12dp",
             padding=[0, 0, dp(24), 0],
         )
-        # Taksitli mod ile karşılıklı dışlama için self üzerinde tutulur.
+
         self._recurring_row = recurring_row
         self._recurring_label = MDLabel(
             text=_t("Tekrarlanan Ödeme mi?"), valign="center",
@@ -204,7 +168,7 @@ class TransactionMixin:
         recurring_row.add_widget(self._recurring_label)
         recurring_row.add_widget(self.recurring_switch)
 
-        # ── Aşamalı olarak açılan (varsayılan GİZLİ) abonelik alanları ──────────
+
         self.recurring_name_input = ftheme.make_text_field(
             _t("Ödeme Adı (örn: Netflix)"), self.theme_cls,
             size_hint_y=None, height=dp(48),
@@ -238,12 +202,7 @@ class TransactionMixin:
         auto_deduct_row.add_widget(self._auto_deduct_label)
         auto_deduct_row.add_widget(self.auto_deduct_switch)
 
-        # Abonelik alanları TEK bir wrapper'da toplanır. Gizleme = wrapper'ı
-        # ağaçtan çıkarmak. Neden height=0 DEĞİL: MDTextField ve
-        # MDSegmentedControl kendi yüksekliklerini içeriden hesaplayıp dışarıdan
-        # verilen height=0'ı EZİYOR (account_mixin'de de belgelenen davranış),
-        # o yüzden gizli kalmıyorlardı. Ağaçtan çıkarınca kesin gizlenir ve
-        # adaptive_height konteyner kendini küçültür.
+
         self._recurring_box = MDBoxLayout(
             orientation="vertical", size_hint_y=None, adaptive_height=True, spacing=dp(18),
         )
@@ -254,11 +213,7 @@ class TransactionMixin:
         self._recurring_visible = False
         self._update_recurring_copy()
 
-        # ── Taksit alanları (varsayılan GİZLİ) ─────────────────────────────────
-        # Yalnızca Gider + kredi kartı seçiliyken görünür (aşamalı gösterim,
-        # _recurring_box ile aynı remove/add deseni). 'Taksitli' seçilince
-        # 1-12 arası taksit sayısı seçici belirir; aylık tutar kayıtta
-        # toplam / taksit sayısı olarak hesaplanır (vade farkı uygulanmaz).
+
         self.selected_installments = 2
         self._installment_mode = "single"
         self._installment_visible = False
@@ -291,7 +246,7 @@ class TransactionMixin:
         )
         self._installment_box.add_widget(pay_type_lbl)
         self._installment_box.add_widget(self.installment_segment)
-        # _installment_count_box başta EKLENMEZ: Tek Çekim varsayılandır.
+
 
         dialog_layout.add_widget(self.amount_card)
         dialog_layout.add_widget(self.type_segment)
@@ -300,7 +255,7 @@ class TransactionMixin:
         dialog_layout.add_widget(self.account_button)
         dialog_layout.add_widget(self._below_payment_box)
         dialog_layout.add_widget(recurring_row)
-        # _recurring_box başta EKLENMEZ: ilk görünüm sade kalsın.
+
 
         from kivy.uix.scrollview import ScrollView
         from kivy.core.window import Window
@@ -322,7 +277,7 @@ class TransactionMixin:
             )]
         )
         self.dialog.open()
-        # Varsayılan seçili ödeme yöntemini mini kartta göster.
+
         self._update_mini_card_preview()
         self._rebuild_focus_chain()
 
@@ -350,11 +305,10 @@ class TransactionMixin:
 
         for index, field in enumerate(fields):
             field.write_tab = False
-            # Son alandan sonra başa dön: odak formdan dışarı kaçmasın.
+
             field.focus_next = fields[(index + 1) % len(fields)]
             field.focus_previous = fields[(index - 1) % len(fields)]
 
-    # ─── İşlem tarihi ────────────────────────────────────────────────────────
 
     def _transaction_date_label(self):
         """Tarih butonunun metni: bugün için 'Bugün', diğerlerinde ISO tarih."""
@@ -384,14 +338,12 @@ class TransactionMixin:
             initial = today
 
         def on_save(_picker, selected_date, _range):
-            # Savunma katmanı: seçici zaten geçmişi kapatıyor, ama tarih
-            # buraya başka bir yoldan gelirse sessizce geçmişe yazmayalım.
+
+
             self.selected_transaction_date = max(selected_date, today)
             self._refresh_transaction_date_ui()
 
-        # HistoryMixin'deki seçici, Kivy 2.3.1'in Python 3.14'te ihtiyaç duyduğu
-        # ast.Str yamasını ve TR/EN başlıkları zaten kuruyor; kopyalamak o yamayı
-        # iki yere dağıtırdı.
+
         self._open_date_picker(initial, on_save, min_date=today)
 
     def _refresh_transaction_date_ui(self):
@@ -416,13 +368,12 @@ class TransactionMixin:
             hint.height = dp(34)
             hint.opacity = 1
         else:
-            # Geçmiş/bugün: uyarıya gerek yok, satırı tamamen kapat.
+
             hint.text = ""
             hint.height = 0
             hint.opacity = 0
         self._reflow_dialog()
 
-    # ─── Aşamalı gösterim (progressive disclosure) ───────────────────────────
 
     def _toggle_recurring_fields(self, switch, active):
         """"Tekrarlanan Ödeme mi?" switch'iyle abonelik alanlarını aç/kapat.
@@ -441,8 +392,8 @@ class TransactionMixin:
             if self._recurring_box.parent is not None:
                 layout.remove_widget(self._recurring_box)
         self._recurring_visible = active
-        # Zincir görünürlükle birlikte yenilenir: gizli bir alana TAB ile
-        # geçilirse odak görünmeyen bir yere gider.
+
+
         self._rebuild_focus_chain()
         self._reflow_dialog()
         if active:
@@ -494,7 +445,6 @@ class TransactionMixin:
 
         Clock.schedule_once(_stage1, 0)
 
-    # ─── Taksit alanları (Gider + kredi kartı) ───────────────────────────────
 
     def _selected_payment_is_credit_card(self):
         acc = next(
@@ -519,7 +469,7 @@ class TransactionMixin:
         if should_show == self._installment_visible:
             return
         if should_show:
-            # Mini kart önizlemesinin hemen altına ekle (sabit konteyner).
+
             if box.parent is None:
                 container.add_widget(box)
         else:
@@ -535,7 +485,7 @@ class TransactionMixin:
         self._installment_mode = mode
         installment_on = mode == "installment"
 
-        # Taksit sayısı seçici (yalnızca Taksitli iken).
+
         if installment_on != self._installment_count_visible:
             if installment_on:
                 self._installment_box.add_widget(self._installment_count_box)
@@ -543,8 +493,7 @@ class TransactionMixin:
                 self._installment_box.remove_widget(self._installment_count_box)
             self._installment_count_visible = installment_on
 
-        # Taksitli seçiliyken 'Tekrarlanan Ödeme' switch'i (ve açıksa abonelik
-        # alanları) formdan tamamen kaldırılır; Tek Çekim'de geri eklenir.
+
         self._set_recurring_row_visible(not installment_on)
 
         self._reflow_dialog()
@@ -558,10 +507,10 @@ class TransactionMixin:
         layout = dialog.content_cls
         if visible:
             if row.parent is None:
-                layout.add_widget(row)  # en alta geri döner
+                layout.add_widget(row)
         else:
-            # Önce açık abonelik alanlarını kapat (switch sıfırlanınca
-            # _toggle_recurring_fields _recurring_box'ı çıkarır), sonra satırı çıkar.
+
+
             if self.recurring_switch.active:
                 self.recurring_switch.active = False
             if row.parent is not None:
@@ -646,7 +595,6 @@ class TransactionMixin:
                 else "Ödeme Adı (örn: Netflix)"
             )
 
-    # ─── Ödeme yöntemi (hesap / kart seçimi) ─────────────────────────────────
 
     def _load_payment_methods(self):
         """Kayıtlı hesapları/kartları okur ve varsayılan seçimi kurar.
@@ -729,8 +677,8 @@ class TransactionMixin:
         Gelir'de yalnızca vadesiz hesaplar, Gider'de hesaplar + kredi kartları.
         Gelir↔Gider geçişinde liste on_segment_active üzerinden yeniden doğrulanır.
         """
-        # Hesap ekleme/silme veya dışarıdan bakiye güncellemesi sonrasında
-        # bayat bir liste kullanılmasın. Mevcut seçim hâlâ geçerliyse koru.
+
+
         previous_account_id = self.selected_account_id
         try:
             from services.account_service import AccountService
@@ -767,9 +715,9 @@ class TransactionMixin:
         self.account_button.text = self._payment_label(acc)
         if close_menu and getattr(self, "account_menu", None):
             self.account_menu.dismiss()
-        # Kredi kartı seçilince 'Ödeme Tipi' (Tek Çekim/Taksitli) alanı belirir.
+
         self._update_installment_visibility()
-        # Seçilen kart/hesabın mini önizlemesini (ad, son 4 hane, limit/bakiye) tazele.
+
         self._update_mini_card_preview()
 
     def _update_mini_card_preview(self, *args):
@@ -824,7 +772,7 @@ class TransactionMixin:
         from kivy.uix.scrollview import ScrollView
         from kivymd.uix.list import MDList, OneLineListItem
 
-        # Kategoriler türe bağlı (gelir/gider); her açılışta güncel çekilir.
+
         self._all_categories = [str(c[1]) for c in CategoryService.get_categories(self.selected_type)]
 
         search_field = ftheme.make_text_field(
@@ -892,7 +840,7 @@ class TransactionMixin:
         from kivymd.uix.list import OneLineListItem
 
         if generation != self._category_populate_generation:
-            return  # bayat arama sonucu — kullanıcı yazmaya devam etti
+            return
         category_list = getattr(self, "_category_list", None)
         if category_list is None:
             return
@@ -911,7 +859,7 @@ class TransactionMixin:
         self.category_button.text = _t(text_item)
         self.selected_category = text_item
         self.on_category_select(text_item)
-        # Aranabilir kategori diyaloğunu kapat (eski dropdown ile de uyumlu).
+
         dlg = getattr(self, "category_dialog", None) or getattr(self, "category_menu", None)
         if dlg is not None:
             try:
@@ -935,12 +883,9 @@ class TransactionMixin:
         """
         if self.selected_category == _t("Kategori Seç"):
             toast(_t("Lütfen bir kategori seçin!"))
-            return 
-            
-        # read_amount, maskelemenin widget üzerinde tuttuğu KANONİK değeri okur.
-        # Doğrudan float(self.amount_input.text) çağırmak felaket olurdu:
-        # maskelenmiş "250.000" metnini float() 250.0 diye okur, yani 250 bin
-        # lira sessizce 250 liraya dönerdi.
+            return
+
+
         try:
             user_amount = read_amount(self.amount_input)
         except (ValueError, TypeError):
@@ -971,9 +916,7 @@ class TransactionMixin:
             self._ask_include_current_period()
             return
 
-        # Taksit: yalnızca görünür Taksitli seçimde ve 2+ taksitte plan yazılır
-        # (1 taksit fiilen tek çekimdir). Aylık tutar serviste toplam/ay olarak
-        # hesaplanır; açıklamaya taksit bilgisi eklenir ki ekstrede ayırt edilsin.
+
         use_installments = None
         if (self.selected_type == "expense"
                 and getattr(self, "_installment_visible", False)
@@ -985,14 +928,11 @@ class TransactionMixin:
         import datetime
         from kivy.clock import Clock
 
-        # Worker başladıktan sonra form yeniden açılır/değişirse self üzerindeki
-        # alanlar başka dialoga ait olabilir. DB işi ve başarı callback'i bu
-        # gönderime ait değişmez değerleri ve dialog örneğini kullanmalı.
+
         submitted_dialog = self.dialog
         submitted_account_id = self.selected_account_id
-        # Dialog açılırken zaten okunan snapshot'ı worker'a taşı. Her kayıt
-        # işleminde bütün hesapları yeniden sorgulayıp çözmek gereksiz DB ve
-        # şifreleme yükünün yanı sıra SQLite kilit rekabeti yaratıyordu.
+
+
         submitted_account = next(
             (account for account in getattr(self, "_payment_methods", [])
              if account["id"] == submitted_account_id),
@@ -1000,9 +940,8 @@ class TransactionMixin:
         )
         submitted_type = self.selected_type
         submitted_category = self.selected_category
-        # Seçilen tarih de gönderime ait değişmez bir değer: worker çalışırken
-        # kullanıcı formu yeniden açarsa self.selected_transaction_date başka
-        # bir diyaloga ait olabilir.
+
+
         submitted_date = getattr(self, "selected_transaction_date", None)
         if is_recurring and include_current_period:
             from services.recurring_service import initial_recurring_income_date
@@ -1014,7 +953,7 @@ class TransactionMixin:
         )
 
         if is_recurring:
-            # Aynı isimle ikinci aktif gelir/gider planı oluşturulmasın.
+
             from database.db import has_active_recurring_payment
             if has_active_recurring_payment(recurring_name):
                 toast(_t("Bu isimde aktif bir aboneliğiniz zaten var!"))
@@ -1027,26 +966,18 @@ class TransactionMixin:
                 submitted_dialog.dismiss()
             except AttributeError:
                 pass
-            # PERFORMANS (kullanıcı raporu: "her yeni işlem eklendiğinde aşırı
-            # kasıyor"): bu dört ağır tazeleme TEK Clock karesinde peş peşe
-            # çalışıyordu — dashboard metrikleri + grafikler, finansal tavsiye,
-            # tekrarlayan ödemeler ve Kartlarım listesinin tamamı. Hepsi aynı
-            # karede bittiği için kullanıcı her kayıtta gözle görülür bir donma
-            # yaşıyordu. Artık her iş KENDİ karesinde çalışıyor: Kivy aradaki
-            # karelerde girdi işleyip çizim yapabiliyor, tek kare bloklanmıyor.
-            # (Aynı "kareye yay" tekniği main.py::_add_categories_incrementally
-            # içinde zaten kullanılıyor.)
+
+
             jobs = [self.refresh_dashboard_data, self.generate_financial_advice]
             if is_recurring and hasattr(self, "load_upcoming_recurring"):
                 jobs.append(self.load_upcoming_recurring)
-            # Kartlarım listesini tazele: seçilen karta yazılan borç ve o kartın
-            # "Son Hareketler" listesi anında güncellensin.
+
+
             if hasattr(self, "render_accounts"):
                 jobs.append(self.render_accounts)
             self._run_refresh_jobs_across_frames(jobs)
-            # İleri tarihli işlem bakiyeye yansımadı; kullanıcı "kaydettim ama
-            # bakiyem değişmedi" diye tereddüt etmesin, mesaj bunu söylesin ve
-            # bekleyenler paneli anında güncellensin.
+
+
             if (
                 is_recurring
                 and include_current_period is False
@@ -1065,8 +996,7 @@ class TransactionMixin:
             else:
                 toast(_t("İşlem başarıyla eklendi!"))
 
-        # Kredi kartı limit aşımı gibi kullanıcıya anlamlı gelen hatalarda genel
-        # "bir hata oluştu" yerine gerçek sebebi göstermek için mesaj taşınır.
+
         error_message = {"text": "İşlem kaydedilirken bir hata oluştu!"}
 
         def error_callback(dt):
@@ -1075,7 +1005,7 @@ class TransactionMixin:
         def background_task():
             try:
                 from database.db import DEFAULT_ACCOUNT_ID
-                # Kullanıcının seçtiği hesap/kart; seçim yoksa eski davranış.
+
                 account_id = submitted_account_id or DEFAULT_ACCOUNT_ID
                 selected_account = submitted_account
                 if selected_account and is_read_only_asset_account(selected_account):
@@ -1085,15 +1015,13 @@ class TransactionMixin:
                 description = submitted_category
                 if use_installments:
                     description = f"{submitted_category} ({use_installments} Taksit)"
-                # Tarih seçilmediyse None geçilir ve servis "şu an"ı kullanır
-                # (eski davranış). Seçildiyse saat bileşeni EKLENİR: ui/charts.py
-                # zaman kovaları tam zaman damgası bekliyor, tarih-only bir satır
-                # tüm zaman grafiğini sessizce çizilmez hâle getiriyor.
+
+
                 submitted_timestamp = None
                 if submitted_date is not None:
                     if submitted_date == datetime.date.today():
-                        # Bugün için gerçek saati koru; gün içi sıralama ve
-                        # 'Bugün' filtresindeki saat kovaları buna dayanıyor.
+
+
                         submitted_timestamp = datetime.datetime.now().strftime(
                             "%Y-%m-%d %H:%M:%S")
                     else:
@@ -1112,11 +1040,11 @@ class TransactionMixin:
                         description=description,
                         transaction_date=submitted_timestamp,
                         installments=use_installments,
-                        # Plan kaydını aşağıdaki akış yazar; interceptor aynı
-                        # aboneliği ikinci kez oluşturmamalı.
+
+
                         detect_subscription=not is_recurring,
                     )
-                    # Başarı callback'i yalnız RAM snapshot'ından çiziyor.
+
                     from services.asset_service import (
                         refresh_account_cache_snapshot,
                     )
@@ -1138,8 +1066,8 @@ class TransactionMixin:
                     )
                 Clock.schedule_once(success_callback, 0)
             except ValueError as e:
-                # add_transaction doğrulama hatalarını (limit aşımı) ValueError
-                # olarak fırlatır; metni doğrudan kullanıcıya gösterilebilir.
+
+
                 error_message["text"] = str(e)
                 Clock.schedule_once(error_callback, 0)
             except Exception:
@@ -1203,10 +1131,8 @@ class TransactionMixin:
 
         def _load(dt):
             self._assets_tab_load_ev = None
-            # refresh_dashboard_data zaten grafikleri, metrikleri ve son işlem
-            # listesini TEK yoldan tazeler. Eskiden burada chart_master_box
-            # ayrıca doğrudan çağrılıyordu; her sekme girişinde grafikler iki
-            # kez kurulup animasyon/yerleşim spam'i yaratıyordu.
+
+
             try:
                 self.refresh_dashboard_data(reuse_if_fresh=True)
             except Exception:
@@ -1237,14 +1163,8 @@ class TransactionMixin:
             try:
                 jobs[index]()
             except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
-                # Sunum katmanının gerçekçi hata kümesi: eksik/yeniden kurulmuş
-                # widget (AttributeError/KeyError), Kivy yaşam döngüsü
-                # (RuntimeError) ve veri biçimi (TypeError/ValueError). Kasıtlı
-                # olarak DAR: buradaki amaç hataları yutmak değil, zaten
-                # commit edilmiş bir kaydın ardından gelen bir çizim hatasının
-                # kalan tazelemeleri iptal etmesini önlemek. Gerçek bir
-                # programlama hatası (ör. ImportError) yukarı çıkmalı.
-                # Aynı gerekçe ve aynı küme asset_mixin::_run_asset_refresh'te.
+
+
                 from utils.logging_config import get_logger
                 get_logger().exception("İşlem sonrası tazeleme başarısız")
             Clock.schedule_once(lambda _dt: run_next(index + 1), 0)
@@ -1252,8 +1172,6 @@ class TransactionMixin:
         run_next(0)
 
     def load_recent_transactions(self, list_filter=None):
-        # Bu metodun adı yalnız işlem listesini vaat ediyor. Eskiden tüm
-        # dashboard'u çağırdığı için `safe_refresh_charts()` ile peş peşe
-        # kullanıldığı her yerde grafik/metric/insight worker'ları iki kez
-        # başlıyordu.
+
+
         self._refresh_recent_transactions(list_filter)

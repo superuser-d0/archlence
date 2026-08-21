@@ -62,7 +62,7 @@ _TX_INSERT = (
     "VALUES (?, ?, ?, ?, ?, ?)"
 )
 
-#: Üç hatanın ortak yüzeyi — hepsi aynı sözleşmeyi taşımalı.
+
 SURFACES = (
     ("kurtarma", RECOVERY_FAILURE_TITLE, RECOVERY_USER_MESSAGE),
     ("şema kuşağı", SCHEMA_TOO_NEW_TITLE, SCHEMA_TOO_NEW_MESSAGE),
@@ -252,10 +252,8 @@ class BuildReturnsSafeRootTest(unittest.TestCase):
             try:
                 root = main.ArchlenceApp.build(app)
             except AttributeError:
-                # SAĞLIKLI YOL bu iskelet nesnede `theme_cls`e kadar
-                # ilerliyor ve orada duruyor; hata yolları çok daha önce
-                # dönüyor. Kontrollü duruş, "hata yüzeyine hiç girilmedi"
-                # kanıtının kendisi.
+
+
                 root = None
         return app, root, loaded, scheduled
 
@@ -313,9 +311,8 @@ class BuildReturnsSafeRootTest(unittest.TestCase):
         import main
 
         app, root, loaded, scheduled = self._build()
-        # Sağlıklı profilde hata yüzeyine hiç girilmemeli: bayrak kurulmaz,
-        # root döndürülmez, mesaj ertelenmez — ve savings migration ile hedef
-        # yüklemesi NORMAL biçimde çalışır.
+
+
         self.assertIsNone(getattr(app, "_startup_recovery_failure", None))
         self.assertIsNone(root, "sağlıklı açılışta hata root'u döndürüldü")
         self.assertEqual(scheduled, [])
@@ -326,7 +323,7 @@ class BuildReturnsSafeRootTest(unittest.TestCase):
 class OnStartIsInertAfterFailureTest(unittest.TestCase):
     """Kivy `_run_prepare` `build()`'den HEMEN SONRA `on_start` dispatch ediyor."""
 
-    #: `on_start`'ın hata yüzeyi etkinken ÇAĞIRMAMASI gereken adımlar.
+
     FORBIDDEN_STEPS = (
         "_normalize_card_shadows", "purge_logs", "vacuum_database",
         "write_daily_balance_snapshot", "setup_dynamic_months",
